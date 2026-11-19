@@ -29,7 +29,6 @@ use crate::models::{
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 
 const PROVIDER_ID: &str = "US_TREASURY_CALC";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Standard US Treasury face value.
 const US_TREASURY_FACE_VALUE: f64 = 1000.0;
@@ -126,8 +125,7 @@ impl Default for UsTreasuryCalcProvider {
 
 impl UsTreasuryCalcProvider {
     pub fn new() -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 
@@ -186,7 +184,9 @@ impl UsTreasuryCalcProvider {
         let resp = self
             .client
             .get(&url)
-            .timeout(REQUEST_TIMEOUT)
+            .timeout(Duration::from_millis(
+                wealthfolio_http::timeouts::policy().provider.request_ms,
+            ))
             .send()
             .await
             .map_err(|_| treasury_details_error("Treasury details request failed"))?

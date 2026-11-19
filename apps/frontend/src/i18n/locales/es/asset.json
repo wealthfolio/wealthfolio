@@ -269,6 +269,7 @@
     "select_type": "Seleccionar tipo",
     "exchange": "Mercado",
     "select_exchange": "Seleccionar mercado",
+    "no_exchange": "Sin mercado",
     "search_exchanges": "Buscar mercados...",
     "contract_multiplier": "Multiplicador del contrato",
     "contract_multiplier_hint": "Cada contrato representa esta cantidad de unidades subyacentes. Déjalo vacío para usar el valor estándar {{default}}.",

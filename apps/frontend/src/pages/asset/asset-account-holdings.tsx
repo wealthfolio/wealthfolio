@@ -43,6 +43,7 @@ import {
 import type { TFunction } from "i18next";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { isHoldingsScopeReady } from "@/lib/holdings-scope";
 
 interface AssetAccountHoldingsProps {
   assetId: string;
@@ -103,7 +104,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
 
   const notice = (
     <HoldingsScopeNotice
-      isComplete={!!scope && scope.incompleteAccounts.length === 0 && !isError}
+      isComplete={!!scope && isHoldingsScopeReady(scope.incompleteAccounts) && !isError}
       isLoading={isLoading}
       isError={isError}
       incompleteAccounts={scope?.incompleteAccounts}

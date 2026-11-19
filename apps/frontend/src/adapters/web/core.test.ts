@@ -2,10 +2,35 @@ import { Buffer } from "node:buffer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { invoke, toBase64 } from "./core";
 import { installProfileSession } from "@/features/profiles/session";
+import { assetPreviewError } from "@/pages/activity/import/utils/asset-preview-error";
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+it.each([
+  [408, "timeout"],
+  [504, "timeout"],
+  [413, "too_large"],
+])("keeps HTTP %s useful when the response is empty or non-JSON", async (status, kind) => {
+  installProfileSession({ profileId: "test", scopeId: "scope-test" });
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response("<html>private proxy diagnostic</html>", { status })),
+  );
+  const error = await invoke("preview_import_assets", { candidates: [] }).catch((error) => error);
+  expect(assetPreviewError(error)).toEqual({ kind, httpStatus: status });
+  expect(String(error)).not.toContain("private proxy");
+});
+
+it("distinguishes an asset-preview connection failure from backend errors", async () => {
+  installProfileSession({ profileId: "test", scopeId: "scope-test" });
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("private network diagnostic")));
+  const error = await invoke("preview_import_assets", { candidates: [] }).catch((error) => error);
+  expect(assetPreviewError(error)).toEqual({ kind: "network" });
+  expect(String(error)).not.toContain("private network");
 });
 
 it.each(["BACKUP_REAUTHENTICATION_REQUIRED", "BACKUP_MANUAL_LIMIT"])(

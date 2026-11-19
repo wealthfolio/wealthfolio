@@ -566,8 +566,14 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "get_asset_holdings": {
-      const p = payload as { assetId: string };
-      url += `?assetId=${encodeURIComponent(p.assetId)}`;
+      const p = payload as { assetId: string; filter?: unknown };
+      if (p.filter) {
+        url = `${API_PREFIX}/holdings/by-asset/query`;
+        method = "POST";
+        body = JSON.stringify({ assetId: p.assetId, filter: p.filter });
+      } else {
+        url += `?assetId=${encodeURIComponent(p.assetId)}`;
+      }
       break;
     }
     case "get_asset_lots": {
@@ -2265,6 +2271,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     body,
     credentials: "same-origin",
     signal: AbortSignal.timeout(invokeTimeoutMs(command)),
+  }).catch((error: unknown) => {
+    if (command === "preview_import_assets" && error instanceof TypeError) {
+      throw new DOMException("Could not reach the application server.", "NetworkError");
+    }
+    throw error;
   });
 
   // 401 = app auth failure (JWT expired/invalid). Cloud auth failures return 403.
@@ -2293,6 +2304,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     // The server's 408 timeout leaves owned reset tasks running; 5xx responses
     // can also follow a committed reset whose completion failed.
     throw Object.assign(publicError, {
+      httpStatus: res.status,
       outcomeUnknown: res.status === 408 || res.status >= 500,
     });
   }

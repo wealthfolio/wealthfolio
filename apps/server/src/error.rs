@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::error::Error as StdError;
 use thiserror::Error;
 use wealthfolio_ai::ProviderApiError;
+use wealthfolio_core::activities::ActivityError;
 use wealthfolio_core::errors::{DatabaseError, Error as CoreError, PublicError};
 use wealthfolio_core::profiles::ProfileError;
 
@@ -121,11 +122,19 @@ impl IntoResponse for ApiError {
         };
         let status = match &self {
             ApiError::Core(e) => match e {
+                CoreError::SecretTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+                CoreError::SecretStoreUnavailable => StatusCode::SERVICE_UNAVAILABLE,
                 CoreError::ConstraintViolation(_)
                 | CoreError::Database(
                     DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
                 ) => StatusCode::CONFLICT,
+                // A duplicate is an expected refusal, not a server fault.
+                CoreError::Activity(ActivityError::Duplicate { .. }) => StatusCode::CONFLICT,
                 CoreError::Database(DatabaseError::NotFound(_)) => StatusCode::NOT_FOUND,
+                // A rebuild in progress clears on its own, so the client can retry.
+                CoreError::HoldingsPending(_) => StatusCode::SERVICE_UNAVAILABLE,
+                // Missing valuation inputs stay until the account data changes.
+                CoreError::HoldingsUnavailable(_) => StatusCode::CONFLICT,
                 // Any other database error is a failure on the server, not in the request.
                 CoreError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 _ => StatusCode::BAD_REQUEST,
@@ -229,6 +238,16 @@ mod tests {
     #[tokio::test]
     async fn response_bodies_do_not_expose_internal_error_text() {
         let cases = [
+            (
+                ApiError::Core(CoreError::SecretTooLarge),
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "SECRET_TOO_LARGE",
+            ),
+            (
+                ApiError::Core(CoreError::SecretStoreUnavailable),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "SECRET_STORE_UNAVAILABLE",
+            ),
             (
                 ApiError::Core(CoreError::Database(DatabaseError::QueryFailed(
                     PRIVATE.into(),
@@ -441,6 +460,102 @@ mod tests {
         assert!(logged.contains("secret_store"));
         for private in PRIVATE.split_whitespace() {
             assert!(!logged.contains(private));
+        }
+    }
+
+    #[test]
+    fn a_duplicate_activity_is_a_conflict_without_an_api_error_log() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct Capture(Arc<Mutex<Vec<u8>>>);
+        impl Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().write(bytes)
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let output = Capture(Arc::new(Mutex::new(Vec::new())));
+        let writer = output.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let response = tracing::subscriber::with_default(subscriber, || {
+            ApiError::Core(CoreError::Activity(ActivityError::Duplicate {
+                existing_activity_id: Some("FAKE-KEY-2531".into()),
+            }))
+            .into_response()
+        });
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap()
+            .block_on(axum::body::to_bytes(response.into_body(), 4096))
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["errorCode"], "DUPLICATE_ACTIVITY");
+        assert_eq!(json["code"], 409);
+        assert!(!String::from_utf8_lossy(&body).contains("FAKE-KEY"));
+        let logged = String::from_utf8(output.0.lock().unwrap().clone()).unwrap();
+        assert!(!logged.contains("API_ERROR"), "{logged}");
+    }
+
+    #[test]
+    fn incomplete_holdings_are_retryable_states_without_an_api_error_log() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct Capture(Arc<Mutex<Vec<u8>>>);
+        impl Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().write(bytes)
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        for (error, status, code) in [
+            (
+                CoreError::HoldingsPending(vec!["FAKE-ACCOUNT-2700".into()]),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "HOLDINGS_PENDING",
+            ),
+            (
+                CoreError::HoldingsUnavailable("FAKE-ACCOUNT-2700".into()),
+                StatusCode::CONFLICT,
+                "HOLDINGS_UNAVAILABLE",
+            ),
+        ] {
+            let output = Capture(Arc::new(Mutex::new(Vec::new())));
+            let writer = output.clone();
+            let subscriber = tracing_subscriber::fmt()
+                .without_time()
+                .with_ansi(false)
+                .with_writer(move || writer.clone())
+                .finish();
+            let response = tracing::subscriber::with_default(subscriber, || {
+                ApiError::Core(error).into_response()
+            });
+            assert_eq!(response.status(), status);
+            let body = tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap()
+                .block_on(axum::body::to_bytes(response.into_body(), 4096))
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(json["errorCode"], code);
+            assert_eq!(json["code"], status.as_u16());
+            assert!(!String::from_utf8_lossy(&body).contains("FAKE-ACCOUNT"));
+            let logged = String::from_utf8(output.0.lock().unwrap().clone()).unwrap();
+            assert!(!logged.contains("API_ERROR"), "{logged}");
         }
     }
 

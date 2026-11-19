@@ -245,6 +245,21 @@ fn should_skip_for_error_limit(mode: SyncMode, targeted_sync: bool, error_count:
         && error_count >= MAX_SYNC_ERRORS
 }
 
+// Keep retrying the initial FX history request until it succeeds. The normal
+// sync error cutoff still applies, and explicit refetch windows stay unchanged.
+fn sync_mode_for_asset(mode: SyncMode, asset: &Asset, state: Option<&QuoteSyncState>) -> SyncMode {
+    if matches!(mode, SyncMode::Incremental)
+        && asset.kind == AssetKind::Fx
+        && state.is_none_or(|state| state.last_synced_at.is_none())
+    {
+        SyncMode::BackfillHistory {
+            days: DEFAULT_HISTORY_DAYS,
+        }
+    } else {
+        mode
+    }
+}
+
 fn min_optional_date(left: Option<NaiveDate>, right: Option<NaiveDate>) -> Option<NaiveDate> {
     match (left, right) {
         (Some(left), Some(right)) => Some(left.min(right)),
@@ -955,12 +970,33 @@ where
         }
     }
 
+    async fn record_sync_success(&self, asset: &Asset, mode: SyncMode) -> Result<()> {
+        if asset.kind == AssetKind::Fx && matches!(mode, SyncMode::RefetchRecent { .. }) {
+            if let Some(mut state) = self.sync_state_store.get_by_asset_id(&asset.id)? {
+                if state.last_synced_at.is_none() {
+                    // Recent quotes do not complete the initial history request.
+                    // Clear failures while leaving the existing retry marker unset.
+                    state.error_count = 0;
+                    state.last_error = None;
+                    state.updated_at = Utc::now();
+                    return self.sync_state_store.upsert(&state).await.map(|_| ());
+                }
+            }
+        }
+        self.sync_state_store.update_after_sync(&asset.id).await
+    }
+
     /// Sync a single asset according to its sync plan.
     ///
     /// Uses per-asset locking (US-012) to prevent duplicate sync work when multiple
     /// sync triggers occur for the same asset. If a sync is already in progress for
     /// this asset, the call is skipped (not blocked) to keep the system responsive.
-    async fn sync_asset(&self, asset: &Asset, plan: &SymbolSyncPlan) -> AssetSyncResult {
+    async fn sync_asset(
+        &self,
+        asset: &Asset,
+        plan: &SymbolSyncPlan,
+        mode: SyncMode,
+    ) -> AssetSyncResult {
         let asset_id_str = &asset.id;
         let asset_id = AssetId::new(asset_id_str);
 
@@ -1034,8 +1070,7 @@ where
                             //     .await;
 
                             // Update sync state after a successful sync attempt.
-                            if let Err(e) = self.sync_state_store.update_after_sync(&asset.id).await
-                            {
+                            if let Err(e) = self.record_sync_success(asset, mode).await {
                                 warn!("Failed to update sync state for {}: {:?}", asset.id, e);
                             }
 
@@ -1125,8 +1160,7 @@ where
                     &error,
                     plan.suppress_closed_fetch_errors,
                 ) {
-                    if let Err(state_err) = self.sync_state_store.update_after_sync(&asset.id).await
-                    {
+                    if let Err(state_err) = self.record_sync_success(asset, mode).await {
                         warn!(
                             "Failed to update sync state for {}: {:?}",
                             asset.id, state_err
@@ -1175,6 +1209,7 @@ where
     fn execute_sync_plans(
         &self,
         plans: Vec<SymbolSyncPlan>,
+        mode: SyncMode,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SyncResult> + Send + '_>> {
         Box::pin(async move {
             if plans.is_empty() {
@@ -1206,7 +1241,7 @@ where
                     let asset = asset_map.get(&plan.asset_id).cloned();
                     async move {
                         if let Some(asset) = asset {
-                            self.sync_asset(&asset, &plan).await
+                            self.sync_asset(&asset, &plan, mode).await
                         } else {
                             warn!("Asset not found for asset_id: {}", plan.asset_id);
                             AssetSyncResult {
@@ -1366,7 +1401,11 @@ where
                 continue;
             }
 
-            if matches!(category, SyncCategory::NeedsBackfill) && inputs.is_active {
+            let mode = sync_mode_for_asset(SyncMode::Incremental, asset, Some(&state));
+            if matches!(mode, SyncMode::Incremental)
+                && matches!(category, SyncCategory::NeedsBackfill)
+                && inputs.is_active
+            {
                 if let Some((start_date, end_date)) =
                     calculate_sync_window(&category, &inputs, effective_today)
                 {
@@ -1416,9 +1455,18 @@ where
             }
 
             // Use the new calculate_sync_window function
-            let Some((start_date, end_date)) =
+            let window = if matches!(mode, SyncMode::BackfillHistory { .. }) {
+                Some(self.calculate_date_range_for_mode(
+                    &inputs,
+                    mode,
+                    effective_today,
+                    fetch_end_date,
+                    asset,
+                ))
+            } else {
                 calculate_sync_window(&category, &inputs, effective_today)
-            else {
+            };
+            let Some((start_date, end_date)) = window else {
                 continue;
             };
 
@@ -1617,6 +1665,8 @@ where
                 }
             }
 
+            let planning_mode = sync_mode_for_asset(mode, asset, state.as_ref());
+
             // Build SyncPlanningInputs from computed bounds
             let (activity_min, activity_max) = merge_bounds(
                 activity_bounds.get(&asset.id).copied(),
@@ -1666,7 +1716,7 @@ where
                 }
             }
 
-            if matches!(mode, SyncMode::Incremental)
+            if matches!(planning_mode, SyncMode::Incremental)
                 && matches!(category, SyncCategory::NeedsBackfill)
                 && planning_inputs.is_active
             {
@@ -1724,7 +1774,7 @@ where
             } else {
                 self.calculate_date_range_for_mode(
                     &planning_inputs,
-                    mode,
+                    planning_mode,
                     effective_today,
                     fetch_end_date,
                     asset,
@@ -1778,7 +1828,7 @@ where
         );
 
         // Execute sync and merge with skipped results
-        let mut exec_result = self.execute_sync_plans(plans).await;
+        let mut exec_result = self.execute_sync_plans(plans, mode).await;
         exec_result.skipped += result.skipped;
         exec_result.skipped_reasons.extend(result.skipped_reasons);
         Ok(exec_result)
@@ -1897,6 +1947,58 @@ where
 mod tests {
     use super::*;
     use crate::quotes::sync_state::MarketSyncMode;
+
+    #[test]
+    fn initial_fx_history_is_retried_until_first_success() {
+        let asset = Asset {
+            kind: AssetKind::Fx,
+            ..Default::default()
+        };
+        let mut state = QuoteSyncState::new("FX:COP/USD".into(), DATA_SOURCE_YAHOO.into());
+        let backfill = SyncMode::BackfillHistory {
+            days: DEFAULT_HISTORY_DAYS,
+        };
+        assert_eq!(
+            sync_mode_for_asset(SyncMode::Incremental, &asset, None),
+            backfill
+        );
+        state.mark_sync_failed("offline".into());
+        assert_eq!(
+            sync_mode_for_asset(SyncMode::Incremental, &asset, Some(&state)),
+            backfill
+        );
+        state.mark_synced();
+        assert_eq!(
+            sync_mode_for_asset(SyncMode::Incremental, &asset, Some(&state)),
+            SyncMode::Incremental
+        );
+    }
+
+    #[test]
+    fn initial_fx_history_preserves_explicit_windows_and_error_cutoff() {
+        let asset = Asset {
+            kind: AssetKind::Fx,
+            ..Default::default()
+        };
+        let mut state = QuoteSyncState::new("FX:COP/USD".into(), DATA_SOURCE_YAHOO.into());
+        state.error_count = MAX_SYNC_ERRORS;
+        // The caller applies this cutoff before selecting the asset's planning mode.
+        assert!(should_skip_for_error_limit(
+            SyncMode::Incremental,
+            false,
+            state.error_count
+        ));
+        let recent = SyncMode::RefetchRecent { days: 7 };
+        assert_eq!(sync_mode_for_asset(recent, &asset, Some(&state)), recent);
+        let investment = Asset {
+            kind: AssetKind::Investment,
+            ..Default::default()
+        };
+        assert_eq!(
+            sync_mode_for_asset(SyncMode::Incremental, &investment, None),
+            SyncMode::Incremental
+        );
+    }
 
     #[test]
     fn test_clamp_end_date_for_fetch_extends_active_category() {

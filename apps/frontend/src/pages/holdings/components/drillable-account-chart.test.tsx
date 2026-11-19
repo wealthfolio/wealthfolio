@@ -2,6 +2,7 @@ import type { Account, AccountValueSource } from "@/lib/types";
 import { fireEvent, render, screen } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { DrillableAccountChart } from "./drillable-account-chart";
 
@@ -48,7 +49,9 @@ const VALUATIONS: AccountValueSource[] = [
 function renderChart() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    </MemoryRouter>
   );
   return render(
     <DrillableAccountChart accountIds={["a1", "a2", "b1"]} accountValuations={VALUATIONS} />,
@@ -57,6 +60,50 @@ function renderChart() {
 }
 
 describe("DrillableAccountChart", () => {
+  it.each([
+    ["a wholly unavailable account", [{ accountId: "a1", totalValueBase: 0 }]],
+    [
+      "an unavailable account alongside a valued account",
+      [
+        { accountId: "a1", totalValueBase: 100 },
+        { accountId: "a2", totalValueBase: 0 },
+      ],
+    ],
+    [
+      "a partially valued account",
+      [
+        { accountId: "a1", totalValueBase: 100 },
+        { accountId: "a2", totalValueBase: 25 },
+      ],
+    ],
+  ] as const)("withholds allocation for %s and restores it after recovery", async (_, values) => {
+    const { rerender } = renderChart();
+    await screen.findByRole("button", { name: "Taxable" });
+
+    rerender(
+      <DrillableAccountChart
+        accountIds={["a1", "a2"]}
+        accountValuations={[...values]}
+        isUnavailable
+      />,
+    );
+
+    expect(screen.getByText("performance:not_available")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "common:component.open_health_center_for" }),
+    ).toHaveAttribute("href", "/health");
+    expect(screen.queryByRole("button", { name: "Taxable" })).toBeNull();
+    expect(screen.queryByText("holdings:no_account_data")).toBeNull();
+
+    rerender(<DrillableAccountChart accountIds={["a1", "a2"]} accountValuations={VALUATIONS} />);
+
+    expect(screen.queryByText("performance:not_available")).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "common:component.open_health_center_for" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Taxable" })).toBeTruthy();
+  });
+
   it("drills into a group with several accounts", async () => {
     renderChart();
     fireEvent.click(await screen.findByRole("button", { name: "Taxable" }));

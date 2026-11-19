@@ -14,7 +14,7 @@ use wealthfolio_core::assets::{
     CreateAlternativeAssetRequest,
 };
 use wealthfolio_core::fx::{FxService, FxServiceTrait, NewExchangeRate};
-use wealthfolio_core::quotes::QuoteService;
+use wealthfolio_core::quotes::{QuoteService, QuoteServiceTrait, SyncMode};
 use wealthfolio_core::secrets::SecretStore;
 use wealthfolio_core::Result;
 use wealthfolio_storage_sqlite::{
@@ -96,7 +96,7 @@ async fn a_non_base_liability_registers_its_fx_pair_and_converts() {
             writer.clone(),
         )),
         assets.clone(),
-        quotes,
+        quotes.clone(),
     )
     .with_fx_registration(fx.clone(), Arc::new(RwLock::new("USD".to_string())));
 
@@ -146,4 +146,45 @@ async fn a_non_base_liability_registers_its_fx_pair_and_converts() {
         .await
         .unwrap();
     assert_eq!(fx_pairs().len(), 1);
+    // Unsupported crosses use stored USD legs. Registering/backfilling them
+    // must still respect disabled providers; the secret store rejects access.
+    fx.register_currency_pair("COP", "AED").await.unwrap();
+    let legs = fx
+        .ensure_pivot_fx_pairs(vec![("COP".into(), "AED".into())], "USD")
+        .await
+        .unwrap();
+    assert_eq!(
+        legs,
+        vec![("COP".into(), "USD".into()), ("USD".into(), "AED".into())]
+    );
+    assert_eq!(fx_pairs().len(), 4);
+    quotes
+        .sync(SyncMode::BackfillHistory { days: 30 }, None)
+        .await
+        .unwrap();
+    assert!(fx.get_latest_exchange_rate("COP", "AED").is_err());
+    for (from, to, rate) in [
+        ("COP", "USD", Decimal::new(25, 5)),
+        ("USD", "AED", Decimal::from(4)),
+    ] {
+        fx.add_exchange_rate(NewExchangeRate {
+            from_currency: from.into(),
+            to_currency: to.into(),
+            rate,
+            source: "MANUAL".into(),
+        })
+        .await
+        .unwrap();
+    }
+    assert_eq!(
+        fx.convert_currency(Decimal::from(250000), "COP", "AED")
+            .unwrap(),
+        Decimal::from(250)
+    );
+    assert!(fx
+        .ensure_pivot_fx_pairs(vec![("COP".into(), "AED".into())], "USD")
+        .await
+        .unwrap()
+        .is_empty());
+    assert_eq!(fx_pairs().len(), 4);
 }

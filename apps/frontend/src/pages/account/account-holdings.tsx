@@ -318,9 +318,9 @@ const AccountHoldings = ({
           isLoading={isLoading}
           selectedTypes={selectedTypes}
           setSelectedTypes={setSelectedTypes}
-          accountFilter={{ type: "account", accountId: selectedAccount?.id ?? "" }}
+          accountFilter={{ type: "account", accountId }}
           onAccountScopeChange={() => undefined}
-          accounts={[]}
+          accounts={accounts}
           portfolios={[]}
           showAccountScope={false}
           typeOptions={typeOptions}
@@ -332,6 +332,8 @@ const AccountHoldings = ({
       ) : (
         <HoldingsTable
           holdings={filteredHoldings ?? []}
+          accountFilter={{ type: "account", accountId }}
+          accounts={accounts}
           isLoading={isLoading}
           visibilityFilters={effectiveVisibilityFilters}
           setVisibilityFilters={handleVisibilityFiltersChange}

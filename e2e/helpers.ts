@@ -1,6 +1,12 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-export const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
+// `pnpm test:e2e` starts one server per Playwright worker and lists them in
+// WF_E2E_WORKER_URLS; a worker uses the one at its parallel index.
+const workerUrls = process.env.WF_E2E_WORKER_URLS?.split(",").filter(Boolean) ?? [];
+export const BASE_URL =
+  process.env.WF_E2E_BASE_URL ||
+  workerUrls[Number(process.env.TEST_PARALLEL_INDEX ?? 0)] ||
+  "http://localhost:1420";
 export const TEST_PASSWORD = "password001";
 
 const ACTIVITY_TYPE_TEST_IDS: Record<string, string> = {
@@ -156,6 +162,36 @@ async function waitForLoginOnboardingOrApp(page: Page, timeout: number) {
       { timeout },
     )
     .not.toBe("loading");
+}
+
+// Every app load asks for a portfolio update; when it finishes, the app
+// refetches what is on screen. A spec that measures layout or clicks while that
+// lands can flake, so it can count the updates the page has seen finish
+// (`trackPortfolioUpdates` before loading) and wait for the next one.
+export async function trackPortfolioUpdates(page: Page) {
+  await page.addInitScript(() => {
+    const NativeEventSource = window.EventSource;
+    const state = window as unknown as { __wfPortfolioUpdates: number };
+    state.__wfPortfolioUpdates = 0;
+    window.EventSource = class extends NativeEventSource {
+      constructor(url: string | URL, init?: EventSourceInit) {
+        super(url, init);
+        this.addEventListener("portfolio:update-complete", () => {
+          state.__wfPortfolioUpdates += 1;
+        });
+      }
+    };
+  });
+}
+
+export async function waitForPortfolioUpdates(page: Page, count = 1, timeout = 60_000) {
+  await page.waitForFunction(
+    (expected) =>
+      ((window as unknown as { __wfPortfolioUpdates?: number }).__wfPortfolioUpdates ?? 0) >=
+      expected,
+    count,
+    { timeout },
+  );
 }
 
 export async function gotoAppPath(page: Page, path: string) {

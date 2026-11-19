@@ -503,7 +503,8 @@ export function useActivityForm({
         if (isActivityEditCancelled(err)) return;
         const message = extractErrorMessage(err);
         toast.error(i18n.t("activity:mobile_form.save_failed"), { description: message });
-        logger.error(`Activity Form Submit Error: ${JSON.stringify({ error: err, formData })}`);
+        // The form values are the user's financial data; keep them out of the log.
+        logger.error(`Activity Form Submit Error (${selectedType}): ${message}`);
       }
     },
     [

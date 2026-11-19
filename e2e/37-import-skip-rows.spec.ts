@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 // Issue #2262: a row whose symbol can't be mapped kept the import at Mapping, even when that

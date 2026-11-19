@@ -193,6 +193,12 @@
       "title_other": "Les taux de change ne concordent pas pour {{count}} paires de devises",
       "title_many": "Les taux de change ne concordent pas pour {{count}} paires de devises",
       "message": "Des taux sont enregistrés dans les deux sens pour les mêmes jours et ne correspondent pas. Chaque sens est utilisé tel qu'enregistré, donc une conversion aller-retour donne un montant différent. Corrigez ou supprimez les taux erronés."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "Expiration d’option non associée à son contrat",
+      "title_other": "{{count}} expirations d’options non associées à leurs contrats",
+      "title_many": "{{count}} expirations d’options non associées à leurs contrats",
+      "message": "Ces expirations d’options portent sur l’action sous-jacente au lieu du contrat d’option : le contrat reste ouvert et son gain ou sa perte n’est pas enregistré. Associez chaque expiration au contrat arrivé à expiration."
     }
   },
   "page": {
@@ -234,7 +240,8 @@
     "update_cost_basis": "Mettre à jour le prix de revient",
     "update_value": "Actualiser la valeur",
     "review_transaction": "Vérifier la transaction",
-    "review_entry": "Examiner l’entrée"
+    "review_entry": "Examiner l’entrée",
+    "match_option_expiry_contracts": "Utiliser les contrats trouvés"
   },
   "updatedAt": "Mis à jour à {{time}}",
   "healthy": {
@@ -327,6 +334,7 @@
     "return_of_capital_amount_required": "Saisissez un montant pour ce remboursement de capital.",
     "sell_without_position": "Aucune position sur {{asset}} ne peut être vendue. Seul l’effet sur les liquidités a été appliqué.",
     "insufficient_quantity": "Cette opération retire {{requested}} unités de {{asset}}, mais seules {{held}} étaient détenues. Les {{excess}} unités restantes n’ont pas de prix de revient.",
-    "missing_final_cash": "Cette opération comptabilisée n’a pas de montant final en espèces et n’a donc pas modifié le solde de trésorerie."
+    "missing_final_cash": "Cette opération comptabilisée n’a pas de montant final en espèces et n’a donc pas modifié le solde de trésorerie.",
+    "option_expiry_not_option": "Cette expiration d’option porte sur {{asset}}, qui n’est pas un contrat d’option ; elle n’a donc rien modifié. Associez-la au contrat arrivé à expiration."
   }
 }

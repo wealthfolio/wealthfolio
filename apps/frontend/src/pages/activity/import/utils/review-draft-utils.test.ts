@@ -82,6 +82,28 @@ describe("parseNumericValue", () => {
       expect(parseNumericValue("-1.5e3", auto, none)).toBe("1.5e3");
     });
   });
+
+  describe.each(["auto", ".", ","])("trailing decimal exponents with decimal %s", (decimal) => {
+    it.each([
+      ["1.e3", 1000],
+      ["1.e+3", 1000],
+      ["1,e3", 1000],
+      ["1,e+3", 1000],
+      ["-1.e3", -1000],
+      ["(1,e+3)", -1000],
+      ["1.E-3", 0.001],
+      ["1,E-3", 0.001],
+    ])("preserves the exponent and value of %s", (input, expected) => {
+      const signed = parseSignedNumericValue(input, decimal, "auto");
+      expect(signed).toMatch(/e[+-]?\d+$/i);
+      expect(Number(signed)).toBe(expected);
+      expect(Number(parseNumericValue(input, decimal, "auto"))).toBe(Math.abs(expected));
+    });
+
+    it.each([".e3", ",e3", "EUR.e3"])("rejects %s without a numeric mantissa", (input) => {
+      expect(parseSignedNumericValue(input, decimal, "auto")).toBeUndefined();
+    });
+  });
 });
 
 describe("toNumber", () => {

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import {
   BASE_URL,
   completeOnboardingIfNeeded,
@@ -300,7 +300,12 @@ test("bond UI entry, identifier reuse, provider terms, prices, and holdings use 
             assetId: assetIds[security.label],
           });
           const response = await page.request.get(`${api}/holdings/item?${params}`);
-          expect(response.ok()).toBeTruthy();
+          // The recalculation above withholds holdings until it has rebuilt them.
+          if (response.status() === 503) {
+            expect((await response.json()).errorCode).toBe("HOLDINGS_PENDING");
+            return null;
+          }
+          expect(response.ok(), await response.text()).toBeTruthy();
           const holding = (await response.json()) as HoldingResponse | null;
           // The jobs the purchases queued may not have written it yet.
           if (!holding) return null;

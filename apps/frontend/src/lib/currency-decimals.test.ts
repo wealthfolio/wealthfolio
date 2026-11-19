@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { AccountType } from "./constants";
-import { cryptoMoneyDecimals, currencyFractionDigits } from "./currency-decimals";
+import {
+  cryptoMoneyDecimals,
+  currencyFractionDigits,
+  valueDecimalPlaces,
+} from "./currency-decimals";
+
+it("keeps existing precision, including values written in exponent notation", () => {
+  expect(valueDecimalPlaces(0.005)).toBe(3);
+  expect(valueDecimalPlaces(1.2e-8)).toBe(9);
+  expect(valueDecimalPlaces(1e21)).toBe(0);
+  expect(valueDecimalPlaces(undefined)).toBe(0);
+});
 
 describe("currencyFractionDigits", () => {
   it("follows core's accounting table, not display precision", () => {

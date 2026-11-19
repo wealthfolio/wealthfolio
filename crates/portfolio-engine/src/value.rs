@@ -1618,7 +1618,12 @@ fn priced_events(
     let range = resolved.range;
     let fx = resolved.fx();
     let convert = |amount: Decimal, currency: &Currency, date: NaiveDate| {
-        if amount.is_zero() || currency.as_str().eq_ignore_ascii_case(base.as_str()) {
+        // GBp matches GBP ignoring case but is pence: minor units go through
+        // the resolver, which scales them.
+        if amount.is_zero()
+            || (currency.as_str().eq_ignore_ascii_case(base.as_str())
+                && facts.policy.minor_unit_rule(currency.as_str()).is_none())
+        {
             return Some(amount);
         }
         fx.convert(amount, currency.as_str(), base.as_str(), date)

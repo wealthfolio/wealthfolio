@@ -209,8 +209,9 @@ impl FxIntegrityCheck {
                         "Missing exchange rate",
                         "No exchange rate is on record for these currency pairs, so holdings in \
                          those currencies can't be converted to your base currency.",
+                        NavigateAction::to_general_settings(),
                     )])
-                    .navigate_action(NavigateAction::to_market_data())
+                    .navigate_action(NavigateAction::to_general_settings())
                     .affected_items(affected_items)
                     .data_hash(data_hash)
                     .build(),
@@ -268,6 +269,7 @@ impl FxIntegrityCheck {
                         "Outdated exchange rate",
                         "These exchange rates are more than 3 days old, so currency conversions \
                          for the affected holdings may be inaccurate.",
+                        NavigateAction::to_market_data(),
                     )])
                     .navigate_action(NavigateAction::to_market_data())
                     .affected_items(affected_items)
@@ -327,6 +329,7 @@ impl FxIntegrityCheck {
                         "Exchange rate update needed",
                         "These exchange rates haven't been refreshed recently; conversions for the \
                          affected holdings may drift until they are updated.",
+                        NavigateAction::to_market_data(),
                     )])
                     .navigate_action(NavigateAction::to_market_data())
                     .affected_items(affected_items)
@@ -339,9 +342,8 @@ impl FxIntegrityCheck {
     }
 }
 
-/// Builds a structured diagnostic for an FX issue: one evidence row per pair
-/// (pair, rate freshness, affected market value) plus a navigation action to the
-/// market-data settings where rates are managed.
+/// Builds structured FX diagnostics with per-pair evidence and the appropriate
+/// settings action for the issue.
 impl FxIntegrityCheck {
     /// One issue for every pair whose directions disagree.
     pub fn analyze_conflicts(&self, conflicts: &[FxConflictInfo]) -> Vec<HealthIssue> {
@@ -404,6 +406,7 @@ fn fx_diagnostic(
     code: &str,
     title: &str,
     explanation: &str,
+    navigate_action: NavigateAction,
 ) -> HealthDiagnostic {
     let mut diagnostic =
         HealthDiagnostic::new(code, title, explanation).domain(DiagnosticDomain::Fx);
@@ -421,7 +424,7 @@ fn fx_diagnostic(
             .entity(HealthEntityRef::new("currencyPair", pair.pair_id.clone()).label(label.clone()))
             .evidence(Evidence::new(label, value));
     }
-    diagnostic.navigate(true, NavigateAction::to_market_data())
+    diagnostic.navigate(true, navigate_action)
 }
 
 impl Default for FxIntegrityCheck {
@@ -526,12 +529,21 @@ mod tests {
         assert_eq!(issues[0].category, HealthCategory::FxIntegrity);
 
         // The old unimplemented FX fetch fix action must not be shown; the issue
-        // routes to market-data settings and carries a MISSING_FX_RATE diagnostic
+        // routes to exchange-rate entry in General settings and carries a MISSING_FX_RATE diagnostic
         // with per-pair evidence.
         assert!(issues[0].fix_action.is_none());
-        assert!(issues[0].navigate_action.is_some());
+        assert_eq!(
+            issues[0].navigate_action,
+            Some(NavigateAction::to_general_settings())
+        );
         let diagnostics = issues[0].diagnostics.as_ref().expect("fx diagnostics");
         assert_eq!(diagnostics[0].code, "MISSING_FX_RATE");
+        assert_eq!(
+            diagnostics[0].actions[0].action,
+            crate::health::model::ActionRef::Navigate {
+                action: NavigateAction::to_general_settings(),
+            }
+        );
         assert!(diagnostics[0]
             .evidence
             .iter()
@@ -576,18 +588,35 @@ mod tests {
             at("2026-10-28T12:00:00Z"),
         );
 
-        let stale_time = ctx.now - Duration::hours(48);
-        let pairs = vec![FxPairInfo {
-            pair_id: "EUR:USD".to_string(),
-            from_currency: "EUR".to_string(),
-            to_currency: "USD".to_string(),
-            affected_mv: Some(10_000.0),
-            latest_quote_time: Some(stale_time),
-        }];
+        for (hours, severity) in [(48, Severity::Warning), (168, Severity::Error)] {
+            let stale_time = ctx.now - Duration::hours(hours);
+            let pairs = vec![FxPairInfo {
+                pair_id: "EUR:USD".to_string(),
+                from_currency: "EUR".to_string(),
+                to_currency: "USD".to_string(),
+                affected_mv: Some(10_000.0),
+                latest_quote_time: Some(stale_time),
+            }];
 
-        let issues = check.analyze(&pairs, &ctx);
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].severity, Severity::Warning);
+            let issues = check.analyze(&pairs, &ctx);
+            assert_eq!(issues.len(), 1);
+            assert_eq!(issues[0].severity, severity);
+            assert_eq!(
+                issues[0].navigate_action,
+                Some(NavigateAction::to_market_data())
+            );
+            assert_eq!(
+                issues[0]
+                    .diagnostics
+                    .as_ref()
+                    .expect("stale-rate diagnostic")[0]
+                    .actions[0]
+                    .action,
+                crate::health::model::ActionRef::Navigate {
+                    action: NavigateAction::to_market_data()
+                }
+            );
+        }
     }
 
     #[test]

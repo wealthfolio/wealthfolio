@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { useLocalizationSettings, useNumberFormatting } from "../components/formatting-provider";
 import {
+  localizeDecimalString,
   parseLocalizedDecimalString,
   stripBidiControls,
   type NumberFormatting,
@@ -76,16 +77,7 @@ export function useNumericDraft(value: number | undefined, options: NumericDraft
     const decimal = parseLocalizedDecimalString(sourceText, draft.locale);
     if (decimal !== undefined) {
       // Translate the exact text so active drafts never inherit display rounding limits.
-      text = decimal.replace(/[0-9.]/g, (character) =>
-        character === "."
-          ? numbers.decimalSeparator
-          : stripBidiControls(
-              numbers.formatDecimal(Number(character), {
-                useGrouping: false,
-                maximumFractionDigits: 0,
-              }),
-            ),
-      );
+      text = localizeDecimalString(decimal, numbers);
       const normalizedSource = sourceText.normalize("NFKC");
       if (
         normalizedSource.endsWith(draft.numbers.decimalSeparator) ||

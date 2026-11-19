@@ -1,7 +1,16 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
+import { restoreSpendingSettings, useSpendingAccounts, type SpendingSettings } from "./api";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 const api = `${BASE_URL}/api/v1`;
+
+// Spending is pointed at each test's own account; put the worker's settings back
+// after it for the next spec.
+let previousSpending: SpendingSettings | undefined;
+test.afterEach(async ({ page }) => {
+  if (previousSpending) await restoreSpendingSettings(page, previousSpending);
+  previousSpending = undefined;
+});
 
 /** An account with enough activities for the page to scroll well past its table's top. */
 async function createAccountWithActivities(page: Page, accountType = "SECURITIES") {
@@ -33,6 +42,32 @@ async function createAccountWithActivities(page: Page, accountType = "SECURITIES
     });
     expect(response.ok(), await response.text()).toBeTruthy();
   }
+  // The deposits recalculate the account in the background. Until that ends,
+  // rows load without their day's cash balance, and its arrival re-renders the
+  // table and closes any menu open on it. The newest row's balance is the
+  // total of all 30 deposits once the last one is counted.
+  await expect
+    .poll(
+      async () => {
+        const search = await page.request.post(`${api}/activities/search`, {
+          data: {
+            page: 0,
+            pageSize: 1,
+            accountIdFilter: [accountId],
+            sort: { id: "date", desc: true },
+            includeCashBalances: true,
+          },
+        });
+        expect(search.ok(), await search.text()).toBeTruthy();
+        const { data } = (await search.json()) as {
+          data: { cashBalance?: number | string | null }[];
+        };
+        const balance = data[0]?.cashBalance;
+        return balance == null ? null : Number(balance);
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(3465);
   return accountId;
 }
 
@@ -154,12 +189,13 @@ test("account activities keep the column header below the page header", async ({
   await expect.poll(async () => (await sidewaysScroll(page)).overflows).toBe(false);
   await expectHeaderPinned(page);
 
-  // At 1024px and below, `globals.css` makes flex ancestors scroll containers,
-  // so even a table that fits keeps its header at its own top.
+  // At 1024px and below a table that fits rests at its own top, then pins below
+  // the page header once scrolled, as it does on wider screens.
   await toggleColumns(page, ["Currency", "Quantity", "Fee", "Tax"], false);
   await page.setViewportSize({ width: 1024, height: 900 });
   await expect.poll(async () => (await sidewaysScroll(page)).overflows).toBe(false);
   await expect.poll(() => headerOffsetAtRest(page)).toBeLessThanOrEqual(1);
+  await expectHeaderPinned(page);
 });
 
 test("Activities keeps the investment table's column header in view", async ({ page }) => {
@@ -178,10 +214,7 @@ test("Activities keeps the investment table's column header in view", async ({ p
 test("Spending keeps its column header in view like Investments", async ({ page }) => {
   test.setTimeout(120_000);
   const accountId = await createAccountWithActivities(page, "CASH");
-  const settings = await page.request.put(`${api}/spending/settings`, {
-    data: { enabled: true, accountIds: [accountId] },
-  });
-  expect(settings.ok()).toBe(true);
+  previousSpending = await useSpendingAccounts(page, [accountId]);
   await gotoAppPath(page, "/activities?tab=spending");
   await expect(page.getByRole("columnheader", { name: "Name / Notes" })).toBeVisible();
   await expect(
@@ -194,19 +227,28 @@ test("Spending keeps its column header in view like Investments", async ({ page 
 test("Spending keeps rows rendered when the tablet scrollport moves", async ({ page }) => {
   test.setTimeout(120_000);
   const accountId = await createAccountWithActivities(page, "CASH");
-  const settings = await page.request.put(`${api}/spending/settings`, {
-    data: { enabled: true, accountIds: [accountId] },
-  });
-  expect(settings.ok()).toBe(true);
+  previousSpending = await useSpendingAccounts(page, [accountId]);
 
   for (const direction of ["ltr", "rtl"]) {
     for (const width of [768, 1024]) {
       await page.setViewportSize({ width, height: 900 });
       await gotoAppPath(page, `/activities?tab=spending&dir=${direction}`);
       await expect(page.getByRole("columnheader", { name: "Name / Notes" })).toBeVisible();
-      const scroller = page.locator("[data-ptr-content]");
-      await scroller.evaluate((element) => element.scrollTo({ top: 550, behavior: "instant" }));
-      await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(550);
+      // The page's scroll port: the nearest box around the table that really scrolls.
+      const scrollTop = (top?: number) =>
+        page.evaluate((target) => {
+          let box = document.querySelector("main table")?.parentElement ?? null;
+          while (box) {
+            const { overflowY } = getComputedStyle(box);
+            if (/(auto|scroll)/.test(overflowY) && box.scrollHeight > box.clientHeight + 100) break;
+            box = box.parentElement;
+          }
+          if (!box) return null;
+          if (target !== undefined) box.scrollTo({ top: target, behavior: "instant" });
+          return box.scrollTop;
+        }, top);
+      await scrollTop(550);
+      await expect.poll(() => scrollTop()).toBe(550);
       // The bottom of the visible table must be a rendered data row, not the
       // virtualizer's spacer standing in for rows it failed to render.
       await expect

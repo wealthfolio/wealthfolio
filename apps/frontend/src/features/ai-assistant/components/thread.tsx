@@ -5,8 +5,8 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-  useAssistantApi,
-  useAssistantState,
+  useAui,
+  useAuiState,
 } from "@assistant-ui/react";
 
 import { Component, type ClipboardEvent, type ErrorInfo, type FC, type ReactNode } from "react";
@@ -38,13 +38,15 @@ export const Thread: FC<ThreadProps> = ({ composerActions }) => {
         ["--thread-max-width" as string]: "44rem",
       }}
     >
+      {/* Follows the reply while it streams. With turnAnchor="top" the library pins the
+          question to the top instead and doesn't follow, which fought autoScroll; smooth
+          scrolling also animated each jump to the bottom while new text kept arriving. */}
       <ThreadPrimitive.Viewport
         autoScroll
-        turnAnchor="top"
         scrollToBottomOnRunStart
         scrollToBottomOnInitialize
         scrollToBottomOnThreadSwitch
-        className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
+        className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll px-4 pt-4"
       >
         <div className="flex min-h-full flex-col">
           <ThreadPrimitive.Empty>
@@ -159,7 +161,7 @@ interface ComposerProps {
 
 const Composer: FC<ComposerProps> = ({ composerActions }) => {
   const { t } = useTranslation();
-  const api = useAssistantApi();
+  const aui = useAui();
 
   // A pasted table becomes a CSV attachment, so an import reads the pasted
   // text itself rather than a copy the model writes out.
@@ -169,7 +171,7 @@ const Composer: FC<ComposerProps> = ({ composerActions }) => {
     if (!isPastedCsvTable(text)) return;
 
     event.preventDefault();
-    const composer = api.composer();
+    const composer = aui.composer;
     const name = pastedCsvFileName(
       composer.getState().attachments.map((attachment) => attachment.name),
     );
@@ -307,7 +309,7 @@ interface TypingIndicatorProps {
 }
 
 const TypingIndicator: FC<TypingIndicatorProps> = ({ position }) => {
-  const showIndicator = useAssistantState(({ message }) => {
+  const showIndicator = useAuiState(({ message }) => {
     if (message.status?.type !== "running") return false;
 
     if (position === "initial") {

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, loginIfNeeded } from "./helpers";
 
 test("asset exchange edits preserve identity or report conflicts explicitly", async ({ page }) => {

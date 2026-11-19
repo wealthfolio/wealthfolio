@@ -126,6 +126,10 @@ export function useExecuteHealthFix() {
       // Invalidate holdings so related pages refresh
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
       queryClient.invalidateQueries({ queryKey: [QueryKeys.PORTFOLIO_ALLOCATIONS] });
+      // This fix edits transactions: refresh everything, as activity edits do
+      if (actionId === "match_option_expiry_contracts") {
+        queryClient.invalidateQueries();
+      }
       // Skip toast for sync actions — global event listeners handle feedback
       if (actionId === "rebuild_account_history") {
         toast.success(i18n.t("common:notifications.history_rebuild_started"), {

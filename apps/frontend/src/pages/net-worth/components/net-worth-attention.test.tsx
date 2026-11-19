@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AlternativeAssetHolding } from "@/lib/types";
+import type { AlternativeAssetHolding, FxConversionIssue } from "@/lib/types";
 import { NetWorthAttention } from "./net-worth-attention";
 
 const mocks = vi.hoisted(() => ({
@@ -12,7 +12,11 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-alternative-assets", () => ({
   useAlternativeHoldings: () => ({ data: mocks.holdings(), isError: mocks.error }),
-  useLinkLiability: () => ({ mutate: mocks.link, isPending: mocks.pending }),
+}));
+vi.mock("@/pages/asset/alternative-assets/hooks/use-alternative-asset-mutations", () => ({
+  useAlternativeAssetMutations: () => ({
+    linkLiabilityMutation: { mutate: mocks.link, isPending: mocks.pending },
+  }),
 }));
 vi.mock("@wealthfolio/ui", () => ({
   ResponsiveSelect: ({
@@ -89,10 +93,18 @@ const property: AlternativeAssetHolding = {
 const stale = [
   { assetId: "mortgage", name: "Home mortgage", valuationDate: "2025-01-01", daysStale: 200 },
 ];
-const renderCard = (staleAssets = stale) =>
+const renderCard = (
+  staleAssets = stale,
+  hasIncompleteValuation = false,
+  missingFx: FxConversionIssue[] = [],
+) =>
   render(
     <MemoryRouter>
-      <NetWorthAttention staleAssets={staleAssets} />
+      <NetWorthAttention
+        staleAssets={staleAssets}
+        hasIncompleteValuation={hasIncompleteValuation}
+        missingFx={missingFx}
+      />
     </MemoryRouter>,
   );
 
@@ -107,6 +119,38 @@ afterEach(() => {
 });
 
 describe("NetWorthAttention", () => {
+  it("lists each missing FX pair once and sends its details to Health Center", () => {
+    mocks.holdings.mockReturnValue([]);
+    renderCard([], true, [
+      { itemId: "cash", fromCurrency: "COP", toCurrency: "AED" },
+      { itemId: "property", fromCurrency: "COP", toCurrency: "AED" },
+      { itemId: "history", fromCurrency: "IDR", toCurrency: "AED" },
+    ]);
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAccessibleName("Missing exchange rate: COP → AED");
+    expect(links[1]).toHaveAccessibleName("Missing exchange rate: IDR → AED");
+    for (const link of links) expect(link).toHaveAttribute("href", "/health");
+    expect(screen.queryByText("Review valuation issues")).not.toBeInTheDocument();
+  });
+
+  it("offers one Health Center link for incomplete valuations without other reminders", () => {
+    mocks.holdings.mockReturnValue([]);
+    renderCard([], true);
+    expect(screen.getByRole("region", { name: "Needs attention" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Review valuation issues" })).toHaveAttribute(
+      "href",
+      "/health",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("hides the card when there are no valuation issues or other reminders", () => {
+    mocks.holdings.mockReturnValue([]);
+    renderCard([]);
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+
   it("retains history links and distinguishes liability balances from asset values", () => {
     renderCard([...stale, { ...stale[0], assetId: "home", name: "Home" }]);
     expect(screen.getByRole("link", { name: /Update balance/ })).toHaveAttribute(
@@ -128,7 +172,10 @@ describe("NetWorthAttention", () => {
     renderCard([]);
     expect(screen.queryByRole("option", { name: "Car" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "home" } });
-    expect(mocks.link).toHaveBeenCalledWith({ liabilityId: "mortgage", targetAssetId: "home" });
+    expect(mocks.link).toHaveBeenCalledWith({
+      liabilityId: "mortgage",
+      request: { targetAssetId: "home" },
+    });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -150,7 +197,7 @@ describe("NetWorthAttention", () => {
     fireEvent.click(screen.getByText("Save property"));
     expect(mocks.link).toHaveBeenCalledWith({
       liabilityId: "mortgage",
-      targetAssetId: "new-property",
+      request: { targetAssetId: "new-property" },
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

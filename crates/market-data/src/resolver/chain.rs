@@ -69,6 +69,34 @@ impl ResolverChain {
     pub fn add_resolver(&mut self, resolver: Box<dyn Resolver>) {
         self.resolvers.push(resolver);
     }
+
+    /// The currency of prices from a provider response that does not name one.
+    ///
+    /// A pair is priced in its quote currency. Anything else is priced in the
+    /// asset's own quote currency (`currency_hint`), which already holds the
+    /// listing's currency and unit, such as USD for a dollar line on the LSE
+    /// or GBp for a pence one. The venue default fills in only when the asset
+    /// has none.
+    pub fn quote_currency(&self, provider: &ProviderId, context: &QuoteContext) -> String {
+        let pair_quote = match &context.instrument {
+            InstrumentId::Fx { quote, .. }
+            | InstrumentId::Crypto { quote, .. }
+            | InstrumentId::Metal { quote, .. } => Some(quote.clone()),
+            InstrumentId::Equity { .. }
+            | InstrumentId::Option { .. }
+            | InstrumentId::Bond { .. } => None,
+        };
+        pair_quote
+            .or_else(|| {
+                context
+                    .currency_hint
+                    .clone()
+                    .filter(|hint| !hint.trim().is_empty())
+            })
+            .or_else(|| self.get_currency(provider, context))
+            .map(|currency| currency.to_string())
+            .unwrap_or_else(|| "USD".to_string())
+    }
 }
 
 impl Default for ResolverChain {
@@ -324,5 +352,127 @@ mod tests {
 
         let currency = chain.get_currency(&"YAHOO".into(), &context);
         assert_eq!(currency.as_deref(), Some("USD"));
+    }
+
+    fn context_with(instrument: InstrumentId, hint: Option<&'static str>) -> QuoteContext {
+        QuoteContext {
+            instrument,
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: hint.map(Into::into),
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        }
+    }
+
+    fn equity(ticker: &str, mic: Option<&'static str>) -> InstrumentId {
+        InstrumentId::Equity {
+            ticker: Arc::from(ticker),
+            mic: mic.map(Into::into),
+        }
+    }
+
+    /// #2141: a response without a currency is priced in the asset's own
+    /// quote currency, not the venue's default, whichever provider serves it.
+    #[test]
+    fn quote_currency_follows_the_asset_currency() {
+        let chain = ResolverChain::new();
+        let cases: [(&str, InstrumentId, Option<&'static str>, &str); 7] = [
+            // A dollar line and a pence line on the LSE, as Alpha Vantage
+            // serves them without a currency.
+            (
+                "USD line on XLON",
+                equity("IBTA", Some("XLON")),
+                Some("USD"),
+                "USD",
+            ),
+            (
+                "pence line on XLON",
+                equity("TSCO", Some("XLON")),
+                Some("GBp"),
+                "GBp",
+            ),
+            (
+                "GBX alias kept",
+                equity("TSCO", Some("XLON")),
+                Some("GBX"),
+                "GBX",
+            ),
+            (
+                "option",
+                InstrumentId::Option {
+                    occ_symbol: Arc::from("AAPL240119C00150000"),
+                },
+                Some("USD"),
+                "USD",
+            ),
+            // A pair is priced in its quote currency whatever the hint says.
+            (
+                "FX pair",
+                InstrumentId::Fx {
+                    base: "EUR".into(),
+                    quote: "CAD".into(),
+                },
+                Some("TWD"),
+                "CAD",
+            ),
+            (
+                "crypto pair",
+                InstrumentId::Crypto {
+                    base: Arc::from("BTC"),
+                    quote: "EUR".into(),
+                },
+                Some("USD"),
+                "EUR",
+            ),
+            (
+                "metal",
+                InstrumentId::Metal {
+                    code: Arc::from("XAU"),
+                    quote: "USD".into(),
+                },
+                Some("EUR"),
+                "USD",
+            ),
+        ];
+        for (case, instrument, hint, expected) in cases {
+            let context = context_with(instrument, hint);
+            for provider in ["ALPHA_VANTAGE", "YAHOO", "FINNHUB", "MARKETDATA_APP"] {
+                assert_eq!(
+                    chain.quote_currency(&provider.into(), &context),
+                    expected,
+                    "{case} via {provider}"
+                );
+            }
+        }
+    }
+
+    /// Without an asset currency the provider's venue default applies, and
+    /// Alpha Vantage's London default is the pence its prices are in.
+    #[test]
+    fn quote_currency_falls_back_to_the_venue_without_an_asset_currency() {
+        let chain = ResolverChain::new();
+        let cases = [
+            (
+                "ALPHA_VANTAGE",
+                equity("TSCO", Some("XLON")),
+                Some(" "),
+                "GBp",
+            ),
+            ("ALPHA_VANTAGE", equity("SHOP", Some("XTSE")), None, "CAD"),
+            ("YAHOO", equity("TSCO", Some("XLON")), None, "GBp"),
+            ("FINNHUB", equity("AAPL", Some("XNAS")), None, "USD"),
+            ("ALPHA_VANTAGE", equity("AAPL", None), None, "USD"),
+        ];
+        for (provider, instrument, hint, expected) in cases {
+            let context = context_with(instrument, hint);
+            assert_eq!(
+                chain.quote_currency(&provider.into(), &context),
+                expected,
+                "{provider} {:?}",
+                context.instrument
+            );
+        }
     }
 }

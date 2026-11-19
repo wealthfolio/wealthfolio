@@ -37,21 +37,24 @@ pub struct NetWorthLineDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetWorthHistoryPointDto {
+    pub value_status: wealthfolio_core::portfolio::valuation::ValuationStatus,
     pub date: String,
-    pub net_worth: f64,
-    pub total_assets: f64,
-    pub total_liabilities: f64,
+    pub net_worth: Option<f64>,
+    pub total_assets: Option<f64>,
+    pub total_liabilities: Option<f64>,
 }
 
 /// Output envelope for the net worth tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetNetWorthOutput {
+    pub value_status: wealthfolio_core::portfolio::valuation::ValuationStatus,
+    pub missing_fx: Vec<wealthfolio_core::fx::FxConversionIssue>,
     pub date: String,
     pub currency: String,
-    pub total_assets: f64,
-    pub total_liabilities: f64,
-    pub net_worth: f64,
+    pub total_assets: Option<f64>,
+    pub total_liabilities: Option<f64>,
+    pub net_worth: Option<f64>,
     pub assets: Vec<NetWorthLineDto>,
     pub liabilities: Vec<NetWorthLineDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -70,7 +73,7 @@ impl AgentTool for GetNetWorth {
     }
 
     fn description(&self) -> &'static str {
-        "Get net worth (total assets minus total liabilities) as of a date, with a breakdown by asset category and by liability. Pass startDate to also include a net worth history series. Covers investment accounts plus alternative assets and liabilities."
+        "Get net worth (total assets minus total liabilities) as of a date, with a breakdown by asset category and by liability. Pass startDate to also include a net worth history series. Covers investment accounts plus alternative assets and liabilities. Totals are null when valuation is incomplete; valueStatus and missingFx explain why. Breakdowns then contain known subtotals only."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -163,10 +166,23 @@ impl AgentTool for GetNetWorth {
                     .into_iter()
                     .take(MAX_NET_WORTH_POINTS)
                     .map(|p| NetWorthHistoryPointDto {
+                        value_status: p.value_status,
                         date: p.date.format("%Y-%m-%d").to_string(),
-                        net_worth: p.net_worth.to_f64().unwrap_or(0.0),
-                        total_assets: p.total_assets.to_f64().unwrap_or(0.0),
-                        total_liabilities: p.total_liabilities.to_f64().unwrap_or(0.0),
+                        net_worth: p
+                            .value_status
+                            .is_complete()
+                            .then(|| p.net_worth.to_f64())
+                            .flatten(),
+                        total_assets: p
+                            .value_status
+                            .is_complete()
+                            .then(|| p.total_assets.to_f64())
+                            .flatten(),
+                        total_liabilities: p
+                            .value_status
+                            .is_complete()
+                            .then(|| p.total_liabilities.to_f64())
+                            .flatten(),
                     })
                     .collect();
                 let truncated = original > dto.len();
@@ -176,10 +192,24 @@ impl AgentTool for GetNetWorth {
         };
 
         let output = GetNetWorthOutput {
+            value_status: response.value_status,
+            missing_fx: response.missing_fx,
             date: response.date.format("%Y-%m-%d").to_string(),
-            total_assets: response.assets.total.to_f64().unwrap_or(0.0),
-            total_liabilities: response.liabilities.total.to_f64().unwrap_or(0.0),
-            net_worth: response.net_worth.to_f64().unwrap_or(0.0),
+            total_assets: response
+                .value_status
+                .is_complete()
+                .then(|| response.assets.total.to_f64())
+                .flatten(),
+            total_liabilities: response
+                .value_status
+                .is_complete()
+                .then(|| response.liabilities.total.to_f64())
+                .flatten(),
+            net_worth: response
+                .value_status
+                .is_complete()
+                .then(|| response.net_worth.to_f64())
+                .flatten(),
             currency: response.currency,
             assets,
             liabilities,

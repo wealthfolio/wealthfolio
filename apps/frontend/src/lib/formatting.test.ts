@@ -158,6 +158,66 @@ describe("locale formatting", () => {
     expect(parseLocalizedDecimalString("1,23", "en-US")).toBeUndefined();
   });
 
+  it.each(["en-US", "en-IN", "de-CH"])(
+    "rejects a leading zero group in %s instead of reading 0,125 as 125",
+    (locale) => {
+      for (const value of ["0,125", "00,125", "-0,125", "01,234", "0,125.5"]) {
+        expect(parseLocalizedNumber(value, locale)).toBeUndefined();
+        expect(parseLocalizedDecimalString(value, locale)).toBeUndefined();
+      }
+      expect(parseLocalizedNumber("0.125", locale)).toBe(0.125);
+      expect(parseLocalizedNumber("1,234.5", locale)).toBe(1234.5);
+      expect(parseLocalizedDecimalString("1,234.5", locale)).toBe("1234.5");
+    },
+  );
+
+  it("keeps reading 0,125 as a decimal comma in de-DE", () => {
+    expect(parseLocalizedNumber("0,125", "de-DE")).toBe(0.125);
+    expect(parseLocalizedDecimalString("0,125", "de-DE")).toBe("0.125");
+    expect(parseLocalizedNumber("001,234.56", "de-DE")).toBeUndefined();
+  });
+
+  it.each(["ar-EG", "fa-IR"])("checks Latin-digit grouping in the %s system locale", (locale) => {
+    for (const value of ["0,125", "+0,125", "USD +0,125", "001,234.56", "+001,234.56"]) {
+      expect(parseLocalizedNumber(value, locale)).toBeUndefined();
+      expect(parseLocalizedDecimalString(value, locale)).toBeUndefined();
+    }
+    for (const value of ["1,234.56", "+1,234.56"]) {
+      expect(parseLocalizedNumber(value, locale)).toBe(1234.56);
+      expect(parseLocalizedDecimalString(value, locale)).toBe("1234.56");
+    }
+    expect(parseLocalizedNumber("+0.125", locale)).toBe(0.125);
+    expect(parseLocalizedDecimalString("+0.125", locale)).toBe("0.125");
+    expect(parseLocalizedNumber("+.5", locale)).toBe(0.5);
+    expect(parseLocalizedDecimalString("+.5", locale)).toBe(".5");
+    const native = new Intl.NumberFormat(locale).format(1234.56);
+    expect(parseLocalizedNumber(native, locale)).toBe(1234.56);
+    expect(parseLocalizedDecimalString(native, locale)).toBe("1234.56");
+  });
+
+  it.each(["de-DE", "de-AT", "fr-FR"])(
+    "keeps the keyboard's decimal mark exact for Arabic digits in %s",
+    (locale) => {
+      expect(parseLocalizedNumber("٠,١٢٥", locale)).toBe(0.125);
+      expect(parseLocalizedDecimalString("٠,١٢٥", locale)).toBe("0.125");
+      expect(parseLocalizedNumber("١,٥", locale)).toBe(1.5);
+      expect(parseLocalizedDecimalString("١,٥", locale)).toBe("1.5");
+    },
+  );
+
+  it("keeps Arabic-digit grouping in Latin-digit locales", () => {
+    expect(parseLocalizedNumber("€ ١.٢٣٤,٥٦", "de-DE")).toBe(1234.56);
+    expect(parseLocalizedDecimalString("€ ١.٢٣٤,٥٦", "de-DE")).toBe("1234.56");
+    expect(parseLocalizedNumber("١,٢٣٤.٥٦", "en-US")).toBeUndefined();
+    expect(parseLocalizedDecimalString("١,٢٣٤.٥٦", "en-US")).toBeUndefined();
+    for (const locale of ["en-US", "fa-IR"]) {
+      for (const value of ["+.٥", "+.١٢٥"]) {
+        expect(parseLocalizedNumber(value, locale)).toBeUndefined();
+        expect(parseLocalizedDecimalString(value, locale)).toBeUndefined();
+      }
+    }
+  });
+
   it.each([
     ["fr-FR", "USD"],
     ["fr-FR", "CAD"],

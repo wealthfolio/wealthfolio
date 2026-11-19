@@ -1683,7 +1683,7 @@ fn valuation_diagnostic(
             }
         }
         ValuationIssueReason::MissingFxRate => {
-            diagnostic = diagnostic.navigate(true, NavigateAction::to_market_data());
+            diagnostic = diagnostic.navigate(true, NavigateAction::to_general_settings());
         }
         ValuationIssueReason::Unavailable | ValuationIssueReason::Unknown => {
             diagnostic = diagnostic.navigate(true, NavigateAction::to_activities(None));
@@ -2297,6 +2297,18 @@ mod tests {
                 _ => None,
             })
             .expect("primary navigate action")
+    }
+
+    #[test]
+    fn missing_exchange_rate_history_diagnostic_opens_rate_settings() {
+        let mut issue = engine_issue(ConsistencyIssueType::IncompleteValuationValue, "snapshot");
+        issue.reason = Some(ValuationIssueReason::MissingFxRate);
+        let diagnostic = valuation_diagnostic(&issue, Severity::Warning)
+            .expect("missing exchange rate diagnostic");
+        assert_eq!(
+            primary_navigate(&diagnostic),
+            &NavigateAction::to_general_settings()
+        );
     }
 
     #[test]

@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { cn } from "@/lib/utils";
 import type { NumberFormatting } from "@wealthfolio/ui";
@@ -158,7 +159,12 @@ export function GoalFundingEditor({
     (accountId: string, percent: number): string | null => {
       if (isBalanceHidden) return null;
       const valuation = currentValuation?.accounts.find((v) => v.accountId === accountId);
-      if (!valuation || !Number.isFinite(valuation.totalValueBase)) return null;
+      if (
+        !valuation ||
+        !isValuationComplete(valuation.valueStatus) ||
+        !Number.isFinite(valuation.totalValueBase)
+      )
+        return null;
       return amountFormatting.formatCompactAmount(
         (valuation.totalValueBase * percent) / 100,
         valuation.baseCurrency,
