@@ -123,6 +123,7 @@ pub(crate) mod tests {
     struct MockAssetService {
         assets: Arc<Mutex<Vec<Asset>>>,
         get_asset_by_id_error: Arc<Mutex<Option<String>>>,
+        get_assets_error: Arc<Mutex<Option<String>>>,
         resolve_import_asset_input_batches: Arc<Mutex<Vec<Vec<ImportAssetResolutionInput>>>>,
         ensure_asset_input_batches: Arc<Mutex<Vec<Vec<crate::assets::AssetSpec>>>>,
     }
@@ -132,6 +133,7 @@ pub(crate) mod tests {
             Self {
                 assets: Arc::new(Mutex::new(Vec::new())),
                 get_asset_by_id_error: Arc::new(Mutex::new(None)),
+                get_assets_error: Arc::new(Mutex::new(None)),
                 resolve_import_asset_input_batches: Arc::new(Mutex::new(Vec::new())),
                 ensure_asset_input_batches: Arc::new(Mutex::new(Vec::new())),
             }
@@ -156,6 +158,9 @@ pub(crate) mod tests {
     #[async_trait]
     impl AssetServiceTrait for MockAssetService {
         fn get_assets(&self) -> Result<Vec<Asset>> {
+            if let Some(message) = self.get_assets_error.lock().unwrap().clone() {
+                return Err(Error::Unexpected(message));
+            }
             Ok(self.assets.lock().unwrap().clone())
         }
 
@@ -4056,6 +4061,27 @@ pub(crate) mod tests {
                 "{case}: searched for a listing"
             );
         }
+    }
+
+    /// A failed read must not look like an empty portfolio: the search would
+    /// run for a ticker kept without an exchange and could file it on a listing.
+    #[tokio::test]
+    async fn sync_stops_when_the_asset_list_cannot_be_read() {
+        let account = create_test_account("acc-fidelity", "USD");
+        let (service, asset_service) =
+            broker_sync_service(&account, vec![oaa1_without_an_exchange("EUR")]);
+        *asset_service.get_assets_error.lock().unwrap() = Some("database is locked".to_string());
+
+        let result = service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "USD")], &account)
+            .await;
+
+        assert!(result.is_err());
+        assert!(asset_service
+            .resolve_import_asset_input_batches
+            .lock()
+            .unwrap()
+            .is_empty());
     }
 
     /// A blank exchange is no exchange.

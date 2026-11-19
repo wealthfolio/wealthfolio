@@ -4155,7 +4155,7 @@ impl ActivityService {
     /// listing. The user cleared the exchange or none was ever known, and a
     /// search can file a private fund such as Fidelity's `OAA1` under an
     /// unrelated company's listing.
-    fn tickers_kept_without_exchange(&self) -> HashSet<String> {
+    fn tickers_kept_without_exchange(&self) -> Result<HashSet<String>> {
         let ticker = |asset: &Asset| {
             asset
                 .instrument_symbol
@@ -4171,8 +4171,7 @@ impl ActivityService {
         };
         let equities: Vec<Asset> = self
             .asset_service
-            .get_assets()
-            .unwrap_or_default()
+            .get_assets()?
             .into_iter()
             .filter(|asset| asset.instrument_type == Some(InstrumentType::Equity))
             .collect();
@@ -4181,12 +4180,12 @@ impl ActivityService {
             .filter(|asset| has_exchange(asset))
             .filter_map(ticker)
             .collect();
-        equities
+        Ok(equities
             .iter()
             .filter(|asset| !has_exchange(asset) && asset.quote_mode == QuoteMode::Market)
             .filter_map(ticker)
             .filter(|symbol| !listed.contains(symbol))
-            .collect()
+            .collect())
     }
 
     /// Creates a quote from activity data to serve as a price fallback.
@@ -9534,7 +9533,7 @@ impl ActivityService {
 
         // 1. Batch resolve symbols → MICs when live resolution is enabled.
         let symbol_mic_cache: HashMap<String, Option<String>> = if mode.allows_live_resolution() {
-            let kept_without_exchange = self.tickers_kept_without_exchange();
+            let kept_without_exchange = self.tickers_kept_without_exchange()?;
             let symbols_to_resolve: HashSet<SymbolResolutionKey> = activities
                 .iter()
                 .filter_map(|a| {
