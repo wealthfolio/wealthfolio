@@ -1243,6 +1243,11 @@ pub struct HealthStatus {
 
     /// True if the cached results are older than 5 minutes
     pub is_stale: bool,
+
+    /// Issues the user dismissed whose data has not changed since. They are
+    /// left out of `issues`, `issue_counts` and `overall_severity`.
+    #[serde(default)]
+    pub dismissed_issues: Vec<HealthIssue>,
 }
 
 impl HealthStatus {
@@ -1254,6 +1259,7 @@ impl HealthStatus {
             issues: Vec::new(),
             checked_at: Utc::now(),
             is_stale: false,
+            dismissed_issues: Vec::new(),
         }
     }
 
@@ -1275,6 +1281,7 @@ impl HealthStatus {
             issues,
             checked_at: Utc::now(),
             is_stale: false,
+            dismissed_issues: Vec::new(),
         }
     }
 

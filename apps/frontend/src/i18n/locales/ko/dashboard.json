@@ -49,7 +49,7 @@
     "sync_devices": "기기 동기화",
     "update_prices": "가격 업데이트",
     "rebuild_full_history": "전체 기록 새로고침",
-    "verify_data": "데이터 검증"
+    "data_health": "데이터 건강도"
   },
   "update": {
     "as_of": "기준:",

@@ -15,7 +15,7 @@
     "sync_broker_accounts": "مزامنة حسابات الوسيط",
     "sync_devices": "مزامنة الأجهزة",
     "update_prices": "تحديث الأسعار",
-    "verify_data": "التحقق من البيانات"
+    "data_health": "سلامة البيانات"
   },
   "add_first_account": "أضف حسابك الأول",
   "asset_allocation": "توزيع الأصول",

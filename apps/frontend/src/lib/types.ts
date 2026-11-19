@@ -2627,6 +2627,8 @@ export interface HealthStatus {
   issues: HealthIssue[];
   checkedAt: string;
   isStale: boolean;
+  /** Dismissed issues whose data hasn't changed; not in `issues` or `issueCounts`. */
+  dismissedIssues: HealthIssue[];
 }
 
 /**

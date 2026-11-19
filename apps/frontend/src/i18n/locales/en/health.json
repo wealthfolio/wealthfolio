@@ -209,7 +209,9 @@
     "update_value": "Update Value",
     "review_transaction": "Review Transaction",
     "review_entry": "Review entry",
-    "match_option_expiry_contracts": "Use Matched Contracts"
+    "match_option_expiry_contracts": "Use Matched Contracts",
+    "undo": "Undo",
+    "restore": "Restore"
   },
   "updatedAt": "Updated {{time}}",
   "healthy": {
@@ -300,5 +302,12 @@
     "insufficient_quantity": "This transaction removes {{requested}} units of {{asset}}, but only {{held}} were held. The remaining {{excess}} units have no cost basis.",
     "missing_final_cash": "This posted transaction has no final cash amount, so it did not change the cash balance.",
     "option_expiry_not_option": "This option expiry names {{asset}}, which is not an option contract, so it changed nothing. Link it to the contract that expired."
+  },
+  "dismissed": {
+    "filter": "Dismissed",
+    "note": "You dismissed this issue. It comes back if its data changes.",
+    "noOpenTitle": "No open issues",
+    "show_one": "Show {{count}} dismissed issue",
+    "show_other": "Show {{count}} dismissed issues"
   }
 }

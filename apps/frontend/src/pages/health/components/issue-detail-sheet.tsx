@@ -39,6 +39,10 @@ interface IssueDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDismiss: () => void;
+  /** The issue is dismissed: the sheet offers Restore instead of Dismiss. */
+  isDismissed: boolean;
+  onRestore: () => void;
+  isRestoring: boolean;
   onFix: () => void;
   /** Runs a specific fix action from a diagnostic's "How to fix" list. */
   onRunFixAction: (action: FixAction) => void;
@@ -421,6 +425,9 @@ export function IssueDetailSheet({
   open,
   onOpenChange,
   onDismiss,
+  isDismissed,
+  onRestore,
+  isRestoring,
   onFix,
   onRunFixAction,
   isDismissing,
@@ -853,6 +860,26 @@ export function IssueDetailSheet({
             </Link>
           )}
 
+          {isDismissed ? (
+            <>
+              <p className="text-muted-foreground text-center text-xs">
+                {t("health:dismissed.note")}
+              </p>
+              <Button
+                variant="ghost"
+                className="text-muted-foreground w-full"
+                onClick={onRestore}
+                disabled={isRestoring}
+              >
+                {isRestoring ? (
+                  <Spinner className="me-2 h-4 w-4" />
+                ) : (
+                  <Icons.Undo className="me-2 h-4 w-4" />
+                )}
+                {t("health:actions.restore")}
+              </Button>
+            </>
+          ) : (
           <ActionConfirm
             confirmTitle={t("health:detail.dismissConfirm.title")}
             confirmMessage={t("health:detail.dismissConfirm.message")}
@@ -868,6 +895,7 @@ export function IssueDetailSheet({
               </Button>
             }
           />
+          )}
         </div>
       </SheetContent>
     </Sheet>

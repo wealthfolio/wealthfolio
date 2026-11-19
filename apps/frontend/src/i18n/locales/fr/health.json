@@ -241,7 +241,9 @@
     "update_value": "Actualiser la valeur",
     "review_transaction": "Vérifier la transaction",
     "review_entry": "Examiner l’entrée",
-    "match_option_expiry_contracts": "Utiliser les contrats trouvés"
+    "match_option_expiry_contracts": "Utiliser les contrats trouvés",
+    "undo": "Annuler",
+    "restore": "Restaurer"
   },
   "updatedAt": "Mis à jour à {{time}}",
   "healthy": {
@@ -336,5 +338,13 @@
     "insufficient_quantity": "Cette opération retire {{requested}} unités de {{asset}}, mais seules {{held}} étaient détenues. Les {{excess}} unités restantes n’ont pas de prix de revient.",
     "missing_final_cash": "Cette opération comptabilisée n’a pas de montant final en espèces et n’a donc pas modifié le solde de trésorerie.",
     "option_expiry_not_option": "Cette expiration d’option porte sur {{asset}}, qui n’est pas un contrat d’option ; elle n’a donc rien modifié. Associez-la au contrat arrivé à expiration."
+  },
+  "dismissed": {
+    "filter": "Ignorés",
+    "note": "Vous avez ignoré ce problème. Il réapparaîtra si ses données changent.",
+    "noOpenTitle": "Aucun problème ouvert",
+    "show_one": "Afficher {{count}} problème ignoré",
+    "show_many": "Afficher {{count}} problèmes ignorés",
+    "show_other": "Afficher {{count}} problèmes ignorés"
   }
 }

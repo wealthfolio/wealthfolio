@@ -209,7 +209,9 @@
     "update_value": "評価額を更新",
     "review_transaction": "取引を確認",
     "review_entry": "記録を確認",
-    "match_option_expiry_contracts": "一致した契約を使用"
+    "match_option_expiry_contracts": "一致した契約を使用",
+    "undo": "元に戻す",
+    "restore": "復元"
   },
   "updatedAt": "{{time}}に更新",
   "healthy": {
@@ -299,5 +301,11 @@
     "insufficient_quantity": "この取引は{{asset}}を{{requested}}単位減らしますが、保有は{{held}}単位のみでした。残りの{{excess}}単位には取得原価がありません。",
     "missing_final_cash": "この計上済み取引には最終現金額がないため、現金残高は変更されませんでした。",
     "option_expiry_not_option": "このオプション満期は{{asset}}を指定していますが、オプション契約ではないため何も変更されませんでした。満期を迎えた契約に紐付けてください。"
+  },
+  "dismissed": {
+    "filter": "非表示",
+    "note": "この問題は非表示にしました。データが変わると再び表示されます。",
+    "noOpenTitle": "未解決の問題はありません",
+    "show_other": "非表示の問題を{{count}}件表示"
   }
 }

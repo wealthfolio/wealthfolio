@@ -49,7 +49,7 @@
     "sync_devices": "Synchroniser les appareils",
     "update_prices": "Actualiser les cours",
     "rebuild_full_history": "Actualiser tout l’historique",
-    "verify_data": "Vérifier les données"
+    "data_health": "Santé des données"
   },
   "update": {
     "as_of": "Au :",

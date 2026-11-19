@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   update: vi.fn(),
   rebuild: vi.fn(),
-  verify: vi.fn(),
+  refreshHealth: vi.fn(),
 }));
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mocks.navigate,
@@ -30,7 +30,7 @@ vi.mock("@/hooks/use-calculate-portfolio", () => ({
   useUpdatePortfolioMutation: () => ({ mutate: mocks.update }),
   useRecalculatePortfolioMutation: () => ({ mutate: mocks.rebuild }),
 }));
-vi.mock("@/hooks/use-health", () => ({ useRunHealthChecks: () => ({ mutate: mocks.verify }) }));
+vi.mock("@/hooks/use-health", () => ({ useRefreshHealthStatus: () => mocks.refreshHealth }));
 vi.mock("@/features/devices-sync", () => ({ syncService: {} }));
 vi.mock("@/features/devices-sync/hooks", () => ({
   useSyncStatus: () => ({ syncState: "disabled" }),
@@ -71,9 +71,10 @@ it("opens asset management from Net Worth and omits full-history refresh", () =>
   expect(addAsset).toHaveBeenCalledOnce();
   expect(addLiability).toHaveBeenCalledOnce();
   fireEvent.click(screen.getByRole("button", { name: /Update prices/i }));
-  fireEvent.click(screen.getByRole("button", { name: "Verify Data" }));
+  fireEvent.click(screen.getByRole("button", { name: "Data health" }));
   expect(mocks.update).toHaveBeenCalledOnce();
-  expect(mocks.verify).toHaveBeenCalledOnce();
+  expect(mocks.refreshHealth).toHaveBeenCalledOnce();
+  expect(mocks.navigate).toHaveBeenLastCalledWith("/health");
 });
 
 it("preserves the Investments menu", () => {

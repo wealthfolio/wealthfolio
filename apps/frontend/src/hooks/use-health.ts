@@ -13,6 +13,7 @@ import {
 import { QueryKeys } from "@/lib/query-keys";
 import { useAuth } from "@/context/auth-context";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import { useCallback } from "react";
 
 /**
  * Hook for fetching health status.
@@ -31,7 +32,7 @@ export function useHealthStatus() {
 /**
  * Hook for running health checks.
  */
-export function useRunHealthChecks(options?: { navigate?: (path: string) => void }) {
+export function useRunHealthChecks() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -46,9 +47,6 @@ export function useRunHealthChecks(options?: { navigate?: (path: string) => void
       } else {
         toast.error(i18n.t("common:notifications.issues_found", { count: issueCount }), {
           description: i18n.t("common:notifications.review_the_details_in_the_health_center"),
-          action: options?.navigate
-            ? { label: i18n.t("common:view"), onClick: () => options.navigate!("/health") }
-            : undefined,
         });
       }
     },
@@ -61,6 +59,23 @@ export function useRunHealthChecks(options?: { navigate?: (path: string) => void
 }
 
 /**
+ * Starts a fresh check into the status query, without a toast: the Data health
+ * page, opened alongside, shows the result or the failure.
+ */
+export function useRefreshHealthStatus() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () =>
+      queryClient.prefetchQuery({
+        queryKey: [QueryKeys.HEALTH_STATUS],
+        queryFn: runHealthChecks,
+        staleTime: 0,
+      }),
+    [queryClient],
+  );
+}
+
+/**
  * Hook for dismissing a health issue.
  */
 export function useDismissHealthIssue() {
@@ -69,9 +84,22 @@ export function useDismissHealthIssue() {
   return useMutation({
     mutationFn: ({ issueId, dataHash }: { issueId: string; dataHash: string }) =>
       dismissHealthIssue(issueId, dataHash),
-    onSuccess: () => {
+    onSuccess: (_data, { issueId }) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
-      toast.success(i18n.t("common:notifications.issue_dismissed"));
+      toast.success(i18n.t("common:notifications.issue_dismissed"), {
+        action: {
+          label: i18n.t("health:actions.undo"),
+          onClick: () => {
+            restoreHealthIssue(issueId).then(
+              () => queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] }),
+              (error: Error) =>
+                toast.error(i18n.t("common:notifications.failed_to_restore_issue"), {
+                  description: error.message,
+                }),
+            );
+          },
+        },
+      });
     },
     onError: (error: Error) => {
       toast.error(i18n.t("common:notifications.failed_to_dismiss_issue"), {

@@ -209,7 +209,9 @@
     "update_value": "更新估值",
     "review_transaction": "檢查交易",
     "review_entry": "查看紀錄",
-    "match_option_expiry_contracts": "使用相符的合約"
+    "match_option_expiry_contracts": "使用相符的合約",
+    "undo": "復原",
+    "restore": "還原"
   },
   "updatedAt": "更新於 {{time}}",
   "healthy": {
@@ -300,5 +302,12 @@
     "insufficient_quantity": "此交易減少{{requested}}單位的{{asset}}，但僅持有{{held}}單位。剩餘{{excess}}單位沒有成本基礎。",
     "missing_final_cash": "此已入帳交易沒有最終現金金額，因此未改變現金餘額。",
     "option_expiry_not_option": "此選擇權到期紀錄指向的{{asset}}不是選擇權合約，因此沒有任何變更。請將其連結到已到期的合約。"
+  },
+  "dismissed": {
+    "filter": "已忽略",
+    "note": "你已忽略此問題。如果相關資料有所變更，它會重新出現。",
+    "noOpenTitle": "沒有待處理的問題",
+    "show_one": "顯示 {{count}} 個已忽略的問題",
+    "show_other": "顯示 {{count}} 個已忽略的問題"
   }
 }

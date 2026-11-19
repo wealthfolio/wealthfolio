@@ -350,10 +350,11 @@ impl HealthService {
         ));
 
         // Filter out dismissed issues (unless data has changed)
-        let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
+        let (filtered_issues, dismissed_issues) = self.filter_dismissed_issues(all_issues).await?;
 
         // Build status
-        let status = HealthStatus::from_issues(filtered_issues);
+        let mut status = HealthStatus::from_issues(filtered_issues);
+        status.dismissed_issues = dismissed_issues;
 
         // Cache the result
         let cached = CachedStatus {
@@ -890,14 +891,19 @@ impl HealthService {
         .await
     }
 
-    /// Filters out issues that have been dismissed (unless their data has changed).
-    async fn filter_dismissed_issues(&self, issues: Vec<HealthIssue>) -> Result<Vec<HealthIssue>> {
+    /// Splits issues into active and dismissed ones. A dismissed issue whose
+    /// data has changed since is active again.
+    async fn filter_dismissed_issues(
+        &self,
+        issues: Vec<HealthIssue>,
+    ) -> Result<(Vec<HealthIssue>, Vec<HealthIssue>)> {
         let dismissals = self.dismissal_store.get_dismissals().await?;
 
         let dismissed_map: std::collections::HashMap<String, &IssueDismissal> =
             dismissals.iter().map(|d| (d.issue_id.clone(), d)).collect();
 
         let mut filtered = Vec::new();
+        let mut dismissed = Vec::new();
 
         for issue in issues {
             if let Some(dismissal) = dismissed_map.get(&issue.id) {
@@ -909,14 +915,15 @@ impl HealthService {
                         warn!("Failed to remove stale dismissal: {}", e);
                     }
                     filtered.push(issue);
+                } else {
+                    dismissed.push(issue);
                 }
-                // Otherwise, skip the dismissed issue
             } else {
                 filtered.push(issue);
             }
         }
 
-        Ok(filtered)
+        Ok((filtered, dismissed))
     }
 }
 
@@ -4563,7 +4570,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(status.total_count(), 1);
+        assert!(status.dismissed_issues.is_empty());
         let issue = &status.issues[0];
+        let dismissed_id = issue.id.clone();
 
         // Dismiss the issue
         service
@@ -4593,6 +4602,35 @@ mod tests {
             .unwrap();
 
         assert_eq!(status.total_count(), 0);
+        assert!(status.issue_counts.is_empty());
+        assert_eq!(status.overall_severity, crate::health::Severity::Info);
+        // The dismissed issue is still reported, apart, so it can be restored.
+        assert_eq!(status.dismissed_issues.len(), 1);
+        assert_eq!(status.dismissed_issues[0].id, dismissed_id);
+
+        service.restore_issue(&dismissed_id).await.unwrap();
+        let status = service
+            .run_checks_with_data(
+                "USD",
+                100_000.0,
+                &holdings,
+                &quote_times,
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                &None,
+                &[],
+                Some("UTC"),
+                None,
+                &[],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(status.total_count(), 1);
+        assert!(status.dismissed_issues.is_empty());
     }
 
     fn stale(asset_id: &str, days_stale: i64) -> StaleAssetInfo {

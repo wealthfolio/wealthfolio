@@ -49,7 +49,7 @@
     "sync_devices": "同步设备",
     "update_prices": "更新价格",
     "rebuild_full_history": "刷新全部历史",
-    "verify_data": "校验数据"
+    "data_health": "数据健康"
   },
   "update": {
     "as_of": "截至：",

@@ -49,7 +49,7 @@
     "sync_devices": "デバイスを同期",
     "update_prices": "価格を更新",
     "rebuild_full_history": "全履歴を更新",
-    "verify_data": "データを検証"
+    "data_health": "データ健全性"
   },
   "update": {
     "as_of": "基準日:",
