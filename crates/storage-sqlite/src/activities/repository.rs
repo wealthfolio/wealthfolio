@@ -7071,6 +7071,92 @@ mod tests {
         assert_eq!(transfer_in.source_group_id, transfer_out.source_group_id);
     }
 
+    /// #2740: a synced card credit the user changed to the card's payment stays
+    /// a payment when the provider sends the same record again as a credit.
+    #[tokio::test]
+    async fn resync_keeps_a_synced_card_credit_the_user_made_a_payment() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "card");
+        drop(conn);
+
+        let synced = |id: &str, notes: &str| ActivityUpsert {
+            id: id.into(),
+            account_id: "card".into(),
+            asset_id: None,
+            activity_type: "CREDIT".into(),
+            subtype: None,
+            activity_date: "2026-01-15T00:00:00Z".into(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".into(),
+            fee: None,
+            tax: None,
+            amount: Some(Decimal::new(45000, 2)),
+            status: None,
+            notes: Some(notes.into()),
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: Some("SIMPLEFIN".into()),
+            source_record_id: Some("card-txn-1".into()),
+            source_group_id: None,
+            idempotency_key: Some(format!("key-{id}")),
+            import_run_id: None,
+        };
+        assert_eq!(
+            repo.bulk_upsert(vec![synced("card-credit", "PAYMENT - THANK YOU")])
+                .await
+                .expect("first sync")
+                .created,
+            1
+        );
+
+        repo.update_activity(ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: None,
+            id: "card-credit".to_string(),
+            account_id: "card".to_string(),
+            asset: None,
+            activity_type: ACTIVITY_TYPE_TRANSFER_IN.to_string(),
+            subtype: Some(String::new()),
+            activity_date: "2026-01-15T00:00:00Z".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: Some("PAYMENT - THANK YOU".to_string()),
+            fx_rate: None,
+            metadata: Some(r#"{"flow":{"is_external":true}}"#.to_string()),
+        })
+        .await
+        .expect("user changes the credit to a payment");
+
+        // The provider re-sends the record under the same id, then under a new
+        // id and key (matched by its source identity).
+        for refresh in [
+            synced("card-credit", "Provider refresh"),
+            synced("card-credit-reissued", "Provider refresh"),
+        ] {
+            let result = repo.bulk_upsert(vec![refresh]).await.expect("re-sync");
+            assert_eq!(result.skipped, 1, "{result:?}");
+            assert_eq!(result.created, 0, "{result:?}");
+        }
+
+        let activities = repo.get_activities().expect("activities");
+        assert_eq!(activities.len(), 1);
+        let payment = &activities[0];
+        assert_eq!(payment.id, "card-credit");
+        assert_eq!(payment.effective_type(), ACTIVITY_TYPE_TRANSFER_IN);
+        assert_eq!(payment.notes.as_deref(), Some("PAYMENT - THANK YOU"));
+        assert!(payment.is_user_modified);
+    }
+
     #[tokio::test]
     async fn link_transfer_activities_rejects_security_asset_or_quantity_mismatch() {
         let (pool, writer, _dir) = setup_db();
