@@ -20,6 +20,9 @@ pub struct RuleMatch<'r> {
 pub struct CompiledRule<'r> {
     pub rule: &'r CategorizationRule,
     pattern_text: String,
+    /// The pattern is nothing but apostrophes: it is compared, unchanged,
+    /// with the notes as written.
+    literal: bool,
     regex: Option<Regex>,
 }
 
@@ -77,10 +80,11 @@ pub fn compile_rules(rules: &[CategorizationRule]) -> Vec<CompiledRule<'_>> {
             let pattern_upper = rule.pattern.to_uppercase();
             let loosened = loosen_apostrophes(&pattern_upper);
             // A pattern of nothing but apostrophes stays literal: loosened, it
-            // would be a bare space and match almost every description.
-            let only_apostrophes =
+            // would be a bare space and match almost every description. It
+            // keeps matching what it matched before, an apostrophe in the notes.
+            let literal =
                 loosened.trim().is_empty() && pattern_upper.contains(APOSTROPHES.as_slice());
-            let pattern_text = if only_apostrophes {
+            let pattern_text = if literal {
                 pattern_upper
             } else {
                 loosened.into_owned()
@@ -88,6 +92,7 @@ pub fn compile_rules(rules: &[CategorizationRule]) -> Vec<CompiledRule<'_>> {
             CompiledRule {
                 rule,
                 pattern_text,
+                literal,
                 regex,
             }
         })
@@ -149,10 +154,11 @@ pub fn match_compiled<'c, 'r: 'c>(
             }
         }
 
+        let text: &str = if c.literal { notes_upper } else { &notes_text };
         let matched = match rule.match_type {
-            RuleMatchType::Contains => notes_text.contains(&c.pattern_text),
-            RuleMatchType::StartsWith => notes_text.starts_with(&c.pattern_text),
-            RuleMatchType::Exact => notes_text == c.pattern_text,
+            RuleMatchType::Contains => text.contains(&c.pattern_text),
+            RuleMatchType::StartsWith => text.starts_with(&c.pattern_text),
+            RuleMatchType::Exact => text == c.pattern_text,
             RuleMatchType::Regex => c.regex.as_ref().is_some_and(|re| re.is_match(notes_raw)),
         };
 
@@ -436,6 +442,28 @@ mod tests {
             "''",
             RuleMatchType::Contains,
             "DOMINO'S 9996"
+        ));
+    }
+
+    #[test]
+    fn apostrophe_only_pattern_still_matches_a_literal_apostrophe() {
+        assert!(matches_notes("'", RuleMatchType::Contains, "DOMINO'S 9996"));
+        assert!(matches_notes(
+            "'",
+            RuleMatchType::StartsWith,
+            "'TIS THE SEASON"
+        ));
+        assert!(!matches_notes(
+            "'",
+            RuleMatchType::StartsWith,
+            "DOMINO'S 9996"
+        ));
+        assert!(matches_notes("'", RuleMatchType::Exact, "'"));
+        // A different apostrophe character is a different literal.
+        assert!(!matches_notes(
+            "'",
+            RuleMatchType::Contains,
+            "DOMINO\u{2019}S 9996"
         ));
     }
 
