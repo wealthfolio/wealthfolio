@@ -15233,6 +15233,68 @@ pub(crate) mod tests {
         pair
     }
 
+    /// A sync can save a card payment's card side as a refund or credit. The
+    /// review suggests it when the same amount left a non-card account, but
+    /// never as certain: a real refund can match a withdrawal by chance.
+    #[tokio::test]
+    async fn review_suggests_a_card_credit_matching_a_bank_withdrawal() {
+        let mut second_card = create_test_account("card-2", "USD");
+        second_card.account_type = crate::accounts::account_types::CREDIT_CARD.to_string();
+        let mut card = create_test_account("card", "USD");
+        card.account_type = crate::accounts::account_types::CREDIT_CARD.to_string();
+        let (service, _) = convert_test_service_with_accounts(
+            vec![
+                review_leg(
+                    "card-credit",
+                    "card",
+                    "CREDIT",
+                    "2024-03-01T12:00:00Z",
+                    dec!(450),
+                ),
+                review_leg(
+                    "bank-out",
+                    "bank",
+                    "WITHDRAWAL",
+                    "2024-03-02T12:00:00Z",
+                    dec!(450),
+                ),
+                // Another card's charge is spending, not the payment's other side.
+                review_leg(
+                    "card-2-charge",
+                    "card-2",
+                    "WITHDRAWAL",
+                    "2024-03-01T12:00:00Z",
+                    dec!(450),
+                ),
+                // A refund with nothing matching stays a refund.
+                review_leg(
+                    "lone-refund",
+                    "card",
+                    "CREDIT",
+                    "2024-03-05T12:00:00Z",
+                    dec!(80),
+                ),
+                // A bank's credit is income or a refund, never a card payment.
+                review_leg(
+                    "bank-credit",
+                    "bank",
+                    "CREDIT",
+                    "2024-03-01T12:00:00Z",
+                    dec!(450),
+                ),
+            ],
+            vec![card, second_card, create_test_account("bank", "USD")],
+        );
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert!(review.certain.is_empty());
+        assert_eq!(
+            review_rows(&review),
+            vec![("card-credit", vec!["bank-out"])]
+        );
+    }
+
     /// Legs that certain pairs take are dropped before the review keeps a
     /// row's candidates, so a match behind many of them still shows.
     #[tokio::test]

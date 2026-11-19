@@ -286,6 +286,8 @@ describe("linking a one-sided cash transfer", () => {
     const card: Account = { ...account, id: "card", accountType: "CREDIT_CARD" };
     renderActivity({ accountId: "card", activityType: "CREDIT" }, [card]);
     expect(await screen.findByText("Make it a transfer")).toBeInTheDocument();
+    // The card's own wording, not the bank's "Credit".
+    expect(screen.getAllByText("Refund / Credit").length).toBeGreaterThan(0);
   });
 });
 

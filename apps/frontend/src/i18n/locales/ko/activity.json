@@ -543,7 +543,10 @@
     "marked_external": "외부로 표시했습니다",
     "load_error": "맞출 이체를 불러오지 못했습니다.",
     "empty_title": "모든 이체가 맞춰졌습니다",
-    "empty_desc": "상대편이 없는 이체가 없습니다."
+    "empty_desc": "상대편이 없는 이체가 없습니다.",
+    "section_card_credit": "결제일 수 있는 카드 환불",
+    "section_card_credit_hint": "같은 금액이 다른 계좌에서 나갔습니다. 카드 대금 결제라면 연결하고, 실제 환불이라면 건너뛰세요.",
+    "card_credit_hint": "카드 환불로 저장되어 있습니다. 연결하면 카드 대금 결제가 됩니다."
   },
   "form": {
     "section_conversion": "펀드 전환",

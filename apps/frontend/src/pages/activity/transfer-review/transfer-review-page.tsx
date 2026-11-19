@@ -66,6 +66,7 @@ import {
   chunk,
   isMarkedExternal,
   isOutflow,
+  isCardCredit,
   needsConversion,
   pairInFlowOrder,
   reviewPairs,
@@ -841,6 +842,9 @@ function LinkResultCard({
 /** What to know about a pair in Needs a look, one line each. */
 function pairStatus(t: TFunction, pair: ReviewPair, accountMap: Map<string, Account>): RowStatus[] {
   const status: RowStatus[] = [];
+  if (isCardCredit(pair.row.activity)) {
+    status.push({ tone: "info", text: t("activity:transfer_review.card_credit_hint") });
+  }
   if (pair.row.linkState === "broken_link") {
     status.push({
       tone: "warning",
@@ -945,12 +949,17 @@ function ReviewPairRow({
                   label: t("activity:operations.more_details"),
                   onClick: () => handlers.onOpen(pair),
                 },
-                {
-                  label: t("activity:transfer_review.mark_external_account", {
-                    account,
-                  }),
-                  onClick: () => handlers.onMarkExternal(pair),
-                },
+                // A card's credit is not a transfer to mark external.
+                ...(isCardCredit(row.activity)
+                  ? []
+                  : [
+                      {
+                        label: t("activity:transfer_review.mark_external_account", {
+                          account,
+                        }),
+                        onClick: () => handlers.onMarkExternal(pair),
+                      },
+                    ]),
                 skip,
               ]}
             />
@@ -995,6 +1004,10 @@ const SECTION_KEYS: Record<ReviewReason, { title: string; hint: string }> = {
   cash_flow: {
     title: "activity:transfer_review.section_cash_flow",
     hint: "activity:transfer_review.section_cash_flow_hint",
+  },
+  card_credit: {
+    title: "activity:transfer_review.section_card_credit",
+    hint: "activity:transfer_review.section_card_credit_hint",
   },
   other: {
     title: "activity:transfer_review.section_other",
@@ -1174,7 +1187,8 @@ export function TransferReviewPage() {
   ) => {
     setBusy(busyKey);
     try {
-      if (needsConversion(candidate)) {
+      // A card's credit always converts: linking makes it the card's payment.
+      if (needsConversion(candidate) || isCardCredit(row.activity)) {
         const request = await reviewConversion({
           activityId: row.activity.id,
           counterpartActivityId: candidate.activity.id,
@@ -1222,9 +1236,12 @@ export function TransferReviewPage() {
       setSheet({ source: row.activity });
       return;
     }
-    const [from, to] = needsConversion(candidate)
-      ? [candidate.activity, row.activity]
-      : pairInFlowOrder(row.activity, candidate.activity);
+    // A card's credit is the side the sheet converts into the card's payment.
+    const [from, to] = isCardCredit(row.activity)
+      ? [row.activity, candidate.activity]
+      : needsConversion(candidate)
+        ? [candidate.activity, row.activity]
+        : pairInFlowOrder(row.activity, candidate.activity);
     setSheet({ source: from, counterpartId: to.id });
   };
 

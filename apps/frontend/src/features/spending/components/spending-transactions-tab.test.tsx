@@ -457,6 +457,28 @@ describe("SpendingTransactionsTab transfer edit", () => {
     }
   });
 
+  it("keeps a one-sided transfer in another currency in the transfer editor", async () => {
+    const { sourceGroupId } = mocks.transferOut;
+    Object.assign(mocks.transferOut, {
+      sourceGroupId: undefined,
+      transferLinkStatus: "unlinked",
+      currency: "EUR",
+    });
+    try {
+      render(<SpendingTransactionsTab />);
+      (await screen.findByTestId("edit-out-1")).click();
+
+      expect(await screen.findByTestId("activity-form")).toBeInTheDocument();
+      expect(screen.queryByTestId("cash-form")).not.toBeInTheDocument();
+    } finally {
+      Object.assign(mocks.transferOut, {
+        sourceGroupId,
+        transferLinkStatus: undefined,
+        currency: "USD",
+      });
+    }
+  });
+
   it("still opens single-leg when the pair cannot be resolved", async () => {
     mocks.getTransferPairForActivity.mockResolvedValue(null);
 

@@ -562,7 +562,10 @@
     "marked_external": "Marcada como externa",
     "load_error": "No se pudieron cargar las transferencias por emparejar.",
     "empty_title": "Todas las transferencias están emparejadas",
-    "empty_desc": "A ninguna transferencia le falta su otro lado."
+    "empty_desc": "A ninguna transferencia le falta su otro lado.",
+    "section_card_credit": "Reembolsos de tarjeta que podrían ser pagos",
+    "section_card_credit_hint": "El mismo importe salió de otra cuenta. Si pagó la tarjeta, vincúlalos; si es un reembolso real, omítelo.",
+    "card_credit_hint": "Guardado como reembolso en la tarjeta. Al vincularlo pasa a ser el pago de la tarjeta."
   },
   "form": {
     "section_conversion": "Traspaso",

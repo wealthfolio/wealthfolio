@@ -27,6 +27,8 @@ export interface ActivityOperationsProps<TData> {
   onDuplicate: (activity: ActivityDetails) => void | undefined | Promise<void> | Promise<Activity>;
   onLinkTransfer?: (activity: ActivityDetails) => void | undefined;
   onUnlinkTransfer?: (activity: ActivityDetails) => void | undefined;
+  /** The row's account type: a credit card's refund/credit can become its payment. */
+  accountType?: string;
   /**
    * Presents the row menu for touch: a borderless trigger and the app's
    * ActionPalette instead of the dropdown, whose 32px rows and 16px icons are
@@ -49,6 +51,7 @@ export function ActivityOperations<TData>({
   onDuplicate,
   onLinkTransfer,
   onUnlinkTransfer,
+  accountType,
   touch = false,
   hoverReveal = false,
 }: ActivityOperationsProps<TData>) {
@@ -62,7 +65,7 @@ export function ActivityOperations<TData>({
     activity.activityType === ActivityType.TRANSFER_OUT;
   const isNew = (activity as ActivityDetails & { isNew?: boolean }).isNew === true;
   const canShowTransferActions = isTransfer && !isNew && (onLinkTransfer || onUnlinkTransfer);
-  const canConvert = !isNew && !!onLinkTransfer && canConvertToTransfer(activity);
+  const canConvert = !isNew && !!onLinkTransfer && canConvertToTransfer(activity, accountType);
   // A withdrawal can be counted as a payment on a loan; the sheet checks the account.
   const canPayLoan = activity.activityType === ActivityType.WITHDRAWAL && !isNew;
 

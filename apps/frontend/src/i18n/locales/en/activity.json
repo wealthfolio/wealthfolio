@@ -546,7 +546,10 @@
     "marked_external": "Marked as external",
     "load_error": "Could not load transfers to match.",
     "empty_title": "All transfers are matched",
-    "empty_desc": "No transfer is missing its other side."
+    "empty_desc": "No transfer is missing its other side.",
+    "section_card_credit": "Card refunds that may be payments",
+    "section_card_credit_hint": "The same amount left another account. If it paid the card, link them; if it's a real refund, skip it.",
+    "card_credit_hint": "Saved as a refund on the card. Linking makes it the card's payment."
   },
   "form": {
     "section_conversion": "Fund conversion",

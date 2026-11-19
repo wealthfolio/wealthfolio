@@ -2665,6 +2665,46 @@ impl ActivityService {
                 candidates,
             });
         }
+
+        // A card payment a sync saved as the card's refund or credit: the same
+        // amount left another, non-card account within the window. Never
+        // certain, since a real refund can match a withdrawal by chance.
+        let card_account_ids: HashSet<String> = account_service
+            .get_active_non_archived_accounts()?
+            .into_iter()
+            .filter(|account| is_liability_account_type(&account.account_type))
+            .map(|account| account.id)
+            .collect();
+        let card_credits = scan.every_activity.iter().filter(|activity| {
+            activity.is_posted()
+                && card_account_ids.contains(&activity.account_id)
+                && activity.effective_type() == ACTIVITY_TYPE_CREDIT
+                && Self::non_cash_transfer_asset_key(activity).is_none()
+        });
+        for source in card_credits {
+            let candidates: Vec<TransferMatchCandidate> = Self::transfer_match_candidates(
+                source,
+                &[ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT],
+                &pool,
+                WINDOW_DAYS,
+                usize::MAX,
+            )
+            .into_iter()
+            .filter(|candidate| {
+                !card_account_ids.contains(&candidate.activity.account_id)
+                    && !covered.contains(candidate.activity.id.as_str())
+            })
+            .take(CANDIDATES_SHOWN)
+            .collect();
+            if candidates.is_empty() {
+                continue;
+            }
+            review.needs_review.push(UnlinkedTransfer {
+                activity: source.clone(),
+                link_state: TransferLinkState::NeedsCounterpart,
+                candidates,
+            });
+        }
         Ok(review)
     }
 

@@ -562,7 +562,10 @@
     "marked_external": "Marcada como externa",
     "load_error": "Não foi possível carregar as transferências para combinar.",
     "empty_title": "Todas as transferências estão combinadas",
-    "empty_desc": "Nenhuma transferência está sem o outro lado."
+    "empty_desc": "Nenhuma transferência está sem o outro lado.",
+    "section_card_credit": "Reembolsos do cartão que podem ser pagamentos",
+    "section_card_credit_hint": "O mesmo valor saiu de outra conta. Se pagou o cartão, vincule-os; se for um reembolso de verdade, pule.",
+    "card_credit_hint": "Salvo como reembolso no cartão. Vincular o transforma no pagamento do cartão."
   },
   "form": {
     "section_conversion": "Conversão de fundos",

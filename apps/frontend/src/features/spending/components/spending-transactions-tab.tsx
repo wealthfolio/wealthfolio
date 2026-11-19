@@ -59,6 +59,7 @@ import { isActivityEditCancelled, useActivitySplitReview } from "./activity-spli
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "@/pages/activity/components/transfer-match-dialog";
+import { nonCashTransferAssetKey } from "@/pages/activity/components/transfer-link-utils";
 import {
   ActivityViewModeToggle,
   type ActivityViewMode,
@@ -847,12 +848,15 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const handleEditRow = useCallback(
       async (row: TransactionRowVM) => {
-        // A linked pair edits both legs together. A one-sided transfer is a plain
-        // cash row whose type can change, so it opens the Spending form.
-        if (
-          isTransferCashActivity(row.activity) &&
-          getTransferLinkStatus(row.activity) !== "unlinked"
-        ) {
+        // A linked pair edits both legs together, and a conversion or a
+        // security move needs the transfer editor's fields. A one-sided cash
+        // transfer in the account's own currency is a plain cash row whose type
+        // can change, so it opens the Spending form.
+        const isPlainOneSided =
+          getTransferLinkStatus(row.activity) === "unlinked" &&
+          !nonCashTransferAssetKey(row.activity) &&
+          row.activity.currency === accountById.get(row.activity.accountId)?.currency;
+        if (isTransferCashActivity(row.activity) && !isPlainOneSided) {
           setEditingActivity(undefined);
           setShowForm(false);
           // Load the paired leg so the form pre-fills "To Account" (#1563).

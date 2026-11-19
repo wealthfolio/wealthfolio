@@ -14,6 +14,7 @@ import {
   getTransferPairForActivity,
   searchActivities,
 } from "@/adapters";
+import { getCashActivityLabel, isCreditCardAccountType } from "@/features/spending/lib/constants";
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import {
@@ -127,6 +128,17 @@ const STRICT = "strict";
 const ANY = "any";
 const SAME_ASSET = "same";
 const CASH_ASSET = "cash";
+
+/** A credit card's own name for a type ("Charge", "Payment"), or none elsewhere. */
+function cardTypeLabel(
+  t: TFunction,
+  activityType: string,
+  accountType: string | undefined,
+): string | undefined {
+  return isCreditCardAccountType(accountType)
+    ? getCashActivityLabel(t, activityType, accountType)
+    : undefined;
+}
 
 function isTransferType(activityType: string | undefined): boolean {
   return activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT;
@@ -392,7 +404,10 @@ function ActivitySummaryRow({
   return (
     <div className={cn("flex flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm", className)}>
       <div className="flex items-center justify-between gap-3">
-        <ActivityTypeBadge type={normalized.activityType as ActivityType} />
+        <ActivityTypeBadge
+          type={normalized.activityType as ActivityType}
+          label={cardTypeLabel(t, normalized.activityType, normalized.accountType)}
+        />
         <span className="text-muted-foreground shrink-0 text-xs">{date}</span>
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -526,7 +541,16 @@ function PairDetails({
     },
     {
       label: t("activity:table_type"),
-      value: (leg) => <ActivityTypeBadge type={getEffectiveType(leg) as ActivityType} />,
+      value: (leg) => (
+        <ActivityTypeBadge
+          type={getEffectiveType(leg) as ActivityType}
+          label={cardTypeLabel(
+            t,
+            getEffectiveType(leg),
+            accountMap.get(leg.accountId)?.accountType,
+          )}
+        />
+      ),
     },
     {
       label: t("activity:field_date"),
@@ -670,6 +694,7 @@ function CandidateButton({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useTranslation();
   const dateFormatting = useDateFormatting();
   const formatting = useAmountFormatting();
   const normalized = normalizeActivity(candidate.activity, accountMap);
@@ -699,6 +724,7 @@ function CandidateButton({
           {isTransferType(normalized.activityType) ? null : (
             <ActivityTypeBadge
               type={normalized.activityType as ActivityType}
+              label={cardTypeLabel(t, normalized.activityType, normalized.accountType)}
               className="text-2xs px-1.5 py-0 font-normal"
             />
           )}
