@@ -27,7 +27,7 @@
   "auto_update_enable": "Enable automatic update checks",
   "auto_update_description": "When enabled, Wealthfolio will automatically check for updates when the application starts. You can still manually check for updates from the Help menu.",
   "return_method_title": "Return method",
-  "return_method_label": "Return shown across the app",
+  "return_method_description": "Choose the return shown on the Dashboard, your accounts and Performance.",
   "auto_update_error_description": "Failed to update auto-update settings. Please try again.",
   "database_encryption_title": "Database encryption",
   "database_encryption_enable": "Encrypt data at rest",

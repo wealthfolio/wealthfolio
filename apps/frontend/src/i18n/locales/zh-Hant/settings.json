@@ -27,7 +27,7 @@
   "auto_update_enable": "開啟自動檢查更新",
   "auto_update_description": "開啟後，Wealthfolio 會在啟動時自動檢查更新。你仍可從「說明」選單手動檢查。",
   "return_method_title": "報酬計算方法",
-  "return_method_label": "整個應用程式中顯示的報酬",
+  "return_method_description": "選擇在儀表板、帳戶和績效中顯示的報酬。",
   "auto_update_error_description": "無法更新自動更新設定，請重試。",
   "database_encryption_title": "資料庫加密",
   "database_encryption_enable": "加密儲存的資料",
