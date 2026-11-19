@@ -263,9 +263,7 @@ const AttachmentRemove: FC<AttachmentRemoveProps> = ({ variant = "tile" }) => {
         tooltip={t("ai:attachment.removeFile")}
         className={cn(
           "aui-attachment-tile-remove text-muted-foreground hover:[&_svg]:text-destructive hover:bg-white! absolute rounded-full bg-white opacity-100 shadow-sm [&_svg]:text-black",
-          variant === "chip"
-            ? "end-1.5 top-1/2 size-5 -translate-y-1/2"
-            : "end-1.5 top-1.5 size-3.5",
+          variant === "chip" ? "inset-y-0 end-1.5 my-auto size-5" : "end-1.5 top-1.5 size-3.5",
         )}
         side="top"
       >
