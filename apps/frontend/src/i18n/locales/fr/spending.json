@@ -941,7 +941,26 @@
     "notesPayee": "Notes / Bénéficiaire",
     "notesPlaceholder": "ex. : AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Mettre à jour la transaction",
-    "createTransaction": "Créer la transaction"
+    "createTransaction": "Créer la transaction",
+    "typeChange": {
+      "transfer": "Compté comme un virement, ni dépense ni revenu.",
+      "cardPayment": "Compté comme un paiement de la carte, ni dépense ni remboursement.",
+      "cardAdvance": "Compté comme un transfert de solde ou une avance de fonds : il augmente ce que vous devez, sans être une dépense.",
+      "spending": "Compté comme une dépense dans vos rapports.",
+      "refund": "Compté comme un remboursement, qui réduit vos dépenses.",
+      "income": "Compté comme un revenu dans vos rapports.",
+      "none": "N'est plus compté comme dépense ni comme revenu.",
+      "reversesBalance": "Le solde varie aussi dans l'autre sens."
+    },
+    "linkRow": {
+      "paidFrom": "Payé depuis",
+      "receivedFrom": "Reçu de",
+      "sentTo": "Envoyé à",
+      "untracked": "Un compte que je ne suis pas",
+      "suggested": "Suggestion : {{account}} · {{date}} · {{amount}}",
+      "link": "Lier",
+      "hint": "Choisissez l'autre compte pour lier les deux côtés, ou laissez tel quel."
+    }
   },
   "txTab": {
     "duplicatedComment": "Dupliqué",

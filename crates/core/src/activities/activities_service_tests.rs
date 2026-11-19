@@ -5,8 +5,9 @@ pub(crate) mod tests {
     use crate::activities::{
         ActivityCharge, ActivityChargeCategory, ActivityRepositoryTrait, ActivityService,
         ActivityServiceTrait, ImportRun, ImportRunRepositoryTrait, ImportRunStatus,
-        TransferLinkState, TransferPairResolution, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_DEPOSIT,
-        ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL,
+        TransferLinkState, TransferPairResolution, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_CREDIT,
+        ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
+        ACTIVITY_TYPE_WITHDRAWAL,
     };
     use crate::assets::{
         canonicalize_market_identity, normalize_quote_ccy_code, parse_crypto_pair_symbol,
@@ -14799,6 +14800,7 @@ pub(crate) mod tests {
                 activity_id: "source-out".to_string(),
                 window_days: Some(7),
                 limit: Some(25),
+                include_cash_flows: false,
             })
             .expect("candidate search should succeed");
 
@@ -14872,6 +14874,7 @@ pub(crate) mod tests {
                 activity_id: "source-out".to_string(),
                 window_days: Some(7),
                 limit: Some(25),
+                include_cash_flows: false,
             })
             .expect("candidate search should succeed");
 
@@ -15046,6 +15049,7 @@ pub(crate) mod tests {
                     activity_id: transfer.activity.id.clone(),
                     window_days: Some(7),
                     limit: Some(3),
+                    include_cash_flows: false,
                 })
                 .expect("candidates");
             let ids = |candidates: &[TransferMatchCandidate]| {
@@ -15507,6 +15511,7 @@ pub(crate) mod tests {
                     activity_id: activity_id.to_string(),
                     window_days: Some(7),
                     limit: Some(25),
+                    include_cash_flows: false,
                 })
                 .expect("candidates")
                 .into_iter()
@@ -15859,6 +15864,7 @@ pub(crate) mod tests {
                 activity_id: "security-out".to_string(),
                 window_days: Some(7),
                 limit: Some(25),
+                include_cash_flows: false,
             })
             .expect("candidate search should succeed");
 
@@ -16070,9 +16076,22 @@ pub(crate) mod tests {
         activities: Vec<Activity>,
         accounts: &[(&str, &str)],
     ) -> (ActivityService, Arc<MockActivityRepository>) {
+        convert_test_service_with_accounts(
+            activities,
+            accounts
+                .iter()
+                .map(|(id, currency)| create_test_account(id, currency))
+                .collect(),
+        )
+    }
+
+    fn convert_test_service_with_accounts(
+        activities: Vec<Activity>,
+        accounts: Vec<Account>,
+    ) -> (ActivityService, Arc<MockActivityRepository>) {
         let account_service = Arc::new(MockAccountService::new());
-        for (id, currency) in accounts {
-            account_service.add_account(create_test_account(id, currency));
+        for account in accounts {
+            account_service.add_account(account);
         }
         let activity_repository = Arc::new(MockActivityRepository::new());
         for activity in activities {
@@ -16206,6 +16225,7 @@ pub(crate) mod tests {
                 activity_id: "withdrawal".to_string(),
                 window_days: None,
                 limit: None,
+                include_cash_flows: false,
             })
             .expect("a withdrawal has candidates");
         assert_eq!(candidates.len(), 1);
@@ -16230,6 +16250,152 @@ pub(crate) mod tests {
             parse_test_activity_datetime("2026-10-24T00:00:00Z")
         );
         assert_eq!(repository.activities.lock().unwrap().len(), 2);
+    }
+
+    fn card_and_bank_accounts() -> Vec<Account> {
+        let mut card = create_test_account("card", "CAD");
+        card.account_type = crate::accounts::account_types::CREDIT_CARD.to_string();
+        vec![card, create_test_account("bank", "CAD")]
+    }
+
+    #[tokio::test]
+    async fn convert_to_internal_transfer_turns_a_card_credit_into_its_payment() {
+        let mut card_credit = create_cash_transfer_activity(
+            "card-credit",
+            "card",
+            ACTIVITY_TYPE_CREDIT,
+            "2026-11-01T00:00:00Z",
+            dec!(450),
+            "CAD",
+        );
+        card_credit.subtype = Some("REFUND".to_string());
+        let (service, _) = convert_test_service_with_accounts(
+            vec![
+                card_credit,
+                create_cash_transfer_activity(
+                    "bank-withdrawal",
+                    "bank",
+                    ACTIVITY_TYPE_WITHDRAWAL,
+                    "2026-11-01T00:00:00Z",
+                    dec!(450),
+                    "CAD",
+                ),
+                create_cash_transfer_activity(
+                    "bank-credit",
+                    "bank",
+                    ACTIVITY_TYPE_CREDIT,
+                    "2026-11-01T00:00:00Z",
+                    dec!(450),
+                    "CAD",
+                ),
+            ],
+            card_and_bank_accounts(),
+        );
+
+        let candidates = service
+            .find_transfer_match_candidates(TransferMatchCandidateRequest {
+                activity_id: "card-credit".to_string(),
+                window_days: None,
+                limit: None,
+                include_cash_flows: false,
+            })
+            .expect("a card credit has candidates");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].activity.id, "bank-withdrawal");
+
+        let pair = service
+            .convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "card-credit".to_string(),
+                counterpart_activity_id: Some("bank-withdrawal".to_string()),
+                counterpart_account_id: None,
+                counterpart_amount: None,
+                split_review: None,
+            })
+            .await
+            .expect("a card credit becomes the card's payment");
+        assert_eq!(pair.transfer_in.id, "card-credit");
+        assert_eq!(pair.transfer_in.effective_type(), ACTIVITY_TYPE_TRANSFER_IN);
+        assert_eq!(pair.transfer_out.id, "bank-withdrawal");
+        assert_eq!(
+            pair.transfer_out.effective_type(),
+            ACTIVITY_TYPE_TRANSFER_OUT
+        );
+
+        // A bank account's credit is income or a refund, never a payment.
+        assert!(service
+            .find_transfer_match_candidates(TransferMatchCandidateRequest {
+                activity_id: "bank-credit".to_string(),
+                window_days: None,
+                limit: None,
+                include_cash_flows: false,
+            })
+            .is_err());
+        assert!(service
+            .convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "bank-credit".to_string(),
+                counterpart_activity_id: None,
+                counterpart_account_id: Some("card".to_string()),
+                counterpart_amount: None,
+                split_review: None,
+            })
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn cash_transfer_candidates_include_cash_flows_only_when_asked() {
+        let (service, _) = convert_test_service_with_accounts(
+            vec![
+                create_cash_transfer_activity(
+                    "card-payment",
+                    "card",
+                    ACTIVITY_TYPE_TRANSFER_IN,
+                    "2026-11-01T00:00:00Z",
+                    dec!(450),
+                    "CAD",
+                ),
+                create_cash_transfer_activity(
+                    "bank-withdrawal",
+                    "bank",
+                    ACTIVITY_TYPE_WITHDRAWAL,
+                    "2026-11-01T00:00:00Z",
+                    dec!(450),
+                    "CAD",
+                ),
+            ],
+            card_and_bank_accounts(),
+        );
+        let candidates = |include_cash_flows| {
+            service
+                .find_transfer_match_candidates(TransferMatchCandidateRequest {
+                    activity_id: "card-payment".to_string(),
+                    window_days: None,
+                    limit: None,
+                    include_cash_flows,
+                })
+                .expect("a transfer has candidates")
+        };
+        assert!(candidates(false).is_empty());
+        let with_cash_flows = candidates(true);
+        assert_eq!(with_cash_flows.len(), 1);
+        assert_eq!(with_cash_flows[0].activity.id, "bank-withdrawal");
+
+        let pair = service
+            .convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "card-payment".to_string(),
+                counterpart_activity_id: Some("bank-withdrawal".to_string()),
+                counterpart_account_id: None,
+                counterpart_amount: None,
+                split_review: None,
+            })
+            .await
+            .expect("the payment pairs with the bank's withdrawal");
+        assert_eq!(pair.transfer_in.id, "card-payment");
+        assert_eq!(pair.transfer_out.id, "bank-withdrawal");
+        assert_eq!(
+            pair.transfer_out.effective_type(),
+            ACTIVITY_TYPE_TRANSFER_OUT
+        );
     }
 
     #[tokio::test]

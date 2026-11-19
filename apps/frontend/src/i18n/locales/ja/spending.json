@@ -890,7 +890,26 @@
     "notesPayee": "メモ / 支払先",
     "notesPlaceholder": "例: AMAZON*MARKETPLACE、STARBUCKS COFFEE",
     "updateTransaction": "取引を更新",
-    "createTransaction": "取引を作成"
+    "createTransaction": "取引を作成",
+    "typeChange": {
+      "transfer": "振替として扱われ、支出や収入には含まれません。",
+      "cardPayment": "カードへの支払いとして扱われ、支出や返金には含まれません。",
+      "cardAdvance": "残高移行またはキャッシングとして扱われます。返済額は増えますが、支出には含まれません。",
+      "spending": "レポートで支出として扱われます。",
+      "refund": "返金として扱われ、支出が減ります。",
+      "income": "レポートで収入として扱われます。",
+      "none": "支出にも収入にも含まれなくなります。",
+      "reversesBalance": "残高も逆方向に動きます。"
+    },
+    "linkRow": {
+      "paidFrom": "支払元",
+      "receivedFrom": "入金元",
+      "sentTo": "送金先",
+      "untracked": "管理していない口座",
+      "suggested": "候補: {{account}} · {{date}} · {{amount}}",
+      "link": "リンク",
+      "hint": "相手の口座を選んで両側をリンクするか、このままにします。"
+    }
   },
   "txTab": {
     "duplicatedComment": "複製",

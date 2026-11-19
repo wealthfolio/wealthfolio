@@ -89,6 +89,7 @@ import {
 import { cashActivityFlowMetadata } from "../lib/cash-activity-form-utils";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import {
+  getTransferLinkStatus,
   isTransferCashActivity,
   stableArr,
   toRowVM,
@@ -233,6 +234,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       open: boolean;
       mode: "link" | "unlink";
       row: TransactionRowVM | null;
+      /** Link mode: the suggested other side to select. */
+      counterpartId?: string;
     }>({ open: false, mode: "link", row: null });
     const [loanPaymentRow, setLoanPaymentRow] = useState<TransactionRowVM | null>(null);
     const [deletingIds, setDeletingIds] = useState<string[] | null>(null);
@@ -844,7 +847,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const handleEditRow = useCallback(
       async (row: TransactionRowVM) => {
-        if (isTransferCashActivity(row.activity)) {
+        // A linked pair edits both legs together. A one-sided transfer is a plain
+        // cash row whose type can change, so it opens the Spending form.
+        if (
+          isTransferCashActivity(row.activity) &&
+          getTransferLinkStatus(row.activity) !== "unlinked"
+        ) {
           setEditingActivity(undefined);
           setShowForm(false);
           // Load the paired leg so the form pre-fills "To Account" (#1563).
@@ -1420,7 +1428,15 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           onOpenChange={setShowForm}
           activity={editingActivityForForm}
           onTransferClick={handleTransferClick}
-          onConvertToTransfer={() => editingActivity && handleLinkTransfer(editingActivity)}
+          onLinkTransfer={(counterpartId) =>
+            editingActivity &&
+            setTransferMatchDialog({
+              open: true,
+              mode: "link",
+              row: editingActivity,
+              counterpartId,
+            })
+          }
         />
 
         <SplitTransactionSheet
@@ -1477,6 +1493,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           open={transferMatchDialog.open}
           mode={transferMatchDialog.mode}
           sourceActivity={transferMatchDialog.row?.activity}
+          counterpartId={transferMatchDialog.counterpartId}
           accounts={accounts}
           onOpenChange={(open) =>
             setTransferMatchDialog((prev) => ({

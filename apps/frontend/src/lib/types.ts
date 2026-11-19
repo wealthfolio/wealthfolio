@@ -476,6 +476,8 @@ export interface TransferMatchCandidateRequest {
   activityId: string;
   windowDays?: number;
   limit?: number;
+  /** For an unlinked cash transfer, also suggest the opposite deposit or withdrawal. */
+  includeCashFlows?: boolean;
 }
 
 export type TransferMatchReason =

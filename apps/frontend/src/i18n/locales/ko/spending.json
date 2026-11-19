@@ -890,7 +890,26 @@
     "notesPayee": "메모 / 수취인",
     "notesPlaceholder": "예: AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "거래 업데이트",
-    "createTransaction": "거래 생성"
+    "createTransaction": "거래 생성",
+    "typeChange": {
+      "transfer": "이체로 집계되며 지출이나 수입에 포함되지 않습니다.",
+      "cardPayment": "카드 대금 결제로 집계되며 지출이나 환불에 포함되지 않습니다.",
+      "cardAdvance": "잔액 이체 또는 현금서비스로 집계됩니다. 갚을 금액은 늘지만 지출은 아닙니다.",
+      "spending": "보고서에서 지출로 집계됩니다.",
+      "refund": "환불로 집계되어 지출이 줄어듭니다.",
+      "income": "보고서에서 수입으로 집계됩니다.",
+      "none": "더 이상 지출이나 수입으로 집계되지 않습니다.",
+      "reversesBalance": "잔액도 반대 방향으로 움직입니다."
+    },
+    "linkRow": {
+      "paidFrom": "결제 계좌",
+      "receivedFrom": "입금 계좌",
+      "sentTo": "보낸 계좌",
+      "untracked": "추적하지 않는 계좌",
+      "suggested": "추천: {{account}} · {{date}} · {{amount}}",
+      "link": "연결",
+      "hint": "상대 계좌를 골라 양쪽을 연결하거나 그대로 두세요."
+    }
   },
   "txTab": {
     "duplicatedComment": "복제됨",

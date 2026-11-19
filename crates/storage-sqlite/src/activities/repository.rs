@@ -7018,6 +7018,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn card_credit_and_bank_withdrawal_convert_into_a_linked_payment() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account(&mut conn, "card");
+        insert_account(&mut conn, "bank");
+        insert_transfer_activity(&mut conn, "card-credit", "card", "CREDIT", None, None);
+        insert_transfer_activity(&mut conn, "bank-out", "bank", "WITHDRAWAL", None, None);
+        let internal = Some(r#"{"flow":{"is_external":false}}"#.to_string());
+        let retype = |id: &str, account_id: &str, activity_type: &str| ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: None,
+            id: id.to_string(),
+            account_id: account_id.to_string(),
+            asset: None,
+            activity_type: activity_type.to_string(),
+            subtype: Some(String::new()),
+            activity_date: "2024-01-15T00:00:00Z".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: None,
+            fx_rate: None,
+            metadata: internal.clone(),
+        };
+
+        let (transfer_in, transfer_out) = repo
+            .mutate_and_link_transfer(
+                Vec::new(),
+                vec![
+                    retype("card-credit", "card", ACTIVITY_TYPE_TRANSFER_IN),
+                    retype("bank-out", "bank", ACTIVITY_TYPE_TRANSFER_OUT),
+                ],
+                "card-credit".to_string(),
+                Some("bank-out".to_string()),
+            )
+            .await
+            .expect("a card credit pairs as the card's payment");
+
+        assert_eq!(transfer_in.id, "card-credit");
+        assert_eq!(transfer_in.effective_type(), ACTIVITY_TYPE_TRANSFER_IN);
+        assert_eq!(transfer_out.id, "bank-out");
+        assert_eq!(transfer_out.effective_type(), ACTIVITY_TYPE_TRANSFER_OUT);
+        assert!(transfer_in.source_group_id.is_some());
+        assert_eq!(transfer_in.source_group_id, transfer_out.source_group_id);
+    }
+
+    #[tokio::test]
     async fn link_transfer_activities_rejects_security_asset_or_quantity_mismatch() {
         let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
