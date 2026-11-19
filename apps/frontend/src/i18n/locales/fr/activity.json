@@ -562,7 +562,10 @@
     "marked_external": "Marqué comme externe",
     "load_error": "Impossible de charger les virements à rapprocher.",
     "empty_title": "Tous les virements sont rapprochés",
-    "empty_desc": "Aucun virement n’attend son autre côté."
+    "empty_desc": "Aucun virement n’attend son autre côté.",
+    "section_card_credit": "Remboursements de carte qui sont peut-être des paiements",
+    "section_card_credit_hint": "Le même montant est sorti d'un autre compte. S'il a payé la carte, liez-les ; si c'est un vrai remboursement, ignorez-le.",
+    "card_credit_hint": "Enregistré comme remboursement sur la carte. Le lier en fait le paiement de la carte."
   },
   "form": {
     "section_conversion": "Arbitrage",

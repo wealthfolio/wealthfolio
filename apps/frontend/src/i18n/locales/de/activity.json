@@ -443,7 +443,10 @@
     "marked_external": "Als extern markiert",
     "load_error": "Abzugleichende Übertragungen konnten nicht geladen werden.",
     "empty_title": "Alle Übertragungen sind abgeglichen",
-    "empty_desc": "Keiner Übertragung fehlt ihre Gegenseite."
+    "empty_desc": "Keiner Übertragung fehlt ihre Gegenseite.",
+    "section_card_credit": "Kartenerstattungen, die Zahlungen sein könnten",
+    "section_card_credit_hint": "Derselbe Betrag ging von einem anderen Konto ab. Wenn damit die Karte bezahlt wurde, verknüpfen Sie beide; bei einer echten Erstattung überspringen Sie sie.",
+    "card_credit_hint": "Als Erstattung auf der Karte gespeichert. Durch Verknüpfen wird es zur Zahlung auf die Karte."
   },
   "form": {
     "section_conversion": "Fondsumtausch",

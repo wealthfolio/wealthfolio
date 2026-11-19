@@ -543,7 +543,10 @@
     "marked_external": "外部としてマークしました",
     "load_error": "照合する振替を読み込めませんでした。",
     "empty_title": "すべての振替が照合済みです",
-    "empty_desc": "相手側が欠けている振替はありません。"
+    "empty_desc": "相手側が欠けている振替はありません。",
+    "section_card_credit": "支払いの可能性があるカードの返金",
+    "section_card_credit_hint": "同じ金額が別の口座から出ています。カードの支払いならリンクし、本当の返金ならスキップしてください。",
+    "card_credit_hint": "カードの返金として保存されています。リンクするとカードへの支払いになります。"
   },
   "form": {
     "section_conversion": "スイッチング",

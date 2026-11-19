@@ -546,7 +546,10 @@
     "marked_external": "已標記為外部",
     "load_error": "無法載入待配對的轉帳。",
     "empty_title": "所有轉帳都已配對",
-    "empty_desc": "沒有缺少另一端的轉帳。"
+    "empty_desc": "沒有缺少另一端的轉帳。",
+    "section_card_credit": "可能是繳款的信用卡退款",
+    "section_card_credit_hint": "另一個帳戶轉出了相同金額。如果是信用卡繳款，請連結；如果是真正的退款，請略過。",
+    "card_credit_hint": "已記為信用卡退款。連結後將變為信用卡繳款。"
   },
   "form": {
     "section_conversion": "基金轉換",
