@@ -892,7 +892,8 @@
     "updateTransaction": "更新交易",
     "createTransaction": "创建交易",
     "typeChange": {
-      "transfer": "计为转账，不计入支出或收入。",
+      "transferOut": "计为转出。在与另一个账户关联之前，报告仍将其计为支出。",
+      "transferIn": "计为转入。在与另一个账户关联之前，报告仍将其计为收入。",
       "cardPayment": "计为信用卡还款，不计入支出或退款。",
       "cardAdvance": "计为余额转移或预借现金：会增加欠款，但不算支出。",
       "spending": "在报告中计为支出。",

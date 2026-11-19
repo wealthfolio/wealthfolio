@@ -900,7 +900,8 @@
     "updateTransaction": "Transaktion aktualisieren",
     "createTransaction": "Transaktion erstellen",
     "typeChange": {
-      "transfer": "Zählt als Überweisung, nicht als Ausgabe oder Einnahme.",
+      "transferOut": "Zählt als ausgehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie als Ausgabe.",
+      "transferIn": "Zählt als eingehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie als Einnahme.",
       "cardPayment": "Zählt als Zahlung auf die Karte, nicht als Ausgabe oder Erstattung.",
       "cardAdvance": "Zählt als Saldoübertrag oder Bargeldbezug: Es erhöht, was Sie schulden, ist aber keine Ausgabe.",
       "spending": "Zählt in Ihren Berichten als Ausgabe.",

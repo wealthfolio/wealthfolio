@@ -900,7 +900,8 @@
     "updateTransaction": "更新交易",
     "createTransaction": "建立交易",
     "typeChange": {
-      "transfer": "計為轉帳，不計入支出或收入。",
+      "transferOut": "計為轉出。在與另一個帳戶連結之前，報告仍將其計為支出。",
+      "transferIn": "計為轉入。在與另一個帳戶連結之前，報告仍將其計為收入。",
       "cardPayment": "計為信用卡繳款，不計入支出或退款。",
       "cardAdvance": "計為餘額代償或預借現金：會增加欠款，但不算支出。",
       "spending": "在報告中計為支出。",

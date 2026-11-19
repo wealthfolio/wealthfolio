@@ -943,7 +943,8 @@
     "updateTransaction": "Aggiorna transazione",
     "createTransaction": "Crea transazione",
     "typeChange": {
-      "transfer": "Conta come trasferimento, non come spesa o entrata.",
+      "transferOut": "Conta come trasferimento in uscita. Finché non è collegato all'altro conto, i report lo contano come spesa.",
+      "transferIn": "Conta come trasferimento in entrata. Finché non è collegato all'altro conto, i report lo contano come entrata.",
       "cardPayment": "Conta come pagamento della carta, non come spesa o rimborso.",
       "cardAdvance": "Conta come trasferimento di saldo o anticipo di contanti: aumenta quanto devi, ma non è una spesa.",
       "spending": "Conta come spesa nei tuoi report.",

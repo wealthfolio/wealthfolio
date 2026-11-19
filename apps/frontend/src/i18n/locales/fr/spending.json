@@ -943,7 +943,8 @@
     "updateTransaction": "Mettre à jour la transaction",
     "createTransaction": "Créer la transaction",
     "typeChange": {
-      "transfer": "Compté comme un virement, ni dépense ni revenu.",
+      "transferOut": "Compté comme un virement sortant. Tant qu'il n'est pas lié à l'autre compte, les rapports le comptent comme une dépense.",
+      "transferIn": "Compté comme un virement entrant. Tant qu'il n'est pas lié à l'autre compte, les rapports le comptent comme un revenu.",
       "cardPayment": "Compté comme un paiement de la carte, ni dépense ni remboursement.",
       "cardAdvance": "Compté comme un transfert de solde ou une avance de fonds : il augmente ce que vous devez, sans être une dépense.",
       "spending": "Compté comme une dépense dans vos rapports.",

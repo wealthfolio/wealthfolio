@@ -112,16 +112,19 @@ describe("cashActivityFlowMetadata", () => {
 });
 
 describe("a saved transfer's boundary", () => {
-  it("is kept while the row stays a transfer and dropped when it becomes one", () => {
+  it("is kept while the row stays a transfer, and external when it becomes one", () => {
     const metadata = { flow: { is_external: true } };
     expect(cashActivityFlowMetadata("TRANSFER_IN", null, metadata, "TRANSFER_OUT")).toEqual(
       metadata,
     );
     expect(cashActivityFlowMetadata("TRANSFER_IN", null, undefined, "TRANSFER_IN")).toBeUndefined();
-    // A deposit's stray flag would make the new transfer internal and unlinked.
+    // Its other side is not tracked until it is linked, whatever it was before.
     expect(
       cashActivityFlowMetadata("TRANSFER_IN", null, { flow: { is_external: false } }, "DEPOSIT"),
-    ).toEqual({});
+    ).toEqual({ flow: { is_external: true } });
+    expect(cashActivityFlowMetadata("TRANSFER_IN", null, undefined, "WITHDRAWAL")).toEqual({
+      flow: { is_external: true },
+    });
   });
 });
 
@@ -142,6 +145,16 @@ describe("describeTypeChange", () => {
     expect(
       describeTypeChange({ activityType: "WITHDRAWAL" }, { activityType: "TRANSFER_IN" }, card),
     ).toEqual({ effect: "cardPayment", reversesBalance: true });
+  });
+
+  it("says a bank's one-sided transfer still counts until it is linked", () => {
+    expect(
+      describeTypeChange(
+        { activityType: "WITHDRAWAL" },
+        { activityType: "TRANSFER_OUT" },
+        AccountType.CASH,
+      ),
+    ).toEqual({ effect: "transferOut", reversesBalance: false });
   });
 
   it("names the report effect when a bank transfer becomes spending", () => {

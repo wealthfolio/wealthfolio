@@ -1128,8 +1128,9 @@ pub struct TransferMatchReview {
     /// include deposits and withdrawals that would become the other side,
     /// never a leg of a certain pair. Two transfers that are each other's
     /// best candidate share one row. Also lists a credit card's refund or
-    /// credit whose amount left another account, as a sync saves the card's
-    /// side of a payment; linking converts it into the card's payment.
+    /// credit whose amount left another account as a withdrawal, as a sync
+    /// saves the card's side of a payment; linking converts it into the
+    /// card's payment.
     pub needs_review: Vec<UnlinkedTransfer>,
 }
 

@@ -900,7 +900,8 @@
     "updateTransaction": "Update Transaction",
     "createTransaction": "Create Transaction",
     "typeChange": {
-      "transfer": "Counts as a transfer, not as spending or income.",
+      "transferOut": "Counts as a transfer out. Until it's linked to the other account, reports still count it as spending.",
+      "transferIn": "Counts as a transfer in. Until it's linked to the other account, reports still count it as income.",
       "cardPayment": "Counts as a payment towards the card, not as spending or a refund.",
       "cardAdvance": "Counts as a balance transfer or cash advance: it adds to what you owe but isn't spending.",
       "spending": "Counts as spending in your reports.",

@@ -6809,6 +6809,44 @@ pub(crate) mod tests {
             .is_none());
     }
 
+    /// On a bank a credit is income or a refund: turning a one-sided transfer
+    /// into one keeps the subtype the edit sends, unlike a card's payment.
+    #[tokio::test]
+    async fn bank_transfer_in_becoming_a_credit_keeps_its_subtype() {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("bank-1", "USD"));
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        activity_service
+            .create_activity(create_test_cash_create(
+                "bank-in",
+                "bank-1",
+                "TRANSFER_IN",
+                "USD",
+            ))
+            .await
+            .expect("banks accept TRANSFER_IN");
+
+        let mut update = create_test_activity_update("bank-in", "bank-1", None, "USD");
+        update.activity_type = "CREDIT".to_string();
+        update.subtype = Some("REIMBURSEMENT".to_string());
+        update.quantity = None;
+        update.unit_price = None;
+        update.fee = None;
+        update.amount = None;
+        let credit = activity_service
+            .update_activity(update)
+            .await
+            .expect("a bank transfer becomes a credit");
+        assert_eq!(credit.activity_type, "CREDIT");
+        assert_eq!(credit.subtype.as_deref(), Some("REIMBURSEMENT"));
+    }
+
     /// A security transfer on a card account: TRANSFER_IN/OUT with an asset.
     fn create_test_card_security_transfer(id: &str, activity_type: &str) -> NewActivity {
         NewActivity {
