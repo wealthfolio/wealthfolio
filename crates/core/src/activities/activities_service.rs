@@ -43,7 +43,7 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
-use crate::accounts::{account_types, Account, AccountServiceTrait};
+use crate::accounts::{account_types, is_liability_account_type, Account, AccountServiceTrait};
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, is_securities_transfer,
     requires_final_cash_amount, requires_symbol, ImportSymbolDisposition,
@@ -2078,6 +2078,22 @@ impl ActivityService {
         }
     }
 
+    /// The transfer `activity` becomes when converted: a cash flow's, or a
+    /// payment for a credit card's refund or credit. A card holds no deposits,
+    /// so a payment towards it can only have been saved as a credit.
+    fn conversion_transfer_type(&self, activity: &Activity) -> Result<Option<&'static str>> {
+        if let Some(transfer_type) = Self::cash_flow_transfer_type(activity) {
+            return Ok(Some(transfer_type));
+        }
+        if activity.effective_type() != ACTIVITY_TYPE_CREDIT
+            || Self::non_cash_transfer_asset_key(activity).is_some()
+        {
+            return Ok(None);
+        }
+        let account = self.account_service.get_account(&activity.account_id)?;
+        Ok(is_liability_account_type(&account.account_type).then_some(ACTIVITY_TYPE_TRANSFER_IN))
+    }
+
     fn is_in_transfer_pair(&self, activity: &Activity) -> Result<bool> {
         let Some(group_id) = activity
             .source_group_id
@@ -2101,9 +2117,9 @@ impl ActivityService {
         let source = self
             .activity_repository
             .get_activity(&request.activity_id)?;
-        let source_type = Self::cash_flow_transfer_type(&source).ok_or_else(|| {
+        let source_type = self.conversion_transfer_type(&source)?.ok_or_else(|| {
             Self::invalid_activity_data(
-                "Only cash deposits, withdrawals and transfers can become a transfer",
+                "Only cash deposits, withdrawals, transfers and card credits can become a transfer",
             )
         })?;
         if source.status == ActivityStatus::Void {
@@ -7471,14 +7487,26 @@ impl ActivityServiceTrait for ActivityService {
             .activity_repository
             .get_activity(&request.activity_id)?;
         // A deposit or withdrawal can be converted into a transfer, so its
-        // candidates include both plain cash flows and transfers.
+        // candidates include both plain cash flows and transfers. So can a
+        // card's credit, which a payment towards the card is saved as.
+        let is_cash = Self::cash_flow_transfer_type(&source).is_some();
+        let with_cash_flows = is_cash && request.include_cash_flows;
         let counterpart_types: &[&str] = match source.effective_type() {
+            ACTIVITY_TYPE_TRANSFER_IN if with_cash_flows => {
+                &[ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL]
+            }
             ACTIVITY_TYPE_TRANSFER_IN => &[ACTIVITY_TYPE_TRANSFER_OUT],
+            ACTIVITY_TYPE_TRANSFER_OUT if with_cash_flows => {
+                &[ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_DEPOSIT]
+            }
             ACTIVITY_TYPE_TRANSFER_OUT => &[ACTIVITY_TYPE_TRANSFER_IN],
-            ACTIVITY_TYPE_WITHDRAWAL if Self::cash_flow_transfer_type(&source).is_some() => {
+            ACTIVITY_TYPE_WITHDRAWAL if is_cash => {
                 &[ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN]
             }
-            ACTIVITY_TYPE_DEPOSIT if Self::cash_flow_transfer_type(&source).is_some() => {
+            ACTIVITY_TYPE_DEPOSIT if is_cash => {
+                &[ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT]
+            }
+            ACTIVITY_TYPE_CREDIT if self.conversion_transfer_type(&source)?.is_some() => {
                 &[ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT]
             }
             _ => {

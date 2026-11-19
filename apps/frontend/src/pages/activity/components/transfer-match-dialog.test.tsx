@@ -28,9 +28,14 @@ vi.mock("@/adapters", () => ({
 vi.mock("@/features/spending/adapters/cash-activities", () => ({
   getActivitySplits: vi.fn().mockResolvedValue([]),
 }));
+const convertToTransferMutation = vi.hoisted(() => ({
+  isPending: false,
+  mutateAsync: vi.fn(),
+}));
 vi.mock("../hooks/use-activity-mutations", () => ({
   useActivityMutations: () => ({
     linkTransferActivitiesMutation: { isPending: false },
+    convertToTransferMutation,
     unlinkTransferActivitiesMutation: { isPending: false },
     updateActivityMutation: { isPending: false },
   }),
@@ -63,15 +68,25 @@ const activity: Activity = {
   updatedAt: timestamp,
 };
 
-function renderActivity(overrides: Partial<Activity> = {}) {
+// The app renders every sheet inside both providers.
+function withProviders({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={new QueryClient()}>
+      <ActivitySplitReviewProvider>{children}</ActivitySplitReviewProvider>
+    </QueryClientProvider>
+  );
+}
+
+function renderActivity(overrides: Partial<Activity> = {}, accounts: Account[] = [account]) {
   return render(
     <TransferMatchDialog
       open
       mode="link"
       sourceActivity={{ ...activity, ...overrides }}
-      accounts={[account, { ...account, id: "candidate-account", name: "Candidate account" }]}
+      accounts={[...accounts, { ...account, id: "candidate-account", name: "Candidate account" }]}
       onOpenChange={vi.fn()}
     />,
+    { wrapper: withProviders },
   );
 }
 
@@ -137,6 +152,7 @@ describe("transfer activity summary", () => {
         accounts={[account, { ...account, id: "candidate-account", name: "Candidate account" }]}
         onOpenChange={vi.fn()}
       />,
+      { wrapper: withProviders },
     );
 
     const details = screen.getByTestId("transfer-match-details");
@@ -184,6 +200,7 @@ describe("transfer activity summary", () => {
         sourceActivity={{ ...activity, id: "first" }}
         counterpartId="first-match"
       />,
+      { wrapper: withProviders },
     );
     // Closed and opened for another activity before the first answer arrives.
     rerender(<TransferMatchDialog {...props} open={false} sourceActivity={null} />);
@@ -221,6 +238,54 @@ describe("transfer activity summary", () => {
     renderActivity({ assetId: "SYNTHETIC", quantity: "2" });
     expect(screen.getByText("2 SYNTHETIC")).toBeInTheDocument();
     await screen.findByText("No matches within 7 days of this activity.");
+  });
+});
+
+describe("linking a one-sided cash transfer", () => {
+  beforeEach(() => {
+    vi.mocked(convertToInternalTransfer)
+      .mockReset()
+      .mockResolvedValue({} as never);
+    vi.mocked(reviewConvertToTransferSplitEffects).mockReset().mockResolvedValue([]);
+  });
+
+  it("pairs it with the other account's deposit by converting that deposit", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: {
+          ...activity,
+          id: "synthetic-deposit",
+          accountId: "candidate-account",
+          activityType: "DEPOSIT",
+        },
+        matchKind: "cash",
+        confidence: "high",
+        score: 100,
+        reasons: [],
+        warnings: [],
+      },
+    ]);
+    renderActivity();
+
+    fireEvent.click((await screen.findByText("Candidate account")).closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+
+    await waitFor(() =>
+      expect(convertToTransferMutation.mutateAsync).toHaveBeenCalledWith({
+        activityId: "synthetic-transfer",
+        counterpartActivityId: "synthetic-deposit",
+        splitReview: [],
+      }),
+    );
+    expect(findTransferMatchCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ activityId: "synthetic-transfer", includeCashFlows: true }),
+    );
+  });
+
+  it("makes a card's refund/credit its payment rather than a plain link (#2740)", async () => {
+    const card: Account = { ...account, id: "card", accountType: "CREDIT_CARD" };
+    renderActivity({ accountId: "card", activityType: "CREDIT" }, [card]);
+    expect(await screen.findByText("Make it a transfer")).toBeInTheDocument();
   });
 });
 

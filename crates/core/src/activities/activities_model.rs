@@ -946,6 +946,11 @@ pub struct TransferMatchCandidateRequest {
     pub window_days: Option<i64>,
     #[serde(default)]
     pub limit: Option<usize>,
+    /// For an unlinked cash transfer, also suggest the opposite deposit or
+    /// withdrawal, which `convert_to_internal_transfer` would make its other
+    /// side. Off by default: linking pairs two transfers only.
+    #[serde(default)]
+    pub include_cash_flows: bool,
 }
 
 /// Turns a cash deposit or withdrawal (or an unlinked cash transfer) into one

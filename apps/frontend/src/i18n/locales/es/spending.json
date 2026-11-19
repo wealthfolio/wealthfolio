@@ -941,7 +941,26 @@
     "notesPayee": "Notas / Beneficiario",
     "notesPlaceholder": "p. ej., AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Actualizar transacción",
-    "createTransaction": "Crear transacción"
+    "createTransaction": "Crear transacción",
+    "typeChange": {
+      "transfer": "Cuenta como una transferencia, no como gasto ni ingreso.",
+      "cardPayment": "Cuenta como un pago de la tarjeta, no como gasto ni reembolso.",
+      "cardAdvance": "Cuenta como transferencia de saldo o adelanto de efectivo: aumenta lo que debes, pero no es un gasto.",
+      "spending": "Cuenta como gasto en tus informes.",
+      "refund": "Cuenta como un reembolso, que reduce tus gastos.",
+      "income": "Cuenta como ingreso en tus informes.",
+      "none": "Ya no cuenta como gasto ni como ingreso.",
+      "reversesBalance": "Además, el saldo se mueve en sentido contrario."
+    },
+    "linkRow": {
+      "paidFrom": "Pagado desde",
+      "receivedFrom": "Recibido de",
+      "sentTo": "Enviado a",
+      "untracked": "Una cuenta que no sigo",
+      "suggested": "Sugerencia: {{account}} · {{date}} · {{amount}}",
+      "link": "Vincular",
+      "hint": "Elige la otra cuenta para vincular ambos lados, o déjalo así."
+    }
   },
   "txTab": {
     "duplicatedComment": "Duplicada",

@@ -1,12 +1,12 @@
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
-import { ActivityType } from "@/lib/constants";
+import { ActivityType, isLiabilityAccountType } from "@/lib/constants";
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { Page, Spinner } from "@wealthfolio/ui";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { CashActivityForm } from "../components/cash-activity-form";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
@@ -21,6 +21,12 @@ export default function SpendingActivityPage() {
   const { accounts = [] } = useAccounts();
   const isMobile = useIsMobileViewport();
   const [open, setOpen] = useState(true);
+  // "Record payment" or "Transfer between accounts" from the form: the
+  // transfer, from the account it was chosen for.
+  const [transferActivity, setTransferActivity] = useState<
+    { activityType: ActivityType; accountId: string } | undefined
+  >();
+  const switchingToTransfer = useRef(false);
   const goBack = useBackNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,14 +58,15 @@ export default function SpendingActivityPage() {
       </Page>
     );
   if (!isEnabled) return <Navigate to="/" replace />;
-  if (type === "TRANSFER") {
+  if (type === "TRANSFER" || transferActivity) {
+    const activity = transferActivity ?? TRANSFER_ACTIVITY;
     return isMobile ? (
       <MobileActivityForm
         open={open}
         startOnDetails
         accounts={transferAccounts}
         transferAccounts={transferAccounts}
-        activity={TRANSFER_ACTIVITY}
+        activity={activity}
         onClose={close}
       />
     ) : (
@@ -68,7 +75,7 @@ export default function SpendingActivityPage() {
         hidePicker
         accounts={transferAccounts}
         transferAccounts={transferAccounts}
-        activity={TRANSFER_ACTIVITY}
+        activity={activity}
         onClose={close}
       />
     );
@@ -77,7 +84,17 @@ export default function SpendingActivityPage() {
     <CashActivityForm
       open={open}
       onOpenChange={(open) => {
-        if (!open) close();
+        if (!open && !switchingToTransfer.current) close();
+      }}
+      onTransferClick={(accountId) => {
+        const account = accounts.find((item) => item.id === accountId);
+        switchingToTransfer.current = true;
+        setTransferActivity({
+          activityType: isLiabilityAccountType(account?.accountType)
+            ? ActivityType.TRANSFER_IN
+            : ActivityType.TRANSFER_OUT,
+          accountId,
+        });
       }}
       intent={type === "WITHDRAWAL" ? "expense" : type === "DEPOSIT" ? "income" : undefined}
     />

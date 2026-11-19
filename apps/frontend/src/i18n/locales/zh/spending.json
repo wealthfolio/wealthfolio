@@ -890,7 +890,26 @@
     "notesPayee": "备注 / 收款方",
     "notesPlaceholder": "例如：AMAZON*MARKETPLACE、STARBUCKS COFFEE",
     "updateTransaction": "更新交易",
-    "createTransaction": "创建交易"
+    "createTransaction": "创建交易",
+    "typeChange": {
+      "transfer": "计为转账，不计入支出或收入。",
+      "cardPayment": "计为信用卡还款，不计入支出或退款。",
+      "cardAdvance": "计为余额转移或预借现金：会增加欠款，但不算支出。",
+      "spending": "在报告中计为支出。",
+      "refund": "计为退款，会减少你的支出。",
+      "income": "在报告中计为收入。",
+      "none": "不再计入支出或收入。",
+      "reversesBalance": "余额也会朝相反方向变动。"
+    },
+    "linkRow": {
+      "paidFrom": "付款账户",
+      "receivedFrom": "来源账户",
+      "sentTo": "转入账户",
+      "untracked": "我未记录的账户",
+      "suggested": "建议：{{account}} · {{date}} · {{amount}}",
+      "link": "关联",
+      "hint": "选择另一个账户以关联两边，或保持不变。"
+    }
   },
   "txTab": {
     "duplicatedComment": "已复制",

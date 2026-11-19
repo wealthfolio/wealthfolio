@@ -214,7 +214,10 @@ vi.mock("../hooks/use-spending-settings", () => ({
   useSpendingSettings: () => ({ accountIds: [USD_ACCOUNT, EUR_ACCOUNT] }),
 }));
 
-vi.mock("./cash-activity-form", () => ({ CashActivityForm: () => null }));
+vi.mock("./cash-activity-form", () => ({
+  CashActivityForm: ({ activity, open }: { activity?: { id: string }; open: boolean }) =>
+    open ? <div data-testid="cash-form">{activity?.id}</div> : null,
+}));
 vi.mock("@/pages/activity/components/mobile-forms/mobile-activity-form", () => ({
   MobileActivityForm: () => null,
 }));
@@ -437,6 +440,21 @@ describe("SpendingTransactionsTab transfer edit", () => {
       transferInId: "in-1",
     });
     expect(mocks.getTransferPairForActivity).toHaveBeenCalledWith("out-1");
+  });
+
+  it("opens a one-sided transfer in the Spending form, where its type can change", async () => {
+    const { sourceGroupId } = mocks.transferOut;
+    Object.assign(mocks.transferOut, { sourceGroupId: undefined, transferLinkStatus: "unlinked" });
+    try {
+      render(<SpendingTransactionsTab />);
+      (await screen.findByTestId("edit-out-1")).click();
+
+      expect(await screen.findByTestId("cash-form")).toHaveTextContent("out-1");
+      expect(screen.queryByTestId("activity-form")).not.toBeInTheDocument();
+      expect(mocks.getTransferPairForActivity).not.toHaveBeenCalled();
+    } finally {
+      Object.assign(mocks.transferOut, { sourceGroupId, transferLinkStatus: undefined });
+    }
   });
 
   it("still opens single-leg when the pair cannot be resolved", async () => {

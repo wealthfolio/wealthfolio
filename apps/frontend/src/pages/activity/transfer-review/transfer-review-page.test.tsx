@@ -47,6 +47,7 @@ vi.mock("@/features/spending/adapters/cash-activities", () => ({
 vi.mock("../hooks/use-activity-mutations", () => ({
   useActivityMutations: () => ({
     linkTransferActivitiesMutation: { isPending: false },
+    convertToTransferMutation: { isPending: false },
     unlinkTransferActivitiesMutation: { isPending: false },
     updateActivityMutation: { isPending: false, mutateAsync: updateActivity },
   }),

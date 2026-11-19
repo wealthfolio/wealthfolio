@@ -898,7 +898,26 @@
     "notesPayee": "Notes / Payee",
     "notesPlaceholder": "e.g., AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Update Transaction",
-    "createTransaction": "Create Transaction"
+    "createTransaction": "Create Transaction",
+    "typeChange": {
+      "transfer": "Counts as a transfer, not as spending or income.",
+      "cardPayment": "Counts as a payment towards the card, not as spending or a refund.",
+      "cardAdvance": "Counts as a balance transfer or cash advance: it adds to what you owe but isn't spending.",
+      "spending": "Counts as spending in your reports.",
+      "refund": "Counts as a refund, which lowers your spending.",
+      "income": "Counts as income in your reports.",
+      "none": "No longer counts as spending or income.",
+      "reversesBalance": "It also moves the balance the other way."
+    },
+    "linkRow": {
+      "paidFrom": "Paid from",
+      "receivedFrom": "Received from",
+      "sentTo": "Sent to",
+      "untracked": "An account I don't track",
+      "suggested": "Suggested: {{account}} · {{date}} · {{amount}}",
+      "link": "Link",
+      "hint": "Pick the other account to link both sides, or leave it as is."
+    }
   },
   "txTab": {
     "duplicatedComment": "Duplicated",
