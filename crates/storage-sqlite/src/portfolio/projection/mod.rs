@@ -2468,6 +2468,7 @@ mod tests {
                 accounting("lotSelectionStrategy", "LOWEST_COST"),
                 acc1.clone(),
             ),
+            (accounting("cashTracking", "NOT_TRACKED"), acc1.clone()),
             (asset("kind = 'PROPERTY'"), aapl.clone()),
             (asset("quote_ccy = 'CAD'"), aapl.clone()),
             (asset("instrument_type = 'EQUITY'"), aapl.clone()),

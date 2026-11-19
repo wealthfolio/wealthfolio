@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActivityDetails } from "@/lib/types";
@@ -33,7 +33,11 @@ describe("cash audit ledger", () => {
 
       render(
         <MemoryRouter>
-          <ActivityDateList activities={[activity]} endingCashBalance={109.5} cashCurrency="USD" />
+          <ActivityDateList
+            activities={[activity]}
+            endingCashBalance={109.5}
+            cashCurrency="USD"
+          />
         </MemoryRouter>,
       );
 
@@ -44,4 +48,50 @@ describe("cash audit ledger", () => {
       expect(screen.getAllByText("$109.50")).toHaveLength(2);
     },
   );
+});
+
+describe("negative cash actions", () => {
+  const buy = {
+    id: "buy-1",
+    accountId: "acc-1",
+    activityType: ActivityType.BUY,
+    date: new Date("2025-01-02T10:00:00Z"),
+    assetId: "AAPL",
+    assetSymbol: "AAPL",
+    quantity: "10",
+    unitPrice: "100",
+    amount: "1000",
+    fee: "0",
+    currency: "USD",
+  } as ActivityDetails;
+
+  function renderList(onStopTrackingCash?: () => void) {
+    render(
+      <MemoryRouter>
+        <ActivityDateList
+          activities={[buy]}
+          endingCashBalance={-1000}
+          cashCurrency="USD"
+          onStopTrackingCash={onStopTrackingCash}
+        />
+      </MemoryRouter>,
+    );
+  }
+
+  it("offers to stop tracking cash next to adding a deposit", () => {
+    const onStopTrackingCash = vi.fn();
+    renderList(onStopTrackingCash);
+    expect(screen.getByRole("link", { name: "Add deposit" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop tracking cash" }));
+    expect(onStopTrackingCash).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer it where the account cannot stop tracking cash", () => {
+    renderList();
+    expect(screen.getByRole("link", { name: "Add deposit" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Stop tracking cash" }),
+    ).not.toBeInTheDocument();
+  });
 });

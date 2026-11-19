@@ -5,7 +5,7 @@ import {
   LoanSheetFooter,
 } from "./loan-sheet-content";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
-import { LoanFieldInfo } from "./loan-field-info";
+import { FieldInfo } from "@/components/field-info";
 import { LoanDurationInput } from "./loan-duration-input";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -456,7 +456,7 @@ function SectionHeader({
     <div className="space-y-1">
       <div className="flex items-center gap-1.5">
         <h4 className="text-sm font-semibold">{title}</h4>
-        {info && <LoanFieldInfo label={title}>{info}</LoanFieldInfo>}
+        {info && <FieldInfo label={title}>{info}</FieldInfo>}
       </div>
       {description && <p className="text-muted-foreground text-xs">{description}</p>}
     </div>
@@ -823,7 +823,7 @@ function LiabilityFields({
   const fieldLabel = (label: string, info?: string) => (
     <div className="flex items-center gap-1.5">
       <FormLabel>{label}</FormLabel>
-      {info && <LoanFieldInfo label={label}>{info}</LoanFieldInfo>}
+      {info && <FieldInfo label={label}>{info}</FieldInfo>}
     </div>
   );
 

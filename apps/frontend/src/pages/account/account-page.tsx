@@ -38,6 +38,7 @@ import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
+import { isCashNotTracked, supportsCashTracking } from "@/lib/account-accounting";
 import { canAddHoldings, getActivityRestrictionLevel } from "@/lib/activity-restrictions";
 import {
   AccountPurpose,
@@ -78,6 +79,7 @@ import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
 import { useCalculatePerformanceHistory } from "@/pages/performance/hooks/use-performance-data";
+import { AccountEditModal } from "@/pages/settings/accounts/components/account-edit-modal";
 import { useQuery } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
 import { Icons, type Icon } from "@wealthfolio/ui";
@@ -204,6 +206,7 @@ const AccountPage = () => {
   const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
   const [showBulkHoldingsForm, setShowBulkHoldingsForm] = useState(false);
+  const [isEditingAccount, setIsEditingAccount] = useState(false);
   const [accountActivitiesSorting, setAccountActivitiesSorting] = useState<SortingState>([
     { id: "date", desc: true },
   ]);
@@ -258,6 +261,10 @@ const AccountPage = () => {
     if (!account) return false;
     return account.trackingMode === "HOLDINGS";
   }, [account]);
+  // An account that does not track cash holds none (engine rules R1.6).
+  const cashNotTracked = !!account && isCashNotTracked(account);
+  const canStopTrackingCash =
+    !!account && !cashNotTracked && supportsCashTracking(account.accountType, account.trackingMode);
 
   // The list heads each day with its date while it runs in date order. Then it
   // also shows the account's cash: a cash or credit-card account reads like a
@@ -1205,6 +1212,7 @@ const AccountPage = () => {
                   hideBalanceEdit={isHoldingsMode || isLiabilityAccount}
                   balanceEditDisabled={isCurrentValuationLoading || Boolean(currentValuationError)}
                   isHoldingsMode={isHoldingsMode}
+                  cashNotTracked={cashNotTracked}
                   balanceLabel={
                     isLiabilityAccount ? t("account:balance_label") : t("account:cash_balance")
                   }
@@ -1321,7 +1329,23 @@ const AccountPage = () => {
         }
         cashAuditTarget={selectedCashAuditTarget ?? undefined}
         isCreditCardAccount={isLiabilityAccount}
+        onStopTrackingCash={
+          canStopTrackingCash
+            ? () => {
+                setIsActivitySheetOpen(false);
+                setIsEditingAccount(true);
+              }
+            : undefined
+        }
       />
+
+      {account && (
+        <AccountEditModal
+          account={account}
+          open={isEditingAccount}
+          onClose={() => setIsEditingAccount(false)}
+        />
+      )}
 
       {/* Bulk Holdings Modal for Transfer Holdings */}
       <BulkHoldingsModal

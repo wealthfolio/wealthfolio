@@ -54,6 +54,8 @@ interface ActivityDateListProps {
   cashCurrency?: string;
   cashAuditTarget?: CashAuditReviewTarget;
   isCreditCardAccount?: boolean;
+  /** Offered next to adding a deposit when cash ends negative. */
+  onStopTrackingCash?: () => void;
 }
 
 export function ActivityDateList({
@@ -62,6 +64,7 @@ export function ActivityDateList({
   cashCurrency,
   cashAuditTarget,
   isCreditCardAccount = false,
+  onStopTrackingCash,
 }: ActivityDateListProps) {
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
@@ -124,6 +127,7 @@ export function ActivityDateList({
           crossingRow={crossingRow}
           accountId={accountId}
           cashAuditTarget={cashAuditTarget}
+          onStopTrackingCash={onStopTrackingCash}
         />
       ) : null}
 
@@ -323,6 +327,7 @@ function CashAuditSummary({
   crossingRow,
   accountId,
   cashAuditTarget,
+  onStopTrackingCash,
 }: {
   startingCashBalance: number | undefined;
   endingCashBalance: number | undefined;
@@ -331,6 +336,7 @@ function CashAuditSummary({
   crossingRow?: ActivityCashLedgerRow;
   accountId?: string;
   cashAuditTarget?: CashAuditReviewTarget;
+  onStopTrackingCash?: () => void;
 }) {
   const { t } = useTranslation();
   const isEndingNegative = endingCashBalance !== undefined && endingCashBalance < 0;
@@ -388,6 +394,11 @@ function CashAuditSummary({
             >
               {t("activity:date_list.add_transfer")}
             </Link>
+            {onStopTrackingCash ? (
+              <Button size="sm" variant="outline" onClick={onStopTrackingCash}>
+                {t("activity:date_list.stop_tracking_cash")}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>

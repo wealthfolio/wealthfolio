@@ -8,6 +8,16 @@ import * as z from "zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
+import { FieldInfo } from "@/components/field-info";
+import {
+  CASH_NOT_TRACKED,
+  CASH_TRACKED,
+  getAccountingFromMeta,
+  getCashTrackingFromMeta,
+  parseMetaObject,
+  setCashTrackingInMeta,
+  supportsCashTracking,
+} from "@/lib/account-accounting";
 import { newAccountSchema } from "@/lib/schemas";
 import { AccountType } from "@/lib/constants";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
@@ -66,7 +76,10 @@ function getCashCategoryFromMeta(meta?: string | null): string | null {
   }
 }
 
-function setCashCategoryInMeta(meta: string | null | undefined, categoryId: string | null): string {
+function setCashCategoryInMeta(
+  meta: string | null | undefined,
+  categoryId: string | null,
+): string {
   let parsed: Record<string, unknown> = {};
   if (meta) {
     try {
@@ -95,25 +108,6 @@ function getSelectableCashCategoryFromMeta(meta?: string | null): string {
 const COST_BASIS_METHODS: readonly string[] = ["FIFO", "LIFO", "HIFO", "WAC"];
 const DEFAULT_COST_BASIS_METHOD = "FIFO";
 
-function asObject(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function parseMetaObject(meta?: string | null): Record<string, unknown> | null {
-  if (!meta) return null;
-  try {
-    return asObject(JSON.parse(meta));
-  } catch {
-    return null;
-  }
-}
-
-function getAccountingFromMeta(meta?: string | null): Record<string, unknown> {
-  return asObject(parseMetaObject(meta)?.accounting) ?? {};
-}
-
 // The stored code as core reads it: exactly, without trimming or case folding,
 // so a code core refuses reads as unsupported here too.
 function getCostBasisMethodFromMeta(meta?: string | null): string {
@@ -122,7 +116,10 @@ function getCostBasisMethodFromMeta(meta?: string | null): string {
   return typeof method === "string" ? method : DEFAULT_COST_BASIS_METHOD;
 }
 
-function setCostBasisMethodInMeta(meta: string | null | undefined, method: string): string {
+function setCostBasisMethodInMeta(
+  meta: string | null | undefined,
+  method: string,
+): string {
   // Meta that is not a JSON object cannot hold settings: start a new one.
   const parsed = parseMetaObject(meta) ?? {};
   // Keep the rest of the accounting settings; one spelling of the method key.
@@ -163,26 +160,39 @@ export function AccountForm({
   onSuccess = () => undefined,
 }: AccountFormlProps) {
   const { t } = useTranslation();
-  const { createAccountMutation, updateAccountMutation } = useAccountMutations({ onSuccess });
+  const { createAccountMutation, updateAccountMutation } = useAccountMutations({
+    onSuccess,
+  });
 
   const accountTypes: ResponsiveSelectOption[] = useMemo(
     () => [
-      { label: t("settings:accounts_form_type_securities"), value: "SECURITIES" },
+      {
+        label: t("settings:accounts_form_type_securities"),
+        value: "SECURITIES",
+      },
       { label: t("settings:accounts_form_type_cash"), value: "CASH" },
-      { label: t("settings:accounts_form_type_credit_card"), value: "CREDIT_CARD" },
-      { label: t("settings:accounts_form_type_crypto"), value: "CRYPTOCURRENCY" },
+      {
+        label: t("settings:accounts_form_type_credit_card"),
+        value: "CREDIT_CARD",
+      },
+      {
+        label: t("settings:accounts_form_type_crypto"),
+        value: "CRYPTOCURRENCY",
+      },
     ],
     [t],
   );
 
   // Track initial tracking mode to detect changes
   const initialTrackingMode = defaultValues?.trackingMode;
-  const needsSetup = initialTrackingMode === "NOT_SET" || initialTrackingMode === undefined;
+  const needsSetup =
+    initialTrackingMode === "NOT_SET" || initialTrackingMode === undefined;
 
   // State for the mode switch and archive confirmation dialogs
   const [showModeConfirmation, setShowModeConfirmation] = useState(false);
   const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
-  const [pendingFormData, setPendingFormData] = useState<AccountFormOutput | null>(null);
+  const [pendingFormData, setPendingFormData] =
+    useState<AccountFormOutput | null>(null);
 
   const form = useForm<AccountFormInput, unknown, AccountFormOutput>({
     resolver: zodResolver(newAccountSchema),
@@ -201,7 +211,9 @@ export function AccountForm({
   const isCashAccount = currentAccountType === AccountType.CASH;
   // Only transactions accounts that hold securities keep lots.
   const showsCostBasisMethod =
-    currentTrackingMode === "TRANSACTIONS" && !isCashAccount && !isCreditCardAccount;
+    currentTrackingMode === "TRANSACTIONS" &&
+    !isCashAccount &&
+    !isCreditCardAccount;
 
   const currentMeta = form.watch("meta");
   const costBasisMethod = getCostBasisMethodFromMeta(currentMeta);
@@ -211,15 +223,35 @@ export function AccountForm({
   const [costBasisOpen, setCostBasisOpen] = useState(
     savedCostBasisMethod !== DEFAULT_COST_BASIS_METHOD,
   );
-  const costBasisChanged = !!defaultValues?.id && costBasisMethod !== savedCostBasisMethod;
+  const costBasisChanged =
+    !!defaultValues?.id && costBasisMethod !== savedCostBasisMethod;
+  // Only transactions accounts that hold securities can leave cash untracked.
+  const showsCashTracking = supportsCashTracking(
+    currentAccountType,
+    currentTrackingMode,
+  );
+  const cashTracking = getCashTrackingFromMeta(currentMeta);
+  const cashTrackingChanged =
+    !!defaultValues?.id &&
+    cashTracking !== getCashTrackingFromMeta(defaultValues?.meta);
+  // A code core refuses fails this account's calculation: say so, so choosing
+  // one of the options is the fix.
+  const cashTrackingUnsupported =
+    cashTracking !== CASH_TRACKED && cashTracking !== CASH_NOT_TRACKED;
   const costBasisDescription = COST_BASIS_METHODS.includes(costBasisMethod)
-    ? t(`settings:accounts.form_cost_basis_method_${costBasisMethod.toLowerCase()}_description`)
+    ? t(
+        `settings:accounts.form_cost_basis_method_${costBasisMethod.toLowerCase()}_description`,
+      )
     : null;
   const costBasisMethods: ResponsiveSelectOption[] = useMemo(() => {
-    const options: ResponsiveSelectOption[] = COST_BASIS_METHODS.map((method) => ({
-      label: t(`settings:accounts.form_cost_basis_method_${method.toLowerCase()}`),
-      value: method,
-    }));
+    const options: ResponsiveSelectOption[] = COST_BASIS_METHODS.map(
+      (method) => ({
+        label: t(
+          `settings:accounts.form_cost_basis_method_${method.toLowerCase()}`,
+        ),
+        value: method,
+      }),
+    );
     // A stored method the engine does not compute fails this account's
     // calculation: show it, so choosing another is the fix.
     if (!COST_BASIS_METHODS.includes(costBasisMethod)) {
@@ -233,7 +265,9 @@ export function AccountForm({
     return options;
   }, [costBasisMethod, t]);
 
-  const { data: assetClassesTaxonomy } = useTaxonomy(isCashAccount ? "asset_classes" : null);
+  const { data: assetClassesTaxonomy } = useTaxonomy(
+    isCashAccount ? "asset_classes" : null,
+  );
   const fixedIncomeCategoryName = useMemo(() => {
     return (
       assetClassesTaxonomy?.categories.find(
@@ -244,7 +278,10 @@ export function AccountForm({
 
   useEffect(() => {
     if (isCreditCardAccount && currentTrackingMode !== "TRANSACTIONS") {
-      form.setValue("trackingMode", "TRANSACTIONS", { shouldDirty: true, shouldValidate: true });
+      form.setValue("trackingMode", "TRANSACTIONS", {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
   }, [currentTrackingMode, form, isCreditCardAccount]);
 
@@ -271,7 +308,8 @@ export function AccountForm({
 
   function onSubmit(data: AccountFormOutput) {
     // Archiving asks first, as it does from the account menu
-    const isArchiving = !!data.id && data.isArchived && !defaultValues?.isArchived;
+    const isArchiving =
+      !!data.id && data.isArchived && !defaultValues?.isArchived;
     if (isArchiving) {
       setPendingFormData(data);
       setShowArchiveConfirmation(true);
@@ -284,7 +322,9 @@ export function AccountForm({
     // Check if this is an existing account (update) and mode is switching from HOLDINGS to TRANSACTIONS
     const isExistingAccount = !!data.id;
     const isSwitchingFromHoldingsToTransactions =
-      !needsSetup && initialTrackingMode === "HOLDINGS" && data.trackingMode === "TRANSACTIONS";
+      !needsSetup &&
+      initialTrackingMode === "HOLDINGS" &&
+      data.trackingMode === "TRANSACTIONS";
 
     if (isExistingAccount && isSwitchingFromHoldingsToTransactions) {
       // Show confirmation dialog
@@ -362,18 +402,24 @@ export function AccountForm({
           <input type="hidden" name="id" />
           <div className="grid content-start gap-4">
             <section className={formCardClassName}>
-              <h3 className={formSectionLabelClassName}>{t("settings:accounts.form_identity")}</h3>
+              <h3 className={formSectionLabelClassName}>
+                {t("settings:accounts.form_identity")}
+              </h3>
               <div className="mt-4 grid gap-4">
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("settings:accounts_form_name_label")}</FormLabel>
+                      <FormLabel>
+                        {t("settings:accounts_form_name_label")}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           data-testid="account-name-input"
-                          placeholder={t("settings:accounts_form_name_placeholder")}
+                          placeholder={t(
+                            "settings:accounts_form_name_placeholder",
+                          )}
                           {...field}
                         />
                       </FormControl>
@@ -394,7 +440,9 @@ export function AccountForm({
                       </FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={t("settings:accounts_form_group_placeholder")}
+                          placeholder={t(
+                            "settings:accounts_form_group_placeholder",
+                          )}
                           {...field}
                           value={field.value ?? ""}
                         />
@@ -416,7 +464,10 @@ export function AccountForm({
                       disabled
                       aria-describedby="account-number-synced-hint"
                     />
-                    <p id="account-number-synced-hint" className="text-muted-foreground text-sm">
+                    <p
+                      id="account-number-synced-hint"
+                      className="text-muted-foreground text-sm"
+                    >
                       {t("settings:accounts.form_account_number_synced")}
                     </p>
                   </div>
@@ -455,15 +506,23 @@ export function AccountForm({
                   name="accountType"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>{t("settings:accounts_form_type_label")}</FormLabel>
+                      <FormLabel>
+                        {t("settings:accounts_form_type_label")}
+                      </FormLabel>
                       <FormControl>
                         <ResponsiveSelect
                           value={field.value}
                           onValueChange={field.onChange}
                           options={accountTypes}
-                          placeholder={t("settings:accounts_form_type_placeholder")}
-                          sheetTitle={t("settings:accounts_form_type_sheet_title")}
-                          sheetDescription={t("settings:accounts_form_type_sheet_description")}
+                          placeholder={t(
+                            "settings:accounts_form_type_placeholder",
+                          )}
+                          sheetTitle={t(
+                            "settings:accounts_form_type_sheet_title",
+                          )}
+                          sheetDescription={t(
+                            "settings:accounts_form_type_sheet_description",
+                          )}
                           triggerClassName="h-11"
                         />
                       </FormControl>
@@ -498,28 +557,42 @@ export function AccountForm({
                         {t("settings:accounts.form_cash_classification_label")}
                       </label>
                       <p className="text-muted-foreground text-xs">
-                        {t("settings:accounts.form_cash_classification_description")}
+                        {t(
+                          "settings:accounts.form_cash_classification_description",
+                        )}
                       </p>
                     </div>
                     <AnimatedToggleGroup
                       size="md"
-                      aria-label={t("settings:accounts.form_cash_classification_aria")}
-                      value={getSelectableCashCategoryFromMeta(form.watch("meta"))}
+                      aria-label={t(
+                        "settings:accounts.form_cash_classification_aria",
+                      )}
+                      value={getSelectableCashCategoryFromMeta(
+                        form.watch("meta"),
+                      )}
                       onValueChange={(v) => {
-                        const categoryId = v === CASH_ALLOCATION_DEFAULT_VALUE ? null : v;
+                        const categoryId =
+                          v === CASH_ALLOCATION_DEFAULT_VALUE ? null : v;
                         const updatedMeta = setCashCategoryInMeta(
                           form.getValues("meta"),
                           categoryId,
                         );
-                        form.setValue("meta", updatedMeta, { shouldDirty: true });
+                        form.setValue("meta", updatedMeta, {
+                          shouldDirty: true,
+                        });
                       }}
                       className="grid w-full grid-cols-2"
                       items={[
                         {
                           value: CASH_ALLOCATION_DEFAULT_VALUE,
-                          label: t("settings:accounts.form_cash_classification_cash"),
+                          label: t(
+                            "settings:accounts.form_cash_classification_cash",
+                          ),
                         },
-                        { value: CASH_FIXED_INCOME_CATEGORY_ID, label: fixedIncomeCategoryName },
+                        {
+                          value: CASH_FIXED_INCOME_CATEGORY_ID,
+                          label: fixedIncomeCategoryName,
+                        },
                       ]}
                     />
                   </div>
@@ -568,13 +641,20 @@ export function AccountForm({
                             : "border-border",
                         )}
                       >
-                        <RadioGroupItem value="TRANSACTIONS" className="mt-0.5" />
+                        <RadioGroupItem
+                          value="TRANSACTIONS"
+                          className="mt-0.5"
+                        />
                         <div className="flex flex-col">
                           <span className="text-sm font-medium">
-                            {t("settings:accounts.form_tracking_transactions_title")}
+                            {t(
+                              "settings:accounts.form_tracking_transactions_title",
+                            )}
                           </span>
                           <span className="text-muted-foreground text-xs">
-                            {t("settings:accounts.form_tracking_transactions_description")}
+                            {t(
+                              "settings:accounts.form_tracking_transactions_description",
+                            )}
                           </span>
                         </div>
                       </label>
@@ -591,10 +671,14 @@ export function AccountForm({
                           <RadioGroupItem value="HOLDINGS" className="mt-0.5" />
                           <div className="flex flex-col">
                             <span className="text-sm font-medium">
-                              {t("settings:accounts.form_tracking_holdings_title")}
+                              {t(
+                                "settings:accounts.form_tracking_holdings_title",
+                              )}
                             </span>
                             <span className="text-muted-foreground text-xs">
-                              {t("settings:accounts.form_tracking_holdings_description")}
+                              {t(
+                                "settings:accounts.form_tracking_holdings_description",
+                              )}
                             </span>
                           </div>
                         </label>
@@ -618,6 +702,106 @@ export function AccountForm({
                     </Alert>
                   )}
                   <AccountFormMessage />
+                  {showsCashTracking && (
+                    <div
+                      data-testid="account-cash-tracking"
+                      className="border-border flex flex-col gap-2 border-t pt-4"
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium">
+                            {t("settings:accounts.form_cash_tracking_label")}
+                          </span>
+                          <FieldInfo
+                            label={t(
+                              "settings:accounts.form_cash_tracking_label",
+                            )}
+                          >
+                            <div className="space-y-2">
+                              <p>
+                                <span className="font-medium">
+                                  {t(
+                                    "settings:accounts.form_cash_tracking_tracked",
+                                  )}
+                                </span>
+                                {": "}
+                                {t(
+                                  "settings:accounts.form_cash_tracking_tracked_description",
+                                )}
+                              </p>
+                              <p>
+                                <span className="font-medium">
+                                  {t(
+                                    "settings:accounts.form_cash_tracking_not_tracked",
+                                  )}
+                                </span>
+                                {": "}
+                                {t(
+                                  "settings:accounts.form_cash_tracking_not_tracked_description",
+                                )}
+                              </p>
+                            </div>
+                          </FieldInfo>
+                        </div>
+                        <p className="text-muted-foreground text-xs">
+                          {t(
+                            "settings:accounts.form_cash_tracking_description",
+                          )}
+                        </p>
+                      </div>
+                      <AnimatedToggleGroup
+                        size="md"
+                        aria-label={t(
+                          "settings:accounts.form_cash_tracking_label",
+                        )}
+                        value={cashTracking}
+                        onValueChange={(code) => {
+                          const updatedMeta = setCashTrackingInMeta(
+                            form.getValues("meta"),
+                            code,
+                          );
+                          form.setValue("meta", updatedMeta, {
+                            shouldDirty: true,
+                          });
+                        }}
+                        className="grid w-full grid-cols-2"
+                        items={[
+                          {
+                            value: CASH_TRACKED,
+                            label: t(
+                              "settings:accounts.form_cash_tracking_tracked",
+                            ),
+                          },
+                          {
+                            value: CASH_NOT_TRACKED,
+                            label: t(
+                              "settings:accounts.form_cash_tracking_not_tracked",
+                            ),
+                          },
+                        ]}
+                      />
+                      {cashTrackingUnsupported && (
+                        <p className="text-muted-foreground text-xs">
+                          {t(
+                            "settings:accounts.form_cash_tracking_unsupported",
+                            {
+                              code: cashTracking,
+                            },
+                          )}
+                        </p>
+                      )}
+                      {cashTrackingChanged && (
+                        <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
+                          <Icons.Info className="mt-px h-3.5 w-3.5 shrink-0" />
+                          {cashTracking === CASH_NOT_TRACKED
+                            ? t(
+                                "settings:accounts.form_cash_tracking_changed_to_not_tracked",
+                              )
+                            : t("settings:accounts.form_cash_tracking_changed")}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {showsCostBasisMethod && (
                     <div className="border-border border-t pt-4">
                       <button
@@ -641,37 +825,54 @@ export function AccountForm({
                         </span>
                       </button>
                       {costBasisOpen && (
-                        <div id="account-cost-basis" className="mt-2 flex flex-col gap-2">
+                        <div
+                          id="account-cost-basis"
+                          className="mt-2 flex flex-col gap-2"
+                        >
                           <p className="text-muted-foreground text-xs">
-                            {t("settings:accounts.form_cost_basis_method_description")}
+                            {t(
+                              "settings:accounts.form_cost_basis_method_description",
+                            )}
                           </p>
                           <ResponsiveSelect
-                            aria-label={t("settings:accounts.form_cost_basis_method_label")}
+                            aria-label={t(
+                              "settings:accounts.form_cost_basis_method_label",
+                            )}
                             value={costBasisMethod}
                             onValueChange={(method) => {
                               const updatedMeta = setCostBasisMethodInMeta(
                                 form.getValues("meta"),
                                 method,
                               );
-                              form.setValue("meta", updatedMeta, { shouldDirty: true });
+                              form.setValue("meta", updatedMeta, {
+                                shouldDirty: true,
+                              });
                             }}
                             options={costBasisMethods}
-                            placeholder={t("settings:accounts.form_cost_basis_method_label")}
-                            sheetTitle={t("settings:accounts.form_cost_basis_method_label")}
+                            placeholder={t(
+                              "settings:accounts.form_cost_basis_method_label",
+                            )}
+                            sheetTitle={t(
+                              "settings:accounts.form_cost_basis_method_label",
+                            )}
                             sheetDescription={t(
                               "settings:accounts.form_cost_basis_method_description",
                             )}
                             triggerClassName="h-11"
                           />
                           {costBasisDescription && (
-                            <p className="text-muted-foreground text-xs">{costBasisDescription}</p>
+                            <p className="text-muted-foreground text-xs">
+                              {costBasisDescription}
+                            </p>
                           )}
                         </div>
                       )}
                       {costBasisChanged && (
                         <p className="text-muted-foreground mt-2 flex items-start gap-1.5 text-xs">
                           <Icons.Info className="mt-px h-3.5 w-3.5 shrink-0" />
-                          {t("settings:accounts.form_cost_basis_method_changed")}
+                          {t(
+                            "settings:accounts.form_cost_basis_method_changed",
+                          )}
                         </p>
                       )}
                     </div>
@@ -701,7 +902,9 @@ export function AccountForm({
                       <FormControl>
                         <Switch
                           checked={!field.value}
-                          onCheckedChange={(checked) => field.onChange(!checked)}
+                          onCheckedChange={(checked) =>
+                            field.onChange(!checked)
+                          }
                         />
                       </FormControl>
                     </FormItem>
@@ -724,7 +927,10 @@ export function AccountForm({
                           <AccountFormMessage />
                         </div>
                         <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
                         </FormControl>
                       </FormItem>
                     )}
@@ -736,7 +942,13 @@ export function AccountForm({
         </div>
         <DialogFooter className="gap-2">
           <DialogClose
-            render={<Button data-testid="account-cancel-button" type="button" variant="outline" />}
+            render={
+              <Button
+                data-testid="account-cancel-button"
+                type="button"
+                variant="outline"
+              />
+            }
           >
             {t("common:cancel")}
           </DialogClose>
@@ -760,7 +972,10 @@ export function AccountForm({
       </form>
 
       {/* Mode Switch Confirmation Dialog */}
-      <AlertDialog open={showModeConfirmation} onOpenChange={setShowModeConfirmation}>
+      <AlertDialog
+        open={showModeConfirmation}
+        onOpenChange={setShowModeConfirmation}
+      >
         <AlertDialogContent className="max-w-105 gap-0 overflow-hidden p-0">
           <div className="px-5 pt-5 pb-4">
             <AlertDialogHeader className="space-y-3">

@@ -14,7 +14,7 @@ use wealthfolio_portfolio_engine::model::{
 
 use std::sync::Arc;
 
-use crate::accounts::{AccountRepositoryTrait, TrackingMode};
+use crate::accounts::{AccountRepositoryTrait, CashTracking, TrackingMode};
 use crate::activities::{Activity, ActivityRepositoryTrait};
 use crate::assets::AssetRepositoryTrait;
 use crate::errors::{Error, Result};
@@ -270,7 +270,23 @@ pub(super) fn raw_account(a: &crate::accounts::Account) -> RawAccount {
             .map(|settings| settings.cost_basis_method.as_str())
             .filter(|code| engine::model::CostBasisMethod::parse(code).is_some())
             .map(str::to_string),
+        cash_tracking: cash_tracking(a),
     }
+}
+
+/// Whether the account tracks cash (engine rules R1.6): as its settings name
+/// it, when its type can leave cash untracked, else it does. Core owns which
+/// types can; the engine settles cash for an account this fact marks.
+/// Settings this version cannot read refuse a scope account (`load`), and read
+/// as none for any other.
+fn cash_tracking(a: &crate::accounts::Account) -> Option<String> {
+    a.accounting_settings().ok()?;
+    let cash_tracking = if a.cash_not_tracked() {
+        CashTracking::NotTracked
+    } else {
+        CashTracking::Tracked
+    };
+    Some(cash_tracking.as_str().to_string())
 }
 
 pub(crate) fn raw_asset(a: &crate::assets::Asset) -> RawAsset {
@@ -587,6 +603,7 @@ pub fn load(
             tracking_mode: tracking_label(a.tracking_mode).to_string(),
             is_archived: a.is_archived,
             cost_basis_method: cost_basis_method(&a.id),
+            cash_tracking: cash_tracking(a),
         })
         .collect();
     let activities: Vec<&Activity> = closure_activities.iter().collect();

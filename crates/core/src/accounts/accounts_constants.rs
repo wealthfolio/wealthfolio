@@ -107,6 +107,15 @@ pub fn is_liability_account_type(account_type: &str) -> bool {
     matches!(account_type, account_types::CREDIT_CARD)
 }
 
+/// Whether an account of this type can leave its cash untracked (engine rules
+/// R1.6): one that holds securities. A cash or credit-card account is its cash.
+pub fn can_leave_cash_untracked(account_type: &str) -> bool {
+    matches!(
+        account_type,
+        account_types::SECURITIES | account_types::CRYPTOCURRENCY
+    )
+}
+
 pub fn is_spending_account_type(account_type: &str) -> bool {
     account_supports_purpose(account_type, AccountPurpose::Spending)
 }
@@ -122,6 +131,15 @@ pub fn is_retirement_eligible_account_type(account_type: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_accounts_holding_securities_can_leave_cash_untracked() {
+        assert!(can_leave_cash_untracked(account_types::SECURITIES));
+        assert!(can_leave_cash_untracked(account_types::CRYPTOCURRENCY));
+        assert!(!can_leave_cash_untracked(account_types::CASH));
+        assert!(!can_leave_cash_untracked(account_types::CREDIT_CARD));
+        assert!(!can_leave_cash_untracked("LOAN"));
+    }
 
     #[test]
     fn credit_card_account_semantics_are_distinct_from_cash() {

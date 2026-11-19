@@ -44,7 +44,7 @@ import {
   quickAddLoanSetup,
 } from "./alternative-asset-quick-add-schema";
 import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
-import { LoanFieldInfo } from "./loan-field-info";
+import { FieldInfo } from "@/components/field-info";
 import { LoanDurationInput } from "./loan-duration-input";
 import type { LoanInterestMethod, LoanPaymentFrequency } from "../lib/loan-events";
 import {
@@ -722,9 +722,9 @@ export function AlternativeAssetQuickAddModal({
                           <Label className="text-foreground text-sm font-medium">
                             {t("asset:quickAdd.origination_date")}
                           </Label>
-                          <LoanFieldInfo label={t("asset:quickAdd.origination_date")}>
+                          <FieldInfo label={t("asset:quickAdd.origination_date")}>
                             {t("asset:loanActions.origination_hint")}
-                          </LoanFieldInfo>
+                          </FieldInfo>
                         </div>
                         <DatePickerInput
                           aria-label={t("asset:quickAdd.origination_date")}
@@ -790,13 +790,13 @@ export function AlternativeAssetQuickAddModal({
                               <Label className="text-foreground text-sm font-medium">
                                 {durationLabel}
                               </Label>
-                              <LoanFieldInfo label={durationLabel}>
+                              <FieldInfo label={durationLabel}>
                                 {t(
                                   isMortgage
                                     ? "asset:loanActions.amortization_hint"
                                     : "asset:loanActions.loan_term_hint",
                                 )}
-                              </LoanFieldInfo>
+                              </FieldInfo>
                             </div>
                             <LoanDurationInput
                               label={durationLabel}
@@ -854,9 +854,9 @@ export function AlternativeAssetQuickAddModal({
                                 <Label className="text-foreground text-sm font-medium">
                                   {t("asset:loanInterest.method")}
                                 </Label>
-                                <LoanFieldInfo label={t("asset:loanInterest.method")}>
+                                <FieldInfo label={t("asset:loanInterest.method")}>
                                   {t("asset:loanInterest.hint")}
-                                </LoanFieldInfo>
+                                </FieldInfo>
                               </div>
                               <LoanInterestMethodSelect
                                 value={formData.interestMethod}

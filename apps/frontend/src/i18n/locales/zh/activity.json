@@ -403,6 +403,7 @@
     "cash_already_negative": "在所显示的第一笔活动之前，现金已为负值。",
     "add_deposit": "添加存入",
     "add_transfer": "添加转账",
+    "stop_tracking_cash": "停止跟踪现金",
     "cash_went_negative_on": "现金在 {{date}} 转为负值",
     "carry_forward": "负余额从 {{date}} 的活动结转而来。请查看下方的现金影响和滚动余额。",
     "review_to_identify": "请查看下方的现金影响和滚动余额，以找出使现金降至零以下的活动。",

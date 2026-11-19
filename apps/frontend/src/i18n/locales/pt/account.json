@@ -24,6 +24,7 @@
   "group_tax_free": "Isenta de impostos",
   "balance": "Saldo",
   "cash_balance": "Saldo em caixa",
+  "cash_not_tracked_note": "O dinheiro não é acompanhado: compras contam como dinheiro aportado, e vendas e rendimentos como dinheiro retirado.",
   "total_value": "Valor total",
   "performance": "Desempenho",
   "save_account": "Salvar conta",

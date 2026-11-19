@@ -43,6 +43,8 @@ interface AccountMetricsProps {
   balanceLabel?: string;
   /** If true, shows holdings-mode return cards instead of transaction return cards. */
   isHoldingsMode?: boolean;
+  /** If true, the account keeps no cash (engine rules R1.6): its investments head the card, with a note. */
+  cashNotTracked?: boolean;
   balanceWarning?: {
     label: string;
     onClick: () => void;
@@ -100,13 +102,17 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   balanceEditDisabled = false,
   balanceLabel,
   isHoldingsMode = false,
+  cashNotTracked = false,
   balanceWarning,
 }) => {
   const dateFormatting = useDateFormatting();
   const [isEditingBalance, setIsEditingBalance] = useState(false);
 
   const { t } = useTranslation();
-  const resolvedBalanceLabel = balanceLabel ?? t("account:cash_balance");
+  // Without cash of its own, the account's headline is its investments.
+  const resolvedBalanceLabel = cashNotTracked
+    ? t("account:investments")
+    : (balanceLabel ?? t("account:cash_balance"));
   // Never substitute FX-converted totals for missing native balances.
   const cashBalances = cashCurrencySplit?.flatMap(({ currency, valueLocal }) =>
     currency.trim() && typeof valueLocal === "number" && Number.isFinite(valueLocal)
@@ -223,15 +229,19 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
         },
       ]
     : [
-        {
-          label: t("account:investments"),
-          value: (
-            <PrivacyAmount
-              value={valuation?.investmentMarketValue || 0}
-              currency={displayCurrency}
-            />
-          ),
-        },
+        ...(cashNotTracked
+          ? []
+          : [
+              {
+                label: t("account:investments"),
+                value: (
+                  <PrivacyAmount
+                    value={valuation?.investmentMarketValue || 0}
+                    currency={displayCurrency}
+                  />
+                ),
+              },
+            ]),
         {
           label: t("account:net_contribution"),
           value: (
@@ -297,10 +307,16 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
                 </Tooltip>
               </TooltipProvider>
             ) : null}
-            <div data-testid="account-cash-balance-value" className="text-lg font-extrabold">
-              <PrivacyAmount value={valuation.cashBalance || 0} currency={displayCurrency} />
-            </div>
-            {!hideBalanceEdit && (
+            {cashNotTracked ? (
+              <div data-testid="account-investments-value" className="text-lg font-extrabold">
+                <PrivacyAmount value={valuation.investmentMarketValue} currency={displayCurrency} />
+              </div>
+            ) : (
+              <div data-testid="account-cash-balance-value" className="text-lg font-extrabold">
+                <PrivacyAmount value={valuation.cashBalance || 0} currency={displayCurrency} />
+              </div>
+            )}
+            {!hideBalanceEdit && !cashNotTracked && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger
@@ -357,6 +373,11 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
           />
         </CardContent>
         <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pt-0 pb-3">
+          {cashNotTracked && (
+            <p className="text-muted-foreground m-0 p-0 text-xs">
+              {t("account:cash_not_tracked_note")}
+            </p>
+          )}
           {performanceError ? (
             <p className="text-muted-foreground m-0 p-0 text-xs">
               {lastUpdated && <>{t("account:last_updated", { date: lastUpdated })}</>}

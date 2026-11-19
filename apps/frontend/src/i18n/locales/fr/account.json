@@ -24,6 +24,7 @@
   "group_tax_free": "Libre d'impôt",
   "balance": "Solde",
   "cash_balance": "Solde de trésorerie",
+  "cash_not_tracked_note": "La trésorerie n'est pas suivie : les achats comptent comme des apports, les ventes et les revenus comme des retraits.",
   "total_value": "Valeur totale",
   "performance": "Performance",
   "save_account": "Enregistrer le compte",

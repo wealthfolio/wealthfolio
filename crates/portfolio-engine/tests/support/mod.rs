@@ -116,6 +116,9 @@ pub struct AccountSpec {
     /// The cost basis method's stored code; none means FIFO (rules §7).
     #[serde(default)]
     pub cost_basis_method: Option<String>,
+    /// The cash tracking's stored code; none means TRACKED (rules R1.6).
+    #[serde(default)]
+    pub cash_tracking: Option<String>,
 }
 
 fn securities() -> String {
@@ -269,6 +272,7 @@ impl Scenario {
                     tracking_mode: a.tracking_mode.clone(),
                     is_archived: a.is_archived,
                     cost_basis_method: a.cost_basis_method.clone(),
+                    cash_tracking: a.cash_tracking.clone(),
                 })
                 .collect(),
             assets: self
@@ -434,6 +438,18 @@ impl Scenario {
         if method != CostBasisMethod::default() {
             scenario.id = format!("{}@{}", scenario.id, method.as_str());
         }
+        scenario
+    }
+
+    /// The scenario with every account set not to track cash: a property law
+    /// holds whether or not accounts track cash (rules R1.6). Suffixed
+    /// `@NOCASH`; accounts already set keep the setting.
+    pub fn with_cash_not_tracked(&self) -> Self {
+        let mut scenario = self.clone();
+        for account in &mut scenario.accounts {
+            account.cash_tracking = Some(CashTracking::NotTracked.as_str().to_string());
+        }
+        scenario.id = format!("{}@NOCASH", scenario.id);
         scenario
     }
 

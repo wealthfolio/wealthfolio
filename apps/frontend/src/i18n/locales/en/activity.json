@@ -405,6 +405,7 @@
     "cash_already_negative": "Cash was already negative before the first activity shown.",
     "add_deposit": "Add deposit",
     "add_transfer": "Add transfer",
+    "stop_tracking_cash": "Stop tracking cash",
     "cash_went_negative_on": "Cash went negative on {{date}}",
     "carry_forward": "The negative balance was carried forward from activity on {{date}}. Review the cash impact and running balance below.",
     "review_to_identify": "Review the cash impact and running balance below to identify the activity that pushed cash below zero.",

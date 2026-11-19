@@ -407,6 +407,7 @@
     "cash_already_negative": "El efectivo ya era negativo antes de la primera actividad mostrada.",
     "add_deposit": "Añadir depósito",
     "add_transfer": "Añadir transferencia",
+    "stop_tracking_cash": "Dejar de registrar efectivo",
     "cash_went_negative_on": "El efectivo se volvió negativo el {{date}}",
     "carry_forward": "El saldo negativo se arrastró desde la actividad del {{date}}. Revisa el impacto en efectivo y el saldo acumulado a continuación.",
     "review_to_identify": "Revisa el impacto en efectivo y el saldo acumulado a continuación para identificar la actividad que hizo que el efectivo cayera por debajo de cero.",

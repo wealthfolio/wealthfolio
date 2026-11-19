@@ -1,0 +1,51 @@
+id: NOM-NOCASH-01
+title: An account that does not track cash, buys only
+intent: >
+  Rules R1.6: an account set not to track cash holds none. Each buy is money
+  in on its day, at the cash it moved, so the account's value is its holdings
+  and its return is the holdings' return, with no idle cash and no negative
+  balance. The same two buys in a cash-tracked account without deposits drive
+  cash to -2100 and leave value at the gain.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+    cash_tracking: NOT_TRACKED
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-02T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 110
+    amount: 1100
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-03, close: 110 }
+  - { asset: aapl, day: 2025-01-10, close: 121 }
+expected_notes: >
+  Ledger: buy-1, buy-1:settle:USD (DEPOSIT +1000), buy-2, buy-2:settle:USD
+  (DEPOSIT +1100). Cash is 0 on every day. net_contribution 1000 from 01-02,
+  2100 from 01-06. Value: 1000 (01-02), 1100 (01-03 to 01-05), 2200 (01-06
+  to 01-09), 2420 (01-10). The first day carries no flow (R1.3); 01-06 has an
+  external inflow of 1100 (CashAmount). Daily returns: 01-03 1100 / 1000 - 1
+  = 10%; 01-06 (2200 - 1100 - 1100) / (1100 + 1100) = 0; 01-10 2420 / 2200 -
+  1 = 10%. TWR 1.10 x 1.10 - 1 = 21%, the asset's own return from 100 to
+  121. Gain 2420 - 2100 = 320 (10 units x 21 + 10 units x 11), all
+  unrealized.

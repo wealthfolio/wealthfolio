@@ -24,6 +24,7 @@
   "group_tax_free": "非課税",
   "balance": "残高",
   "cash_balance": "現金残高",
+  "cash_not_tracked_note": "現金は記録されていません。購入は入金、売却と収益は出金として扱います。",
   "total_value": "評価額合計",
   "performance": "パフォーマンス",
   "save_account": "口座を保存",

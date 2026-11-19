@@ -109,9 +109,10 @@ pub fn application_order(a: &Activity, b: &Activity) -> Ordering {
 }
 
 /// Accounts whose cash comes from their activities: all but holdings-tracked
-/// ones, whose holdings are entered rather than derived.
+/// ones, whose holdings are entered rather than derived, and those that hold
+/// no cash of their own (engine rules R1.6).
 pub fn shows_cash_balance(account: &Account) -> bool {
-    account.tracking_mode != TrackingMode::Holdings
+    account.tracking_mode != TrackingMode::Holdings && !account.cash_not_tracked()
 }
 
 /// Cash and credit-card accounts whose cash comes from their activities.
@@ -306,6 +307,7 @@ mod tests {
                 tracking_mode: "TRANSACTIONS".to_string(),
                 is_archived: false,
                 cost_basis_method: None,
+                cash_tracking: None,
             }],
             assets,
             activities: activities.iter().map(raw_activity).collect(),
@@ -362,6 +364,14 @@ mod tests {
         let mut holdings = account(account_types::CASH, "USD");
         holdings.tracking_mode = TrackingMode::Holdings;
         assert!(!shows_running_cash_balance(&holdings));
+    }
+
+    #[test]
+    fn an_account_that_does_not_track_cash_shows_no_cash() {
+        let mut brokerage = account(account_types::SECURITIES, "USD");
+        assert!(shows_cash_balance(&brokerage));
+        brokerage.meta = Some(r#"{"accounting":{"cashTracking":"NOT_TRACKED"}}"#.to_string());
+        assert!(!shows_cash_balance(&brokerage));
     }
 
     #[test]

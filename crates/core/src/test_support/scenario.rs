@@ -152,6 +152,9 @@ pub struct AccountSpec {
     /// R7.2); none reads as the defaults.
     #[serde(default)]
     pub cost_basis_method: Option<String>,
+    /// Stored next to the method (engine rules R1.6); none reads as TRACKED.
+    #[serde(default)]
+    pub cash_tracking: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -655,9 +658,18 @@ impl Scenario {
                 updated_at: stamp,
                 platform_id: None,
                 account_number: None,
-                meta: spec.cost_basis_method.as_ref().map(|method| {
-                    json!({ "accounting": { "costBasisMethod": method } }).to_string()
-                }),
+                meta: (spec.cost_basis_method.is_some() || spec.cash_tracking.is_some()).then(
+                    || {
+                        let mut accounting = serde_json::Map::new();
+                        if let Some(method) = &spec.cost_basis_method {
+                            accounting.insert("costBasisMethod".into(), json!(method));
+                        }
+                        if let Some(cash_tracking) = &spec.cash_tracking {
+                            accounting.insert("cashTracking".into(), json!(cash_tracking));
+                        }
+                        json!({ "accounting": accounting }).to_string()
+                    },
+                ),
                 provider: None,
                 provider_account_id: None,
                 is_archived: spec.is_archived,

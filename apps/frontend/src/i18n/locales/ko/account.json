@@ -24,6 +24,7 @@
   "group_tax_free": "비과세",
   "balance": "잔액",
   "cash_balance": "현금 잔액",
+  "cash_not_tracked_note": "현금을 추적하지 않습니다. 매수는 입금으로, 매도와 수익은 출금으로 처리됩니다.",
   "total_value": "총 평가금액",
   "performance": "수익률",
   "save_account": "계좌 저장",

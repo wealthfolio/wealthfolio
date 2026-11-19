@@ -24,6 +24,7 @@
   "group_tax_free": "Libre de impuestos",
   "balance": "Saldo",
   "cash_balance": "Saldo en efectivo",
+  "cash_not_tracked_note": "El efectivo no se registra: las compras cuentan como dinero aportado, y las ventas y los ingresos como dinero retirado.",
   "total_value": "Valor total",
   "performance": "Rendimiento",
   "save_account": "Guardar cuenta",

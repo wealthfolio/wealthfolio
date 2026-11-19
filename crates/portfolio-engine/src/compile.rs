@@ -70,8 +70,14 @@ pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
             }
             continue;
         }
-        for leg in expand(activity) {
-            let mut event = compile_leg(&leg, account, facts);
+        let mut legs: Vec<EconomicEvent> = expand(activity)
+            .iter()
+            .map(|leg| compile_leg(leg, account, facts))
+            .collect();
+        if account.settles_cash() {
+            settle_cash(&mut legs, account);
+        }
+        for mut event in legs {
             event.sequence = events.len() as u32;
             diagnostics.extend(event.diagnostics.iter().cloned());
             events.push(event);
@@ -138,6 +144,105 @@ fn invalid_conversion_event(activity: &Activity, reason: &str) -> EconomicEvent 
             activity.id.as_str(),
             format!("conversion row rejected: {reason}"),
         )],
+    }
+}
+
+/// An account that does not track cash holds none (rules R1.6). Money the
+/// activity moves in or out of the account (a deposit, a withdrawal, an
+/// external credit, a cash transfer that is not paired with another account)
+/// moves nothing. Whatever cash its other legs move is money in or out on its
+/// day: one settlement leg per currency nets the activity's cash to zero, so
+/// it applies, and is rejected, with the activity.
+fn settle_cash(legs: &mut Vec<EconomicEvent>, account: &AccountFacts) {
+    for leg in legs.iter_mut() {
+        if moves_money(leg, account) {
+            leg.cash = None;
+            leg.charges = Charges::default();
+            leg.contribution = Contribution::None;
+            leg.flow = Flow::NONE;
+            leg.attribution = Attributed::default();
+            // Its boundary no longer gates anything: it moves nothing.
+            leg.diagnostics
+                .retain(|d| d.code != DiagnosticCode::UnknownTransferBoundary);
+        }
+    }
+
+    // Net cash per currency it lands in, with the rate its first leg there
+    // carried (a deposit's rate decides its net contribution, R1.6).
+    let mut net: Vec<(Currency, Decimal, Option<Decimal>)> = Vec::new();
+    for leg in legs.iter() {
+        let Some(cash) = &leg.cash else {
+            continue;
+        };
+        let (currency, amount, rate) = match cash.booking {
+            Booking::ActivityCurrency => (leg.currency.clone(), Some(cash.amount), leg.fx_rate),
+            Booking::AccountCurrency { rate } => (
+                account.currency.clone(),
+                arith::mul(cash.amount, rate),
+                None,
+            ),
+        };
+        // Out of range: the fold rejects the leg, and the activity with it.
+        let Some(amount) = amount else {
+            continue;
+        };
+        match net.iter_mut().find(|(c, _, _)| *c == currency) {
+            Some((_, total, _)) => *total += amount,
+            None => net.push((currency, amount, rate)),
+        }
+    }
+
+    let Some(first) = legs.first().cloned() else {
+        return;
+    };
+    for (currency, total, rate) in net {
+        if total.is_zero() {
+            continue;
+        }
+        let amount = -total;
+        legs.push(EconomicEvent {
+            id: EventId::new(format!("{}:settle:{currency}", first.source)),
+            source: first.source.clone(),
+            kind: if amount > Decimal::ZERO {
+                ActivityKind::Deposit
+            } else {
+                ActivityKind::Withdrawal
+            },
+            account: first.account.clone(),
+            date: first.date,
+            timestamp: first.timestamp,
+            sequence: 0,
+            currency,
+            fx_rate: rate,
+            cash: Some(CashEffect {
+                amount,
+                gross: Some(amount),
+                booking: Booking::ActivityCurrency,
+            }),
+            charges: Charges::default(),
+            action: Action::None,
+            contribution: Contribution::CashGross,
+            flow: Flow {
+                boundary: Boundary::External,
+                value: FlowValue::Cash(amount.abs()),
+            },
+            attribution: Attributed::default(),
+            diagnostics: Vec::new(),
+        });
+    }
+}
+
+/// A cash movement in or out of the account itself: its flow is cash, and its
+/// boundary is not another account (a pair inside one account is a currency
+/// conversion of cash it does not hold).
+fn moves_money(leg: &EconomicEvent, account: &AccountFacts) -> bool {
+    if !matches!(leg.flow.value, FlowValue::Cash(_)) {
+        return false;
+    }
+    match &leg.flow.boundary {
+        Boundary::None => false,
+        Boundary::External | Boundary::Unknown => true,
+        Boundary::Internal { counterparty } => *counterparty == account.id,
     }
 }
 
@@ -689,6 +794,14 @@ mod tests {
     }
 
     fn ledger(activities: Vec<RawActivity>, account_type: &str) -> CompiledLedger {
+        ledger_with(activities, account_type, None)
+    }
+
+    fn ledger_with(
+        activities: Vec<RawActivity>,
+        account_type: &str,
+        cash_tracking: Option<&str>,
+    ) -> CompiledLedger {
         let facts = RawFacts {
             policy: Policy::new(
                 Currency::parse("USD").unwrap(),
@@ -702,6 +815,7 @@ mod tests {
                 tracking_mode: "TRANSACTIONS".into(),
                 is_archived: false,
                 cost_basis_method: None,
+                cash_tracking: cash_tracking.map(str::to_owned),
             }],
             assets: vec![RawAsset {
                 id: "aapl".into(),
@@ -912,5 +1026,207 @@ mod tests {
         assert_eq!(attribution.income, dec!(107));
         assert_eq!(attribution.fee, dec!(2));
         assert_eq!(attribution.tax, dec!(5));
+    }
+
+    fn event<'a>(ledger: &'a CompiledLedger, id: &str) -> &'a EconomicEvent {
+        ledger
+            .events
+            .iter()
+            .find(|e| e.id.as_str() == id)
+            .unwrap_or_else(|| panic!("no event {id}"))
+    }
+
+    fn ids(ledger: &CompiledLedger) -> Vec<&str> {
+        ledger.events.iter().map(|e| e.id.as_str()).collect()
+    }
+
+    #[test]
+    fn an_account_without_cash_settles_each_activity_on_its_day() {
+        let mut buy = raw("b", "a1", "BUY", "2025-01-02T10:00:00Z");
+        buy.asset_id = Some("aapl".into());
+        buy.quantity = Some(dec!(2));
+        buy.unit_price = Some(dec!(10));
+        buy.fee = Some(dec!(3));
+        buy.amount = Some(dec!(23));
+        let mut sell = raw("s", "a1", "SELL", "2025-01-03T10:00:00Z");
+        sell.asset_id = Some("aapl".into());
+        sell.quantity = Some(dec!(1));
+        sell.unit_price = Some(dec!(12));
+        sell.amount = Some(dec!(12));
+        let mut dividend = raw("d", "a1", "DIVIDEND", "2025-01-04T10:00:00Z");
+        dividend.asset_id = Some("aapl".into());
+        dividend.amount = Some(dec!(4));
+        dividend.tax = Some(dec!(1));
+        let mut fee = raw("f", "a1", "FEE", "2025-01-05T10:00:00Z");
+        fee.amount = Some(dec!(2));
+        let ledger = ledger_with(
+            vec![buy, sell, dividend, fee],
+            "SECURITIES",
+            Some("NOT_TRACKED"),
+        );
+
+        assert_eq!(
+            ids(&ledger),
+            [
+                "b",
+                "b:settle:USD",
+                "s",
+                "s:settle:USD",
+                "d",
+                "d:settle:USD",
+                "f",
+                "f:settle:USD"
+            ]
+        );
+        // The activities keep their own economics.
+        assert_eq!(event(&ledger, "b").cash.as_ref().unwrap().amount, dec!(-23));
+        assert_eq!(event(&ledger, "b").attribution.fee, dec!(3));
+        assert_eq!(event(&ledger, "d").attribution.income, dec!(5));
+        assert_eq!(event(&ledger, "d").attribution.tax, dec!(1));
+
+        for (id, source, kind, amount) in [
+            ("b:settle:USD", "b", ActivityKind::Deposit, dec!(23)),
+            ("s:settle:USD", "s", ActivityKind::Withdrawal, dec!(-12)),
+            ("d:settle:USD", "d", ActivityKind::Withdrawal, dec!(-4)),
+            ("f:settle:USD", "f", ActivityKind::Deposit, dec!(2)),
+        ] {
+            let leg = event(&ledger, id);
+            assert_eq!(leg.kind, kind, "{id}");
+            assert_eq!(leg.source.as_str(), source, "{id}");
+            let cash = leg.cash.as_ref().unwrap();
+            assert_eq!(cash.amount, amount, "{id}");
+            assert_eq!(cash.gross, Some(amount), "{id}");
+            assert_eq!(cash.booking, Booking::ActivityCurrency, "{id}");
+            assert_eq!(leg.contribution, Contribution::CashGross, "{id}");
+            assert_eq!(leg.flow.boundary, Boundary::External, "{id}");
+            assert_eq!(leg.flow.value, FlowValue::Cash(amount.abs()), "{id}");
+            assert_eq!(leg.attribution, Attributed::default(), "{id}");
+            assert_eq!(leg.action, Action::None, "{id}");
+        }
+        let sequences: Vec<u32> = ledger.events.iter().map(|e| e.sequence).collect();
+        assert_eq!(sequences, (0..8).collect::<Vec<u32>>());
+    }
+
+    #[test]
+    fn money_in_or_out_of_an_account_without_cash_moves_nothing() {
+        let mut deposit = raw("dep", "a1", "DEPOSIT", "2025-01-02T10:00:00Z");
+        deposit.amount = Some(dec!(1000));
+        deposit.fee = Some(dec!(5));
+        let mut withdrawal = raw("wd", "a1", "WITHDRAWAL", "2025-01-03T10:00:00Z");
+        withdrawal.amount = Some(dec!(100));
+        let mut unpaired = raw("t", "a1", "TRANSFER_IN", "2025-01-04T10:00:00Z");
+        unpaired.amount = Some(dec!(100));
+        let mut external = raw("x", "a1", "TRANSFER_OUT", "2025-01-05T10:00:00Z");
+        external.amount = Some(dec!(50));
+        external.external_transfer = Some(true);
+        let mut bonus = raw("c", "a1", "CREDIT", "2025-01-06T10:00:00Z");
+        bonus.amount = Some(dec!(20));
+        bonus.subtype = Some("BONUS".into());
+        let ledger = ledger_with(
+            vec![deposit, withdrawal, unpaired, external, bonus],
+            "SECURITIES",
+            Some("NOT_TRACKED"),
+        );
+
+        assert_eq!(ids(&ledger), ["dep", "wd", "t", "x", "c"]);
+        for event in &ledger.events {
+            let id = event.id.as_str();
+            assert!(event.cash.is_none(), "{id}");
+            assert_eq!(event.contribution, Contribution::None, "{id}");
+            assert_eq!(event.flow, Flow::NONE, "{id}");
+            assert_eq!(event.attribution, Attributed::default(), "{id}");
+            assert_eq!(event.charges, Charges::default(), "{id}");
+        }
+        // The unpaired transfer no longer gates returns: it moves nothing.
+        assert!(ledger.diagnostics.is_empty(), "{:?}", ledger.diagnostics);
+    }
+
+    #[test]
+    fn a_reinvested_dividend_needs_no_settlement() {
+        let mut drip = raw("d", "a1", "DIVIDEND", "2025-01-02T10:00:00Z");
+        drip.asset_id = Some("aapl".into());
+        drip.subtype = Some("DRIP".into());
+        drip.amount = Some(dec!(50));
+        drip.quantity = Some(dec!(2));
+        drip.unit_price = Some(dec!(25));
+        let ledger = ledger_with(vec![drip], "SECURITIES", Some("NOT_TRACKED"));
+        assert_eq!(ids(&ledger), ["d:dividend", "d:buy"]);
+    }
+
+    #[test]
+    fn a_trade_at_a_supplied_rate_settles_in_the_account_currency() {
+        let mut buy = raw("b", "a1", "BUY", "2025-01-02T10:00:00Z");
+        buy.asset_id = Some("aapl".into());
+        buy.currency = "EUR".into();
+        buy.fx_rate = Some(dec!(1.1));
+        buy.quantity = Some(dec!(10));
+        buy.unit_price = Some(dec!(10));
+        buy.amount = Some(dec!(100));
+        let mut dividend = raw("d", "a1", "DIVIDEND", "2025-01-03T10:00:00Z");
+        dividend.asset_id = Some("aapl".into());
+        dividend.currency = "EUR".into();
+        dividend.fx_rate = Some(dec!(1.2));
+        dividend.amount = Some(dec!(10));
+        let ledger = ledger_with(vec![buy, dividend], "SECURITIES", Some("NOT_TRACKED"));
+
+        // The trade's cash landed in USD at its rate: the settlement mirrors it.
+        let trade = event(&ledger, "b:settle:USD");
+        assert_eq!(trade.currency.as_str(), "USD");
+        assert_eq!(trade.cash.as_ref().unwrap().amount, dec!(110));
+        assert_eq!(trade.fx_rate, None);
+        // Income stays in its own currency, rate included, as a withdrawal
+        // recorded in EUR would carry it.
+        let income = event(&ledger, "d:settle:EUR");
+        assert_eq!(income.currency.as_str(), "EUR");
+        assert_eq!(income.cash.as_ref().unwrap().amount, dec!(-10));
+        assert_eq!(income.fx_rate, Some(dec!(1.2)));
+    }
+
+    #[test]
+    fn an_account_keeps_its_cash_unless_its_facts_say_otherwise() {
+        // Which accounts may leave cash untracked is core's rule: the kernel
+        // settles whatever account the facts mark, of any type.
+        for (account_type, cash_tracking, settled) in [
+            ("CASH", None, false),
+            ("CASH", Some("TRACKED"), false),
+            ("CASH", Some("NOT_TRACKED"), true),
+            ("SECURITIES", Some("TRACKED"), false),
+        ] {
+            let mut fee = raw("f", "a1", "FEE", "2025-01-02T10:00:00Z");
+            fee.amount = Some(dec!(2));
+            let ledger = ledger_with(vec![fee], account_type, cash_tracking);
+            let case = format!("{account_type} {cash_tracking:?}");
+            let expected: &[&str] = if settled {
+                &["f", "f:settle:USD"]
+            } else {
+                &["f"]
+            };
+            assert_eq!(ids(&ledger), expected, "{case}");
+        }
+    }
+
+    #[test]
+    fn a_holdings_account_settles_no_cash() {
+        let account = AccountFacts {
+            id: AccountId::new("a1"),
+            currency: Currency::parse("USD").unwrap(),
+            kind: AccountKind::Securities,
+            tracking: TrackingMode::Transactions,
+            archived: false,
+            cost_basis_method: CostBasisMethod::Fifo,
+            cash_tracking: CashTracking::NotTracked,
+        };
+        assert!(account.settles_cash());
+        // Rules R1.2: a holdings account is read from its snapshots.
+        let holdings = AccountFacts {
+            tracking: TrackingMode::Holdings,
+            ..account.clone()
+        };
+        assert!(!holdings.settles_cash());
+        let tracked = AccountFacts {
+            cash_tracking: CashTracking::Tracked,
+            ..account
+        };
+        assert!(!tracked.settles_cash());
     }
 }

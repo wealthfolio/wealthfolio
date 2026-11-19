@@ -1,0 +1,68 @@
+id: EDGE-NOCASH-02
+title: Income, charges and a sale settle as money in and out when an account does not track cash
+intent: >
+  Rules R1.6: a dividend and a sale's proceeds leave an account that does not
+  track cash on their day, and a buy's charges and a standalone fee come from
+  outside it, so returns count the dividend and the charges while the account
+  holds no cash. The gain is the value less net contribution, and it splits
+  into price, income and charges as in a cash-tracked account.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+    cash_tracking: NOT_TRACKED
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-02T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    fee: 5
+    amount: 1005
+  - id: div-1
+    account: acc-1
+    type: DIVIDEND
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    amount: 20
+  - id: fee-1
+    account: acc-1
+    type: FEE
+    date: 2025-01-07T10:00:00Z
+    amount: 5
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 120
+    amount: 600
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-03, close: 110 }
+  - { asset: aapl, day: 2025-01-08, close: 120 }
+expected_notes: >
+  Settlement legs: buy-1 DEPOSIT +1005 (01-02), div-1 WITHDRAWAL -20 (01-06),
+  fee-1 DEPOSIT +5 (01-07), sell-1 WITHDRAWAL -600 (01-08). Cash is 0 on every
+  day. net_contribution 1005 (01-02), 985 (01-06), 990 (01-07), 390 (01-08).
+  Value: 1000 (01-02), 1100 (01-03 to 01-07), 600 (01-08 to 01-10). Flows: an
+  outflow of 20 on 01-06, an inflow of 5 on 01-07 and an outflow of 600 on
+  01-08 (the first day carries none, R1.3). Daily returns: 01-03 10%; 01-06
+  (1100 + 20 - 1100) / 1100 = 1.818182%; 01-07 (1100 - 1100 - 5) / (1100 + 5)
+  = -0.452489%; 01-08 (600 + 600 - 1100) / 1100 = 9.090909%. TWR 21.628959%.
+  Gain 600 - 390 = 210: price (120 - 100) x 10 = 200, plus income 20, less
+  charges 5 + 5. The lot: 10 @ 100 with a fee of 5 (cost 1005); sell-1
+  realizes 600 - 502.5 = 97.5 and leaves 5 units at cost 502.5. Attribution:
+  contributions 1010 (1005 + 5), distributions 620 (20 + 600), income 20,
+  fees 10, realized 100 and unrealized 100 (each with its half of the buy's
+  fee added back, R3.5), residual 0.

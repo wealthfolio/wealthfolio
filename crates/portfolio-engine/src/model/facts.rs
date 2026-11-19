@@ -32,6 +32,9 @@ pub struct RawAccount {
     /// The cost basis method's stored code (`FIFO`); none means FIFO.
     #[serde(default)]
     pub cost_basis_method: Option<String>,
+    /// The cash tracking's stored code (`NOT_TRACKED`); none means TRACKED.
+    #[serde(default)]
+    pub cash_tracking: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

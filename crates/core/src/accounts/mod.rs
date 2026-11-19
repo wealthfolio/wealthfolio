@@ -9,8 +9,8 @@ mod accounts_traits;
 pub use accounts_constants::*;
 pub use accounts_model::{
     deserialize_account_group, normalize_account_number, Account, AccountAccountingSettings,
-    AccountUpdate, CostBasisMethod, CostBasisProfile, LotSelectionStrategy, NewAccount,
-    PoolingScope, TrackingMode,
+    AccountUpdate, CashTracking, CostBasisMethod, CostBasisProfile, LotSelectionStrategy,
+    NewAccount, PoolingScope, TrackingMode,
 };
 pub use accounts_service::AccountService;
 pub use accounts_traits::{AccountRepositoryTrait, AccountServiceTrait};

@@ -19,15 +19,19 @@ use wealthfolio_portfolio_engine::{
 const DUST: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
 
 /// The fixtures (but shell-level ones) and the generated scenarios, each under
-/// every cost basis method the engine computes (rules R7.3).
+/// every cost basis method the engine computes (rules R7.3), and with every
+/// account not tracking cash (rules R1.6).
 fn corpus() -> Vec<Scenario> {
-    under_every_method(
-        load_all_scenarios()
-            .into_iter()
-            .chain(generated_scenarios())
-            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
-    )
-    .collect()
+    let scenarios: Vec<Scenario> = load_all_scenarios()
+        .into_iter()
+        .chain(generated_scenarios())
+        .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id))
+        .collect();
+    let without_cash: Vec<Scenario> = scenarios
+        .iter()
+        .map(Scenario::with_cash_not_tracked)
+        .collect();
+    under_every_method(scenarios).chain(without_cash).collect()
 }
 
 fn body(pipeline: &Pipeline, scenario: &Scenario) -> Value {
@@ -475,9 +479,11 @@ fn p_cash_conservation() {
             let Some(account) = pipeline.facts().accounts().get(&event.account) else {
                 continue;
             };
+            // A rejected activity leaves out every leg it has (a composite's,
+            // or the settlement of an account that does not track cash).
             if account.archived
                 || account.tracking == TrackingMode::Holdings
-                || rejected.contains(event.id.as_str())
+                || rejected.contains(event.source.as_str())
                 || event.date < pipeline.range().start
                 || event.date > pipeline.range().end
             {
@@ -1105,9 +1111,12 @@ fn p_agg_scope_aggregation_is_exact() {
             .collect();
         let holdings =
             |id: &AccountId| pipeline.facts().accounts()[id].tracking == TrackingMode::Holdings;
+        // A pair's legs are its internal events, not the settlement legs of
+        // an account that does not track cash (rules R1.6).
         let by_source: BTreeMap<&ActivityId, &EventEffect> = effects
             .events
             .iter()
+            .filter(|event| matches!(event.boundary, Boundary::Internal { .. }))
             .map(|event| (&event.source, event))
             .collect();
         // The legs of transfers inside the scope, signed (incoming adds,
@@ -2465,5 +2474,160 @@ fn p_txf_legs_transfers_carry_their_lots() {
     assert!(
         filtered() || checked > 5,
         "only {checked} security transfer pairs checked"
+    );
+}
+
+/// P-NOCASH (rules R1.6): an account that does not track cash holds none on
+/// any day, and it is valued and measured exactly as the same account
+/// tracking cash would be with a deposit or withdrawal recorded for each
+/// settlement, and without the money it recorded in or out. Scenarios with a
+/// rejected activity are left out of the comparison: a rejection takes the
+/// settlement with it, but not a recorded deposit.
+#[test]
+fn p_nocash_settlements_are_the_deposits_and_withdrawals_it_needs() {
+    let mut checked = 0usize;
+    for scenario in load_all_scenarios()
+        .into_iter()
+        .chain(generated_scenarios())
+        .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id))
+    {
+        let mut tracked_scenario = scenario.clone();
+        for account in &mut tracked_scenario.accounts {
+            account.cash_tracking = None;
+        }
+        let without_cash = tracked_scenario.with_cash_not_tracked();
+        let nocash = Pipeline::from_scenario(&without_cash);
+
+        for (id, account) in nocash.facts().accounts() {
+            if !account.settles_cash() {
+                continue;
+            }
+            for frame in nocash.bundle.keyframes.get(id).into_iter().flatten() {
+                for (currency, amount) in &frame.state.cash {
+                    assert!(
+                        amount.abs() <= DUST,
+                        "{}: P-NOCASH {id} holds {amount} {currency} on {}",
+                        without_cash.id,
+                        frame.date
+                    );
+                }
+            }
+            for day in nocash.series.get(id).into_iter().flat_map(|s| &s.days) {
+                assert!(
+                    day.cash_balance.abs() <= DUST,
+                    "{}: P-NOCASH {id} values {} of cash on {}",
+                    without_cash.id,
+                    day.cash_balance,
+                    day.date
+                );
+            }
+        }
+        if !nocash.bundle.rejected_activities().is_empty() {
+            continue;
+        }
+
+        // The money it recorded in or out: legs that lost their flow.
+        let tracked = Pipeline::from_scenario(&tracked_scenario);
+        let tracked_flows: BTreeMap<&str, &Flow> = tracked
+            .ledger()
+            .events
+            .iter()
+            .map(|event| (event.id.as_str(), &event.flow))
+            .collect();
+        let neutralized: BTreeSet<&str> = nocash
+            .ledger()
+            .events
+            .iter()
+            .filter(|event| {
+                event.flow == Flow::NONE
+                    && tracked_flows
+                        .get(event.id.as_str())
+                        .is_some_and(|flow| **flow != Flow::NONE)
+            })
+            .map(|event| event.source.as_str())
+            .collect();
+        let specs: BTreeMap<&str, &ActivitySpec> = scenario
+            .activities
+            .iter()
+            .map(|spec| (spec.id.as_str(), spec))
+            .collect();
+        // That money moves nothing, but its row still dates the account's
+        // first day: an UNKNOWN row keeps the date and moves nothing too.
+        let mut recorded = tracked_scenario.clone();
+        recorded.id = format!("{}@DEPOSITS", scenario.id);
+        for spec in &mut recorded.activities {
+            if neutralized.contains(spec.id.as_str()) {
+                spec.activity_type = "UNKNOWN".into();
+                spec.activity_type_override = None;
+                spec.source_group_id = None;
+                spec.metadata = None;
+            }
+        }
+        for event in nocash
+            .ledger()
+            .events
+            .iter()
+            .filter(|event| event.id.as_str() != event.source.as_str())
+            .filter(|event| event.id.as_str().contains(":settle:"))
+        {
+            let spec = specs[event.source.as_str()];
+            let amount = event.cash.as_ref().map_or(Decimal::ZERO, |c| c.amount);
+            let kind = if amount > Decimal::ZERO {
+                "DEPOSIT"
+            } else {
+                "WITHDRAWAL"
+            };
+            let mut row = format!(
+                "{{ id: \"{}\", account: \"{}\", type: {kind}, date: \"{}\", amount: \"{}\", currency: \"{}\"",
+                event.id,
+                spec.account,
+                spec.date,
+                amount.abs(),
+                event.currency
+            );
+            if let Some(created_at) = &spec.created_at {
+                row.push_str(&format!(", created_at: \"{created_at}\""));
+            }
+            if let Some(rate) = event.fx_rate {
+                row.push_str(&format!(", fx_rate: \"{rate}\""));
+            }
+            row.push_str(" }");
+            recorded
+                .activities
+                .push(serde_yaml::from_str(&row).unwrap());
+        }
+
+        let windows = all_windows(&scenario);
+        let compared = |pipeline: &Pipeline| {
+            let body = capture_body(pipeline, &windows);
+            let accounts: serde_json::Map<String, Value> = body["accounts"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .map(|(id, account)| {
+                    let mut kept = serde_json::Map::new();
+                    for key in ["valuations", "flows", "performance", "lots", "disposals"] {
+                        kept.insert(key.to_string(), account[key].clone());
+                    }
+                    (id.clone(), Value::Object(kept))
+                })
+                .collect();
+            serde_json::json!({
+                "accounts": accounts,
+                "portfolio": body["portfolio"],
+                "portfolio_flows": body["portfolio_flows"],
+            })
+        };
+        assert_same(
+            &without_cash.id,
+            "P-NOCASH",
+            &compared(&nocash),
+            &compared(&Pipeline::from_scenario(&recorded)),
+        );
+        checked += 1;
+    }
+    assert!(
+        filtered() || checked > 50,
+        "only {checked} scenarios compared"
     );
 }

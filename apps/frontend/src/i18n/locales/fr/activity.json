@@ -407,6 +407,7 @@
     "cash_already_negative": "La trésorerie était déjà négative avant la première activité affichée.",
     "add_deposit": "Ajouter un dépôt",
     "add_transfer": "Ajouter un transfert",
+    "stop_tracking_cash": "Ne plus suivre la trésorerie",
     "cash_went_negative_on": "La trésorerie est devenue négative le {{date}}",
     "carry_forward": "Le solde négatif a été reporté depuis l'activité du {{date}}. Consultez l'impact sur la trésorerie et le solde ci-dessous.",
     "review_to_identify": "Consultez l'impact sur la trésorerie et le solde ci-dessous pour identifier l'activité qui a fait passer la trésorerie sous zéro.",

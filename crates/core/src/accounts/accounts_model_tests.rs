@@ -166,6 +166,7 @@ mod tests {
             r#"{"accounting":{"costBasisProfile":"NEWER_CODE"}}"#,
             r#"{"accounting":{"poolingScope":"NEWER_CODE"}}"#,
             r#"{"accounting":{"lotSelectionStrategy":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"cashTracking":"NEWER_CODE"}}"#,
             r#"{"accounting":{"createdAt":987654321}}"#,
         ] {
             let error = accounting_settings_of(Some(meta))
@@ -193,6 +194,27 @@ mod tests {
             let meta = format!(r#"{{"accounting":{{"costBasisMethod":"{code}"}}}}"#);
             let settings = accounting_settings_of(Some(&meta)).expect(code);
             assert_eq!(settings.cost_basis_method.as_str(), code);
+            settings.ensure_supported_for_calculation().expect(code);
+        }
+    }
+
+    /// Engine rules R1.6: every cash tracking the engine computes is a code
+    /// these settings store, next to the method; none reads as TRACKED.
+    #[test]
+    fn every_cash_tracking_the_engine_computes_is_a_settings_code_it_accepts() {
+        assert_eq!(
+            accounting_settings_of(Some(r#"{"accounting":{"costBasisMethod":"WAC"}}"#))
+                .unwrap()
+                .cash_tracking,
+            crate::accounts::CashTracking::Tracked
+        );
+        for setting in wealthfolio_portfolio_engine::model::CashTracking::ALL {
+            let code = setting.as_str();
+            let meta =
+                format!(r#"{{"accounting":{{"costBasisMethod":"WAC","cashTracking":"{code}"}}}}"#);
+            let settings = accounting_settings_of(Some(&meta)).expect(code);
+            assert_eq!(settings.cash_tracking.as_str(), code);
+            assert_eq!(settings.cost_basis_method.as_str(), "WAC");
             settings.ensure_supported_for_calculation().expect(code);
         }
     }

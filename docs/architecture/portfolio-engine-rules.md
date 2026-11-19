@@ -55,6 +55,37 @@ transactions account's lots split on the split day of a split it records itself
 so another account's row would split its lots twice (§8). Fixtures:
 EDGE-SPLIT-01, EDGE-SPLIT-02, EDGE-SPLIT-03, EDGE-SPLIT-04, EDGE-QT-05.
 
+**R1.6 An account that does not track cash** holds none. Its accounting settings
+say so (`cashTracking: NOT_TRACKED` next to its method, R7.2). Core owns which
+accounts can: those of type SECURITIES or CRYPTOCURRENCY (a cash or credit-card
+account is its cash). It passes every other account to the kernel as tracking
+cash, and the kernel settles the cash of any account the facts mark, except a
+holdings account, which is read from its snapshots (R1.2). Contribution limits
+count recorded deposits and are not the kernel's: such an account's deposits
+still count toward them.
+
+- Whatever cash an activity moves is money in or out of the account on its day,
+  at that amount: per currency its legs land in, a settlement leg nets the
+  activity's cash to zero. The leg is a deposit or withdrawal in that currency,
+  with the activity's rate as one recorded there would carry it, and it applies
+  and is rejected with the activity. A buy, a fee or a tax brings money in; a
+  sale, a dividend, interest or a refund takes it out; a reinvested dividend
+  nets to none.
+- Money an activity moves in or out of the account itself moves nothing: a
+  deposit, a withdrawal, an external credit, and a cash transfer not paired with
+  another account (unpaired, marked external, or a currency conversion inside
+  the account). Its row still dates the account's first day. A cash transfer
+  paired with another account keeps its pair, so a scope holding both nets it,
+  and its settlement takes the cash back out.
+- Income, fees and taxes are still returns (R1.1); lots, cost and realized P&L
+  are unchanged. The account's value is its positions'.
+- Short sales and margin are not modelled: a short's proceeds settle out like a
+  sale's, so the account's value goes negative and TWR is gated.
+- Changing the setting refolds the account (§5).
+- Fixtures: NOM-NOCASH-01, EDGE-NOCASH-01 to EDGE-NOCASH-04. P-NOCASH holds
+  every fixture, with no account tracking cash, to the same accounts tracking
+  cash with each settlement recorded as a deposit or withdrawal.
+
 ## 2. Transfers
 
 **R2.1 Between two transactions accounts in the scope.**
@@ -292,7 +323,9 @@ FIFO. Settings this version cannot read are refused the same way and never read
 as the defaults: meta that is not JSON, an `accounting` entry that is not an
 object, or a code it does not know, such as one a newer version wrote. Only a
 failed database read fails the whole job. Changing an account's method refolds
-it (§5). Fixtures: every other fixture is FIFO.
+it (§5). Its cash tracking (R1.6) is read the same way: none is `TRACKED`, and a
+code this version does not know refuses the account. Fixtures: every other
+fixture is FIFO.
 
 **R7.3 What a new method must respect.**
 
@@ -463,6 +496,9 @@ and units that arrive.
   others closed before it) shifts that weighting, by a part of the fee (R2.4).
 - A split recorded on one transactions account does not split another's lots
   (R1.5): each account records its own.
+- Cash sent from an account that tracks cash to one that does not reads as
+  leaving the scope on its day and coming back with the purchase it funds
+  (R1.6): the totals hold, but net contribution dips between the two days.
 - A WAC pool's lot row records what the pool held when it last formed as its
   original, and the purchases it absorbed have no row of their own (their
   activities remain). A window's purchase charges in a pool are split between
@@ -510,9 +546,9 @@ and units that arrive.
 - Property laws state rules over every scenario, under every cost basis method
   the engine computes and with the methods mixed across its accounts in every
   rotation (`@MIXED`, `@MIXED+1`, …), so transfers pair accounts on different
-  methods (R7.3). Where a law compares the engine with itself (determinism,
-  windows, renaming), it proves consistency, not these rules; the fixtures above
-  prove the rules.
+  methods (R7.3), and with no account tracking cash (`@NOCASH`, R1.6). Where a
+  law compares the engine with itself (determinism, windows, renaming), it
+  proves consistency, not these rules; the fixtures above prove the rules.
 - §5 is checked mechanically: a storage test changes every column the engine
   reads, one at a time, and fails unless the change leaves the marker scope and
   earliest day the table states.

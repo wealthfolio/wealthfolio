@@ -47,6 +47,7 @@ accounts:
     tracking_mode: TRANSACTIONS # TRANSACTIONS | HOLDINGS | NOT_SET
     is_archived: false
     cost_basis_method: FIFO # default FIFO; a code the engine computes (rules R7.2)
+    cash_tracking: TRACKED  # default TRACKED; NOT_TRACKED holds no cash (rules R1.6)
 assets:
   - id: aapl
     symbol: AAPL            # default: id
@@ -130,7 +131,7 @@ not-applicable reasons, failures) is never parity-gated. Decimals are strings at
 | Harness | Where | What it checks |
 | --- | --- | --- |
 | Kernel goldens | `cargo test -p wealthfolio-portfolio-engine --test goldens` | Kernel output for every non-shell scenario, under `goldens/kernel/`. |
-| Properties | `cargo test -p wealthfolio-portfolio-engine --test properties` | Determinism, chunk/replay equivalence, cash and lot conservation, split neutrality, transfer cancellation, an independent re-derivation of complete days from keyframes and surfaces, exact scope aggregation with ledger-classified transfer days, degradation reporting, override transparency, no panics under mutation, and no figure changed by an account that has not started (P-IDLE: without activity, with only scheduled activity, or holdings without a snapshot), and no missing history of a started account left out of a scope (P-STRICT). |
+| Properties | `cargo test -p wealthfolio-portfolio-engine --test properties` | Determinism, chunk/replay equivalence, cash and lot conservation, split neutrality, transfer cancellation, an independent re-derivation of complete days from keyframes and surfaces, exact scope aggregation with ledger-classified transfer days, degradation reporting, override transparency, no panics under mutation, and no figure changed by an account that has not started (P-IDLE: without activity, with only scheduled activity, or holdings without a snapshot), no missing history of a started account left out of a scope (P-STRICT), and an account that does not track cash holding none and measuring as if each settlement were a recorded deposit or withdrawal (P-NOCASH). Every law also runs with no account tracking cash (`@NOCASH`). |
 | Book cost | `cargo test -p wealthfolio-portfolio-engine --test book_cost` | P-BOOK: every keyframe's cost basis equals its day's valuation cost basis; a minor-unit lot without a stored rate converts through its major unit. |
 | Policies | `cargo test -p wealthfolio-portfolio-engine --test policies` | The rules for ambiguous data, each with the diagnostic that names it: disagreeing FX directions (and the 1% tolerance), a sale beyond the position, a posted row without an amount. |
 | Impact | `cargo test -p wealthfolio-portfolio-engine --test impact` | P-IMPACT: for single-fact changes of every scenario and generated scenario (a close, the closes around a split, an FX rate, an activity changed, moved, removed or rescheduled after `as_of`, a deposit added to each account inside the range and after it, an observed snapshot, an asset's quote currency) and a day moving on, recorded as the store's triggers record them, a full run differs from the one before only where `impact` says. P-REVALUE: an account `impact` only revalues, valued again from what the run before stored (its keyframes, lots, disposals and rejections), yields the full run's rows from its stale day. |

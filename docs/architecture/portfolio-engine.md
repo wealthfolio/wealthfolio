@@ -336,7 +336,8 @@ pub struct Policy {
     pub as_of: NaiveDate,             // "today" is data, never a clock read
     pub minor_units: Vec<MinorUnitRule>, // GBp→GBP ×0.01, ZAc→ZAR, KWF→KWD ×0.001, …
 }
-// Each account's facts carry its cost basis method (`AccountFacts::cost_basis_method`).
+// Each account's facts carry its cost basis method (`AccountFacts::cost_basis_method`)
+// and whether it tracks cash (`AccountFacts::cash_tracking`, rules R1.6).
 ```
 
 The minor-unit table is data: a new minor unit is a data change, not an engine
@@ -863,7 +864,11 @@ attributes like a deposit (NOM-CASH-03). Shortability: options may go negative
 implicitly, equities require explicit intent, everything else rejects a negative
 lot. Cash books into the account currency at the supplied rate when the activity
 carries one and the currencies differ, otherwise into the activity-currency
-bucket; an empty currency is a diagnostic, never a bucket key.
+bucket; an empty currency is a diagnostic, never a bucket key. In an account that does not track
+cash, `compile` drops the cash, contribution and flow of money moved in or out
+of the account itself, and follows each other activity with a settlement leg per
+currency (`{activity}:settle:{currency}`, a deposit or withdrawal that nets its
+cash to zero); the fold applies or rejects it with the activity (rules R1.6).
 
 ## Glossary
 

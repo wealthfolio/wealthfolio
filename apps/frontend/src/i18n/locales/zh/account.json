@@ -24,6 +24,7 @@
   "group_tax_free": "免税",
   "balance": "余额",
   "cash_balance": "现金余额",
+  "cash_not_tracked_note": "未跟踪现金：买入视为存入资金，卖出和收益视为取出资金。",
   "total_value": "总价值",
   "performance": "表现",
   "save_account": "保存账户",

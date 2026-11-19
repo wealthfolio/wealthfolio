@@ -407,6 +407,7 @@
     "cash_already_negative": "O dinheiro já era negativo antes da primeira atividade exibida.",
     "add_deposit": "Adicionar depósito",
     "add_transfer": "Adicionar transferência",
+    "stop_tracking_cash": "Parar de acompanhar dinheiro",
     "cash_went_negative_on": "O dinheiro ficou negativo em {{date}}",
     "carry_forward": "O saldo negativo foi arrastado da atividade de {{date}}. Revise o impacto no caixa e o saldo acumulado abaixo.",
     "review_to_identify": "Revise o impacto no caixa e o saldo acumulado abaixo para identificar a atividade que fez o dinheiro ficar abaixo de zero.",

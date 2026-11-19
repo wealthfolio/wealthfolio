@@ -24,6 +24,7 @@
   "group_tax_free": "Esente da tasse",
   "balance": "Saldo",
   "cash_balance": "Saldo disponibile",
+  "cash_not_tracked_note": "La liquidità non è registrata: gli acquisti contano come denaro versato, vendite e proventi come denaro prelevato.",
   "total_value": "Valore totale",
   "performance": "Performance",
   "save_account": "Salva conto",

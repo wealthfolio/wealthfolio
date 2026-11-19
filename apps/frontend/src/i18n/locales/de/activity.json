@@ -302,6 +302,7 @@
     "cash_already_negative": "Die Liquidität war bereits vor der ersten angezeigten Aktivität negativ.",
     "add_deposit": "Einzahlung hinzufügen",
     "add_transfer": "Übertragung hinzufügen",
+    "stop_tracking_cash": "Bargeld nicht mehr erfassen",
     "cash_went_negative_on": "Die Liquidität wurde am {{date}} negativ",
     "carry_forward": "Der negative Saldo wurde von der Aktivität am {{date}} übertragen. Überprüfen Sie unten den Liquiditätseffekt und den laufenden Bestand.",
     "review_to_identify": "Überprüfen Sie unten den Liquiditätseffekt und den laufenden Bestand, um die Aktivität zu identifizieren, die die Liquidität unter null gebracht hat.",

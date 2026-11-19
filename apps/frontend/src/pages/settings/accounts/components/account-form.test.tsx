@@ -195,6 +195,98 @@ describe("AccountForm cost basis method", () => {
   });
 });
 
+describe("AccountForm cash tracking", () => {
+  beforeEach(() => mutations.update.mockClear());
+
+  const TRACKED = "settings:accounts.form_cash_tracking_tracked";
+  const NOT_TRACKED = "settings:accounts.form_cash_tracking_not_tracked";
+  const choice = (name: string) => screen.getByRole("radio", { name });
+
+  it("stores not tracking cash next to the method and keeps the rest of the meta", async () => {
+    renderForm({
+      meta: JSON.stringify({
+        accounting: { costBasisMethod: "WAC", cash_tracking: "TRACKED" },
+        broker: { note: "kept" },
+      }),
+    });
+    expect(choice(TRACKED)).toHaveAttribute("data-state", "on");
+
+    fireEvent.click(choice(NOT_TRACKED));
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    const submitted = mutations.update.mock.calls[0][0] as { meta: string };
+    expect(JSON.parse(submitted.meta)).toEqual({
+      accounting: { costBasisMethod: "WAC", cashTracking: "NOT_TRACKED" },
+      broker: { note: "kept" },
+    });
+  });
+
+  it("reads an account without the setting as tracking cash", () => {
+    renderForm({ meta: undefined });
+    expect(choice(TRACKED)).toHaveAttribute("data-state", "on");
+    expect(choice(NOT_TRACKED)).toHaveAttribute("data-state", "off");
+  });
+
+  it("explains both choices behind the (i), not in the form", async () => {
+    renderForm({ meta: undefined });
+    const tracked = /settings:accounts.form_cash_tracking_tracked_description/;
+    const notTracked = /settings:accounts.form_cash_tracking_not_tracked_description/;
+    expect(screen.queryByText(tracked)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByTestId("account-cash-tracking")).getByRole("button", {
+        name: "common:component.more_info_about",
+      }),
+    );
+    expect(await screen.findByText(tracked)).toBeInTheDocument();
+    expect(screen.getByText(notTracked)).toBeInTheDocument();
+  });
+
+  it("says what saving does only once the setting changes", () => {
+    renderForm({ meta: undefined });
+    const stopped = "settings:accounts.form_cash_tracking_changed_to_not_tracked";
+    expect(screen.queryByText(stopped)).not.toBeInTheDocument();
+
+    fireEvent.click(choice(NOT_TRACKED));
+    expect(screen.getByText(stopped)).toBeInTheDocument();
+
+    fireEvent.click(choice(TRACKED));
+    expect(screen.queryByText(stopped)).not.toBeInTheDocument();
+  });
+
+  it("says when the account already does not track cash and goes back to tracking it", () => {
+    renderForm({ meta: JSON.stringify({ accounting: { cashTracking: "NOT_TRACKED" } }) });
+    expect(choice(NOT_TRACKED)).toHaveAttribute("data-state", "on");
+
+    fireEvent.click(choice(TRACKED));
+    expect(screen.getByText("settings:accounts.form_cash_tracking_changed")).toBeInTheDocument();
+  });
+
+  it("shows a stored code the engine does not compute as unsupported", () => {
+    renderForm({ meta: JSON.stringify({ accounting: { cashTracking: "AUTO_TOP_UP" } }) });
+    expect(choice(TRACKED)).toHaveAttribute("data-state", "off");
+    expect(choice(NOT_TRACKED)).toHaveAttribute("data-state", "off");
+    expect(
+      screen.getByText("settings:accounts.form_cash_tracking_unsupported"),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a crypto account", { accountType: "CRYPTOCURRENCY" as const }, true],
+    ["a cash account", { accountType: "CASH" as const }, false],
+    ["a credit card", { accountType: "CREDIT_CARD" as const }, false],
+    ["a holdings account", { trackingMode: "HOLDINGS" as const }, false],
+  ])("is offered for %s: %s", (_name, overrides, offered) => {
+    renderForm(overrides);
+    if (offered) {
+      expect(screen.getByTestId("account-cash-tracking")).toBeInTheDocument();
+    } else {
+      expect(screen.queryByTestId("account-cash-tracking")).not.toBeInTheDocument();
+    }
+  });
+});
+
 describe("AccountForm archive", () => {
   beforeEach(() => mutations.update.mockClear());
 

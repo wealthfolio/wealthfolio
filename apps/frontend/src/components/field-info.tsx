@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/compone
  * Render it beside the label, not inside it, so the input's name stays the label.
  * Its 24px target surrounds the 14px icon without moving the label.
  */
-export function LoanFieldInfo({ label, children }: { label: string; children: ReactNode }) {
+export function FieldInfo({ label, children }: { label: string; children: ReactNode }) {
   const { t } = useTranslation();
   return (
     <Popover>

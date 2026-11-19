@@ -6,7 +6,9 @@ use serde_json::{Map, Value};
 
 use crate::{errors::ValidationError, Error, Result};
 
-use super::accounts_constants::{account_types, ACCOUNT_NUMBER_MAX_CHARS};
+use super::accounts_constants::{
+    account_types, can_leave_cash_untracked, ACCOUNT_NUMBER_MAX_CHARS,
+};
 
 /// Tracking mode for an account - determines how holdings are tracked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -138,6 +140,25 @@ impl PoolingScope {
     }
 }
 
+/// Whether an account keeps its own cash (engine rules R1.6). An account that
+/// does not holds none: each activity's cash is money in or out of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CashTracking {
+    #[default]
+    Tracked,
+    NotTracked,
+}
+
+impl CashTracking {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Tracked => "TRACKED",
+            Self::NotTracked => "NOT_TRACKED",
+        }
+    }
+}
+
 /// Optional selection policy for methods that require choosing a specific lot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -178,6 +199,7 @@ pub struct AccountAccountingSettings {
     pub cost_basis_profile: CostBasisProfile,
     pub pooling_scope: PoolingScope,
     pub lot_selection_strategy: Option<LotSelectionStrategy>,
+    pub cash_tracking: CashTracking,
     pub settings_json: String,
     pub created_at: String,
     pub updated_at: String,
@@ -194,6 +216,7 @@ impl AccountAccountingSettings {
             cost_basis_profile: CostBasisProfile::Generic,
             pooling_scope: PoolingScope::Account,
             lot_selection_strategy: None,
+            cash_tracking: CashTracking::Tracked,
             settings_json: "{}".to_string(),
             created_at: now.clone(),
             updated_at: now,
@@ -271,6 +294,8 @@ struct AccountAccountingSettingsMeta {
     pooling_scope: Option<PoolingScope>,
     #[serde(default, alias = "lot_selection_strategy")]
     lot_selection_strategy: Option<LotSelectionStrategy>,
+    #[serde(default, alias = "cash_tracking")]
+    cash_tracking: Option<CashTracking>,
     #[serde(default, alias = "settings_json")]
     settings_json: Option<Value>,
     #[serde(default, alias = "created_at")]
@@ -289,6 +314,7 @@ impl AccountAccountingSettingsMeta {
             cost_basis_profile: Some(settings.cost_basis_profile),
             pooling_scope: Some(settings.pooling_scope),
             lot_selection_strategy: settings.lot_selection_strategy,
+            cash_tracking: Some(settings.cash_tracking),
             settings_json: Some(settings_json),
             created_at: Some(settings.created_at.clone()),
             updated_at: Some(settings.updated_at.clone()),
@@ -308,6 +334,9 @@ impl AccountAccountingSettingsMeta {
             settings.pooling_scope = pooling_scope;
         }
         settings.lot_selection_strategy = self.lot_selection_strategy;
+        if let Some(cash_tracking) = self.cash_tracking {
+            settings.cash_tracking = cash_tracking;
+        }
         if let Some(settings_json) = self.settings_json {
             settings.settings_json = match settings_json {
                 Value::String(value) => value,
@@ -408,6 +437,16 @@ impl Account {
                 unreadable("its accounting entry holds a value this version does not know")
             })?
             .into_settings(self.id.clone())
+    }
+
+    /// Whether the account holds no cash of its own (engine rules R1.6): its
+    /// settings say so and its type can leave cash untracked. Settings this
+    /// version cannot read count as tracking cash.
+    pub fn cash_not_tracked(&self) -> bool {
+        can_leave_cash_untracked(&self.account_type)
+            && self
+                .accounting_settings()
+                .is_ok_and(|settings| settings.cash_tracking == CashTracking::NotTracked)
     }
 }
 

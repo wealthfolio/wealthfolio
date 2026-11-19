@@ -3083,3 +3083,31 @@ async fn all_job_entry_points_await_completion_before_returning() {
         .await;
     assert_eq!(observer.0.load(std::sync::atomic::Ordering::SeqCst), 3);
 }
+
+/// Engine rules R1.6: core owns which accounts can leave cash untracked, and
+/// passes the others to the kernel as tracking cash whatever their settings say.
+#[test]
+fn only_accounts_holding_securities_reach_the_kernel_without_cash() {
+    let not_tracked = r#"{"accounting":{"cashTracking":"NOT_TRACKED"}}"#;
+    for (account_type, meta, expected) in [
+        ("SECURITIES", Some(not_tracked), "NOT_TRACKED"),
+        ("CRYPTOCURRENCY", Some(not_tracked), "NOT_TRACKED"),
+        ("CASH", Some(not_tracked), "TRACKED"),
+        ("CREDIT_CARD", Some(not_tracked), "TRACKED"),
+        ("SECURITIES", None, "TRACKED"),
+    ] {
+        let account = crate::accounts::Account {
+            id: "acc".to_string(),
+            account_type: account_type.to_string(),
+            currency: "USD".to_string(),
+            tracking_mode: crate::accounts::TrackingMode::Transactions,
+            meta: meta.map(str::to_string),
+            ..crate::accounts::Account::default()
+        };
+        assert_eq!(
+            facts::raw_account(&account).cash_tracking.as_deref(),
+            Some(expected),
+            "{account_type} {meta:?}"
+        );
+    }
+}

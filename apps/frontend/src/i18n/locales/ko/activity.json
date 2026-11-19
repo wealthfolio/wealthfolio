@@ -403,6 +403,7 @@
     "cash_already_negative": "표시된 첫 활동 이전에 이미 현금이 마이너스였습니다.",
     "add_deposit": "입금 추가",
     "add_transfer": "이체 추가",
+    "stop_tracking_cash": "현금 추적 중지",
     "cash_went_negative_on": "{{date}}에 현금이 마이너스가 되었습니다",
     "carry_forward": "마이너스 잔액은 {{date}}의 활동에서 이월되었습니다. 아래에서 현금 영향과 누적 잔액을 확인하세요.",
     "review_to_identify": "아래 현금 영향과 누적 잔액을 확인하여 현금을 0 이하로 만든 활동을 찾아보세요.",

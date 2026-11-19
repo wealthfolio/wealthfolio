@@ -78,6 +78,39 @@ impl CostBasisMethod {
     }
 }
 
+/// Whether an account keeps its own cash (rules R1.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CashTracking {
+    /// Cash moves as the activities record it.
+    #[default]
+    Tracked,
+    /// The account holds no cash: what each activity's cash moves is money
+    /// in or out of it on that day.
+    NotTracked,
+}
+
+impl CashTracking {
+    /// Every setting the engine computes.
+    pub const ALL: &'static [Self] = &[Self::Tracked, Self::NotTracked];
+
+    /// The code account settings store.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Tracked => "TRACKED",
+            Self::NotTracked => "NOT_TRACKED",
+        }
+    }
+
+    /// The setting a stored code names, when the engine computes it.
+    pub fn parse(code: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|setting| setting.as_str().eq_ignore_ascii_case(code.trim()))
+    }
+}
+
 impl Policy {
     pub fn new(base_currency: Currency, timezone: Tz, as_of: NaiveDate) -> Self {
         Self {

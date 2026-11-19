@@ -2360,6 +2360,7 @@ pub(crate) mod tests {
                     tracking_mode: "TRANSACTIONS".to_string(),
                     is_archived: false,
                     cost_basis_method: None,
+                    cash_tracking: None,
                 }],
                 assets: asset_service
                     .get_assets()

@@ -12,6 +12,7 @@
   "type_other": "Andere",
   "balance": "Saldo",
   "cash_balance": "Bargeldbestand",
+  "cash_not_tracked_note": "Bargeld wird nicht erfasst: Käufe gelten als eingezahltes Geld, Verkäufe und Erträge als entnommenes Geld.",
   "total_value": "Gesamtwert",
   "cancel": "Abbrechen",
   "no_accounts": "Keine Konten gefunden.",

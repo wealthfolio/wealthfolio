@@ -1878,9 +1878,12 @@ fn internal_adjustments<'a>(
     scope: &[AccountId],
     window: Window,
 ) -> BTreeMap<(&'a AccountId, NaiveDate), (Decimal, Decimal)> {
+    // A pair's legs are its internal events: an account that does not track
+    // cash settles a leg with another event of the same activity (R1.6).
     let by_source: BTreeMap<&str, &EventEffect> = effects
         .events
         .iter()
+        .filter(|event| matches!(event.boundary, Boundary::Internal { .. }))
         .map(|event| (event.source.as_str(), event))
         .collect();
     // A holdings account's flows come from its snapshots, not its legs: a

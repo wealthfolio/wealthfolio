@@ -405,6 +405,7 @@
     "cash_already_negative": "在所顯示的第一筆交易紀錄之前，現金已為負值。",
     "add_deposit": "新增存入",
     "add_transfer": "新增轉帳",
+    "stop_tracking_cash": "停止追蹤現金",
     "cash_went_negative_on": "現金在 {{date}} 轉為負值",
     "carry_forward": "負餘額是從 {{date}} 的交易紀錄延續而來。請查看下方的現金影響與餘額變化。",
     "review_to_identify": "請查看下方的現金影響與餘額變化，找出使現金降至零以下的交易紀錄。",

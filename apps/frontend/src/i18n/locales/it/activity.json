@@ -407,6 +407,7 @@
     "cash_already_negative": "La liquidità era già negativa prima del primo movimento mostrato.",
     "add_deposit": "Aggiungi deposito",
     "add_transfer": "Aggiungi trasferimento",
+    "stop_tracking_cash": "Smetti di registrare la liquidità",
     "cash_went_negative_on": "La liquidità è diventata negativa il {{date}}",
     "carry_forward": "Il saldo negativo è stato riportato dal movimento del {{date}}. Rivedi l'impatto sulla liquidità e il saldo cumulato qui sotto.",
     "review_to_identify": "Rivedi l'impatto sulla liquidità e il saldo cumulato qui sotto per identificare il movimento che ha portato la liquidità sotto zero.",

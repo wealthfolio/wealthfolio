@@ -403,6 +403,7 @@
     "cash_already_negative": "表示されている最初の取引の前から、現金は既にマイナスでした。",
     "add_deposit": "入金を追加",
     "add_transfer": "振替を追加",
+    "stop_tracking_cash": "現金の記録をやめる",
     "cash_went_negative_on": "{{date}}に現金がマイナスになりました",
     "carry_forward": "マイナス残高は{{date}}の取引から繰り越されています。以下の現金への影響と残高推移を確認してください。",
     "review_to_identify": "現金をマイナスにした取引を特定するには、以下の現金への影響と残高推移を確認してください。",

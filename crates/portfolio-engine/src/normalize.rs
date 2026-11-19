@@ -43,6 +43,13 @@ pub fn normalize(raw: RawFacts) -> Result<Normalized, EngineError> {
                 reason: format!("its cost basis method {code:?} is not one the engine computes"),
             });
         };
+        let code = account.cash_tracking.as_deref().unwrap_or("TRACKED");
+        let Some(cash_tracking) = CashTracking::parse(code) else {
+            return Err(EngineError::InvalidAccount {
+                account: account.id,
+                reason: format!("its cash tracking {code:?} is not one the engine computes"),
+            });
+        };
         let facts = AccountFacts {
             id: id.clone(),
             currency,
@@ -50,6 +57,7 @@ pub fn normalize(raw: RawFacts) -> Result<Normalized, EngineError> {
             tracking: tracking_mode(&account.tracking_mode),
             archived: account.is_archived,
             cost_basis_method,
+            cash_tracking,
         };
         if accounts.insert(id, facts).is_some() {
             return Err(EngineError::DuplicateAccountId(account.id));
@@ -945,6 +953,7 @@ mod tests {
             tracking_mode: "TRANSACTIONS".into(),
             is_archived: false,
             cost_basis_method: None,
+            cash_tracking: None,
         }
     }
 
@@ -1043,6 +1052,33 @@ mod tests {
         }
 
         raw.accounts[1].cost_basis_method = Some("ACB".into());
+        let refused = normalize(raw).unwrap_err();
+        assert!(
+            matches!(&refused, EngineError::InvalidAccount { account, .. } if account == "a2"),
+            "{refused}"
+        );
+    }
+
+    #[test]
+    fn an_account_takes_the_cash_tracking_its_settings_name() {
+        // Rules R1.6: none means TRACKED; a code the engine does not compute
+        // is refused, never relabelled.
+        let mut raw = facts(vec![], chrono_tz::UTC);
+        let normalized = normalize(raw.clone()).unwrap();
+        assert!(normalized
+            .facts
+            .accounts
+            .values()
+            .all(|account| account.cash_tracking == CashTracking::Tracked));
+
+        raw.accounts[1].cash_tracking = Some(" not_tracked ".into());
+        let normalized = normalize(raw.clone()).unwrap();
+        assert_eq!(
+            normalized.facts.accounts[&AccountId::new("a2")].cash_tracking,
+            CashTracking::NotTracked
+        );
+
+        raw.accounts[1].cash_tracking = Some("AUTO_TOP_UP".into());
         let refused = normalize(raw).unwrap_err();
         assert!(
             matches!(&refused, EngineError::InvalidAccount { account, .. } if account == "a2"),

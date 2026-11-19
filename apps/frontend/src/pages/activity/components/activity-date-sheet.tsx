@@ -29,6 +29,7 @@ interface ActivityDateSheetProps {
   cashCurrency?: string;
   cashAuditTarget?: CashAuditReviewTarget;
   isCreditCardAccount?: boolean;
+  onStopTrackingCash?: () => void;
 }
 
 export function ActivityDateSheet({
@@ -41,6 +42,7 @@ export function ActivityDateSheet({
   cashCurrency,
   cashAuditTarget,
   isCreditCardAccount = false,
+  onStopTrackingCash,
 }: ActivityDateSheetProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
@@ -76,6 +78,7 @@ export function ActivityDateSheet({
               cashCurrency={cashCurrency}
               cashAuditTarget={cashAuditTarget}
               isCreditCardAccount={isCreditCardAccount}
+              onStopTrackingCash={onStopTrackingCash}
             />
           )}
         </div>

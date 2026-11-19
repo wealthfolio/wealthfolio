@@ -1,6 +1,6 @@
 import { addYears, parseISO } from "date-fns";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
-import { LoanFieldInfo } from "./loan-field-info";
+import { FieldInfo } from "@/components/field-info";
 import { loanErrorText } from "./loan-error-text";
 import type { LoanInterestMethod, LoanPaymentFrequency } from "../lib/loan-events";
 import {
@@ -179,7 +179,7 @@ export function RenewLoanDialog({
   const label = (text: string, htmlFor?: string, info?: string) => (
     <div className="flex items-center gap-1.5">
       <Label htmlFor={htmlFor}>{text}</Label>
-      {info && <LoanFieldInfo label={text}>{info}</LoanFieldInfo>}
+      {info && <FieldInfo label={text}>{info}</FieldInfo>}
     </div>
   );
   const title = t(mortgage ? "asset:loanOverview.renew_mortgage" : "asset:loanActions.renew_loan");
@@ -363,9 +363,9 @@ export function RenewLoanDialog({
             <div className="flex items-center gap-1.5">
               <Label htmlFor={balanceInputId}>{t("asset:loanActions.balance_at_renewal")}</Label>
               <span className="text-muted-foreground text-xs">{t("asset:quickAdd.optional")}</span>
-              <LoanFieldInfo label={t("asset:loanActions.balance_at_renewal")}>
+              <FieldInfo label={t("asset:loanActions.balance_at_renewal")}>
                 {t("asset:loanActions.balance_at_renewal_hint")}
-              </LoanFieldInfo>
+              </FieldInfo>
             </div>
             <MoneyInput
               id={balanceInputId}

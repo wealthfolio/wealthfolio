@@ -6,7 +6,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use super::policy::{CostBasisMethod, Policy};
+use super::policy::{CashTracking, CostBasisMethod, Policy};
 use super::scalar::{AccountId, ActivityId, AssetId, Currency};
 
 /// Facts as `normalize` validated and ordered them: the only way to build
@@ -93,6 +93,18 @@ pub struct AccountFacts {
     pub archived: bool,
     /// How its disposals choose the lots they relieve (rules §7).
     pub cost_basis_method: CostBasisMethod,
+    /// Whether it keeps its own cash (rules R1.6).
+    #[serde(default)]
+    pub cash_tracking: CashTracking,
+}
+
+impl AccountFacts {
+    /// Whether the cash its activities move is money in or out of it instead
+    /// (rules R1.6). Which accounts may leave cash untracked is core's rule,
+    /// given as the fact; a holdings account is read from its snapshots (R1.2).
+    pub fn settles_cash(&self) -> bool {
+        self.cash_tracking == CashTracking::NotTracked && self.tracking != TrackingMode::Holdings
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

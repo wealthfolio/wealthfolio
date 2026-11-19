@@ -1,4 +1,4 @@
-import { LoanFieldInfo } from "./loan-field-info";
+import { FieldInfo } from "@/components/field-info";
 import { loanErrorText } from "./loan-error-text";
 import {
   Button,
@@ -151,9 +151,9 @@ export function ChangeRateSheet({
             <div className="flex items-center gap-1.5">
               <Label htmlFor={paymentInputId}>{t("asset:valueHistory.payment")}</Label>
               <span className="text-muted-foreground text-xs">{t("asset:quickAdd.optional")}</span>
-              <LoanFieldInfo label={t("asset:valueHistory.payment")}>
+              <FieldInfo label={t("asset:valueHistory.payment")}>
                 {t("asset:loanActions.payment_hint")}
-              </LoanFieldInfo>
+              </FieldInfo>
             </div>
             <MoneyInput
               id={paymentInputId}

@@ -2268,10 +2268,13 @@ fn transfer_pair_effects(
     let Some(period) = Period::of(result, baseline) else {
         return EffectSet::default();
     };
+    // A pair's legs are its internal events: an account that does not track
+    // cash settles a leg with another event of the same activity (R1.6).
     let by_source: HashMap<&str, &EventEffect> = inputs
         .effects
         .events
         .iter()
+        .filter(|e| matches!(e.boundary, Boundary::Internal { .. }))
         .map(|e| (e.source.as_str(), e))
         .collect();
     let mut warnings = Vec::new();

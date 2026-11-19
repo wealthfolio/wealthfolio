@@ -174,6 +174,34 @@ describe("AccountMetrics", () => {
     },
   );
 
+  it("heads an account that does not track cash with its investments, and says so", () => {
+    render(
+      <AccountMetrics
+        valuation={createValuation({
+          investmentMarketValue: 2420,
+          totalValue: 2420,
+          netContribution: 2100,
+          costBasis: 2100,
+          basisStatus: "complete",
+        })}
+        cashNotTracked
+      />,
+    );
+
+    expect(screen.queryByText("Cash Balance")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("account-cash-balance-value")).not.toBeInTheDocument();
+    // The investments head the card instead of repeating as a row.
+    expect(screen.getAllByText("Investments")).toHaveLength(1);
+    expect(screen.getByTestId("account-investments-value")).toHaveTextContent("value:USD:2420");
+    expect(screen.getByText("Net Contribution")).toBeInTheDocument();
+    expect(screen.getAllByText("gain-amount:320")).toHaveLength(2);
+    expect(
+      screen.getByText(
+        "Cash isn't tracked: purchases count as money added, sales and income as money taken out.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("does not show unrealized P&L when cost basis is incomplete", () => {
     render(
       <AccountMetrics
