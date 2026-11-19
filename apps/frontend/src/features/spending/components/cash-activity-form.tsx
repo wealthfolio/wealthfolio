@@ -28,6 +28,7 @@ import type {
   ActivityUpdate,
   TaxonomyCategory,
 } from "@/lib/types";
+import { getEffectiveType } from "@/lib/types";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 
 import {
@@ -221,6 +222,11 @@ export function CashActivityForm({
   const reviewEdits = useActivitySplitReview();
   const formSchema = useMemo(() => buildFormSchema(t), [t]);
   const isEditing = !!activity?.id;
+  // The type the row shows: a synced row keeps its source type and stores the
+  // user's choice as an override, which is the one to edit and compare with.
+  const savedType = activity
+    ? (getEffectiveType(activity) as FormValues["activityType"])
+    : undefined;
   const isQuickEntry = !isEditing && !!intent;
   const initialType = intent === "income" ? "DEPOSIT" : "WITHDRAWAL";
   const isMobile = useIsMobileViewport();
@@ -300,7 +306,7 @@ export function CashActivityForm({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
     defaultValues: {
       accountId: activity?.accountId ?? "",
-      activityType: (activity?.activityType as FormValues["activityType"]) ?? initialType,
+      activityType: savedType ?? initialType,
       activityDate: activity?.activityDate ? new Date(activity.activityDate) : new Date(),
       amount: activity?.amount != null ? Math.abs(parseFloat(activity.amount)) : 0,
       currency: activity?.currency ?? "",
@@ -319,7 +325,7 @@ export function CashActivityForm({
         accountId:
           activity?.accountId ??
           (isQuickEntry && spendingAccounts.length !== 1 ? "" : (spendingAccounts[0]?.id ?? "")),
-        activityType: (activity?.activityType as FormValues["activityType"]) ?? initialType,
+        activityType: savedType ?? initialType,
         activityDate: activity?.activityDate ? new Date(activity.activityDate) : new Date(),
         amount: activity?.amount != null ? Math.abs(parseFloat(activity.amount)) : 0,
         // Seeded from the activity, not the account: recomputing it on save is
@@ -340,7 +346,7 @@ export function CashActivityForm({
       setAmountTyped(false);
       setAmountTapped(false);
     }
-  }, [open, activity, spendingAccounts, form, initialType, isQuickEntry]);
+  }, [open, activity, savedType, spendingAccounts, form, initialType, isQuickEntry]);
 
   const watchType = form.watch("activityType");
   const watchAccountId = form.watch("accountId");
@@ -351,12 +357,12 @@ export function CashActivityForm({
     : t("spending:cashForm.transferBetween");
   const activityTypeOptions = useMemo<FormValues["activityType"][]>(() => {
     const options = getActivityTypesForAccount(selectedAccount?.accountType);
-    const currentType = activity?.activityType as FormValues["activityType"] | undefined;
+    const currentType = savedType;
     const all = currentType && !options.includes(currentType) ? [...options, currentType] : options;
     // A saved row can become a transfer, or stop being one. A new transfer has
     // two sides, so it is entered with the transfer action instead.
     return isEditing ? all : all.filter((t) => t !== "TRANSFER_IN" && t !== "TRANSFER_OUT");
-  }, [activity?.activityType, isEditing, selectedAccount?.accountType]);
+  }, [savedType, isEditing, selectedAccount?.accountType]);
   const mobileTypeOptions = useMemo(
     () =>
       activityTypeOptions.map((type) => ({
@@ -368,20 +374,14 @@ export function CashActivityForm({
           resolveCashActivitySubtype({
             activityType: type,
             accountType: selectedAccount?.accountType,
-            existingActivityType: activity?.activityType,
+            existingActivityType: savedType,
             existingSubtype: activity?.subtype,
           }),
         ),
         description: getMobileTypeDescription(type, t),
         Icon: getMobileTypeIcon(type),
       })),
-    [
-      activityTypeOptions,
-      selectedAccount?.accountType,
-      activity?.activityType,
-      activity?.subtype,
-      t,
-    ],
+    [activityTypeOptions, selectedAccount?.accountType, savedType, activity?.subtype, t],
   );
   const isIncomeType = isCashActivityIncome(
     watchType,
@@ -438,7 +438,7 @@ export function CashActivityForm({
       const subtype = resolveCashActivitySubtype({
         activityType: values.activityType,
         accountType: account?.accountType,
-        existingActivityType: activity?.activityType,
+        existingActivityType: savedType,
         existingSubtype: activity?.subtype,
       });
 
@@ -458,7 +458,7 @@ export function CashActivityForm({
             values.activityType,
             subtype,
             activity?.metadata,
-            activity?.activityType,
+            savedType,
           ),
         };
         const [reviewed] = await reviewEdits([update]);
@@ -726,13 +726,13 @@ export function CashActivityForm({
   const typeChange =
     isEditing && activity
       ? describeTypeChange(
-          { activityType: activity.activityType, subtype: activity.subtype },
+          { activityType: savedType ?? activity.activityType, subtype: activity.subtype },
           {
             activityType: watchType,
             subtype: resolveCashActivitySubtype({
               activityType: watchType,
               accountType: selectedAccount?.accountType,
-              existingActivityType: activity.activityType,
+              existingActivityType: savedType,
               existingSubtype: activity.subtype,
             }),
           },
@@ -757,18 +757,20 @@ export function CashActivityForm({
   // saved row links as the transfer it would become, so the row shows only
   // while the chosen type is that transfer and the account is unchanged.
   const isTransferChoice = watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT";
-  // A transfer has no category; neither has a neutral row until its type changes.
+  // A card's transfer has no category, nor has a neutral row until its type
+  // changes. A bank's one-sided transfer still counts under its category.
   const showNeutralCategory =
-    isTransferChoice || (isNeutralBucket && watchType === activity?.activityType);
+    (isTransferChoice && isCreditCardAccount) || (isNeutralBucket && watchType === savedType);
   const canLink =
     isEditing &&
     !!activity?.id &&
     !!onLinkTransfer &&
     isTransferChoice &&
     watchAccountId === activity.accountId &&
-    linkableTransferType(activity.activityType, selectedAccount?.accountType) === watchType;
+    !!savedType &&
+    linkableTransferType(savedType, selectedAccount?.accountType) === watchType;
   const { data: suggestedMatch } = useQuery({
-    queryKey: ["transfer-match-suggestion", activity?.id, activity?.activityType],
+    queryKey: ["transfer-match-suggestion", activity?.id, savedType],
     queryFn: async () => {
       const [first] = await findTransferMatchCandidates({
         activityId: activity!.id,

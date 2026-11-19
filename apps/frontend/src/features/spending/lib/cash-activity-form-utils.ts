@@ -48,10 +48,14 @@ export function cashActivityFlowMetadata(
   const flow = hasFlowObject ? { ...(existingFlow as Record<string, unknown>) } : {};
   const hasExplicitBoundary = typeof flow.is_external === "boolean";
 
-  // A saved transfer keeps its boundary. A row becoming one sends none, so the
-  // core marks it external until it is linked.
-  if (isTransferType(activityType) && isTransferType(existingActivityType)) {
-    return hasFlowObject ? { ...existingMetadata, flow } : undefined;
+  // A saved transfer keeps its boundary. A row becoming one is external until
+  // it is linked: its other side is not tracked yet. Sent explicitly, since the
+  // core defaults it only for a few type pairs.
+  if (isTransferType(activityType)) {
+    if (isTransferType(existingActivityType)) {
+      return hasFlowObject ? { ...existingMetadata, flow } : undefined;
+    }
+    return { ...existingMetadata, flow: { ...flow, is_external: true } };
   }
 
   if (supportsCreditBoundary && hasExplicitBoundary) {
@@ -84,7 +88,8 @@ export function cashActivityFlowMetadata(
 
 /** How reports count a row of a type, which a type change explains before saving. */
 export type ReportingEffect =
-  | "transfer"
+  | "transferOut"
+  | "transferIn"
   | "cardPayment"
   | "cardAdvance"
   | "spending"
@@ -98,8 +103,12 @@ export function reportingEffect(
   subtype?: string | null,
 ): ReportingEffect {
   if (isTransferType(activityType)) {
-    if (!isCreditCardAccountType(accountType)) return "transfer";
-    return activityType === "TRANSFER_IN" ? "cardPayment" : "cardAdvance";
+    // A bank's one-sided transfer still counts as spending or income until it
+    // is linked; a card's is never spending.
+    if (isCreditCardAccountType(accountType)) {
+      return activityType === "TRANSFER_IN" ? "cardPayment" : "cardAdvance";
+    }
+    return activityType === "TRANSFER_IN" ? "transferIn" : "transferOut";
   }
   const spending = getActivitySpendingAmount({ activityType, amount: 1, subtype }, accountType);
   if (spending > 0) return "spending";

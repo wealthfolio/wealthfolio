@@ -336,8 +336,52 @@ describe("CashActivityForm type change", () => {
     await waitFor(() => expect(updateActivity).toHaveBeenCalled());
     const update = vi.mocked(updateActivity).mock.lastCall?.[0];
     expect(update).toMatchObject({ id: "act-1", activityType: "TRANSFER_IN", subtype: null });
-    // The core marks a row that becomes a transfer external until it is linked.
-    expect(update?.metadata).toBeUndefined();
+    // Its other side is not tracked until it is linked.
+    expect(update?.metadata).toEqual({ flow: { is_external: true } });
+  });
+
+  it("edits a synced row as the type it shows, not its source type", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          { ...cardCredit, subtype: undefined, activityTypeOverride: "TRANSFER_IN" } as Activity
+        }
+      />,
+      { wrapper },
+    );
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Payment");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: /notes/i }), " paid");
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(updateActivity).toHaveBeenCalled());
+    expect(vi.mocked(updateActivity).mock.lastCall?.[0].activityType).toBe("TRANSFER_IN");
+  });
+
+  it("says a bank's one-sided transfer still counts as spending until linked", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          {
+            ...foreignCharge,
+            accountId: "chequing",
+            currency: "CAD",
+            fxRate: null,
+          } as unknown as Activity
+        }
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Transfer Out");
+    expect(screen.getByText(typeChange.transferOut)).toBeInTheDocument();
+    // Its category still counts, so it stays visible and editable.
+    expect(screen.getByRole("button", { name: /category/i })).toBeInTheDocument();
   });
 
   it("links a card payment with the suggested side from the Paid from row", async () => {

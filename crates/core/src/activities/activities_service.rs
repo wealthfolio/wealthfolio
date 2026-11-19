@@ -982,16 +982,27 @@ impl ActivityService {
             ));
         }
 
-        let cash_reclassification = matches!(
-            (existing.effective_type(), activity.activity_type.as_str()),
-            (ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT)
-                | (ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL)
-                | (ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN)
-                | (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_DEPOSIT)
-                // A credit card's payment, which it cannot hold as a deposit.
-                | (ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_TRANSFER_IN)
+        let type_change = (existing.effective_type(), activity.activity_type.as_str());
+        // A credit card's payment, which it cannot hold as a deposit. Elsewhere
+        // a credit is income or a refund whose subtype the edit sets.
+        let card_payment_change = matches!(
+            type_change,
+            (ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_TRANSFER_IN)
                 | (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_CREDIT)
+        ) && is_liability_account_type(
+            &self
+                .account_service
+                .get_account(&existing.account_id)?
+                .account_type,
         );
+        let cash_reclassification = card_payment_change
+            || matches!(
+                type_change,
+                (ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT)
+                    | (ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL)
+                    | (ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN)
+                    | (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_DEPOSIT)
+            );
         if cash_reclassification {
             if Self::non_cash_transfer_asset_key(existing).is_some() {
                 return Err(Self::invalid_activity_data(
@@ -2668,7 +2679,9 @@ impl ActivityService {
 
         // A card payment a sync saved as the card's refund or credit: the same
         // amount left another, non-card account within the window. Never
-        // certain, since a real refund can match a withdrawal by chance.
+        // certain, since a real refund can match a withdrawal by chance. Only a
+        // withdrawal: a one-sided transfer has its own row, so offering it here
+        // too would show one leg twice.
         let card_account_ids: HashSet<String> = account_service
             .get_active_non_archived_accounts()?
             .into_iter()
@@ -2684,7 +2697,7 @@ impl ActivityService {
         for source in card_credits {
             let candidates: Vec<TransferMatchCandidate> = Self::transfer_match_candidates(
                 source,
-                &[ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT],
+                &[ACTIVITY_TYPE_WITHDRAWAL],
                 &pool,
                 WINDOW_DAYS,
                 usize::MAX,
