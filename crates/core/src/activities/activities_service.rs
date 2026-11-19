@@ -4150,10 +4150,10 @@ impl ActivityService {
             .collect()
     }
 
-    /// Upper-case tickers broker sync doesn't search a listing for: a
-    /// market-priced equity has no exchange and no asset of that ticker is on a
-    /// listing. The user cleared the exchange or none was ever known, and a
-    /// search can file a private fund such as Fidelity's `OAA1` under an
+    /// Upper-case tickers broker sync doesn't search a listing for: an equity
+    /// has no exchange and no asset of that ticker is on a listing, however the
+    /// asset is priced. The user cleared the exchange or none was ever known,
+    /// and a search can file a private fund such as Fidelity's `OAA1` under an
     /// unrelated company's listing.
     fn tickers_kept_without_exchange(&self) -> Result<HashSet<String>> {
         let ticker = |asset: &Asset| {
@@ -4182,7 +4182,7 @@ impl ActivityService {
             .collect();
         Ok(equities
             .iter()
-            .filter(|asset| !has_exchange(asset) && asset.quote_mode == QuoteMode::Market)
+            .filter(|asset| !has_exchange(asset))
             .filter_map(ticker)
             .filter(|symbol| !listed.contains(symbol))
             .collect())

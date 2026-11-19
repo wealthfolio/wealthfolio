@@ -4131,11 +4131,12 @@ pub(crate) mod tests {
         assert_eq!(asset_service.get_assets().unwrap().len(), 2);
     }
 
-    /// A manually priced asset that shares a ticker doesn't capture broker
-    /// activity for the real security.
+    /// Turning automatic updates off doesn't bring the search back. `OAA1` was
+    /// filed on Stuttgart in EUR, set to manual pricing, then cleared: the next
+    /// sync must not add a second asset on that listing.
     #[tokio::test]
-    async fn sync_still_searches_when_a_manual_asset_shares_the_ticker() {
-        let account = create_test_account("acc-usd", "USD");
+    async fn sync_keeps_a_manually_priced_ticker_held_without_an_exchange_off_every_listing() {
+        let account = create_test_account("acc-fidelity", "USD");
         let mut manual = oaa1_without_an_exchange("EUR");
         manual.quote_mode = QuoteMode::Manual;
         let (service, asset_service) = broker_sync_service(&account, vec![manual]);
@@ -4147,11 +4148,16 @@ pub(crate) mod tests {
 
         assert!(result.errors.is_empty(), "{:?}", result.errors);
         let assets = asset_service.get_assets().unwrap();
+        assert_eq!(assets.len(), 1, "{assets:?}");
+        assert_linked_to(&result, "oaa1");
+        assert_eq!(assets[0].instrument_exchange_mic, None);
         assert!(
-            assets
-                .iter()
-                .any(|asset| asset.instrument_key.as_deref() == Some("EQUITY:OAA1@XSTU")),
-            "{assets:?}"
+            asset_service
+                .resolve_import_asset_input_batches
+                .lock()
+                .unwrap()
+                .is_empty(),
+            "searched for a listing"
         );
     }
 
