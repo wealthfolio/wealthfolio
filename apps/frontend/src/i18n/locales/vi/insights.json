@@ -34,7 +34,8 @@
       "top_units": "Top {{count}} mục",
       "show_less": "Thu gọn",
       "show_all": "Hiển thị tất cả",
-      "other_units_other": "{{count}} mục khác"
+      "other_units_other": "{{count}} mục khác",
+      "other_units_one": "{{count}} mục khác"
     },
     "rails": {
       "target_allocation": "Phân bổ mục tiêu",

@@ -160,7 +160,8 @@
     },
     "price_manual_valuation_stale": {
       "title_other": "Định giá chưa được cập nhật cho {{count}} tài sản",
-      "message": "Một số tài sản định giá thủ công chưa được cập nhật trong hơn {{days}} ngày, do đó giá trị tài sản ròng của bạn có thể đã cũ."
+      "message": "Một số tài sản định giá thủ công chưa được cập nhật trong hơn {{days}} ngày, do đó giá trị tài sản ròng của bạn có thể đã cũ.",
+      "title_one": "Định giá chưa được cập nhật cho {{name}}"
     },
     "option_expiry_without_contract": {
       "title_one": "Ngày hết hạn quyền chọn không liên kết với hợp đồng",

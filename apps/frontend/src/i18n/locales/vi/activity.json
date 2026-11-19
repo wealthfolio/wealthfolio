@@ -1527,6 +1527,17 @@
     "marked_external": "Đã đánh dấu là ngoại bộ",
     "load_error": "Không thể tải các giao dịch chuyển khoản cần khớp.",
     "empty_title": "Tất cả các khoản chuyển đã được ghép cặp",
-    "empty_desc": "Không có giao dịch chuyển khoản nào bị thiếu vế đối ứng."
+    "empty_desc": "Không có giao dịch chuyển khoản nào bị thiếu vế đối ứng.",
+    "certain_desc_one": "Cặp này khớp chính xác trong cùng một ngày và không có giao dịch nào khác khớp với một trong hai vế.",
+    "link_all_one": "Liên kết {{count}} cặp",
+    "pair_count_one": "{{count}} cặp",
+    "linking_one": "Đang liên kết {{done}} trên {{count}} cặp",
+    "result_linked_one": "Đã liên kết {{count}} cặp",
+    "result_failed_one": "{{count}} cặp không thể liên kết",
+    "result_stopped_one": "Đã dừng. {{count}} cặp vẫn sẵn sàng liên kết.",
+    "also_match_count_one": "{{count}} giao dịch khác cũng khớp. Chỉ liên kết với đúng giao dịch.",
+    "skipped_one": "Đã bỏ qua {{count}} mục tạm thời",
+    "linked_one": "Đã liên kết {{count}} giao dịch chuyển khoản",
+    "link_failed_one": "{{count}} giao dịch chuyển khoản không thể liên kết"
   }
 }
