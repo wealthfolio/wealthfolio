@@ -116,6 +116,11 @@ pub enum ActivityReason {
         excess: String,
     },
     MissingFinalCash,
+    /// An option expiry that names an asset typed as something other than an
+    /// option contract, such as the contract's underlying stock.
+    OptionExpiryNotOption {
+        asset: String,
+    },
 }
 
 /// A rejected activity's existing fallback message plus an optional domain reason.

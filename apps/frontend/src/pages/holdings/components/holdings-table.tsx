@@ -33,17 +33,18 @@ import { HoldingType } from "@/lib/constants";
 import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
 import { subtractAmounts, sumAmounts } from "@/lib/monetary-value";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { Holding, MonetaryValue } from "@/lib/types";
+import { Account, AccountScope, Holding, MonetaryValue } from "@/lib/types";
 import { AmountDisplay, PriceDisplay, QuantityDisplay } from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { TFunction } from "i18next";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { HoldingsStatusSegmentedControl } from "./holdings-status-control";
 import { isCashHolding, isClosedPosition } from "./holdings-visibility";
 import type { HoldingsVisibilityFilter } from "./holdings-visibility";
+import { CashHoldingsSheet } from "./cash-holdings-sheet";
 import {
   getHoldingTypeFilterOption,
   getHoldingTypeFilterValue,
@@ -126,6 +127,8 @@ export const HoldingsTable = ({
   visibilityFilters,
   setVisibilityFilters,
   showClosedPositions = true,
+  accountFilter = { type: "all" },
+  accounts = [],
 }: {
   holdings: Holding[];
   isLoading: boolean;
@@ -133,6 +136,8 @@ export const HoldingsTable = ({
   visibilityFilters?: HoldingsVisibilityFilter[];
   setVisibilityFilters?: (value: HoldingsVisibilityFilter[]) => void;
   showClosedPositions?: boolean;
+  accountFilter?: AccountScope;
+  accounts?: Account[];
 }) => {
   const { t, i18n } = useTranslation();
   const formatting = useNumberFormatting();
@@ -142,6 +147,23 @@ export const HoldingsTable = ({
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
   const [showConvertedValues, setShowConvertedValues] = useState(false);
+  const [cashCurrency, setCashCurrency] = useState<string | null>(null);
+  // Column changes remount cells, so restore focus to the current cash button.
+  const cashTriggers = useRef(new Map<string, HTMLButtonElement>());
+  const registerCashTrigger = useCallback((currency: string, element: HTMLButtonElement | null) => {
+    if (element) cashTriggers.current.set(currency, element);
+    else cashTriggers.current.delete(currency);
+  }, []);
+  const cashHolding = holdings.find(
+    (holding) => isCashHolding(holding) && holding.localCurrency === cashCurrency,
+  );
+  useEffect(() => {
+    if (!cashHolding) setCashCurrency(null);
+  }, [cashHolding]);
+  const handleCashClick = useCallback(
+    (holding: Holding) => setCashCurrency(holding.localCurrency),
+    [],
+  );
   const isClosedView = visibilityFilters?.length === 1 && visibilityFilters[0] === "closed";
 
   const baseCurrency = settings?.baseCurrency ?? holdings[0]?.baseCurrency;
@@ -164,6 +186,8 @@ export const HoldingsTable = ({
         amountFormatting,
         dateFormatting,
         navigate,
+        handleCashClick,
+        registerCashTrigger,
         onClassify,
       ).filter((column) => {
         if (!("id" in column) || column.id == null) return false;
@@ -179,6 +203,8 @@ export const HoldingsTable = ({
       amountFormatting,
       dateFormatting,
       navigate,
+      handleCashClick,
+      registerCashTrigger,
       onClassify,
       isClosedView,
     ],
@@ -303,6 +329,15 @@ export const HoldingsTable = ({
           </div>
         }
       />
+      {cashHolding && (
+        <CashHoldingsSheet
+          currency={cashHolding.localCurrency}
+          accountFilter={accountFilter}
+          accounts={accounts}
+          onClose={() => setCashCurrency(null)}
+          finalFocus={() => cashTriggers.current.get(cashHolding.localCurrency) ?? null}
+        />
+      )}
     </div>
   );
 };
@@ -317,6 +352,8 @@ const getColumns = (
   amountFormatting: Pick<FormattingApi, "formatPrice">,
   dateFormatting: Pick<FormattingApi, "formatCalendarDate">,
   navigate: NavigateFunction,
+  onCashClick: (holding: Holding) => void,
+  registerCashTrigger: (currency: string, element: HTMLButtonElement | null) => void,
   onClassify?: (holding: Holding) => void,
 ): ColumnDef<Holding>[] => [
   {
@@ -393,11 +430,20 @@ const getColumns = (
         </div>
       );
 
-      return (
-        <div
-          className={isCash ? "-m-1 p-1" : "-m-1 cursor-pointer p-1"}
-          onClick={isCash ? undefined : handleNavigate}
+      return isCash ? (
+        <button
+          ref={(element) => registerCashTrigger(holding.localCurrency, element)}
+          type="button"
+          className="focus-visible:ring-ring -m-1 cursor-pointer rounded p-1 text-start outline-none focus-visible:ring-2"
+          aria-label={t("holdings:details_for", {
+            name: t("holdings:cash_with_currency", { currency: holding.localCurrency }),
+          })}
+          onClick={() => onCashClick(holding)}
         >
+          {content}
+        </button>
+      ) : (
+        <div className="-m-1 cursor-pointer p-1" onClick={handleNavigate}>
           {content}
         </div>
       );

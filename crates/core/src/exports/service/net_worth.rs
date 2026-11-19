@@ -88,9 +88,29 @@ fn net_worth_csv_records(
                     decimal_value(point.alternative_assets_value),
                 )
                 .with("netContribution", decimal_value(point.net_contribution));
+            record.set("valueStatus", point.value_status.as_str());
+            if !point.value_status.is_complete() {
+                for key in [
+                    "netWorth",
+                    "totalAssets",
+                    "totalLiabilities",
+                    "portfolioValue",
+                    "alternativeAssetsValue",
+                    "netContribution",
+                ] {
+                    record.set(key, serde_json::Value::Null);
+                }
+            }
             for (key, label) in labels {
                 let value = point.breakdown.get(key).copied().unwrap_or(Decimal::ZERO);
-                record.set(label, decimal_value(value));
+                record.set(
+                    label,
+                    if point.value_status.is_complete() {
+                        decimal_value(value)
+                    } else {
+                        serde_json::Value::Null
+                    },
+                );
             }
             record
         })
@@ -424,6 +444,8 @@ mod tests {
         use std::collections::BTreeMap;
         use std::str::FromStr;
         let point = |day: u32, breakdown: &[(&str, &str)]| NetWorthHistoryPoint {
+            value_status: Default::default(),
+            missing_fx: Vec::new(),
             date: date(2026, 1, day),
             portfolio_value: Decimal::from(100),
             alternative_assets_value: Decimal::from(500),
@@ -458,11 +480,11 @@ mod tests {
 
         assert_eq!(
             lines[0],
-            r#""date","currency","netWorth","totalAssets","totalLiabilities","portfolioValue","alternativeAssetsValue","netContribution","cash","properties","Liability: Car loan""#
+            r#""date","currency","netWorth","totalAssets","totalLiabilities","portfolioValue","alternativeAssetsValue","netContribution","valueStatus","cash","properties","Liability: Car loan""#
         );
         assert_eq!(
             lines[1],
-            r#""2026-01-01","EUR","550.0","600.0","50.0","100.0","500.0","0.0","100.0","0.0","50.0""#
+            r#""2026-01-01","EUR","550.0","600.0","50.0","100.0","500.0","0.0","COMPLETE","100.0","0.0","50.0""#
         );
         assert!(lines[2].ends_with(r#""0.0","500.5","0.0""#), "{}", lines[2]);
         assert!(!csv.contains('{'), "no JSON left in the CSV");

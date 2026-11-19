@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { HoldingType, QuoteMode } from "@/lib/constants";
@@ -54,6 +54,8 @@ vi.mock("@wealthfolio/ui/components/ui/data-table", () => ({
 
     return (
       <div>
+        {data[0] &&
+          columns.find((column) => column.id === "symbol")?.cell?.({ row: { original: data[0] } })}
         <div data-testid="column-ids">{columns.map((column) => column.id).join(",")}</div>
         <div data-testid="symbol-name-hidden">
           {String(defaultColumnVisibility?.symbolName === false)}
@@ -73,6 +75,15 @@ vi.mock("@wealthfolio/ui/components/ui/data-table", () => ({
       </div>
     );
   },
+}));
+
+vi.mock("@/components/ticker-avatar", () => ({ TickerAvatar: () => null }));
+vi.mock("./cash-holdings-sheet", () => ({
+  CashHoldingsSheet: ({ currency, onClose }: { currency: string; onClose: () => void }) => (
+    <div role="dialog" aria-label={`Cash (${currency})`}>
+      <button onClick={onClose}>Close cash</button>
+    </div>
+  ),
 }));
 
 vi.mock("@/hooks/use-balance-privacy", () => ({
@@ -208,7 +219,7 @@ describe("HoldingsTable columns", () => {
     expect(screen.getByTestId("exact-type-match")).toHaveTextContent("true");
   });
 
-  it("does not pin cash rows above an explicit column sort", () => {
+  it("keeps cash sortable and opens its account breakdown", () => {
     const cashHolding: Holding = {
       id: "cash-usd",
       accountId: "account-1",
@@ -226,5 +237,33 @@ describe("HoldingsTable columns", () => {
     );
 
     expect(screen.getByTestId("cash-pinning")).toHaveTextContent("undefined");
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog", { name: "Cash (USD)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close cash" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("does not reopen cash details when a removed balance returns", () => {
+    const cash: Holding = {
+      id: "cash-usd",
+      accountId: "account-1",
+      holdingType: HoldingType.CASH,
+      quantity: 100,
+      localCurrency: "USD",
+      baseCurrency: "USD",
+      marketValue: { local: 100, base: 100 },
+      weight: 0.1,
+      asOfDate: "2026-08-20",
+    };
+    const view = (holdings: Holding[]) => <HoldingsTable holdings={holdings} isLoading={false} />;
+    const { rerender } = render(view([cash]));
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    rerender(view([]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    rerender(view([cash]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

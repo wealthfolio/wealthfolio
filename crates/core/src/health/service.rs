@@ -25,9 +25,10 @@ use crate::activities::{
 };
 use crate::assets::{Asset, AssetKind, AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
+use crate::fx::FxServiceTrait;
 use crate::lots::{LotDisposal, LotRecord, LotRepositoryTrait};
 use crate::portfolio::economic_events::{ActivityEconomicsResolver, BasisStatus};
-use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
+use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait, IncompleteHoldingsAccount};
 use crate::portfolio::net_worth::{NetWorthServiceTrait, StaleAssetInfo};
 use crate::portfolio::snapshot::{
     max_snapshot_read_date, min_supported_snapshot_date, validate_snapshot_read_date,
@@ -41,11 +42,12 @@ use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_defau
 use super::checks::{
     AccountConfigurationCheck, AssetHoldingInfo, ClassificationCheck, ConsistencyIssueInfo,
     ConsistencyIssueType, DataConsistencyCheck, FxConflictInfo, FxIntegrityCheck, FxPairInfo,
-    InvalidTransferGroupInfo, LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck,
-    QuoteSyncErrorInfo, TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo,
-    UnconfiguredAccountInfo, ValuationIssueReason,
+    InvalidTransferGroupInfo, LegacyMigrationInfo, OptionExpiryCheck, PriceStalenessCheck,
+    QuoteSyncCheck, QuoteSyncErrorInfo, TransferIntegrityCheck, TransferLegDetail,
+    UnclassifiedAssetInfo, UnconfiguredAccountInfo, ValuationIssueReason,
 };
 use super::errors::HealthError;
+use super::fixes::{find_option_expiries_without_contract, OptionExpiryWithoutContractInfo};
 use super::model::{FixAction, HealthConfig, HealthIssue, HealthStatus, IssueDismissal};
 use super::traits::{HealthContext, HealthDismissalStore, HealthServiceTrait};
 
@@ -74,10 +76,12 @@ pub struct HealthService {
     consistency_check: DataConsistencyCheck,
     account_config_check: AccountConfigurationCheck,
     transfer_integrity_check: TransferIntegrityCheck,
+    option_expiry_check: OptionExpiryCheck,
     /// Projection freshness (the coordinator), when wired by the host.
     projection_freshness: Option<Arc<dyn ProjectionFreshnessTrait>>,
     /// Net worth, whose stale valuations are reported when wired by the host.
     net_worth: Option<Arc<dyn NetWorthServiceTrait>>,
+    fx: Option<Arc<dyn FxServiceTrait>>,
 }
 
 fn is_price_staleness_candidate(
@@ -85,6 +89,26 @@ fn is_price_staleness_candidate(
     asset_kind: Option<&AssetKind>,
 ) -> bool {
     !matches!(holding_type, HoldingType::Cash) && !matches!(asset_kind, Some(AssetKind::Fx))
+}
+
+fn fx_pair_info(
+    fx: &dyn FxServiceTrait,
+    from: &str,
+    to: &str,
+    affected_mv: Option<f64>,
+) -> Option<FxPairInfo> {
+    let latest_quote_time = match fx.get_latest_exchange_rate_info(from, to) {
+        // A conversion without dated dependencies is available, not missing.
+        Ok(info) => Some(info.oldest_quote_time?),
+        Err(_) => None,
+    };
+    Some(FxPairInfo {
+        pair_id: format!("{from}:{to}"),
+        from_currency: from.to_string(),
+        to_currency: to.to_string(),
+        affected_mv,
+        latest_quote_time,
+    })
 }
 
 impl HealthService {
@@ -101,8 +125,10 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            option_expiry_check: OptionExpiryCheck::new(),
             projection_freshness: None,
             net_worth: None,
+            fx: None,
         }
     }
 
@@ -118,6 +144,12 @@ impl HealthService {
     /// Reports manually valued assets that Net worth lists as stale.
     pub fn with_net_worth(mut self, net_worth: Arc<dyn NetWorthServiceTrait>) -> Self {
         self.net_worth = Some(net_worth);
+        self
+    }
+
+    /// Checks conversion availability and freshness using the same routes as valuations.
+    pub fn with_fx(mut self, fx: Arc<dyn FxServiceTrait>) -> Self {
+        self.fx = Some(fx);
         self
     }
 
@@ -137,8 +169,10 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            option_expiry_check: OptionExpiryCheck::new(),
             projection_freshness: None,
             net_worth: None,
+            fx: None,
         }
     }
 
@@ -180,6 +214,7 @@ impl HealthService {
             client_timezone,
             invalid_transfer_groups,
             &[],
+            &[],
         )
         .await
     }
@@ -204,6 +239,7 @@ impl HealthService {
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
         stale_manual_valuations: &[StaleAssetInfo],
+        option_expiries: &[OptionExpiryWithoutContractInfo],
     ) -> Result<HealthStatus> {
         let config = self.config.read().await.clone();
         let ctx = HealthContext::new(config, base_currency, total_portfolio_value);
@@ -307,6 +343,12 @@ impl HealthService {
         );
         all_issues.extend(transfer_issues);
 
+        // Option expiries recorded against a stock instead of the contract
+        all_issues.extend(self.option_expiry_check.analyze(
+            option_expiries,
+            effective_timezone(configured_timezone, client_timezone),
+        ));
+
         // Filter out dismissed issues (unless data has changed)
         let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
 
@@ -362,7 +404,12 @@ impl HealthService {
         let scope = holdings_service
             .get_holdings_by_account_scope(&account_ids, base_currency)
             .await?;
-        let mut total_portfolio_value = scope.incomplete_accounts.is_empty().then_some(0.0);
+        // Accounts mid-calculation contribute their last holdings to the total.
+        let mut total_portfolio_value = (!scope
+            .incomplete_accounts
+            .iter()
+            .any(IncompleteHoldingsAccount::withholds_holdings))
+        .then_some(0.0);
         // Track FX pairs needed: (from_currency, to_currency) → affected market value
         let mut fx_pair_mv: HashMap<(String, String), Option<f64>> = HashMap::new();
 
@@ -447,10 +494,16 @@ impl HealthService {
             asset_service.as_ref(),
             &holding_mv_map,
             &latest_quote_times,
+            self.fx.as_deref(),
         );
 
         // Gather FX pairs from holdings where local_currency != base_currency
-        let fx_pairs: Vec<FxPairInfo> = if fx_pair_mv.is_empty() {
+        let fx_pairs: Vec<FxPairInfo> = if let Some(fx) = self.fx.as_deref() {
+            fx_pair_mv
+                .iter()
+                .filter_map(|((from, to), affected_mv)| fx_pair_info(fx, from, to, *affected_mv))
+                .collect()
+        } else if fx_pair_mv.is_empty() {
             Vec::new()
         } else {
             // Build instrument_key → asset_id map for FX assets only
@@ -713,6 +766,22 @@ impl HealthService {
                 &health_activities,
                 effective_timezone,
             ));
+            let option_expiries = match asset_service.get_assets() {
+                Ok(assets) => find_option_expiries_without_contract(
+                    &health_activities,
+                    &snapshot_health_accounts,
+                    &assets,
+                    snapshot_service.as_ref(),
+                    effective_timezone,
+                ),
+                Err(error) => {
+                    warn!(
+                        "Failed to load assets for the option expiry check: {}",
+                        error
+                    );
+                    Vec::new()
+                }
+            };
             if let Some(freshness) = &projection_freshness {
                 match freshness.stale_accounts() {
                     Ok(stale) => consistency_issues.extend(stale.into_iter().map(|stale| {
@@ -752,6 +821,10 @@ impl HealthService {
                         &accounts,
                         &health_activities,
                         effective_timezone,
+                        &option_expiries
+                            .iter()
+                            .map(|expiry| expiry.activity_id.as_str())
+                            .collect(),
                     )),
                     Err(error) => {
                         warn!("Failed to read the engine's activity issues: {}", error)
@@ -784,10 +857,16 @@ impl HealthService {
                 unconfigured_accounts,
                 invalid_transfer_groups,
                 fx_conflicts,
+                option_expiries,
             ))
         };
-        let (consistency_issues, unconfigured_accounts, invalid_transfer_groups, fx_conflicts) =
-            blocking(move || handle.block_on(gather_history)).await?;
+        let (
+            consistency_issues,
+            unconfigured_accounts,
+            invalid_transfer_groups,
+            fx_conflicts,
+            option_expiries,
+        ) = blocking(move || handle.block_on(gather_history)).await?;
 
         // Run checks with gathered data
         self.run_checks_with_stale_valuations(
@@ -806,6 +885,7 @@ impl HealthService {
             client_timezone,
             &invalid_transfer_groups,
             &stale_manual_valuations,
+            &option_expiries,
         )
         .await
     }
@@ -1702,6 +1782,7 @@ fn engine_activity_issues(
     accounts: &[Account],
     activities: &[Activity],
     timezone: Option<&str>,
+    reported_elsewhere: &HashSet<&str>,
 ) -> Vec<ConsistencyIssueInfo> {
     let account_names: HashMap<&str, &str> = accounts
         .iter()
@@ -1714,6 +1795,9 @@ fn engine_activity_issues(
     let tz = parse_user_timezone_or_default(timezone.unwrap_or_default());
     issues
         .into_iter()
+        // Activities another check already reports with its own fix (the
+        // option expiry check) are left to it. Those it missed stay here.
+        .filter(|issue| !reported_elsewhere.contains(issue.activity_id.as_str()))
         .filter_map(|issue| {
             let activity = by_id.get(issue.activity_id.as_str())?;
             let issue_type = match issue.kind {
@@ -2575,6 +2659,53 @@ mod tests {
     use serde_json::json;
     use std::collections::{HashMap, HashSet};
 
+    #[test]
+    fn fx_health_uses_the_selected_route_and_keeps_missing_and_stale_distinct() {
+        use crate::fx::{ExchangeRate, FxService};
+        use crate::test_support::in_memory::InMemoryFxRepository;
+        let now = Utc.with_ymd_and_hms(2026, 11, 17, 18, 0, 0).unwrap();
+        let _clock = crate::utils::clock::freeze(now);
+        let quote = |from: &str, to: &str, hours| ExchangeRate {
+            id: format!("FX:{from}/{to}"),
+            from_currency: from.into(),
+            to_currency: to.into(),
+            rate: Decimal::ONE,
+            source: "YAHOO".into(),
+            timestamp: now - Duration::hours(hours),
+        };
+        let ctx = HealthContext::with_timestamp(HealthConfig::default(), "AED", 100.0, now);
+        for (rates, expected) in [
+            (vec![quote("COP", "USD", 1), quote("USD", "AED", 2)], None),
+            (
+                vec![
+                    quote("EUR", "COP", 1),
+                    quote("EUR", "GBP", 240),
+                    quote("GBP", "AED", 1),
+                ],
+                Some("fx_stale_error"),
+            ),
+            (
+                vec![
+                    quote("COP", "AED", 240),
+                    quote("COP", "USD", 1),
+                    quote("USD", "AED", 1),
+                ],
+                Some("fx_stale_error"),
+            ),
+            (vec![quote("USD", "AED", 1)], Some("fx_missing")),
+        ] {
+            let fx = FxService::new(Arc::new(InMemoryFxRepository::new(rates)));
+            fx.initialize().unwrap();
+            let pair = fx_pair_info(&fx, "COP", "AED", Some(100.0)).unwrap();
+            let issues = FxIntegrityCheck::new().analyze(&[pair], &ctx);
+            assert_eq!(
+                issues.first().and_then(|issue| issue.code.as_deref()),
+                expected
+            );
+            assert!(fx_pair_info(&fx, "GBp", "GBP", Some(100.0)).is_none());
+        }
+    }
+
     /// Mock dismissal store for testing.
     struct MockDismissalStore {
         dismissals: RwLock<Vec<IssueDismissal>>,
@@ -2988,6 +3119,7 @@ mod tests {
             std::slice::from_ref(&account),
             &[sell],
             None,
+            &HashSet::new(),
         );
         assert_eq!(infos.len(), 1, "the deleted activity's issue is dropped");
         assert_eq!(
@@ -3000,6 +3132,60 @@ mod tests {
         assert_eq!(
             infos[0].engine_issue.as_ref().map(|i| i.message.as_str()),
             Some("reported")
+        );
+    }
+
+    #[test]
+    fn engine_activity_issues_leave_stock_expiries_to_the_option_expiry_check() {
+        let account = health_account(
+            "acc-1",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        );
+        let expiry = transfer_activity(
+            "exp-1",
+            "acc-1",
+            "ADJUSTMENT",
+            None,
+            false,
+            ActivityStatus::Posted,
+        );
+        let rejected = || {
+            vec![ActivityIssue {
+                activity_id: "exp-1".to_string(),
+                kind: ActivityIssueKind::Rejected,
+                message: "names a stock".to_string(),
+                reason: Some(
+                    wealthfolio_portfolio_engine::ActivityReason::OptionExpiryNotOption {
+                        asset: "rgld".to_string(),
+                    },
+                ),
+            }]
+        };
+
+        // The option expiry check lists the row, with its fix.
+        let infos = engine_activity_issues(
+            rejected(),
+            std::slice::from_ref(&account),
+            std::slice::from_ref(&expiry),
+            None,
+            &HashSet::from(["exp-1"]),
+        );
+        assert!(infos.is_empty());
+
+        // The check listed nothing (e.g. its assets failed to load): the
+        // rejection still shows, so the row never drops out of Health.
+        let infos = engine_activity_issues(
+            rejected(),
+            std::slice::from_ref(&account),
+            &[expiry],
+            None,
+            &HashSet::new(),
+        );
+        assert_eq!(infos.len(), 1);
+        assert_eq!(
+            infos[0].issue_type,
+            crate::health::checks::ConsistencyIssueType::RejectedActivity
         );
     }
 
@@ -4516,6 +4702,7 @@ mod tests {
                 None,
                 &[],
                 stale_valuations,
+                &[],
             )
             .await
             .unwrap()

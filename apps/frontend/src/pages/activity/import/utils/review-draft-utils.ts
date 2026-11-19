@@ -1,5 +1,10 @@
 import { ActivityType } from "@/lib/constants";
 import { isAssetBackedIncomeSubtype } from "@/lib/activity-utils";
+import {
+  normalizeMinusSign,
+  resolveNumericDecimalSeparator,
+  stripCurrencyLabel,
+} from "./numeric-format";
 
 /**
  * Parse a numeric value from a string, handling various formats.
@@ -12,34 +17,28 @@ export function parseSignedNumericValue(
 ): string | undefined {
   if (!value || value.trim() === "") return undefined;
 
-  let normalized = value.trim();
+  let normalized = normalizeMinusSign(value);
   let isNegative = false;
 
   if (normalized.startsWith("(") && normalized.endsWith(")")) {
     isNegative = true;
     normalized = normalized.slice(1, -1);
   }
+  normalized = stripCurrencyLabel(normalized);
 
   let mantissa = normalized;
   let exponent = "";
-  const expIndex = normalized.search(/[eE]/);
-  if (expIndex >= 0) {
-    mantissa = normalized.slice(0, expIndex);
-    exponent = normalized.slice(expIndex + 1);
+  const exponentMatch = /[\d.,][eE]([+-]?\d+)[^\d+-]*$/.exec(normalized);
+  if (exponentMatch) {
+    mantissa = normalized.slice(0, exponentMatch.index + 1);
+    exponent = exponentMatch[1];
   }
 
-  const lastComma = mantissa.lastIndexOf(",");
-  const lastDot = mantissa.lastIndexOf(".");
-  let resolvedDecimal = decimalSeparator;
-  if (decimalSeparator === "auto") {
-    if (lastComma !== -1 && lastDot !== -1) {
-      resolvedDecimal = lastComma > lastDot ? "," : ".";
-    } else if (lastComma !== -1) {
-      resolvedDecimal = ",";
-    } else {
-      resolvedDecimal = ".";
-    }
-  }
+  const resolvedDecimal = resolveNumericDecimalSeparator(
+    mantissa,
+    decimalSeparator,
+    thousandsSeparator,
+  );
 
   let cleaned = mantissa.replace(/[^\d.,+-]/g, "");
 

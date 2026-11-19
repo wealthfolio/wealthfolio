@@ -484,6 +484,11 @@ fn asset_facts(id: &AssetId, asset: &RawAsset, diagnostics: &mut Vec<Diagnostic>
         contract_multiplier,
         allows_negative_lots: is_option || equity_like,
         requires_explicit_short_intent: equity_like,
+        instrument: match instrument.as_deref() {
+            Some("OPTION") => InstrumentClass::Option,
+            Some(_) => InstrumentClass::NotOption,
+            None => InstrumentClass::Untyped,
+        },
     }
 }
 

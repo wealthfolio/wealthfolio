@@ -5,6 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 
 import { SavingGoals } from "./goals";
 
+const queryMocks = vi.hoisted(() => ({ unavailable: false }));
+
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { timezone: "Asia/Shanghai", baseCurrency: "CAD" } }),
 }));
@@ -22,9 +24,9 @@ vi.mock("@tanstack/react-query", () => ({
         // Saved while the base currency was USD; amounts are in the current base currency.
         currency: "USD",
         targetDate: "2034-08-09",
-        summaryCurrentValue: 980_000,
+        summaryCurrentValue: queryMocks.unavailable ? null : 980_000,
         summaryTargetAmount: 3_433_731,
-        summaryProgress: 0.285,
+        summaryProgress: queryMocks.unavailable ? null : 0.285,
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-01T00:00:00Z",
       },
@@ -71,6 +73,21 @@ describe("SavingGoals localization", () => {
     );
     expect(screen.getByText("dashboard:goals.time_due")).toBeInTheDocument();
     vi.setSystemTime(new Date("2026-08-18T12:00:00Z"));
+  });
+
+  it("shows unavailable savings instead of zero progress", () => {
+    queryMocks.unavailable = true;
+    try {
+      render(
+        <MemoryRouter>
+          <SavingGoals />
+        </MemoryRouter>,
+      );
+      expect(screen.getAllByText(/N\/A/)).toHaveLength(2);
+      expect(screen.queryByText(/^0%$/)).not.toBeInTheDocument();
+    } finally {
+      queryMocks.unavailable = false;
+    }
   });
 
   it("formats progress and remaining time with the active locales", () => {

@@ -82,21 +82,6 @@
   }
 }
 
-@utility scrollbar-thin {
-  scrollbar-width: thin;
-  &::-webkit-scrollbar {
-    height: 6px;
-    width: 6px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 3px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-}
-
 @theme {
   /* Extra-small breakpoint (430 px), below sm, for phone headers */
   --breakpoint-xs: 26.875rem;
@@ -894,6 +879,54 @@ body.qr-scan-active > .qr-overlay {
     overflow-x: hidden;
   }
 
+  /* Boxes that set no overflow of their own are clipped instead. hidden also turns
+     overflow-y to auto, so a tap layer or glyph a few pixels past the box made it
+     scroll and drew a thin scrollbar where scrollbars are always shown. clip keeps
+     y visible. Engines without clip keep hidden. This weighs one class, like the
+     rule above, so it wins by coming after it and the opt-outs below still win. */
+  :where(.grid, .flex):not([class*="overflow"]) {
+    overflow-x: clip;
+  }
+
+  /* A row that asks to scroll sideways keeps that: the hidden above, being unlayered,
+     would beat its overflow-x-auto utility and stop it scrolling by touch or wheel.
+     revert-layer restores the utility's value, responsive ones included. This weighs one
+     class too, so it wins by coming after the rule above and the opt-outs below still win. */
+  :where(.grid, .flex):is([class~="overflow-x-auto"], [class~="overflow-x-scroll"]) {
+    overflow-x: revert-layer;
+  }
+
+  /* A scroll container's minimum size is 0, which these boxes relied on to shrink,
+     so set it. In the base layer, so a min-w-* or min-h-* utility still wins, and a
+     responsive one only at the widths it applies to. Boxes that name
+     their own overflow are left out: some force it visible and never had a zero
+     minimum. The opt-outs below keep their normal minimum; some weigh the same as
+     the first rule, so they must stay after it. */
+  @layer base {
+    :where(.grid, .flex):not([class*="overflow"]) {
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .aui-root,
+    .aui-root .flex,
+    .aui-root .grid,
+    .spending-activity-list .flex,
+    .spending-activity-list .grid,
+    [data-slot="form-item"],
+    [data-slot="alert-dialog-footer"],
+    .settings-list .flex,
+    .settings-list .grid,
+    .feature-status-banner .flex,
+    .feature-status-banner .grid,
+    .theme-picker,
+    .theme-picker :is(.flex, .grid),
+    .onboarding-page {
+      min-width: auto;
+      min-height: auto;
+    }
+  }
+
   /* Centred dialogs and side sheets size themselves with max-w-* utilities.
      Those are layered, so the unlayered max-width rules above would replace
      them and stretch the surface to the full window width; revert-layer
@@ -916,6 +949,8 @@ body.qr-scan-active > .qr-overlay {
   [data-slot="alert"] > svg {
     box-sizing: revert-layer;
   }
+
+  /* Each opt-out below also keeps its normal minimum size, in the base layer above. */
 
   /* assistant-ui thread needs native overflow behavior for sticky footer + viewport */
   .aui-root,

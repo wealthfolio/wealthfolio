@@ -7,6 +7,7 @@ use std::sync::Arc;
 use wealthfolio_core::accounts::{account_supports_purpose, AccountPurpose};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
+use super::account_scope::portfolio_account_ids;
 use crate::constants::{DEFAULT_VALUATIONS_DAYS, MAX_VALUATIONS_POINTS};
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
@@ -150,17 +151,7 @@ impl AgentTool for GetValuationHistory {
                 })
                 .collect()
         } else {
-            let accounts = env
-                .account_service()
-                .get_active_non_archived_accounts()
-                .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
-            let account_ids: Vec<String> = accounts
-                .into_iter()
-                .filter(|account| {
-                    account_supports_purpose(&account.account_type, AccountPurpose::Holdings)
-                })
-                .map(|account| account.id)
-                .collect();
+            let account_ids = portfolio_account_ids(env.as_ref(), AccountPurpose::Holdings)?;
             env.valuation_service()
                 .get_historical_valuations_for_accounts(
                     "all",

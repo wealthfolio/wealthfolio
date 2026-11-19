@@ -2,8 +2,8 @@ import {
   AttachmentPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
-  useAssistantApi,
-  useAssistantState,
+  useAui,
+  useAuiState,
 } from "@assistant-ui/react";
 import { useEffect, useState, type FC, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
@@ -42,7 +42,7 @@ const useFileSrc = (file: File | undefined) => {
 };
 
 const useAttachmentSrc = () => {
-  const { file, src } = useAssistantState(
+  const { file, src } = useAuiState(
     useShallow(({ attachment }): { file?: File; src?: string } => {
       if (attachment.type !== "image") return {};
       if (attachment.file) return { file: attachment.file };
@@ -103,7 +103,7 @@ const AttachmentPreviewDialog: FC<{ children: ReactElement }> = ({ children }) =
 
 const AttachmentThumb: FC = () => {
   const { t } = useTranslation();
-  const isImage = useAssistantState(({ attachment }) => attachment.type === "image");
+  const isImage = useAuiState(({ attachment }) => attachment.type === "image");
   const src = useAttachmentSrc();
 
   return (
@@ -130,9 +130,9 @@ const getAttachmentExtension = (name: string) => {
     .toUpperCase();
 };
 
-const getAttachmentIcon = (name: string, contentType: string): Icon => {
+const getAttachmentIcon = (name: string, contentType: string | undefined): Icon => {
   const normalizedName = name.toLowerCase();
-  const normalizedType = contentType.toLowerCase();
+  const normalizedType = (contentType ?? "").toLowerCase();
 
   if (normalizedType.includes("csv") || normalizedName.endsWith(".csv")) return Icons.FileCsv;
   if (
@@ -169,8 +169,8 @@ const getAttachmentIcon = (name: string, contentType: string): Icon => {
 
 const ComposerFileAttachment: FC = () => {
   const { t } = useTranslation();
-  const name = useAssistantState(({ attachment }) => attachment.name);
-  const contentType = useAssistantState(({ attachment }) => attachment.contentType);
+  const name = useAuiState(({ attachment }) => attachment.name);
+  const contentType = useAuiState(({ attachment }) => attachment.contentType);
   const FileIcon = getAttachmentIcon(name, contentType);
   const extension = getAttachmentExtension(name);
 
@@ -196,22 +196,20 @@ const ComposerFileAttachment: FC = () => {
 
 const AttachmentUI: FC = () => {
   const { t } = useTranslation();
-  const api = useAssistantApi();
-  const isComposer = api.attachment.source === "composer";
+  const aui = useAui();
+  const isComposer = aui.attachment.source === "composer";
 
-  const isImage = useAssistantState(({ attachment }) => attachment.type === "image");
-  const typeLabel = useAssistantState(({ attachment }) => {
+  const isImage = useAuiState(({ attachment }) => attachment.type === "image");
+  const typeLabel = useAuiState(({ attachment }) => {
     const type = attachment.type;
     switch (type) {
       case "image":
         return t("ai:attachment.type.image");
       case "document":
         return t("ai:attachment.type.document");
-      case "file":
-        return t("ai:attachment.type.file");
+      // assistant-ui also allows custom attachment types; show those as files.
       default:
-        const _exhaustiveCheck: never = type;
-        throw new Error(`Unknown attachment type: ${_exhaustiveCheck}`);
+        return t("ai:attachment.type.file");
     }
   });
 

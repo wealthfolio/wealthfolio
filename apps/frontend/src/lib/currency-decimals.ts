@@ -1,6 +1,14 @@
 import { AccountType, DECIMAL_PRECISION, InstrumentType } from "@/lib/constants";
 import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
 
+/** Display an existing amount without rounding away stored fractional digits. */
+export function valueDecimalPlaces(value: number | string | null | undefined): number {
+  const [coefficient, exponent = "0"] = String(value ?? 0)
+    .toLowerCase()
+    .split("e");
+  return Math.max(0, (coefficient.split(".")[1]?.length ?? 0) - Number(exponent));
+}
+
 /**
  * Crypto quote currencies priced at 8 fraction digits. Keep in lockstep with
  * the crypto arm of `currency_fraction_digits` in

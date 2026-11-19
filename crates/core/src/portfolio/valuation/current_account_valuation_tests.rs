@@ -504,21 +504,23 @@ fn current_valuation_surfaces_fx_fallback_warnings() {
                 CurrentValuationRate {
                     rate: Decimal::ONE,
                     warning: Some(
-                        "Some exchange rates are missing, so this value may be approximate."
-                            .to_string(),
+                        "Some exchange rates are missing, so the total is unavailable.".to_string(),
                     ),
                 }
             }
         },
     );
 
-    assert_eq!(response.summary.total_value_base, dec!(100));
-    assert!(response.summary.warnings.contains(
-        &"Some exchange rates are missing, so this value may be approximate.".to_string()
-    ));
-    assert!(response.accounts[0].warnings.contains(
-        &"Some exchange rates are missing, so this value may be approximate.".to_string()
-    ));
+    assert_eq!(response.summary.total_value_base, dec!(0));
+    assert_eq!(response.summary.value_status, ValuationStatus::Unavailable);
+    assert_eq!(response.summary.missing_fx[0].from_currency, "EUR");
+    assert!(response
+        .summary
+        .warnings
+        .contains(&"Some exchange rates are missing, so the total is unavailable.".to_string()));
+    assert!(response.accounts[0]
+        .warnings
+        .contains(&"Some exchange rates are missing, so the total is unavailable.".to_string()));
     assert_eq!(response.accounts[0].fx_rate_to_base, Some(Decimal::ONE));
 }
 
@@ -560,8 +562,7 @@ fn current_valuation_keeps_account_currency_fx_warnings_off_summary() {
                 CurrentValuationRate {
                     rate: Decimal::ONE,
                     warning: Some(
-                        "Some exchange rates are missing, so this value may be approximate."
-                            .to_string(),
+                        "Some exchange rates are missing, so the total is unavailable.".to_string(),
                     ),
                 }
             }
@@ -570,9 +571,9 @@ fn current_valuation_keeps_account_currency_fx_warnings_off_summary() {
 
     assert_eq!(response.summary.total_value_base, dec!(100));
     assert!(response.summary.warnings.is_empty());
-    assert!(response.accounts[0].warnings.contains(
-        &"Some exchange rates are missing, so this value may be approximate.".to_string()
-    ));
+    assert!(response.accounts[0]
+        .warnings
+        .contains(&"Some exchange rates are missing, so the total is unavailable.".to_string()));
     assert_eq!(response.accounts[0].fx_rate_to_base, None);
 }
 
@@ -734,4 +735,195 @@ fn current_valuation_response_summarizes_scope_and_optionally_returns_accounts()
         summary_only.summary.source_data_as_of,
         Some(DateTime::<Utc>::from_timestamp(1_776_480_000, 0).unwrap())
     );
+}
+
+#[test]
+fn missing_fx_preserves_local_cash_and_positions_and_recovers_base_values() {
+    let accounts = [account("cop", "COP")];
+    let snapshots = HashMap::from([(
+        "cop".into(),
+        snapshot(
+            "cop",
+            "COP",
+            HashMap::from([(
+                "stock".into(),
+                position("cop", "stock", dec!(10), "COP", false),
+            )]),
+            HashMap::from([("COP".into(), dec!(100000)), ("AED".into(), dec!(20))]),
+        ),
+    )]);
+    let assets = HashMap::from([("stock".into(), asset("stock", AssetKind::Investment))]);
+    let quotes = HashMap::from([("stock".into(), quote_pair("stock", dec!(20000), "COP"))]);
+    for available in [false, true] {
+        let result = calculate_current_valuation_response_from_snapshots(
+            "all",
+            &accounts,
+            &snapshots,
+            &assets,
+            &quotes,
+            "AED",
+            Utc::now(),
+            true,
+            |from, to| {
+                if from == to {
+                    return Decimal::ONE.into();
+                }
+                if available {
+                    return (if from == "COP" {
+                        dec!(0.001)
+                    } else {
+                        dec!(1000)
+                    })
+                    .into();
+                }
+                CurrentValuationRate {
+                    rate: Decimal::ZERO,
+                    warning: Some("Missing FX".into()),
+                }
+            },
+        );
+        assert_eq!(
+            result.summary.total_value_base,
+            if available { dec!(320) } else { dec!(20) }
+        );
+        assert_eq!(
+            result.accounts[0].total_value,
+            dec!(300000) + if available { dec!(20000) } else { dec!(0) }
+        );
+        assert_eq!(
+            result.summary.value_status,
+            if available {
+                ValuationStatus::Complete
+            } else {
+                ValuationStatus::Unavailable
+            }
+        );
+        assert_eq!(result.accounts[0].value_status, result.summary.value_status);
+        assert_eq!(
+            result.accounts[0].account_value_status,
+            result.summary.value_status
+        );
+        assert_eq!(
+            result.summary.missing_fx.len(),
+            if available { 0 } else { 2 }
+        );
+    }
+}
+
+#[test]
+fn missing_account_currency_fx_does_not_invalidate_a_complete_base_total() {
+    let accounts = [account("cop", "COP")];
+    let snapshots = HashMap::from([(
+        "cop".into(),
+        snapshot(
+            "cop",
+            "COP",
+            HashMap::new(),
+            HashMap::from([("AED".into(), dec!(20))]),
+        ),
+    )]);
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &accounts,
+        &snapshots,
+        &HashMap::new(),
+        &HashMap::new(),
+        "AED",
+        Utc::now(),
+        true,
+        |from, to| {
+            if from == to {
+                Decimal::ONE.into()
+            } else {
+                CurrentValuationRate {
+                    rate: Decimal::ZERO,
+                    warning: Some("Missing FX".into()),
+                }
+            }
+        },
+    );
+    assert_eq!(result.summary.total_value_base, dec!(20));
+    assert_eq!(result.summary.value_status, ValuationStatus::Complete);
+    assert!(result.summary.missing_fx.is_empty());
+    assert_eq!(
+        result.accounts[0].account_value_status,
+        ValuationStatus::Unavailable
+    );
+}
+
+#[test]
+fn zero_balances_do_not_require_fx_or_invalidate_an_empty_account() {
+    let accounts = [account("cop", "COP")];
+    let snapshots = HashMap::from([(
+        "cop".into(),
+        snapshot(
+            "cop",
+            "COP",
+            HashMap::new(),
+            HashMap::from([("COP".into(), Decimal::ZERO)]),
+        ),
+    )]);
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &accounts,
+        &snapshots,
+        &HashMap::new(),
+        &HashMap::new(),
+        "AED",
+        Utc::now(),
+        true,
+        |_, _| CurrentValuationRate {
+            rate: Decimal::ZERO,
+            warning: Some("Missing FX".into()),
+        },
+    );
+    assert_eq!(result.summary.value_status, ValuationStatus::Complete);
+    assert_eq!(result.summary.total_value_base, Decimal::ZERO);
+    assert!(result.summary.missing_fx.is_empty());
+}
+
+#[test]
+fn unpriced_positions_remain_distinct_from_missing_fx() {
+    let accounts = [account("usd", "USD")];
+    for cash in [dec!(0), dec!(100)] {
+        let snapshots = HashMap::from([(
+            "usd".into(),
+            snapshot(
+                "usd",
+                "USD",
+                HashMap::from([(
+                    "unpriced".into(),
+                    position("usd", "unpriced", dec!(10), "USD", false),
+                )]),
+                HashMap::from([("USD".into(), cash)]),
+            ),
+        )]);
+        let assets = HashMap::from([("unpriced".into(), asset("unpriced", AssetKind::Investment))]);
+        let result = calculate_current_valuation_response_from_snapshots(
+            "all",
+            &accounts,
+            &snapshots,
+            &assets,
+            &HashMap::new(),
+            "USD",
+            Utc::now(),
+            true,
+            |_, _| Decimal::ONE,
+        );
+        assert_eq!(
+            result.summary.value_status,
+            if cash.is_zero() {
+                ValuationStatus::Unavailable
+            } else {
+                ValuationStatus::PartialUnpriced
+            }
+        );
+        assert_eq!(result.summary.total_value_base, cash);
+        assert!(result.summary.missing_fx.is_empty());
+        assert!(result
+            .summary
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("market prices")));
+    }
 }

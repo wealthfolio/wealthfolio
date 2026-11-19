@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import type { PerformanceResult } from "../apps/frontend/src/lib/types";
 import { BASE_URL } from "./helpers";
 

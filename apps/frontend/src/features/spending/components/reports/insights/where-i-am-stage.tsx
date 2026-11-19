@@ -1015,7 +1015,7 @@ function BreakdownCanvas({
 
       <div
         data-no-swipe-drag
-        className="-mx-2 mb-3 flex touch-pan-x gap-2 overflow-x-auto overscroll-x-contain px-2 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden"
+        className="scrollbar-hide -mx-2 mb-3 flex touch-pan-x gap-2 overflow-x-auto overscroll-x-contain px-2 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0"
       >
         {filterChips.map((chip) => {
           const active = filter === chip.id;

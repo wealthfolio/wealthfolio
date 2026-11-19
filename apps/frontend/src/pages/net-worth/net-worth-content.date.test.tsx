@@ -36,7 +36,11 @@ vi.mock("@/pages/holdings/components/allocation-detail-sheet", () => ({
 }));
 vi.mock("./components/breakdown-table", () => ({ BreakdownTable: () => <div /> }));
 vi.mock("./components/category-detail-sheet", () => ({ CategoryDetailSheet: () => null }));
-vi.mock("./components/net-worth-attention", () => ({ NetWorthAttention: () => null }));
+vi.mock("./components/net-worth-attention", () => ({
+  NetWorthAttention: ({ hasIncompleteValuation }: { hasIncompleteValuation: boolean }) => (
+    <output data-testid="valuation-attention">{String(hasIncompleteValuation)}</output>
+  ),
+}));
 vi.mock("./components/momentum-card", () => ({
   MomentumCard: ({ momentum }: { momentum: unknown }) => (
     <output data-testid="momentum">{JSON.stringify(momentum)}</output>
@@ -148,6 +152,37 @@ describe("NetWorthContent current-date queries", () => {
     vi.useRealTimers();
     vi.clearAllMocks();
   });
+
+  it.each([
+    { current: "unavailable", history: "complete", attention: true },
+    { current: "partialUnpriced", history: "complete", attention: true },
+    { current: "complete", history: "unavailable", attention: true },
+    { current: "complete", history: "complete", attention: false },
+    { current: undefined, history: undefined, attention: false },
+  ])(
+    "routes current $current / historical $history valuation issues to the attention card",
+    ({ current, history, attention }) => {
+      queryMocks.useNetWorth.mockReturnValue({
+        data: {
+          netWorth: 100,
+          assets: { total: 100, breakdown: [] },
+          liabilities: { total: 0, breakdown: [] },
+          currency: "USD",
+          staleAssets: [],
+          valueStatus: current,
+        },
+        isLoading: false,
+      });
+      queryMocks.useNetWorthHistory.mockReturnValue({
+        data: [{ date: "2026-09-15", netWorth: 100, valueStatus: history }],
+        isLoading: false,
+      });
+      render(<NetWorthContent />);
+      expect(screen.getByTestId("valuation-attention")).toHaveTextContent(String(attention));
+      expect(screen.queryByText("common:valuation_incomplete")).not.toBeInTheDocument();
+      expect(screen.queryByText("common:valuation_history_incomplete")).not.toBeInTheDocument();
+    },
+  );
 
   it("keeps a calendar year's momentum separate from the extended prior-year history fetch", () => {
     localStorage.setItem("dashboard-period", JSON.stringify({ kind: "year", year: 2025 }));

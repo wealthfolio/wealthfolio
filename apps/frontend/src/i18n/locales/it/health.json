@@ -193,6 +193,12 @@
       "title_other": "I tassi di cambio non coincidono per {{count}} coppie di valute",
       "title_many": "I tassi di cambio non coincidono per {{count}} coppie di valute",
       "message": "Per gli stessi giorni sono registrati tassi in entrambe le direzioni che non corrispondono. Ogni direzione viene usata come registrata, quindi una conversione di andata e ritorno dà un importo diverso. Correggi o rimuovi i tassi errati."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "Scadenza di opzione non collegata al suo contratto",
+      "title_other": "{{count}} scadenze di opzioni non collegate ai loro contratti",
+      "title_many": "{{count}} scadenze di opzioni non collegate ai loro contratti",
+      "message": "Queste scadenze di opzioni indicano l’azione sottostante invece del contratto di opzione, quindi il contratto resta aperto e il suo utile o la sua perdita non viene registrato. Collega ogni scadenza al contratto scaduto."
     }
   },
   "page": {
@@ -234,7 +240,8 @@
     "update_cost_basis": "Aggiorna base di costo",
     "update_value": "Aggiorna valore",
     "review_transaction": "Verifica transazione",
-    "review_entry": "Esamina voce"
+    "review_entry": "Esamina voce",
+    "match_option_expiry_contracts": "Usa i contratti trovati"
   },
   "updatedAt": "Aggiornato {{time}}",
   "healthy": {
@@ -327,6 +334,7 @@
     "return_of_capital_amount_required": "Inserisci un importo per questo rimborso di capitale.",
     "sell_without_position": "Non esiste una posizione in {{asset}} da vendere. È stato applicato solo l’effetto sulla liquidità.",
     "insufficient_quantity": "Questa transazione rimuove {{requested}} unità di {{asset}}, ma ne erano detenute solo {{held}}. Le {{excess}} unità rimanenti non hanno una base di costo.",
-    "missing_final_cash": "Questa transazione contabilizzata non ha un importo finale in contanti, quindi non ha modificato il saldo di liquidità."
+    "missing_final_cash": "Questa transazione contabilizzata non ha un importo finale in contanti, quindi non ha modificato il saldo di liquidità.",
+    "option_expiry_not_option": "Questa scadenza di opzione indica {{asset}}, che non è un contratto di opzione, quindi non ha modificato nulla. Collegala al contratto scaduto."
   }
 }

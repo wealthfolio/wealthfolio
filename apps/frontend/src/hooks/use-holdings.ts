@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AccountScope, HoldingsListResponse } from "@/lib/types";
 import { getHoldingsList } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
+import { isHoldingsScopeReady } from "@/lib/holdings-scope";
 
 interface UseHoldingsOptions {
   includeClosed?: boolean;
@@ -44,7 +45,9 @@ export function useHoldings(accountFilter: AccountScope, options: UseHoldingsOpt
   const incompleteAccounts = data?.incompleteAccounts ?? [];
   const isUnavailable =
     isError || incompleteAccounts.some((account) => account.status === "unavailable");
-  const isComplete = data !== undefined && incompleteAccounts.length === 0 && !isUnavailable;
+  // Accounts mid-calculation keep their last holdings in the response.
+  const isComplete =
+    data !== undefined && !isUnavailable && isHoldingsScopeReady(incompleteAccounts);
   const isUpdating = incompleteAccounts.some((account) => account.status === "pending");
   const scopeError = error ?? (isUnavailable ? new Error("Holdings are unavailable") : null);
   return {

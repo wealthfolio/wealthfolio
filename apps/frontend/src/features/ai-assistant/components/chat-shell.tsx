@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AssistantRuntimeProvider, useThreadRuntime } from "@assistant-ui/react";
+import { AssistantRuntimeProvider, useAui } from "@assistant-ui/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -94,7 +94,7 @@ function Sidebar({ collapsed }: { collapsed?: boolean }) {
         collapsed ? "w-0 overflow-hidden opacity-0" : "w-65 opacity-100",
       )}
     >
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 scrollbar-thin overflow-y-auto p-3">
         <ThreadList />
       </div>
     </aside>
@@ -121,7 +121,7 @@ function MobileSidebar() {
         <div className="flex h-14 items-center border-b px-4">
           <span className="font-semibold">{t("ai:shell.conversations")}</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto p-3">
           <ThreadList />
         </div>
       </SheetContent>
@@ -198,7 +198,7 @@ const consumedPromptKeys = new Set<string>();
 function InitialPromptSender() {
   const location = useLocation();
   const navigate = useNavigate();
-  const threadRuntime = useThreadRuntime();
+  const aui = useAui();
 
   useEffect(() => {
     const prompt = (location.state as { aiPrompt?: string } | null)?.aiPrompt;
@@ -206,8 +206,8 @@ function InitialPromptSender() {
     consumedPromptKeys.add(location.key);
     // Clear navigation state first so a refresh or back nav won't resend.
     navigate(location.pathname, { replace: true, state: null });
-    threadRuntime.append(prompt);
-  }, [location, navigate, threadRuntime]);
+    aui.thread.append(prompt);
+  }, [location, navigate, aui]);
 
   return null;
 }

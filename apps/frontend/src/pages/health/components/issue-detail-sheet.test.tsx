@@ -201,6 +201,47 @@ describe("IssueDetailSheet", () => {
     expect(screen.getByText(/Likely missing Transfer In/i)).toBeInTheDocument();
   });
 
+  it("wraps a long evidence row so its whole text can be read", () => {
+    const label = "QDE · Jul 16, 2026 · X4 early expiry → QDE260717C00100000 × 2 contracts";
+    renderIssueSheet({
+      ...baseIssue,
+      category: "DATA_CONSISTENCY",
+      diagnostics: [
+        {
+          ...diagnosticMeta,
+          code: "OPTION_EXPIRY_WITHOUT_CONTRACT",
+          title: "Expiries to link",
+          explanation: "Each row shows the contract the expiry moves to.",
+          evidence: [{ label: "Item", value: label }],
+          actions: [],
+        },
+      ],
+    });
+
+    expect(screen.getByText(label)).not.toHaveClass("truncate");
+  });
+
+  it("breaks a long unbroken evidence value inside its row", () => {
+    const value = "QDE260717C00100000QDE260717C00100000QDE260717C00100000";
+    renderIssueSheet({
+      ...baseIssue,
+      category: "DATA_CONSISTENCY",
+      diagnostics: [
+        {
+          ...diagnosticMeta,
+          code: "OPTION_EXPIRY_WITHOUT_CONTRACT",
+          title: "Expiries to link",
+          explanation: "Each row shows the contract the expiry moves to.",
+          entities: [{ id: "expiry-1", kind: value, label: "Expiry" }],
+          evidence: [],
+          actions: [],
+        },
+      ],
+    });
+
+    expect(screen.getByText(value)).toHaveClass("min-w-0", "break-words");
+  });
+
   it("serializes filtered activity navigation query params", () => {
     renderIssueSheet({
       ...baseIssue,

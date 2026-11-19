@@ -71,6 +71,8 @@
   },
   "networth": {
     "attention": {
+      "missing_fx": "缺少汇率：",
+      "review_valuation": "检查估值问题",
       "title": "需要关注",
       "update_value": "更新估值",
       "update_balance": "更新余额",

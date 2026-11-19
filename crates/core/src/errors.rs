@@ -156,6 +156,14 @@ impl PublicError {
 impl Error {
     pub fn public_error(&self) -> PublicError {
         match self {
+            Self::SecretTooLarge => PublicError::new(
+                crate::secrets::SECRET_TOO_LARGE,
+                "This secret is too large to store. Reduce its size and try again.",
+            ),
+            Self::SecretStoreUnavailable => PublicError::new(
+                crate::secrets::SECRET_STORE_UNAVAILABLE,
+                "Secure credential storage is unavailable or full. Check your system credential store or restart Wealthfolio, then try again.",
+            ),
             // LoanError is a closed enum of stable codes, with no user data.
             Self::Validation(ValidationError::Loan(error)) => PublicError {
                 error_code: error.to_string(),
@@ -171,6 +179,11 @@ impl Error {
             Self::Validation(ValidationError::CustomProviderInUse) => PublicError::new(
                 "custom_provider_in_use", "Change the provider for affected assets or remove their symbol mappings before deleting it.",
             ),
+            // A closed refusal with fixed text: the forms explain it.
+            Self::Validation(ValidationError::AlternativeAssetNotInAccount) => PublicError::new(
+                "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT",
+                crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+            ),
             Self::Validation(_) => PublicError::invalid_input(),
             // The activity form names this refusal; only the static text is compared.
             Self::Activity(ActivityError::InvalidData(message))
@@ -181,6 +194,12 @@ impl Error {
                     "Quote currency is required. Select the symbol again from the search results.",
                 )
             }
+            // An expected refusal, not a fault: clients can skip the row. The
+            // existing activity's id stays out of the public message.
+            Self::Activity(ActivityError::Duplicate { .. }) => PublicError::new(
+                "DUPLICATE_ACTIVITY",
+                "A matching activity already exists, so this one was not saved.",
+            ),
             // The asset editor names this refusal; the code is fixed by core,
             // so only the static message below leaves the process.
             Self::ConstraintViolation(message)
@@ -198,6 +217,16 @@ impl Error {
             Self::Database(DatabaseError::NotFound(_)) => {
                 PublicError::new("not_found", "The requested item was not found.")
             }
+            // Expected states, not faults: holdings are rebuilt for a moment
+            // after each import, and some accounts lack the inputs to value them.
+            Self::HoldingsPending(_) => PublicError::new(
+                "HOLDINGS_PENDING",
+                "Holdings are updating. Try again in a moment.",
+            ),
+            Self::HoldingsUnavailable(_) => PublicError::new(
+                "HOLDINGS_UNAVAILABLE",
+                "Holdings values are unavailable for this account.",
+            ),
             _ => PublicError::internal(),
         }
     }
@@ -280,6 +309,12 @@ pub enum Error {
 
     #[error("Secret store error: {0}")]
     Secret(String),
+
+    #[error("Secret exceeds the storage size limit")]
+    SecretTooLarge,
+
+    #[error("Secure credential storage is unavailable")]
+    SecretStoreUnavailable,
 
     #[error("Unexpected error: {0}")]
     Unexpected(String),
@@ -406,6 +441,10 @@ pub enum ValidationError {
     #[error("Change the provider for affected assets or remove their symbol mappings before deleting it.")]
     CustomProviderInUse,
 
+    /// A save would put an alternative asset in an account.
+    #[error("{}", crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT)]
+    AlternativeAssetNotInAccount,
+
     /// A loan action refused by the loan rules; the message is a stable code.
     #[error("{0}")]
     Loan(#[from] crate::assets::loan::LoanError),
@@ -480,6 +519,23 @@ impl From<Error> for String {
 #[cfg(test)]
 mod public_error_tests {
     use super::*;
+
+    #[test]
+    fn secret_refusals_have_stable_public_codes() {
+        for (error, code) in [
+            (Error::SecretTooLarge, crate::secrets::SECRET_TOO_LARGE),
+            (
+                Error::SecretStoreUnavailable,
+                crate::secrets::SECRET_STORE_UNAVAILABLE,
+            ),
+        ] {
+            assert_eq!(error.public_error().error_code, code);
+            let wrapped = anyhow::Error::new(error).context("FAKE-KEY private-credential-name");
+            let public = PublicError::from_error(wrapped.as_ref());
+            assert_eq!(public.error_code, code);
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+        }
+    }
 
     #[test]
     fn legacy_control_codes_discard_private_suffixes_and_reject_unknown_codes() {
@@ -616,6 +672,20 @@ mod public_error_tests {
     }
 
     #[test]
+    fn a_duplicate_activity_has_its_own_public_code_without_the_existing_id() {
+        for existing_activity_id in [Some("FAKE-KEY-2531".to_string()), None] {
+            let error = Error::Activity(ActivityError::Duplicate {
+                existing_activity_id,
+            });
+            let public = error.public_error();
+            assert_eq!(public.error_code, "DUPLICATE_ACTIVITY");
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+            // Desktop commands that return String errors pass the code.
+            assert_eq!(String::from(error), "DUPLICATE_ACTIVITY");
+        }
+    }
+
+    #[test]
     fn asset_identity_conflict_keeps_its_public_code_without_details() {
         let public = Error::ConstraintViolation(format!(
             "{ASSET_IDENTITY_CONFLICT_PREFIX} FAKE-KEY-2531 /private/portfolio.db"
@@ -631,6 +701,23 @@ mod public_error_tests {
         // Only the leading code counts; other constraint failures stay generic.
         let other = Error::ConstraintViolation("UNIQUE failed: ASSET_IDENTITY_CONFLICT:".into());
         assert_eq!(other.public_error().error_code, "conflict");
+    }
+
+    #[test]
+    fn public_errors_explain_an_alternative_asset_refusal() {
+        let error = Error::Validation(ValidationError::AlternativeAssetNotInAccount).public_error();
+        assert_eq!(error.error_code, "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT");
+        assert_eq!(
+            error.message,
+            crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT
+        );
+        // Desktop commands that return String errors pass the code.
+        assert_eq!(
+            String::from(Error::Validation(
+                ValidationError::AlternativeAssetNotInAccount
+            )),
+            "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT"
+        );
     }
 
     #[test]

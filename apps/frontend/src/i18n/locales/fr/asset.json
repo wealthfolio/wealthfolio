@@ -269,6 +269,7 @@
     "select_type": "Sélectionner un type",
     "exchange": "Bourse",
     "select_exchange": "Sélectionner une bourse",
+    "no_exchange": "Aucune bourse",
     "search_exchanges": "Rechercher des bourses...",
     "contract_multiplier": "Multiplicateur du contrat",
     "contract_multiplier_hint": "Chaque contrat représente ce nombre d'unités sous-jacentes. Laissez vide pour utiliser la valeur standard de {{default}}.",

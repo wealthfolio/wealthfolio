@@ -31,7 +31,7 @@ const SKIP_FIELD_VALUE = "__skip__";
 
 // Shared style for all mapping popover triggers — matches standard input look at sm size
 // py-1 fits the padding to h-8: with the select's and account picker's py-2, their 16px content
-// overflows by 1px, which shows a scrollbar where globals.css makes .flex elements scroll.
+// would overflow the trigger by 1px.
 const MAPPING_TRIGGER_CLASS = "h-8 py-1 rounded-md text-xs font-normal";
 
 // Dashed style for unmapped/empty mapping triggers — orange dashed border to signal action needed

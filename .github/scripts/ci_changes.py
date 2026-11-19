@@ -27,7 +27,7 @@ def classify(paths):
     required = dict(frontend=False, rust=False, formatting=False, android=False,
                     ios=False, addon_sandbox=False)
     for path in paths:
-        if path.startswith((".github/workflows/", ".github/scripts/")) or path == "config/connect.defaults.json":
+        if path.startswith((".github/workflows/", ".github/scripts/")) or path in ("config/connect.defaults.json", "config/timeouts.json"):
             required.update({name: True for name in required})
         elif path.startswith("docs/") or path.lower().endswith((".md", ".mdx")):
             required["formatting"] = True

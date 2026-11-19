@@ -144,6 +144,7 @@ export function SavingGoals() {
   return (
     <DashboardCard title={t("common:goals")} action={<ViewAllLink />}>
       {visibleGoals.map((goal, index) => {
+        const hasCurrentValue = goal.summaryCurrentValue != null;
         const progress = goal.summaryProgress ?? 0;
         const pct = Math.max(0, Math.min(1, progress));
         const currentValue = goal.summaryCurrentValue ?? 0;
@@ -151,11 +152,15 @@ export function SavingGoals() {
         const currency = settings?.baseCurrency ?? goal.currency ?? "USD";
         const deadline = goal.targetDate ?? goal.projectedCompletionDate;
         const timeStr = formatTimeRemaining(t, deadline, settings?.timezone);
-        const pctDisplay = numberFormatting.formatPercent(pct, { digits: 0 });
+        const pctDisplay = hasCurrentValue
+          ? numberFormatting.formatPercent(pct, { digits: 0 })
+          : "N/A";
 
         const currentDisplay = isBalanceHidden
           ? "••••"
-          : amountFormatting.formatCompactAmount(currentValue, currency);
+          : hasCurrentValue
+            ? amountFormatting.formatCompactAmount(currentValue, currency)
+            : "N/A";
         const targetDisplay = isBalanceHidden
           ? "••••"
           : target > 0
@@ -182,7 +187,7 @@ export function SavingGoals() {
                       statusDotClass(goal.statusHealth),
                     )}
                   />
-                  {progress >= 1 ? (
+                  {hasCurrentValue && progress >= 1 ? (
                     <Icons.CheckCircle className="text-success h-3.5 w-3.5 shrink-0" />
                   ) : null}
                 </ItemTitle>
@@ -202,14 +207,16 @@ export function SavingGoals() {
               </ItemActions>
 
               {/* Full-width progress bar at row bottom */}
-              <ItemFooter>
-                <div className="bg-muted/60 relative h-1.5 w-full overflow-hidden rounded-full">
-                  <div
-                    className="bg-success h-full rounded-full transition-all"
-                    style={{ width: `${pct * 100}%` }}
-                  />
-                </div>
-              </ItemFooter>
+              {hasCurrentValue && (
+                <ItemFooter>
+                  <div className="bg-muted/60 relative h-1.5 w-full overflow-hidden rounded-full">
+                    <div
+                      className="bg-success h-full rounded-full transition-all"
+                      style={{ width: `${pct * 100}%` }}
+                    />
+                  </div>
+                </ItemFooter>
+              )}
             </Item>
           </Fragment>
         );
