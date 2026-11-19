@@ -343,6 +343,55 @@ describe("IssueDetailSheet", () => {
     ],
   };
 
+  it("shows the date range of a diagnostic that covers several dates", () => {
+    const [diagnostic] = diagnosticIssue.diagnostics ?? [];
+    render(
+      <MemoryRouter>
+        <IssueDetailSheet
+          issue={{
+            ...diagnosticIssue,
+            diagnostics: [
+              {
+                ...diagnostic,
+                code: "INCOMPLETE_BASIS_SNAPSHOT",
+                title: "Missing cost basis",
+                evidence: [
+                  { label: "Asset", value: "FUND — Some Fund", route: "/holdings/asset_fund" },
+                  { label: "Date", value: "2026-06-01" },
+                ],
+                date: "2026-06-01",
+                dateRange: { start: "2026-06-01", end: "2026-06-15" },
+              },
+              {
+                ...diagnostic,
+                fingerprint: "single-date",
+                code: "INCOMPLETE_BASIS_SNAPSHOT",
+                title: "Missing cost basis",
+                evidence: [
+                  { label: "Asset", value: "ONCE — Other Fund", route: "/holdings/asset_once" },
+                  { label: "Date", value: "2026-06-08" },
+                ],
+                date: "2026-06-08",
+              },
+            ],
+          }}
+          open={true}
+          onOpenChange={noop}
+          onDismiss={noop}
+          onFix={noop}
+          onRunFixAction={noop}
+          isDismissing={false}
+          isFixing={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("FUND — Some Fund")).toBeInTheDocument();
+    expect(screen.getByText("2026-06-01 – 2026-06-15")).toBeInTheDocument();
+    // A diagnostic with one date keeps showing that date.
+    expect(screen.getByText("2026-06-08")).toBeInTheDocument();
+  });
+
   it("renders a compact root cause with one deep-linked row per item, no technical labels", () => {
     render(
       <MemoryRouter>

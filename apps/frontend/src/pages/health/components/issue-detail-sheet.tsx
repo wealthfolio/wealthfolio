@@ -286,6 +286,11 @@ function buildDiagnosticRows(diagnostic: HealthDiagnostic): DiagnosticEvidenceRo
   const dateRow = diagnostic.evidence.find((row) => isDateEvidence(row.label));
   const objectRows = diagnostic.evidence.filter((row) => !isDateEvidence(row.label));
   const sourceRows = objectRows.length > 0 ? objectRows : diagnostic.evidence;
+  // A diagnostic covering several dates (a holding with no cost basis in
+  // several holdings entries) shows the span, not only its first date.
+  const range = diagnostic.dateRange;
+  const dateDetail =
+    range && range.start !== range.end ? `${range.start} – ${range.end}` : dateRow?.value;
 
   if (sourceRows.length === 0) {
     const entity = diagnostic.entities[0];
@@ -306,7 +311,7 @@ function buildDiagnosticRows(diagnostic: HealthDiagnostic): DiagnosticEvidenceRo
       key: `${diagnostic.fingerprint}:${index}:${row.label}:${row.value}`,
       label: display.label,
       value: display.value,
-      detail: dateRow && dateRow !== row ? dateRow.value : undefined,
+      detail: dateRow && dateRow !== row ? dateDetail : undefined,
       route: row.route,
       activityIssue: row.activityIssue,
     };
