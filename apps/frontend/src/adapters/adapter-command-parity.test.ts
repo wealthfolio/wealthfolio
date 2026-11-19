@@ -399,6 +399,31 @@ describe("cloud backup capture transport", () => {
   });
 });
 
+describe("asset-holdings scope routing", () => {
+  it("keeps legacy asset reads on the existing GET endpoint", async () => {
+    const mock = stubFetch();
+    await invoke("get_asset_holdings", { assetId: "asset/one" });
+    const { url, method } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/by-asset?assetId=asset%2Fone");
+    expect(method).toBe("GET");
+  });
+
+  it.each([
+    { type: "all" },
+    { type: "account", accountId: "a" },
+    { type: "accounts", accountIds: ["a", "b"] },
+    { type: "portfolio", portfolioId: "pf" },
+  ])("sends scoped asset reads through one POST request: $type", async (filter) => {
+    const mock = stubFetch();
+    await invoke("get_asset_holdings", { assetId: "cash:USD", filter });
+    expect(mock).toHaveBeenCalledTimes(1);
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/by-asset/query");
+    expect(method).toBe("POST");
+    expect(JSON.parse(body as string)).toEqual({ assetId: "cash:USD", filter });
+  });
+});
+
 describe("scope-based routing — get_holdings", () => {
   it("all → POST /holdings/query", async () => {
     const mock = stubFetch();

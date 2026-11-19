@@ -4,6 +4,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.1] - 2026-11-18
+
+### Changed
+
+- Rejected host API calls may carry a stable `code` property, so an add-on can
+  branch on the reason. Messages are localized, so don't parse them. Secret
+  failures can report `SECRET_TOO_LARGE` and `SECRET_STORE_UNAVAILABLE`. (#2676)
+- On Windows, `ctx.api.secrets` stores values up to 1 MiB of UTF-8 data by
+  splitting them across credentials. The credential store's available capacity
+  may set a lower limit, and a read rejects an incomplete value instead of
+  returning part of it. (#2676)
+
 ## [3.13.0] - 2026-11-11
 
 ### Added

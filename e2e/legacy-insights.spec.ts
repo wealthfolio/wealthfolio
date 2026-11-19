@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 test("legacy bookmarks open the Insights tab and survive reload", async ({ page }) => {

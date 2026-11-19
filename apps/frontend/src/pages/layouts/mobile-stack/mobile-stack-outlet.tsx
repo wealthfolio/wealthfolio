@@ -60,9 +60,9 @@ interface ActiveTransition {
 
 // `?swipe=app` on the first load turns the app's swipe on in a browser, to try
 // it, and test it with real touches, without the iOS app. Stripped from
-// production builds.
+// production builds, except the E2E build (`VITE_E2E=true`).
 let appSwipeOverride = false;
-if (import.meta.env.DEV && typeof window !== "undefined") {
+if ((import.meta.env.DEV || import.meta.env.VITE_E2E === "true") && typeof window !== "undefined") {
   appSwipeOverride = new URLSearchParams(window.location.search).get("swipe") === "app";
 }
 

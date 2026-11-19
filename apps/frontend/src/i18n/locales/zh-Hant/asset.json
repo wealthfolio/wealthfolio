@@ -269,6 +269,7 @@
     "select_type": "選取類型",
     "exchange": "交易所",
     "select_exchange": "選取交易所",
+    "no_exchange": "無交易所",
     "search_exchanges": "搜尋交易所……",
     "contract_multiplier": "合約乘數",
     "contract_multiplier_hint": "每份合約代表此數量的標的單位。留空則使用標準值 {{default}}。",

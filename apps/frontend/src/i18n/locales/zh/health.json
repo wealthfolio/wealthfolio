@@ -162,6 +162,11 @@
       "title_one": "{{from}} 与 {{to}} 的汇率不一致",
       "title_other": "{{count}} 个货币对的汇率不一致",
       "message": "同一天在两个方向都记录了汇率，但两者不相符。每个方向都按记录使用，因此来回换算会得到不同的金额。请更正或删除错误的汇率。"
+    },
+    "option_expiry_without_contract": {
+      "title_one": "期权到期记录未关联到其合约",
+      "title_other": "{{count}} 条期权到期记录未关联到其合约",
+      "message": "这些期权到期记录指向的是标的股票而不是期权合约，因此合约仍处于持仓状态，其盈亏未被记录。请将每条到期记录关联到已到期的合约。"
     }
   },
   "page": {
@@ -203,7 +208,8 @@
     "update_cost_basis": "更新成本基础",
     "update_value": "更新估值",
     "review_transaction": "检查交易",
-    "review_entry": "查看记录"
+    "review_entry": "查看记录",
+    "match_option_expiry_contracts": "使用匹配的合约"
   },
   "updatedAt": "更新于 {{time}}",
   "healthy": {
@@ -291,6 +297,7 @@
     "return_of_capital_amount_required": "请输入此资本返还的金额。",
     "sell_without_position": "没有可卖出的{{asset}}头寸。仅计入了现金影响。",
     "insufficient_quantity": "此交易减少{{requested}}单位的{{asset}}，但仅持有{{held}}单位。剩余{{excess}}单位没有成本基础。",
-    "missing_final_cash": "此已入账交易没有最终现金金额，因此未改变现金余额。"
+    "missing_final_cash": "此已入账交易没有最终现金金额，因此未改变现金余额。",
+    "option_expiry_not_option": "此期权到期记录指向的{{asset}}不是期权合约，因此没有任何变更。请将其关联到已到期的合约。"
   }
 }

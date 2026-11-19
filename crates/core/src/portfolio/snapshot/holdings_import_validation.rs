@@ -256,6 +256,7 @@ fn asset_resolution_input(
         asset_id: position.asset_id.clone(),
         provider_id: position.provider_id.clone(),
         provider_symbol: position.provider_symbol.clone(),
+        name: None,
     }
 }
 

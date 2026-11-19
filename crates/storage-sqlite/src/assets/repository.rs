@@ -224,12 +224,11 @@ impl AssetRepositoryTrait for AssetRepository {
                     existing.instrument_symbol.clone()
                 };
 
-                let instrument_exchange_mic_value =
-                    if payload_owned.instrument_exchange_mic.is_some() {
-                        payload_owned.instrument_exchange_mic.clone()
-                    } else {
-                        existing.instrument_exchange_mic.clone()
-                    };
+                // `Some(None)` is an explicit clear.
+                let instrument_exchange_mic_value = payload_owned
+                    .instrument_exchange_mic
+                    .clone()
+                    .unwrap_or_else(|| existing.instrument_exchange_mic.clone());
                 let quote_ccy_value = payload_owned
                     .quote_ccy
                     .clone()
@@ -753,7 +752,7 @@ mod tests {
                     quote_ccy: None,
                     instrument_type: None,
                     instrument_symbol: Some("VWRP".to_string()),
-                    instrument_exchange_mic: Some("CXE".to_string()),
+                    instrument_exchange_mic: Some(Some("CXE".to_string())),
                     provider_config: None,
                     metadata: None,
                 },
@@ -764,6 +763,47 @@ mod tests {
         assert_eq!(updated.name.as_deref(), Some("Renamed legacy"));
         assert_eq!(updated.instrument_exchange_mic.as_deref(), Some("CXE"));
         assert_eq!(updated.instrument_key.as_deref(), Some("EQUITY:VWRP@CXE"));
+    }
+
+    #[tokio::test]
+    async fn profile_update_clears_the_exchange_only_when_asked() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = AssetRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        sql_query(
+            "INSERT INTO assets (
+                id, kind, name, display_code, is_active, quote_mode, quote_ccy,
+                instrument_type, instrument_symbol, instrument_exchange_mic,
+                created_at, updated_at
+             ) VALUES ('oaa1', 'INVESTMENT', 'Power Metals Corp.', 'OAA1', 1, 'MARKET', 'EUR',
+                'EQUITY', 'OAA1', 'XSTU', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        )
+        .execute(&mut conn)
+        .expect("insert asset");
+        drop(conn);
+        let profile = |instrument_exchange_mic| UpdateAssetProfile {
+            name: Some("Power Metals Corp.".to_string()),
+            display_code: Some("OAA1".to_string()),
+            notes: String::new(),
+            kind: None,
+            quote_mode: None,
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: None,
+            instrument_symbol: Some("OAA1".to_string()),
+            instrument_exchange_mic,
+            provider_config: None,
+            metadata: None,
+        };
+
+        let kept = repo.update_profile("oaa1", profile(None)).await.unwrap();
+        assert_eq!(kept.instrument_key.as_deref(), Some("EQUITY:OAA1@XSTU"));
+
+        let cleared = repo
+            .update_profile("oaa1", profile(Some(None)))
+            .await
+            .unwrap();
+        assert_eq!(cleared.instrument_exchange_mic, None);
+        assert_eq!(cleared.instrument_key.as_deref(), Some("EQUITY:OAA1"));
     }
 
     async fn cleanup_legacy_metadata_for(metadata: serde_json::Value) -> Option<serde_json::Value> {

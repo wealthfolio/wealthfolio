@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { TopMoversCard, ConcentrationCard } from "./holdings-highlight-cards";
 import { HoldingsDonutCard } from "./holdings-donut-card";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -440,6 +441,7 @@ export function OverviewPage({
             <ValueWidget
               metric="value"
               data={valueStrip}
+              isUnavailable={!isValuationComplete(currentValuation?.summary.valueStatus)}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -448,6 +450,7 @@ export function OverviewPage({
             <ValueWidget
               metric="cash"
               data={valueStrip}
+              isUnavailable={!isValuationComplete(currentValuation?.summary.valueStatus)}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -456,6 +459,7 @@ export function OverviewPage({
             <ValueWidget
               metric="invested"
               data={valueStrip}
+              isUnavailable={!isValuationComplete(currentValuation?.summary.valueStatus)}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -464,6 +468,7 @@ export function OverviewPage({
             <ValueWidget
               metric="bookCost"
               data={valueStrip}
+              isUnavailable={!isValuationComplete(currentValuation?.summary.valueStatus)}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -472,6 +477,7 @@ export function OverviewPage({
             <ValueWidget
               metric="pnl"
               data={valueStrip}
+              isUnavailable={!isValuationComplete(currentValuation?.summary.valueStatus)}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -479,6 +485,7 @@ export function OverviewPage({
           accounts: (
             <DrillableAccountChart
               isLoading={isLoading}
+              isUnavailable={!isValuationComplete(currentValuation?.summary.valueStatus)}
               accountIds={filteredAccountIds}
               accountValuations={currentValuation?.accounts}
             />

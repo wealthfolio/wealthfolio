@@ -162,6 +162,11 @@
       "title_one": "{{from}}/{{to}} 환율 불일치",
       "title_other": "통화쌍 {{count}}개의 환율 불일치",
       "message": "같은 날짜에 양방향 환율이 모두 기록되어 있지만 서로 맞지 않습니다. 각 방향은 기록된 그대로 사용되므로 한 방향으로 환산했다가 되돌리면 금액이 달라집니다. 잘못된 환율을 수정하거나 삭제하세요."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "옵션 만기가 계약에 연결되지 않음",
+      "title_other": "옵션 만기 {{count}}건이 계약에 연결되지 않음",
+      "message": "이 옵션 만기는 옵션 계약 대신 기초 주식을 지정하고 있어 계약이 열린 상태로 남고 손익이 기록되지 않습니다. 각 만기를 만기된 계약에 연결하세요."
     }
   },
   "page": {
@@ -203,7 +208,8 @@
     "update_cost_basis": "취득 원가 업데이트",
     "update_value": "평가액 업데이트",
     "review_transaction": "거래 검토",
-    "review_entry": "항목 검토"
+    "review_entry": "항목 검토",
+    "match_option_expiry_contracts": "일치하는 계약 사용"
   },
   "updatedAt": "{{time}} 업데이트됨",
   "healthy": {
@@ -291,6 +297,7 @@
     "return_of_capital_amount_required": "이 자본 환급의 금액을 입력하세요.",
     "sell_without_position": "매도할 {{asset}} 포지션이 없습니다. 현금에 미치는 영향만 반영되었습니다.",
     "insufficient_quantity": "이 거래는 {{asset}} {{requested}}단위를 차감하지만 보유 수량은 {{held}}단위뿐이었습니다. 나머지 {{excess}}단위에는 취득 원가가 없습니다.",
-    "missing_final_cash": "이 기장된 거래에는 최종 현금 금액이 없어 현금 잔액이 변경되지 않았습니다."
+    "missing_final_cash": "이 기장된 거래에는 최종 현금 금액이 없어 현금 잔액이 변경되지 않았습니다.",
+    "option_expiry_not_option": "이 옵션 만기는 옵션 계약이 아닌 {{asset}}을(를) 지정하고 있어 아무것도 변경되지 않았습니다. 만기된 계약에 연결하세요."
   }
 }

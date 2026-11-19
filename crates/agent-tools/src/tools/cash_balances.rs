@@ -6,9 +6,12 @@
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use wealthfolio_core::accounts::AccountPurpose;
+use wealthfolio_core::holdings::IncompleteHoldingsAccount;
 
+use super::account_scope::portfolio_account_ids;
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
@@ -105,7 +108,7 @@ impl AgentTool for GetCashBalances {
 
         let accounts = env
             .account_service()
-            .get_active_non_archived_accounts()
+            .get_non_archived_accounts()
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
 
         let mut account_map: HashMap<String, (String, String)> = accounts
@@ -117,7 +120,17 @@ impl AgentTool for GetCashBalances {
         let target_ids: Vec<String> = if let Some(target_account_id) = target_account_id {
             vec![target_account_id.to_string()]
         } else {
-            accounts.iter().map(|a| a.id.clone()).collect()
+            // The app's cash view covers the accounts that hold investments;
+            // keep the account list's order for the output.
+            let in_scope: HashSet<String> =
+                portfolio_account_ids(env.as_ref(), AccountPurpose::Holdings)?
+                    .into_iter()
+                    .collect();
+            accounts
+                .iter()
+                .filter(|a| in_scope.contains(&a.id))
+                .map(|a| a.id.clone())
+                .collect()
         };
         if let Some(account_id) = target_account_id {
             if !account_map.contains_key(account_id) {
@@ -147,20 +160,23 @@ fn cash_balances_output(
     base_currency: String,
 ) -> GetCashBalancesOutput {
     let mut summaries = Vec::new();
-    let mut grand_total_base = scope
+    // Accounts mid-calculation return their last cash; only withheld ones
+    // leave the total unknown.
+    let mut grand_total_base = (!scope
         .incomplete_accounts
-        .is_empty()
-        .then_some(Decimal::ZERO);
+        .iter()
+        .any(IncompleteHoldingsAccount::withholds_holdings))
+    .then_some(Decimal::ZERO);
     for account_id in target_ids {
         let (account_name, account_currency) = account_map
             .get(account_id)
             .cloned()
             .unwrap_or_else(|| (account_id.clone(), base_currency.clone()));
-        if let Some(issue) = scope
+        let issue = scope
             .incomplete_accounts
             .iter()
-            .find(|issue| issue.account_id == *account_id)
-        {
+            .find(|issue| issue.account_id == *account_id);
+        if let Some(issue) = issue.filter(|issue| issue.withholds_holdings()) {
             summaries.push(AccountCashSummary {
                 account_id: account_id.clone(),
                 account_name,
@@ -211,8 +227,8 @@ fn cash_balances_output(
             account_name,
             account_currency,
             balances: Some(balances),
-            status: "ready".into(),
-            reason_code: None,
+            status: issue.map_or("ready", |issue| issue.status).into(),
+            reason_code: issue.map(|issue| issue.reason_code.into()),
             total_account_currency,
             total_base_currency,
         });
@@ -313,14 +329,17 @@ mod tests {
     }
 
     #[test]
-    fn pending_and_unavailable_accounts_do_not_hide_known_cash() {
-        for status in ["pending", "unavailable"] {
+    fn withheld_accounts_do_not_hide_known_cash() {
+        for (status, reason_code) in [
+            ("pending", wealthfolio_core::holdings::CALCULATION_REQUIRED),
+            ("unavailable", "test"),
+        ] {
             let result = output(HoldingsScope {
                 holdings: vec![cash("cad", "CAD", 50, Some(50))],
                 incomplete_accounts: vec![IncompleteHoldingsAccount {
                     account_id: "usd".into(),
                     status,
-                    reason_code: "test",
+                    reason_code,
                 }],
             });
             assert_eq!(
@@ -332,6 +351,31 @@ mod tests {
             assert!(result.accounts[1].total_base_currency.is_none());
             assert!(result.grand_total_base.is_none());
         }
+    }
+
+    #[test]
+    fn accounts_mid_calculation_report_their_last_cash() {
+        let result = output(HoldingsScope {
+            holdings: vec![
+                cash("cad", "CAD", 50, Some(50)),
+                cash("usd", "USD", 20, Some(30)),
+            ],
+            incomplete_accounts: vec![IncompleteHoldingsAccount {
+                account_id: "usd".into(),
+                status: "pending",
+                reason_code: "PROJECTION_PENDING",
+            }],
+        });
+        assert_eq!(result.accounts[1].status, "pending");
+        assert_eq!(
+            result.accounts[1].reason_code.as_deref(),
+            Some("PROJECTION_PENDING")
+        );
+        assert_eq!(
+            result.accounts[1].balances.as_ref().unwrap()[0].amount,
+            Decimal::from(20)
+        );
+        assert_eq!(result.grand_total_base, Some(Decimal::from(80)));
     }
 
     #[test]

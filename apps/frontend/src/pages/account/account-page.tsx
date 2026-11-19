@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
@@ -519,6 +520,7 @@ const AccountPage = () => {
 
     return {
       ...currentValuation,
+      valueStatus: currentAccountValuation.accountValueStatus ?? currentValuation.valueStatus,
       accountCurrency: currentAccountValuation.accountCurrency,
       baseCurrency: currentAccountValuation.baseCurrency,
       cashBalance: currentAccountValuation.cashBalance,
@@ -620,9 +622,10 @@ const AccountPage = () => {
 
   const frontendGainLossAmount = performancePeriodPnl(accountPerformance);
   const frontendSummaryReturn = performanceSummaryReturn(accountPerformance);
-  const allTimeReturnAmount = metricsValuation
-    ? metricsValuation.totalValue - metricsValuation.netContribution
-    : null;
+  const allTimeReturnAmount =
+    metricsValuation && isValuationComplete(metricsValuation.valueStatus)
+      ? metricsValuation.totalValue - metricsValuation.netContribution
+      : null;
   const allTimeSimpleReturn = simpleReturnFromNetContribution(
     allTimeReturnAmount,
     metricsValuation?.netContribution,
@@ -648,7 +651,9 @@ const AccountPage = () => {
   const displayedValuationNotices =
     currentAccountValuation?.warnings ?? liveCurrentValuation?.summary.warnings;
   const isCurrentValuationUnavailable =
-    !isCurrentValuationLoading && !currentAccountValuation && Boolean(currentValuationError);
+    !isCurrentValuationLoading &&
+    (!isValuationComplete(currentAccountValuation?.accountValueStatus) ||
+      (!currentAccountValuation && Boolean(currentValuationError)));
   const performanceCurrency = accountPerformance?.scope.currency ?? baseCurrency;
   const gainLossCurrencyToDisplay =
     selectedIntervalCode === "ALL" && !isHoldingsMode
@@ -661,14 +666,13 @@ const AccountPage = () => {
     if (!valuationHistory) return [];
     // A day the engine could not fully convert carries a partial value; it
     // is not plotted rather than drawn as if it were complete.
-    return valuationHistory
-      .filter((valuation) => valuation.valueStatus !== "unavailable")
-      .map((valuation: AccountValuation) => ({
-        date: valuation.valuationDate,
-        totalValue: valuation.totalValue,
-        netContribution: valuation.netContribution,
-        currency: valuation.accountCurrency,
-      }));
+    return valuationHistory.map((valuation: AccountValuation) => ({
+      isUnavailable: !isValuationComplete(valuation.valueStatus),
+      date: valuation.valuationDate,
+      totalValue: valuation.totalValue,
+      netContribution: valuation.netContribution,
+      currency: valuation.accountCurrency,
+    }));
   }, [valuationHistory]);
 
   const isLoading = isAccountsLoading || isValuationHistoryLoading;

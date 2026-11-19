@@ -34,6 +34,9 @@ vi.mock("../fields", () => {
     SymbolSearch: () => null,
     FormSection: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     AmountInput: AmountField,
+    ChargeLinesField: ({ totalName, ...props }: { totalName: string; label: string }) => (
+      <AmountField name={totalName} {...props} />
+    ),
     QuantityInput: AmountField,
     createValidatedSubmit: vi.fn((form, handler) => form.handleSubmit(handler)),
   };

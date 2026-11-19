@@ -343,6 +343,11 @@ fn default_is_active() -> bool {
     true
 }
 
+/// Why a save that would put an alternative asset in an account is refused.
+pub const ALTERNATIVE_ASSET_NOT_IN_ACCOUNT: &str = "Properties, vehicles, collectibles, precious \
+metals, liabilities and other personal assets count toward net worth on their own and can't be \
+held in an account. To hold a custom asset in an account, add it as an investment.";
+
 impl AssetKind {
     /// Returns the database string representation (SCREAMING_SNAKE_CASE).
     pub const fn as_db_str(&self) -> &'static str {
@@ -942,9 +947,21 @@ pub struct UpdateAssetProfile {
     pub quote_ccy: Option<String>,
     pub instrument_type: Option<InstrumentType>,
     pub instrument_symbol: Option<String>,
-    pub instrument_exchange_mic: Option<String>,
+    /// Absent keeps the exchange, `null` clears it, a MIC sets it.
+    #[serde(
+        default,
+        deserialize_with = "deserialize_exchange_mic_update",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub instrument_exchange_mic: Option<Option<String>>,
     pub provider_config: Option<Value>,
     pub metadata: Option<Value>,
+}
+
+fn deserialize_exchange_mic_update<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(Some)
 }
 
 /// The result of previewing an asset profile update.
@@ -1247,7 +1264,9 @@ impl UpdateAssetProfile {
             quote_ccy: Some(asset.quote_ccy.clone()),
             instrument_type: asset.instrument_type.clone(),
             instrument_symbol: asset.instrument_symbol.clone(),
-            instrument_exchange_mic: asset.instrument_exchange_mic.clone(),
+            // Omitted when the snapshot has none, so a metadata write never
+            // clears an exchange stored since.
+            instrument_exchange_mic: asset.instrument_exchange_mic.clone().map(Some),
             provider_config: asset.provider_config.clone(),
             metadata: Some(metadata),
         }

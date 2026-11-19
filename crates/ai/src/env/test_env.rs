@@ -239,7 +239,9 @@ impl AssetServiceTrait for MockAssetService {
             quote_mode: payload.quote_mode.unwrap_or(asset.quote_mode),
             quote_ccy: payload.quote_ccy.unwrap_or(asset.quote_ccy.clone()),
             instrument_symbol: payload.instrument_symbol,
-            instrument_exchange_mic: payload.instrument_exchange_mic,
+            instrument_exchange_mic: payload
+                .instrument_exchange_mic
+                .unwrap_or_else(|| asset.instrument_exchange_mic.clone()),
             provider_config: payload.provider_config,
             ..asset
         })

@@ -16,12 +16,14 @@ use crate::accounts::{account_types, is_liability_account_type, AccountRepositor
 use crate::assets::loan::{manual_loan_principal, LoanPayment};
 use crate::assets::{AlternativeAssetRepositoryTrait, Asset, AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 use crate::fx::currency::normalize_amount;
-use crate::fx::FxServiceTrait;
+use crate::fx::{FxConversionIssue, FxError, FxServiceTrait};
 use crate::portfolio::coordinator::blocking;
 use crate::portfolio::snapshot::SnapshotServiceTrait;
-use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
+use crate::portfolio::valuation::{
+    DailyAccountValuation, ValuationRepositoryTrait, ValuationStatus,
+};
 use crate::quotes::QuoteServiceTrait;
 use crate::utils::time_utils::{
     parse_user_timezone_or_default, user_date_from_utc, DEFAULT_VALUATION_TZ,
@@ -206,7 +208,7 @@ impl NetWorthService {
     ) -> Result<Decimal> {
         let local_value = quantity * price * contract_multiplier;
 
-        if asset_currency == base_currency {
+        if local_value.is_zero() || asset_currency == base_currency {
             return Ok(local_value.round_dp(DECIMAL_PRECISION));
         }
 
@@ -221,28 +223,30 @@ impl NetWorthService {
         Ok(converted.round_dp(DECIMAL_PRECISION))
     }
 
-    fn convert_cash_balance_to_base(
+    fn convert_value_to_base(
         &self,
         amount: Decimal,
         currency: &str,
         base_currency: &str,
         date: NaiveDate,
-    ) -> Decimal {
-        if currency == base_currency {
-            return amount;
+        item_id: &str,
+        missing_fx: &mut Vec<FxConversionIssue>,
+    ) -> Option<Decimal> {
+        if amount.is_zero() || currency == base_currency {
+            return Some(amount);
         }
-
         match self
             .fx_service
             .convert_currency_for_date(amount, currency, base_currency, date)
         {
-            Ok(value) => value,
-            Err(error) => {
-                warn!(
-                    "Failed to convert cash {} {} to {}: {}. Using unconverted.",
-                    amount, currency, base_currency, error
-                );
-                amount
+            Ok(value) => Some(value),
+            Err(_) => {
+                missing_fx.push(FxConversionIssue {
+                    item_id: item_id.to_string(),
+                    from_currency: currency.to_string(),
+                    to_currency: base_currency.to_string(),
+                });
+                None
             }
         }
     }
@@ -393,6 +397,7 @@ impl NetWorthService {
     /// no market data to keep up to date.
     fn calculate_staleness(
         valuations: &[ValuationInfo],
+        unconverted_dates: &[(String, Option<String>, NaiveDate)],
         reference_date: NaiveDate,
     ) -> (Option<NaiveDate>, Vec<StaleAssetInfo>) {
         // Exclude cash-like balances (no market data to update) and paid-off
@@ -405,19 +410,26 @@ impl NetWorthService {
                 !(v.is_cash_like
                     || (v.category == AssetCategory::Liability && v.market_value_base.is_zero()))
             })
+            .map(|v| (&v.asset_id, &v.name, v.valuation_date))
+            // A failed conversion does not erase the quote's identity or age.
+            .chain(
+                unconverted_dates
+                    .iter()
+                    .map(|(id, name, date)| (id, name, *date)),
+            )
             .collect();
 
-        let oldest_date = trackable_valuations.iter().map(|v| v.valuation_date).min();
+        let oldest_date = trackable_valuations.iter().map(|(_, _, date)| *date).min();
 
         let stale_assets: Vec<StaleAssetInfo> = trackable_valuations
             .iter()
-            .filter_map(|v| {
-                let days_stale = (reference_date - v.valuation_date).num_days();
+            .filter_map(|(id, name, date)| {
+                let days_stale = (reference_date - *date).num_days();
                 if days_stale > STALENESS_THRESHOLD_DAYS {
                     Some(StaleAssetInfo {
-                        asset_id: v.asset_id.clone(),
-                        name: v.name.clone(),
-                        valuation_date: v.valuation_date,
+                        asset_id: (*id).clone(),
+                        name: (*name).clone(),
+                        valuation_date: *date,
                         days_stale,
                     })
                 } else {
@@ -515,6 +527,9 @@ impl NetWorthService {
             .collect();
 
         let mut valuations: Vec<ValuationInfo> = Vec::new();
+        let mut value_status = ValuationStatus::Complete;
+        let mut missing_fx = Vec::new();
+        let mut unconverted_dates = Vec::new();
 
         // Process each account's snapshot
         for (account_id, snapshot) in &snapshots {
@@ -535,6 +550,15 @@ impl NetWorthService {
             };
 
             if let Some(account_valuation) = stored_account_valuation {
+                value_status = value_status.combine(account_valuation.value_status);
+                if account_valuation.fx_rate_to_base.is_zero() && account.currency != base_currency
+                {
+                    missing_fx.push(FxConversionIssue {
+                        item_id: account.id.clone(),
+                        from_currency: account.currency.clone(),
+                        to_currency: base_currency.clone(),
+                    });
+                }
                 if !account_valuation.investment_market_value_base.is_zero() {
                     valuations.push(ValuationInfo {
                         asset_id: format!("INVESTMENTS:{}", account.id),
@@ -647,10 +671,20 @@ impl NetWorthService {
                         Ok(v) => v,
                         Err(e) => {
                             warn!(
-                                "Failed to calculate market value for {}: {}. Using local value.",
+                                "Failed to calculate market value for {}: {}. Value unavailable.",
                                 asset_id, e
                             );
-                            position.quantity * price * position.contract_multiplier
+                            unconverted_dates.push((
+                                asset_id.clone(),
+                                asset_name.clone(),
+                                valuation_date,
+                            ));
+                            missing_fx.push(FxConversionIssue {
+                                item_id: asset_id.clone(),
+                                from_currency: normalized_currency.to_string(),
+                                to_currency: base_currency.clone(),
+                            });
+                            continue;
                         }
                     };
 
@@ -668,6 +702,7 @@ impl NetWorthService {
             if is_liability_account {
                 // Rounded before the sign checks so residual dust does not emit a
                 // phantom $0 liability (or cash) row for the account.
+                let issues_before = missing_fx.len();
                 let cash_base_total = snapshot
                     .cash_balances
                     .iter()
@@ -675,16 +710,24 @@ impl NetWorthService {
                         if amount.is_zero() {
                             acc
                         } else {
-                            acc + self.convert_cash_balance_to_base(
-                                amount,
-                                currency,
-                                &base_currency,
-                                date,
-                            )
+                            acc + self
+                                .convert_value_to_base(
+                                    amount,
+                                    currency,
+                                    &base_currency,
+                                    date,
+                                    &format!("{CREDIT_CARD_KEY_PREFIX}{}", account.id),
+                                    &mut missing_fx,
+                                )
+                                .unwrap_or_default()
                         }
                     })
                     .round_dp(DECIMAL_PRECISION);
 
+                // A partial conversion cannot establish the net sign of a card.
+                if missing_fx.len() != issues_before {
+                    continue;
+                }
                 if cash_base_total < Decimal::ZERO {
                     valuations.push(ValuationInfo {
                         asset_id: format!("{CREDIT_CARD_KEY_PREFIX}{}", account.id),
@@ -716,9 +759,17 @@ impl NetWorthService {
                     continue;
                 }
 
-                let cash_base = self
-                    .convert_cash_balance_to_base(amount, currency, &base_currency, date)
-                    .round_dp(DECIMAL_PRECISION);
+                let Some(cash_base) = self.convert_value_to_base(
+                    amount,
+                    currency,
+                    &base_currency,
+                    date,
+                    &format!("CASH:{}:{}", account.id, currency),
+                    &mut missing_fx,
+                ) else {
+                    continue;
+                };
+                let cash_base = cash_base.round_dp(DECIMAL_PRECISION);
 
                 // Long-closed accounts keep residual balances around 1e-15 that
                 // are non-zero yet round to nothing; skip them so the Cash
@@ -766,7 +817,9 @@ impl NetWorthService {
         for asset in alternative_assets {
             // Skip if this asset was already processed via a snapshot position
             // (in case there's overlap)
-            if valuations.iter().any(|v| v.asset_id == asset.id) {
+            if valuations.iter().any(|v| v.asset_id == asset.id)
+                || unconverted_dates.iter().any(|(id, _, _)| id == &asset.id)
+            {
                 continue;
             }
 
@@ -826,10 +879,24 @@ impl NetWorthService {
                 Ok(v) => v,
                 Err(e) => {
                     warn!(
-                        "Failed to convert alternative asset {} value to base currency: {}. Using local value.",
+                        "Failed to convert alternative asset {} value to base currency: {}. Value unavailable.",
                         asset.id, e
                     );
-                    price
+                    unconverted_dates.push((
+                        asset.id.clone(),
+                        asset
+                            .name
+                            .clone()
+                            .filter(|name| !name.is_empty())
+                            .or_else(|| asset.display_code.clone()),
+                        valuation_date,
+                    ));
+                    missing_fx.push(FxConversionIssue {
+                        item_id: asset.id.clone(),
+                        from_currency: normalized_currency.to_string(),
+                        to_currency: base_currency.clone(),
+                    });
+                    continue;
                 }
             };
 
@@ -858,14 +925,22 @@ impl NetWorthService {
         let net_worth = assets.total - liabilities.total;
 
         // Calculate staleness
-        let (oldest_valuation_date, stale_assets) = Self::calculate_staleness(&valuations, date);
+        let (oldest_valuation_date, stale_assets) =
+            Self::calculate_staleness(&valuations, &unconverted_dates, date);
 
         debug!(
             "Net worth calculation complete: assets={}, liabilities={}, net_worth={}",
             assets.total, liabilities.total, net_worth
         );
 
+        missing_fx.sort();
+        missing_fx.dedup();
+        if !missing_fx.is_empty() {
+            value_status = ValuationStatus::Unavailable;
+        }
         Ok(NetWorthResponse {
+            value_status,
+            missing_fx,
             date,
             assets,
             liabilities,
@@ -893,6 +968,7 @@ impl NetWorthService {
         // =====================================================================
         #[derive(Clone)]
         struct PortfolioState {
+            status: ValuationStatus,
             value: Decimal,
             net_contribution: Decimal,
             // Category split for breakdown: cash balances vs investment market value.
@@ -918,11 +994,13 @@ impl NetWorthService {
                 let entry = portfolio_by_date
                     .entry(val.valuation_date)
                     .or_insert_with(|| PortfolioState {
+                        status: ValuationStatus::Complete,
                         value: Decimal::ZERO,
                         net_contribution: Decimal::ZERO,
                         cash: Decimal::ZERO,
                         investments: Decimal::ZERO,
                     });
+                entry.status = entry.status.combine(val.value_status);
                 entry.value += val.total_value_base;
                 entry.net_contribution += val.net_contribution_base;
                 entry.cash += val.cash_balance_base;
@@ -955,10 +1033,6 @@ impl NetWorthService {
             .collect();
 
         // Build currency lookup for FX conversion
-        let asset_currency_map: HashMap<String, String> = alternative_assets
-            .iter()
-            .map(|a| (a.id.clone(), a.quote_ccy.clone()))
-            .collect();
 
         // =====================================================================
         // 3. Load quotes for alternative assets
@@ -1001,28 +1075,16 @@ impl NetWorthService {
             }
         }
 
-        // Organize quotes by date -> asset_id -> value (converted to base currency)
-        let mut quotes_by_date: BTreeMap<NaiveDate, HashMap<String, Decimal>> = BTreeMap::new();
+        // Keep native values for forward fill. Every emitted day uses its own FX;
+        // a failed conversion must not freeze a previously converted value.
+        let mut quotes_by_date: BTreeMap<NaiveDate, HashMap<String, (Decimal, String)>> =
+            BTreeMap::new();
         for quote in &quotes_vec {
-            let date = quote.timestamp.date_naive();
-            let asset_currency = asset_currency_map
-                .get(&quote.asset_id)
-                .cloned()
-                .unwrap_or_else(|| base_currency.clone());
-
-            // Convert to base currency
-            let value_base = if asset_currency == base_currency {
-                quote.close
-            } else {
-                self.fx_service
-                    .convert_currency_for_date(quote.close, &asset_currency, &base_currency, date)
-                    .unwrap_or(quote.close)
-            };
-
+            let (price, currency) = normalize_amount(quote.close, &quote.currency);
             quotes_by_date
-                .entry(date)
+                .entry(quote.timestamp.date_naive())
                 .or_default()
-                .insert(quote.asset_id.clone(), value_base);
+                .insert(quote.asset_id.clone(), (price, currency.to_string()));
         }
 
         // Only loans without any recorded balances use an unconfirmed principal.
@@ -1046,7 +1108,7 @@ impl NetWorthService {
         // =====================================================================
         // 4. Get initial values for forward-fill (quotes before the first emitted point)
         // =====================================================================
-        let mut initial_asset_values: HashMap<String, Decimal> = HashMap::new();
+        let mut initial_asset_values: HashMap<String, (Decimal, String)> = HashMap::new();
 
         for asset in &alternative_assets {
             if let Some((price, quote_currency, _)) =
@@ -1054,19 +1116,10 @@ impl NetWorthService {
             {
                 let (normalized_price, normalized_currency) =
                     normalize_amount(price, &quote_currency);
-                let value_base = if normalized_currency == base_currency {
-                    normalized_price
-                } else {
-                    self.fx_service
-                        .convert_currency_for_date(
-                            normalized_price,
-                            normalized_currency,
-                            &base_currency,
-                            history_seed_date,
-                        )
-                        .unwrap_or(normalized_price)
-                };
-                initial_asset_values.insert(asset.id.clone(), value_base);
+                initial_asset_values.insert(
+                    asset.id.clone(),
+                    (normalized_price, normalized_currency.to_string()),
+                );
             }
         }
 
@@ -1087,6 +1140,9 @@ impl NetWorthService {
         let mut credit_card_liabilities_by_date: BTreeMap<NaiveDate, HashMap<String, Decimal>> =
             BTreeMap::new();
 
+        let mut card_statuses_by_date: BTreeMap<NaiveDate, HashMap<String, ValuationStatus>> =
+            BTreeMap::new();
+        let mut current_card_statuses = HashMap::new();
         for account_id in &credit_card_account_ids {
             if let Some(initial_valuation) = self
                 .valuation_repository
@@ -1094,6 +1150,7 @@ impl NetWorthService {
                 .into_iter()
                 .max_by_key(|valuation| valuation.valuation_date)
             {
+                current_card_statuses.insert(account_id.clone(), initial_valuation.value_status);
                 initial_credit_card_assets.insert(
                     account_id.clone(),
                     Self::credit_card_asset_value(&initial_valuation),
@@ -1109,6 +1166,10 @@ impl NetWorthService {
                 Some(start_date),
                 Some(end_date),
             )? {
+                card_statuses_by_date
+                    .entry(valuation.valuation_date)
+                    .or_default()
+                    .insert(account_id.clone(), valuation.value_status);
                 credit_card_assets_by_date
                     .entry(valuation.valuation_date)
                     .or_default()
@@ -1200,6 +1261,7 @@ impl NetWorthService {
 
         // Current state for forward-fill
         let mut current_portfolio = PortfolioState {
+            status: ValuationStatus::Complete,
             value: Decimal::ZERO,
             net_contribution: Decimal::ZERO,
             cash: Decimal::ZERO,
@@ -1212,6 +1274,10 @@ impl NetWorthService {
         let mut current_credit_card_liabilities = initial_credit_card_liabilities.clone();
 
         let mut history: Vec<NetWorthHistoryPoint> = Vec::new();
+        // Nearest-date FX routing is date-independent. Reuse confirmed misses
+        // across items and days, but retry other errors and all pairs next request.
+        // For cached pairs, newly added rates take effect on the next request.
+        let mut missing_rate_pairs = HashSet::new();
 
         for date in all_dates {
             // Update portfolio state if we have data for this date
@@ -1223,10 +1289,14 @@ impl NetWorthService {
             // Update alternative asset values if we have quotes for this date
             if let Some(quotes_on_date) = quotes_by_date.get(&date) {
                 for (symbol, value) in quotes_on_date {
-                    current_asset_values.insert(symbol.clone(), *value);
+                    current_asset_values.insert(symbol.clone(), value.clone());
                 }
             }
 
+            if let Some(statuses) = card_statuses_by_date.get(&date) {
+                current_card_statuses
+                    .extend(statuses.iter().map(|(id, status)| (id.clone(), *status)));
+            }
             if let Some(liabilities_on_date) = credit_card_liabilities_by_date.get(&date) {
                 for (account_id, value) in liabilities_on_date {
                     current_credit_card_liabilities.insert(account_id.clone(), *value);
@@ -1255,36 +1325,67 @@ impl NetWorthService {
                     .map(|v| v.round_dp(2))
                 {
                     let (value, currency) = normalize_amount(value, &asset.quote_ccy);
-                    let converted = if currency == base_currency {
-                        value
-                    } else {
-                        self.fx_service
-                            .convert_currency_for_date(value, currency, &base_currency, date)
-                            .unwrap_or(value)
-                    };
-                    current_asset_values.insert(asset.id.clone(), converted);
+                    current_asset_values.insert(asset.id.clone(), (value, currency.to_string()));
                 }
             }
 
             for (asset, origin, principal) in &manual_principals {
                 if date >= *origin {
                     let (value, currency) = normalize_amount(*principal, &asset.quote_ccy);
-                    let converted = if currency == base_currency {
-                        value
-                    } else {
-                        self.fx_service
-                            .convert_currency_for_date(value, currency, &base_currency, date)
-                            .unwrap_or(value)
-                    };
-                    current_asset_values.insert(asset.id.clone(), converted);
+                    current_asset_values.insert(asset.id.clone(), (value, currency.to_string()));
                 }
             }
 
+            let mut missing_fx = Vec::new();
+            let mut converted_asset_values = HashMap::new();
+            for (id, (amount, currency)) in &current_asset_values {
+                let value = if amount.is_zero() || currency == &base_currency {
+                    Some(*amount)
+                } else {
+                    let pair = (currency.clone(), base_currency.clone());
+                    if missing_rate_pairs.contains(&pair) {
+                        None
+                    } else {
+                        match self.fx_service.convert_currency_for_date(
+                            *amount,
+                            currency,
+                            &base_currency,
+                            date,
+                        ) {
+                            Ok(value) => Some(value),
+                            Err(error) => {
+                                if matches!(error, Error::Fx(FxError::RateNotFound(_))) {
+                                    missing_rate_pairs.insert(pair);
+                                }
+                                None
+                            }
+                        }
+                    }
+                };
+                if let Some(value) = value {
+                    converted_asset_values.insert(id.clone(), value);
+                } else {
+                    missing_fx.push(FxConversionIssue {
+                        item_id: id.clone(),
+                        from_currency: currency.clone(),
+                        to_currency: base_currency.clone(),
+                    });
+                }
+            }
+            let mut value_status = current_portfolio.status;
+            for status in current_card_statuses.values() {
+                value_status = value_status.combine(*status);
+            }
+            if !missing_fx.is_empty() {
+                value_status = ValuationStatus::Unavailable;
+            }
+            missing_fx.sort();
+            missing_fx.dedup();
             // Calculate totals
             let mut alt_assets_value = Decimal::ZERO;
             let mut liabilities_value = Decimal::ZERO;
 
-            for (symbol, value) in &current_asset_values {
+            for (symbol, value) in &converted_asset_values {
                 if liability_symbols.contains(symbol) {
                     liabilities_value += *value;
                 } else if asset_symbols.contains(symbol) {
@@ -1318,7 +1419,7 @@ impl NetWorthService {
                     current_portfolio.investments,
                 );
             }
-            for (symbol, value) in &current_asset_values {
+            for (symbol, value) in &converted_asset_values {
                 if asset_symbols.contains(symbol) {
                     if let Some(category) = alt_category_map.get(symbol) {
                         *breakdown
@@ -1339,6 +1440,8 @@ impl NetWorthService {
             }
 
             history.push(NetWorthHistoryPoint {
+                value_status,
+                missing_fx,
                 date,
                 portfolio_value: current_portfolio.value.round_dp(DECIMAL_PRECISION),
                 alternative_assets_value: alt_assets_value.round_dp(DECIMAL_PRECISION),

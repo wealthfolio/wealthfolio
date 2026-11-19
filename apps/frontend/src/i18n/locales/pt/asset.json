@@ -269,6 +269,7 @@
     "select_type": "Selecionar tipo",
     "exchange": "Bolsa",
     "select_exchange": "Selecionar bolsa",
+    "no_exchange": "Sem bolsa",
     "search_exchanges": "Buscar bolsas...",
     "contract_multiplier": "Multiplicador do contrato",
     "contract_multiplier_hint": "Cada contrato representa esta quantidade de unidades do ativo subjacente. Deixe em branco para usar o padrão {{default}}.",

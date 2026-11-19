@@ -69,6 +69,7 @@ const ACTIVITY_REASON_KEYS: Record<string, string> = {
   SELL_WITHOUT_POSITION: "sell_without_position",
   INSUFFICIENT_QUANTITY: "insufficient_quantity",
   MISSING_FINAL_CASH: "missing_final_cash",
+  OPTION_EXPIRY_NOT_OPTION: "option_expiry_not_option",
 };
 
 /** Localize domain reasons at display time; old and unknown reasons keep their message. */

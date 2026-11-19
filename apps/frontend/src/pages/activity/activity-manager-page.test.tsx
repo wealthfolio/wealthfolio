@@ -1,7 +1,7 @@
-import { act, render, waitFor } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import { QueryKeys } from "@/lib/query-keys";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "./components/forms/fields";
 import ActivityManagerPage from "./activity-manager-page";
@@ -89,6 +89,30 @@ function renderManager(
     </QueryClientProvider>,
   );
 }
+
+it.each(["ltr", "rtl"])(
+  "opens the account details route from a manual holdings account in %s",
+  async (direction) => {
+    mocks.getAccounts.mockResolvedValue([{ ...cryptoAccount, trackingMode: "HOLDINGS" }]);
+    render(
+      <div dir={direction}>
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <MemoryRouter initialEntries={["/activities/manage?account=acc-crypto"]}>
+            <Routes>
+              <Route path="/activities/manage" element={<ActivityManagerPage />} />
+              <Route path="/accounts/:id" element={<div>Account details destination</div>} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </div>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /go to account/i }));
+    expect(await screen.findByText("Account details destination")).toBeInTheDocument();
+  },
+);
 
 it("preselects the sole eligible account holding the asset, rather than a spending account", async () => {
   mocks.getAccounts.mockResolvedValue([spendingAccount, cryptoAccount]);

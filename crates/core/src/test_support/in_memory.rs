@@ -1985,7 +1985,11 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
             fx_rates: sources.fx.get_historical_exchange_rates()?,
             markers: self.pending_markers()?,
             issues: self.activity_issues(&ids)?,
-            last_valued: self.last_valued_days()?,
+            last_valued: self
+                .last_valued_days()?
+                .into_iter()
+                .filter(|(account, _)| requested.contains(account))
+                .collect(),
             base_currency,
             timezone,
         })

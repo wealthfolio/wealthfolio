@@ -269,6 +269,7 @@
     "select_type": "유형 선택",
     "exchange": "거래소",
     "select_exchange": "거래소 선택",
+    "no_exchange": "거래소 없음",
     "search_exchanges": "거래소 검색...",
     "contract_multiplier": "계약 승수",
     "contract_multiplier_hint": "계약 하나가 나타내는 기초자산 단위 수입니다. 비워 두면 표준값 {{default}}을(를) 사용합니다.",

@@ -68,7 +68,7 @@ export const exportDatabaseBackup = async (
   signal?: AbortSignal,
 ): Promise<boolean> => {
   if (signal?.aborted) return false;
-  const output = await tauriInvoke<PendingExport>("export_database_backup", {
+  const output = await invoke<PendingExport>("export_database_backup", {
     filename,
     password,
     unencrypted,

@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ResponsiveSelect } from "@wealthfolio/ui/components/ui/responsive-select";
+import { SearchableSelect } from "@wealthfolio/ui/components/common/searchable-select";
 import { DatePickerInput } from "@wealthfolio/ui/components/ui/date-picker-input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { SheetNavigation, SheetScreen } from "@wealthfolio/ui/components/ui/sheet-navigation";
@@ -104,6 +105,34 @@ describe("SheetNavigation", () => {
     );
     expect(screen.getByText("Form")).toBeInTheDocument();
     expect(document.querySelector('[data-slot="sheet-navigation-layer"]')).toBeNull();
+  });
+});
+
+describe("SearchableSelect in a phone form's sheet", () => {
+  it("finds and selects an option whose value is empty", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    render(
+      <SheetNavigation>
+        <SearchableSelect
+          aria-label="Exchange"
+          options={[
+            { value: "", label: "No exchange" },
+            { value: "XNAS", label: "Nasdaq (XNAS)" },
+          ]}
+          value="XNAS"
+          onValueChange={onValueChange}
+        />
+      </SheetNavigation>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Exchange" }));
+    await user.keyboard("no ex");
+    const none = screen.getByRole("option", { name: "No exchange" });
+    expect(none).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{Enter}");
+
+    expect(onValueChange).toHaveBeenCalledWith("");
   });
 });
 

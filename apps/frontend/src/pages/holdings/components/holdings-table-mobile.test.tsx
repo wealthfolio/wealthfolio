@@ -12,6 +12,13 @@ vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
 }));
 vi.mock("./holdings-mobile-filter-sheet", () => ({ HoldingsMobileFilterSheet: () => null }));
+vi.mock("./cash-holdings-sheet", () => ({
+  CashHoldingsSheet: ({ currency, onClose }: { currency: string; onClose: () => void }) => (
+    <div role="dialog" aria-label={`Cash (${currency})`}>
+      <button onClick={onClose}>Close cash</button>
+    </div>
+  ),
+}));
 
 const security = {
   id: "holding-1",
@@ -32,7 +39,7 @@ function Detail() {
   return <div role="status">{holding.id}</div>;
 }
 
-it("exposes a real holding link, preserves its context, and leaves cash non-interactive", () => {
+it("opens cash details and preserves security link navigation", () => {
   render(
     <MemoryRouter initialEntries={["/holdings"]}>
       <Routes>
@@ -61,6 +68,10 @@ it("exposes a real holding link, preserves its context, and leaves cash non-inte
   const link = screen.getByRole("link", { name: /TEST/ });
   expect(link).toHaveAttribute("href", "/holdings/asset%2Fwith%20space");
   expect(screen.getAllByRole("link")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+  expect(screen.getByRole("dialog", { name: "Cash (USD)" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Close cash" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   fireEvent.click(link);
   expect(screen.getByRole("status")).toHaveTextContent("holding-1");
 });
@@ -85,6 +96,33 @@ const cashHolding: Holding = {
 };
 
 describe("HoldingsTableMobile", () => {
+  it("does not reopen cash details when a removed balance returns", () => {
+    const view = (holdings: Holding[]) => (
+      <HoldingsTableMobile
+        holdings={holdings}
+        isLoading={false}
+        selectedTypes={[]}
+        setSelectedTypes={vi.fn()}
+        accountFilter={{ type: "all" }}
+        onAccountScopeChange={vi.fn()}
+        accounts={[]}
+        portfolios={[]}
+        showAccountScope={false}
+        showSearch={false}
+        showFilterButton={false}
+      />
+    );
+    const { rerender } = render(view([cashHolding]));
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    rerender(view([]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    rerender(view([cashHolding]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("keeps its controls available while holdings load", () => {
     render(
       <HoldingsTableMobile
