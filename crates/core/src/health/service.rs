@@ -2249,8 +2249,11 @@ struct BasisSourceIssue {
     asset_id: String,
     /// The acquiring activity to fix (transactions-tracked only).
     activity_id: Option<String>,
-    /// Date the incomplete basis is observed.
+    /// Date the incomplete basis is observed. For a holdings snapshot position,
+    /// the first holdings entry that lacks it.
     observed_date: NaiveDate,
+    /// The last holdings entry that lacks it, when more than one does.
+    last_observed_date: Option<NaiveDate>,
     reason: ValuationIssueReason,
 }
 
@@ -2304,6 +2307,11 @@ async fn valuation_basis_issues_from_snapshots<S: SnapshotHistoryView>(
 /// position with no cost basis. Transaction-tracked accounts are handled at the
 /// source by [`gather_incomplete_basis_trade_activities`], which points at the
 /// exact acquiring activity that lacks a price.
+///
+/// One issue per holding (account and asset), not one per holdings entry: a
+/// holding with no cost in fifty entries is one thing to fix, and the issue
+/// carries the first and last entry that lack it. An entry in the past still
+/// counts after later ones were given a cost.
 fn basis_source_issues_from_snapshots<S: SnapshotHistoryView>(
     snapshots_by_account: &HashMap<String, S>,
     account_name_map: &HashMap<String, String>,
@@ -2325,9 +2333,12 @@ fn basis_source_issues_from_snapshots<S: SnapshotHistoryView>(
             .get(account_id)
             .cloned()
             .unwrap_or_else(|| account_id.clone());
+        // Asset -> first and last holdings entry whose position lacks a cost.
+        let mut affected_entries: std::collections::BTreeMap<String, (NaiveDate, NaiveDate)> =
+            std::collections::BTreeMap::new();
         snapshots_by_account[account_id].for_each_source_snapshot(
             &mut |snapshot_date, snapshot| {
-                let mut positions: Vec<&Position> = snapshot
+                let positions: Vec<&Position> = snapshot
                     .positions
                     .values()
                     .filter(|position| !position.is_alternative && !position.quantity.is_zero())
@@ -2338,20 +2349,30 @@ fn basis_source_issues_from_snapshots<S: SnapshotHistoryView>(
                         )
                     })
                     .collect();
-                positions.sort_by(|a, b| a.asset_id.cmp(&b.asset_id));
 
                 for position in positions {
-                    raws.push(BasisSourceIssue {
-                        account_id: account_id.clone(),
-                        account_name: account_name.clone(),
-                        asset_id: position.asset_id.clone(),
-                        activity_id: None,
-                        observed_date: snapshot_date,
-                        reason: ValuationIssueReason::IncompleteBasisSnapshot,
-                    });
+                    affected_entries
+                        .entry(position.asset_id.clone())
+                        .and_modify(|(first, last)| {
+                            *first = (*first).min(snapshot_date);
+                            *last = (*last).max(snapshot_date);
+                        })
+                        .or_insert((snapshot_date, snapshot_date));
                 }
             },
         );
+
+        for (asset_id, (first, last)) in affected_entries {
+            raws.push(BasisSourceIssue {
+                account_id: account_id.clone(),
+                account_name: account_name.clone(),
+                asset_id,
+                activity_id: None,
+                observed_date: first,
+                last_observed_date: (last > first).then_some(last),
+                reason: ValuationIssueReason::IncompleteBasisSnapshot,
+            });
+        }
     }
 
     raws
@@ -2397,7 +2418,7 @@ fn basis_source_consistency_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
-        end_date: None,
+        end_date: raw.last_observed_date,
         engine_issue: None,
     }
 }
@@ -3512,7 +3533,58 @@ mod tests {
         assert_eq!(raws.len(), 1);
         assert_eq!(raws[0].asset_id, "asset_xyz");
         assert_eq!(raws[0].observed_date, first_date);
+        assert!(raws[0].last_observed_date.is_none());
         assert!(raws[0].activity_id.is_none());
+    }
+
+    #[test]
+    fn incomplete_basis_holdings_reports_each_holding_once_with_its_entry_range() {
+        let day = |d| NaiveDate::from_ymd_opt(2026, 6, d).unwrap();
+        // `asset_abc` lacks a cost in three holdings entries, `asset_xyz` in one.
+        let entry = |d, with_xyz: bool| {
+            let mut positions = HashMap::from([(
+                "asset_abc".to_string(),
+                position_with_basis_status("acc_hold", "asset_abc", false),
+            )]);
+            if with_xyz {
+                positions.insert(
+                    "asset_xyz".to_string(),
+                    position_with_basis_status("acc_hold", "asset_xyz", false),
+                );
+            }
+            snapshot_with_positions("acc_hold", day(d), positions)
+        };
+        let snapshots_by_account = HashMap::from([(
+            "acc_hold".to_string(),
+            vec![entry(1, false), entry(8, true), entry(15, false)],
+        )]);
+        let account_names = HashMap::from([("acc_hold".to_string(), "Manual".to_string())]);
+        let account_tracking = HashMap::from([("acc_hold".to_string(), TrackingMode::Holdings)]);
+
+        let raws = basis_source_issues_from_snapshots(
+            &snapshots_by_account,
+            &account_names,
+            &account_tracking,
+        );
+
+        assert_eq!(raws.len(), 2);
+        assert_eq!(raws[0].asset_id, "asset_abc");
+        assert_eq!(raws[0].observed_date, day(1));
+        assert_eq!(raws[0].last_observed_date, Some(day(15)));
+        assert_eq!(raws[1].asset_id, "asset_xyz");
+        assert_eq!(raws[1].observed_date, day(8));
+        assert_eq!(raws[1].last_observed_date, None);
+
+        // The range reaches the issue, and so its diagnostic; the record id
+        // keeps the first entry's date, so it stays put as entries are added.
+        let issues: Vec<_> = raws
+            .into_iter()
+            .map(|raw| basis_source_consistency_issue(raw, &HashMap::new()))
+            .collect();
+        assert_eq!(issues[0].record_id, "basis:acc_hold:asset_abc:2026-06-01");
+        assert_eq!(issues[0].activity_date, Some(day(1)));
+        assert_eq!(issues[0].end_date, Some(day(15)));
+        assert_eq!(issues[1].end_date, None);
     }
 
     #[test]
