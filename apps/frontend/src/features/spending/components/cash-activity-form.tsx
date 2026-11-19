@@ -561,9 +561,8 @@ export function CashActivityForm({
     if (!onTransferClick) return;
     const isValid = await form.trigger("accountId");
     if (!isValid || !watchAccountId) return;
-    // The host learns of the transfer first, so closing does not leave the screen.
-    onTransferClick(watchAccountId);
     onOpenChange(false);
+    onTransferClick(watchAccountId);
   };
 
   // Category and event match the account select. On phones each opens a screen
