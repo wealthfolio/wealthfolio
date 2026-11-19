@@ -1,5 +1,7 @@
 //! Rule-matching algorithm. Ported semantics from PR #494's category_rules matcher.
 
+use std::borrow::Cow;
+
 use regex::{Regex, RegexBuilder};
 use rust_decimal::Decimal;
 
@@ -10,14 +12,38 @@ pub struct RuleMatch<'r> {
     pub rule: &'r CategorizationRule,
 }
 
-/// A `CategorizationRule` with its pattern pre-normalized (uppercase for the
-/// non-regex variants, compiled `Regex` for the regex variant). Built once
-/// per rerun via [`compile_rules`] so the per-activity loop avoids
-/// re-normalizing strings and re-compiling regex on every comparison.
+/// A `CategorizationRule` with its pattern pre-normalized (uppercase and
+/// apostrophe-insensitive for the non-regex variants, compiled `Regex` for the
+/// regex variant). Built once per rerun via [`compile_rules`] so the
+/// per-activity loop avoids re-normalizing strings and re-compiling regex on
+/// every comparison.
 pub struct CompiledRule<'r> {
     pub rule: &'r CategorizationRule,
-    pattern_upper: String,
+    pattern_text: String,
     regex: Option<Regex>,
+}
+
+/// Straight, curly and backtick apostrophes. Banks send them inconsistently:
+/// a charge can be pending as "DOMINO S 9996" and post as "DOMINO'S 9996".
+const APOSTROPHES: [char; 4] = ['\'', '\u{2019}', '\u{2018}', '`'];
+
+/// Text as the non-regex match types compare it: an apostrophe reads as a
+/// space and a run of spaces as one space, so a rule written from the posted
+/// description also matches the pending one, and the other way round. All
+/// other punctuation stays literal. Borrows when there is nothing to change.
+fn loosen_apostrophes(text: &str) -> Cow<'_, str> {
+    if !text.contains(APOSTROPHES.as_slice()) && !text.contains("  ") {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        let c = if APOSTROPHES.contains(&c) { ' ' } else { c };
+        if c == ' ' && out.ends_with(' ') {
+            continue;
+        }
+        out.push(c);
+    }
+    Cow::Owned(out)
 }
 
 pub const MAX_REGEX_PATTERN_LEN: usize = 512;
@@ -48,9 +74,20 @@ pub fn compile_rules(rules: &[CategorizationRule]) -> Vec<CompiledRule<'_>> {
             } else {
                 None
             };
+            let pattern_upper = rule.pattern.to_uppercase();
+            let loosened = loosen_apostrophes(&pattern_upper);
+            // A pattern of nothing but apostrophes stays literal: loosened, it
+            // would be a bare space and match almost every description.
+            let only_apostrophes =
+                loosened.trim().is_empty() && pattern_upper.contains(APOSTROPHES.as_slice());
+            let pattern_text = if only_apostrophes {
+                pattern_upper
+            } else {
+                loosened.into_owned()
+            };
             CompiledRule {
                 rule,
-                pattern_upper: rule.pattern.to_uppercase(),
+                pattern_text,
                 regex,
             }
         })
@@ -61,6 +98,8 @@ pub fn compile_rules(rules: &[CategorizationRule]) -> Vec<CompiledRule<'_>> {
 /// over many activities should normalize each activity's notes to uppercase
 /// once and pass it as `notes_upper`; `notes_raw` is needed for regex
 /// matching (regex matches against the original casing, same as today).
+/// The non-regex match types ignore the difference between an apostrophe and
+/// a space (see `loosen_apostrophes`); regex patterns stay literal.
 /// `amount` must be the activity's unsigned amount (callers pass
 /// `activity.amount.map(|d| d.abs())`); an activity without an amount never
 /// matches a rule that has an amount condition.
@@ -73,6 +112,7 @@ pub fn match_compiled<'c, 'r: 'c>(
     amount: Option<Decimal>,
 ) -> Option<RuleMatch<'r>> {
     let mut best: Option<&CategorizationRule> = None;
+    let notes_text = loosen_apostrophes(notes_upper);
 
     for c in compiled {
         let rule = c.rule;
@@ -110,9 +150,9 @@ pub fn match_compiled<'c, 'r: 'c>(
         }
 
         let matched = match rule.match_type {
-            RuleMatchType::Contains => notes_upper.contains(&c.pattern_upper),
-            RuleMatchType::StartsWith => notes_upper.starts_with(&c.pattern_upper),
-            RuleMatchType::Exact => notes_upper == c.pattern_upper,
+            RuleMatchType::Contains => notes_text.contains(&c.pattern_text),
+            RuleMatchType::StartsWith => notes_text.starts_with(&c.pattern_text),
+            RuleMatchType::Exact => notes_text == c.pattern_text,
             RuleMatchType::Regex => c.regex.as_ref().is_some_and(|re| re.is_match(notes_raw)),
         };
 
@@ -287,6 +327,122 @@ mod tests {
             None,
         );
         assert!(m.is_none());
+    }
+
+    fn matches_notes(pattern: &str, mt: RuleMatchType, notes: &str) -> bool {
+        let rules = vec![rule("r", pattern, mt, 0)];
+        match_rules(&rules, notes, "WITHDRAWAL", "acct1", None).is_some()
+    }
+
+    #[test]
+    fn apostrophe_rule_matches_pending_charge_without_it() {
+        // Posted: "DOMINO'S 9996". Pending: the bank sends a space instead.
+        assert!(matches_notes(
+            "DOMINO'S",
+            RuleMatchType::Contains,
+            "DOMINO'S 9996"
+        ));
+        assert!(matches_notes(
+            "DOMINO'S",
+            RuleMatchType::Contains,
+            "DOMINO S 9996"
+        ));
+        assert!(matches_notes(
+            "DOMINO'S",
+            RuleMatchType::Contains,
+            "Domino\u{2019}s 9996"
+        ));
+    }
+
+    #[test]
+    fn rule_written_without_apostrophe_matches_posted_charge() {
+        assert!(matches_notes(
+            "DOMINO S",
+            RuleMatchType::Contains,
+            "DOMINO'S 9996"
+        ));
+    }
+
+    #[test]
+    fn apostrophe_next_to_a_space_does_not_leave_a_double_space() {
+        assert!(matches_notes(
+            "O' REILLY AUTO",
+            RuleMatchType::Contains,
+            "O REILLY AUTO 123"
+        ));
+        assert!(matches_notes(
+            "O REILLY AUTO",
+            RuleMatchType::Contains,
+            "O' REILLY  AUTO 123"
+        ));
+    }
+
+    #[test]
+    fn starts_with_and_exact_ignore_apostrophes_too() {
+        assert!(matches_notes(
+            "WENDY'S",
+            RuleMatchType::StartsWith,
+            "WENDY S 1234"
+        ));
+        assert!(!matches_notes(
+            "WENDY'S",
+            RuleMatchType::StartsWith,
+            "TST* WENDY S"
+        ));
+        assert!(matches_notes("WENDY'S", RuleMatchType::Exact, "WENDY S"));
+        assert!(!matches_notes(
+            "WENDY'S",
+            RuleMatchType::Exact,
+            "WENDY S 1234"
+        ));
+    }
+
+    #[test]
+    fn other_punctuation_stays_literal() {
+        assert!(!matches_notes(
+            "AT&T",
+            RuleMatchType::Contains,
+            "AT T WIRELESS"
+        ));
+        assert!(!matches_notes(
+            "AMAZON.COM",
+            RuleMatchType::Contains,
+            "AMAZON COM"
+        ));
+    }
+
+    #[test]
+    fn regex_rules_keep_apostrophes_literal() {
+        assert!(matches_notes(
+            "DOMINO'S",
+            RuleMatchType::Regex,
+            "DOMINO'S 9996"
+        ));
+        assert!(!matches_notes(
+            "DOMINO'S",
+            RuleMatchType::Regex,
+            "DOMINO S 9996"
+        ));
+    }
+
+    #[test]
+    fn apostrophe_only_pattern_does_not_match_every_description() {
+        assert!(!matches_notes(
+            "'",
+            RuleMatchType::Contains,
+            "COFFEE SHOP 12"
+        ));
+        assert!(!matches_notes(
+            "''",
+            RuleMatchType::Contains,
+            "DOMINO'S 9996"
+        ));
+    }
+
+    #[test]
+    fn empty_pattern_still_matches_everything() {
+        // Amount-only rules rely on this.
+        assert!(matches_notes("", RuleMatchType::Contains, "ANY TEXT"));
     }
 
     fn matches_amount(r: &CategorizationRule, amount: Option<Decimal>) -> bool {
