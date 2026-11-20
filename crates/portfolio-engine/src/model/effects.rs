@@ -103,6 +103,11 @@ pub struct PricedFlow {
     /// other flows.
     #[serde(default, with = "crate::model::decimal_serde")]
     pub units: Decimal,
+    /// What a transfer with an unknown boundary moved, in the event's
+    /// currency. It is shown to the person and never counted: `amount` stays
+    /// zero for such a flow.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub unclassified: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

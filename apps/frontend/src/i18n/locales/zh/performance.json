@@ -88,6 +88,22 @@
       "coverage": "部分持仓在此期间开始或结束时没有价格。",
       "not_enough_history": "此期间的历史数据不足。",
       "mixed_coverage": "此投资组合中部分账户没有可汇总的收益或投入金额。"
+    },
+    "amounts": {
+      "start_value": "期初价值",
+      "money_in": "投入资金",
+      "money_out": "取出资金",
+      "capital": "投入本金",
+      "gain": "收益",
+      "end_value": "期末价值",
+      "unknown": "未知",
+      "estimated": "投入和取出的资金为估算值，并非记录值。",
+      "by_tracking": "按账户跟踪方式",
+      "part_transactions": "交易",
+      "part_holdings": "持仓"
+    },
+    "unclassified_transfers": {
+      "intro": "此期间内既未与其他账户匹配、也未标记为外部的转账："
     }
   },
   "metric": {

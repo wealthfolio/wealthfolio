@@ -6,7 +6,8 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use super::scalar::Currency;
+use super::canonical::TrackingMode;
+use super::scalar::{AccountId, ActivityId, Currency};
 use super::valuation::BasisStatus;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -118,6 +119,87 @@ impl Attribution {
             - self.fees
             - self.taxes
     }
+}
+
+/// How the money in and out of a period is known.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum FlowKnowledge {
+    /// Recorded transactions.
+    #[default]
+    Confirmed,
+    /// Estimated: read from the change between two holdings snapshots, or
+    /// from a fallback when a transaction's amount was not recorded.
+    Inferred,
+    /// A flow in the period has no known amount or boundary.
+    Missing,
+}
+
+impl FlowKnowledge {
+    /// The weaker of two: one missing or inferred part marks the total.
+    pub(crate) fn combine(self, other: Self) -> Self {
+        use FlowKnowledge::*;
+        match (self, other) {
+            (Missing, _) | (_, Missing) => Missing,
+            (Inferred, _) | (_, Inferred) => Inferred,
+            _ => Confirmed,
+        }
+    }
+}
+
+/// The amounts a period's return is built from, in base currency, so a host
+/// can show what stands behind the percentage. An amount that does not apply
+/// to the scope, or cannot be known, is absent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Amounts {
+    /// Value at the opening close; zero when the period opens at inception.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub start_value: Option<Decimal>,
+    /// Money put in: deposits and transfers in; in an account that does not
+    /// track cash, purchases.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub money_in: Option<Decimal>,
+    /// Money taken out.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub money_out: Option<Decimal>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub gain: Option<Decimal>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub end_value: Option<Decimal>,
+    /// The capital an ROI divides the gain by: book cost for a holdings
+    /// account over its full history, the summed capital of a mixed scope.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub capital: Option<Decimal>,
+    pub flows: FlowKnowledge,
+    /// A mixed scope's two halves: its accounts tracked by transactions and
+    /// those tracked by holdings.
+    #[serde(default)]
+    pub parts: Vec<AmountsPart>,
+}
+
+/// The gain and capital of the accounts of one tracking mode in a mixed
+/// scope.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AmountsPart {
+    pub tracking: TrackingMode,
+    #[serde(with = "crate::model::decimal_serde")]
+    pub gain: Decimal,
+    #[serde(with = "crate::model::decimal_serde")]
+    pub capital: Decimal,
+}
+
+/// A transfer in the period that is neither matched to another account nor
+/// marked external: the reason a return is withheld.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnclassifiedTransfer {
+    pub activity: ActivityId,
+    pub account: AccountId,
+    pub date: NaiveDate,
+    /// In `currency`, unsigned; absent for a transfer of securities.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub amount: Option<Decimal>,
+    pub currency: Currency,
+    pub outflow: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -434,6 +516,13 @@ pub struct PerformanceResult {
     pub summary: Summary,
     pub is_holdings_mode: bool,
     pub is_mixed_tracking_mode: bool,
+    /// What the returns are built from.
+    #[serde(default)]
+    pub amounts: Amounts,
+    /// Transfers in the period whose boundary is unknown; any one withholds
+    /// the time- and money-weighted returns.
+    #[serde(default)]
+    pub unclassified_transfers: Vec<UnclassifiedTransfer>,
     /// Dated holdings scope with an unpriceable transition: the summary
     /// amount and every return stay unavailable through every refresh. Internal
     /// to `measure`; not part of the result a host reads.

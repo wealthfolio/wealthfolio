@@ -89,6 +89,22 @@
       "coverage": "Algumas posições não têm preço no início ou no fim deste período.",
       "not_enough_history": "Histórico insuficiente neste período.",
       "mixed_coverage": "Algumas contas desta carteira não têm ganho ou valor investido a somar."
+    },
+    "amounts": {
+      "start_value": "Valor inicial",
+      "money_in": "Dinheiro aportado",
+      "money_out": "Dinheiro retirado",
+      "capital": "Capital investido",
+      "gain": "Ganho",
+      "end_value": "Valor final",
+      "unknown": "Desconhecido",
+      "estimated": "O dinheiro aportado e retirado é estimado, não registrado.",
+      "by_tracking": "Contas acompanhadas por",
+      "part_transactions": "Transações",
+      "part_holdings": "Posições"
+    },
+    "unclassified_transfers": {
+      "intro": "Transferências neste período que não estão vinculadas a outra conta nem marcadas como externas:"
     }
   },
   "metric": {

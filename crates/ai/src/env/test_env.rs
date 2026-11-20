@@ -1661,6 +1661,8 @@ fn mock_performance_result(id: &str) -> PerformanceResult {
         summary: PerformanceSummary::default(),
         is_holdings_mode: false,
         is_mixed_tracking_mode: false,
+        amounts: Default::default(),
+        unclassified_transfers: Vec::new(),
     }
 }
 

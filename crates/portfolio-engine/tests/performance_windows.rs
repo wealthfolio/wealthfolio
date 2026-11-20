@@ -8,7 +8,8 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use support::*;
 use wealthfolio_portfolio_engine::model::{
-    AccountId, PerformanceResult, QualityNote, SummaryStatus, ValueStatus,
+    AccountId, ActivityId, Amounts, AmountsPart, Currency, FlowKnowledge, PerformanceResult,
+    QualityNote, SummaryStatus, TrackingMode, UnclassifiedTransfer, ValueStatus,
 };
 use wealthfolio_portfolio_engine::{
     measure_account, measure_scope, scope_cash_flows, MeasureProfile, Window,
@@ -443,4 +444,184 @@ quotes:
     assert_eq!(later.opening_date, day("2026-02-15"));
     assert_eq!(later.opening_capital, dec!(1095.45));
     assert_eq!(later.flows, all.flows);
+}
+
+const MIXED: &str = r#"
+id: PERFORMANCE-AMOUNTS-MIXED
+policy: { base_currency: USD, timezone: UTC, as_of: 2026-10-30 }
+accounts:
+  - { id: acc, currency: USD }
+  - { id: holdings, currency: USD, tracking_mode: HOLDINGS }
+assets:
+  - { id: vt, quote_ccy: USD }
+  - { id: held, quote_ccy: USD }
+activities:
+  - { id: dep, account: acc, type: DEPOSIT, date: 2026-01-30T07:00:00Z, amount: 1000 }
+  - { id: buy, account: acc, type: BUY, date: 2026-01-30T08:00:00Z, asset: vt, quantity: 1, unit_price: 50, amount: 50 }
+quotes:
+  - { asset: vt, day: 2026-01-30, close: 145.45 }
+  - { asset: vt, day: 2026-10-30, close: 157.97 }
+  - { asset: held, day: 2026-01-01, close: 200 }
+  - { asset: held, day: 2026-10-30, close: 220 }
+observed_snapshots:
+  - { account: holdings, date: 2026-01-01, positions: [{ asset: held, quantity: 1, average_cost: 100 }], cash: {} }
+"#;
+
+#[test]
+fn the_amounts_behind_a_return_add_up_for_each_kind_of_scope() {
+    let p = pipeline(MIXED);
+    // A transactions account from inception: it opens empty, and the deposit
+    // is the money in.
+    assert_eq!(
+        account(&p, "acc", window(None)).amounts,
+        Amounts {
+            start_value: Some(dec!(0)),
+            money_in: Some(dec!(1000)),
+            money_out: Some(dec!(0)),
+            gain: Some(dec!(107.97)),
+            end_value: Some(dec!(1107.97)),
+            capital: None,
+            flows: FlowKnowledge::Confirmed,
+            parts: vec![],
+        }
+    );
+    // A later window opens on what the account held: 950 cash and one share.
+    assert_eq!(
+        account(&p, "acc", window(Some("2026-02-01"))).amounts,
+        Amounts {
+            start_value: Some(dec!(1095.45)),
+            money_in: Some(dec!(0)),
+            money_out: Some(dec!(0)),
+            gain: Some(dec!(12.52)),
+            end_value: Some(dec!(1107.97)),
+            capital: None,
+            flows: FlowKnowledge::Confirmed,
+            parts: vec![],
+        }
+    );
+    // A holdings account over its full history: gain on what the position
+    // cost, with no opening value and no dated flows.
+    assert_eq!(
+        account(&p, "holdings", window(None)).amounts,
+        Amounts {
+            gain: Some(dec!(120)),
+            end_value: Some(dec!(220)),
+            capital: Some(dec!(100)),
+            flows: FlowKnowledge::Inferred,
+            ..Amounts::default()
+        }
+    );
+    // Over a window its flows are read from the snapshots: inferred.
+    assert_eq!(
+        account(&p, "holdings", window(Some("2026-02-01"))).amounts,
+        Amounts {
+            start_value: Some(dec!(200)),
+            money_in: Some(dec!(0)),
+            money_out: Some(dec!(0)),
+            gain: Some(dec!(20)),
+            end_value: Some(dec!(220)),
+            capital: None,
+            flows: FlowKnowledge::Inferred,
+            parts: vec![],
+        }
+    );
+}
+
+#[test]
+fn a_mixed_scope_shows_the_gain_and_capital_of_its_two_halves() {
+    let p = pipeline(MIXED);
+    let part = |tracking, gain, capital| AmountsPart {
+        tracking,
+        gain,
+        capital,
+    };
+    let within = scope(&p, &["acc", "holdings"], window(Some("2026-02-01")));
+    assert_eq!(
+        within.amounts,
+        Amounts {
+            start_value: Some(dec!(1295.45)),
+            money_in: Some(dec!(0)),
+            money_out: Some(dec!(0)),
+            gain: Some(dec!(32.52)),
+            end_value: Some(dec!(1327.97)),
+            capital: Some(dec!(1295.45)),
+            flows: FlowKnowledge::Inferred,
+            parts: vec![
+                part(TrackingMode::Transactions, dec!(12.52), dec!(1095.45)),
+                part(TrackingMode::Holdings, dec!(20), dec!(200)),
+            ],
+        }
+    );
+    // The ROI is the two halves added up.
+    assert_eq!(
+        within.returns.return_on_cost.period,
+        Some((dec!(32.52) / dec!(1295.45)).round_dp(8))
+    );
+    // Over the full history the holdings half has no opening value or flows,
+    // so the scope has none either: gain and capital only.
+    let all = scope(&p, &["acc", "holdings"], window(None));
+    assert_eq!(
+        all.amounts,
+        Amounts {
+            gain: Some(dec!(227.97)),
+            end_value: Some(dec!(1327.97)),
+            capital: Some(dec!(1100)),
+            flows: FlowKnowledge::Inferred,
+            parts: vec![
+                part(TrackingMode::Transactions, dec!(107.97), dec!(1000)),
+                part(TrackingMode::Holdings, dec!(120), dec!(100)),
+            ],
+            ..Amounts::default()
+        }
+    );
+}
+
+#[test]
+fn a_transfer_with_no_known_boundary_is_named_where_it_withholds_a_return() {
+    let p = pipeline(
+        r#"
+id: PERFORMANCE-UNCLASSIFIED-TRANSFER
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-08 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 1000 }
+  - { id: tin-a, account: acc-a, type: TRANSFER_IN, date: 2025-01-04T10:00:00Z, amount: 200 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 1000 }
+"#,
+    );
+    let window = |start: Option<&str>| Window {
+        start: start.map(|date| date.parse().unwrap()),
+        end: Some("2025-01-08".parse().unwrap()),
+    };
+    let transfer = UnclassifiedTransfer {
+        activity: ActivityId::new("tin-a"),
+        account: AccountId::new("acc-a"),
+        date: "2025-01-04".parse().unwrap(),
+        amount: Some(dec!(200)),
+        currency: Currency::parse("USD").unwrap(),
+        outflow: false,
+    };
+    for (result, end_value) in [
+        (account(&p, "acc-a", window(None)), dec!(1200)),
+        (scope(&p, &["acc-a", "acc-b"], window(None)), dec!(2200)),
+    ] {
+        assert_eq!(result.unclassified_transfers, vec![transfer.clone()]);
+        assert_eq!(result.returns.twr.period, None);
+        assert_eq!(result.returns.money_weighted.period, None);
+        // The money in cannot be totalled, so neither can the gain.
+        assert_eq!(result.amounts.flows, FlowKnowledge::Missing);
+        assert_eq!(result.amounts.money_in, None);
+        assert_eq!(result.amounts.gain, None);
+        assert_eq!(result.amounts.end_value, Some(end_value));
+    }
+    // The other account is untouched, and so is a window that opens after it.
+    assert!(account(&p, "acc-b", window(None))
+        .unclassified_transfers
+        .is_empty());
+    let after = account(&p, "acc-a", window(Some("2025-01-04")));
+    assert!(after.unclassified_transfers.is_empty());
+    assert_eq!(after.returns.twr.period, Some(dec!(0)));
+    assert_eq!(after.amounts.flows, FlowKnowledge::Confirmed);
 }

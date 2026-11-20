@@ -88,6 +88,22 @@
       "coverage": "部分持倉在此期間開始或結束時沒有價格。",
       "not_enough_history": "此期間的歷史資料不足。",
       "mixed_coverage": "此投資組合中部分帳戶沒有可加總的收益或投入金額。"
+    },
+    "amounts": {
+      "start_value": "期初價值",
+      "money_in": "投入資金",
+      "money_out": "提領資金",
+      "capital": "投入本金",
+      "gain": "收益",
+      "end_value": "期末價值",
+      "unknown": "不明",
+      "estimated": "投入與提領的資金為估算值，並非記錄值。",
+      "by_tracking": "依帳戶追蹤方式",
+      "part_transactions": "交易",
+      "part_holdings": "持倉"
+    },
+    "unclassified_transfers": {
+      "intro": "此期間內既未與其他帳戶配對、也未標記為外部的轉帳："
     }
   },
   "metric": {

@@ -1453,6 +1453,52 @@ export interface PerformanceResult {
   summary?: PerformanceSummary;
   isHoldingsMode?: boolean;
   isMixedTrackingMode?: boolean;
+  /** What the returns are built from. */
+  amounts?: PerformanceAmounts;
+  /** Transfers in the period that withhold the time- and money-weighted returns. */
+  unclassifiedTransfers?: PerformanceUnclassifiedTransfer[];
+}
+
+/** How the money in and out of a period is known. */
+export type PerformanceFlowKnowledge = "confirmed" | "inferred" | "missing";
+
+/** The gain and capital of the accounts of one tracking mode in a mixed scope. */
+export interface PerformanceAmountsPart {
+  tracking: "TRANSACTIONS" | "HOLDINGS";
+  gain: number;
+  capital: number;
+}
+
+/**
+ * The amounts a period's return is built from, in the scope's currency. An
+ * amount that does not apply to the scope, or cannot be known, is missing.
+ */
+export interface PerformanceAmounts {
+  startValue?: number | null;
+  /** Deposits and transfers in; purchases in an account that does not track cash. */
+  moneyIn?: number | null;
+  moneyOut?: number | null;
+  gain?: number | null;
+  endValue?: number | null;
+  /** What an ROI divides the gain by: book cost, or a mixed scope's capital. */
+  capital?: number | null;
+  flows: PerformanceFlowKnowledge;
+  /** A mixed scope's transactions accounts and its holdings accounts. */
+  parts?: PerformanceAmountsPart[];
+}
+
+/**
+ * A transfer that is neither matched to another account nor marked external;
+ * it withholds the time- and money-weighted returns of its period.
+ */
+export interface PerformanceUnclassifiedTransfer {
+  activityId: string;
+  accountId: string;
+  date: string;
+  /** Unsigned, in `currency`; missing for a transfer of securities. */
+  amount?: number | null;
+  currency: string;
+  outflow: boolean;
 }
 
 export type PerformanceSummaryProfile = "full" | "summary" | "dashboard";

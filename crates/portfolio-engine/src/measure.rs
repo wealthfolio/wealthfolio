@@ -300,6 +300,8 @@ pub fn measure_account(
         inputs.base(),
     );
     result.scope = account.as_str().to_string();
+    result.unclassified_transfers =
+        unclassified_transfers(inputs, std::slice::from_ref(account), &result);
     if profile == MeasureProfile::Dashboard {
         apply_dashboard_amount(&mut result, &history, holdings, baseline);
         return Ok(result);
@@ -356,6 +358,7 @@ pub fn measure_scope(
     if has_holdings && has_transactions {
         let mut result = mixed_scope_performance(inputs, scope, window, profile, include_series);
         result.scope = scope_id.to_string();
+        result.unclassified_transfers = unclassified_transfers(inputs, scope, &result);
         return Ok(result);
     }
 
@@ -399,6 +402,7 @@ pub fn measure_scope(
         base,
     );
     result.scope = scope_id.to_string();
+    result.unclassified_transfers = unclassified_transfers(inputs, scope, &result);
     if profile == MeasureProfile::Dashboard {
         apply_dashboard_amount(&mut result, &history, has_holdings, baseline);
         return Ok(result);
@@ -759,6 +763,14 @@ fn performance_core(
         false,
     );
     result.coverage_unavailable = coverage_unavailable;
+    result.amounts = period_amounts(
+        start_point,
+        end_point,
+        &flows,
+        holdings,
+        start_opt.is_none(),
+        baseline,
+    );
     if holdings {
         result.basis_status = end_point.basis_status;
         result.holdings_flows_unavailable = holdings_flows_unavailable;
@@ -1679,6 +1691,108 @@ fn holdings_return(
     (Some(change), value_return)
 }
 
+/// The amounts behind a period's return, from the same rows and flows the
+/// percentages use: what the scope opened with, what went in and out, what
+/// it closed with, and the gain left once the flows are taken out.
+fn period_amounts(
+    start: &DailyValuation,
+    end: &DailyValuation,
+    flows: &[PeriodFlow],
+    holdings: bool,
+    is_all_time: bool,
+    baseline: Baseline,
+) -> Amounts {
+    let valued = |day: &DailyValuation| !day.value_status.is_unavailable_for_returns();
+    let stored = |value: Decimal| value.round_dp(STORED_PRECISION);
+    let end_value = valued(end).then_some(end.total_value_base);
+    // Over its full history a holdings account has no opening value and no
+    // dated flows: its gain is measured on what its positions cost.
+    if holdings && is_all_time {
+        let capital = Some(end.book_basis_base)
+            .filter(|book| *book > Decimal::ZERO && holdings_basis_is_complete(end));
+        return Amounts {
+            gain: end_value
+                .zip(capital)
+                .map(|(value, book)| stored(value - book)),
+            end_value: end_value.map(stored),
+            capital: capital.map(stored),
+            flows: FlowKnowledge::Inferred,
+            ..Amounts::default()
+        };
+    }
+    let opens_at_inception = Opening::for_baseline(holdings, baseline) == Opening::Contribution;
+    let start_value = if opens_at_inception {
+        Some(Decimal::ZERO)
+    } else {
+        valued(start).then_some(start.total_value_base)
+    };
+    let knowledge = if flows.iter().any(|f| f.source.is_unavailable_for_returns()) {
+        FlowKnowledge::Missing
+    } else if holdings || flows.iter().any(|f| f.source.is_degraded()) {
+        FlowKnowledge::Inferred
+    } else {
+        FlowKnowledge::Confirmed
+    };
+    let (money_in, money_out) = if knowledge == FlowKnowledge::Missing {
+        (None, None)
+    } else if holdings {
+        let (money_in, money_out) = total_flows(flows);
+        (Some(money_in), Some(money_out))
+    } else {
+        let (money_in, money_out) = flows_for_attribution(flows, start, baseline);
+        (Some(money_in), Some(money_out))
+    };
+    let gain = match (start_value, money_in, money_out, end_value) {
+        (Some(start), Some(money_in), Some(money_out), Some(end)) => {
+            Some(end - start - money_in + money_out)
+        }
+        _ => None,
+    };
+    Amounts {
+        start_value: start_value.map(stored),
+        money_in: money_in.map(stored),
+        money_out: money_out.map(stored),
+        gain: gain.map(stored),
+        end_value: end_value.map(stored),
+        capital: None,
+        flows: knowledge,
+        parts: Vec::new(),
+    }
+}
+
+/// The transfers of `scope` inside the measured period that are neither
+/// matched nor marked external, oldest first. The first row of a period only
+/// opens it, so a transfer on that day is outside.
+fn unclassified_transfers(
+    inputs: &MeasureInputs<'_>,
+    scope: &[AccountId],
+    result: &PerformanceResult,
+) -> Vec<UnclassifiedTransfer> {
+    let (Some(start), Some(end)) = (result.period_start, result.period_end) else {
+        return Vec::new();
+    };
+    let mut transfers: Vec<UnclassifiedTransfer> = inputs
+        .effects
+        .events
+        .iter()
+        .filter(|event| event.date > start && event.date <= end && scope.contains(&event.account))
+        .filter_map(|event| {
+            let flow = event.flow.as_ref()?;
+            (flow.source == FlowSource::UnknownBoundaryTransfer).then(|| UnclassifiedTransfer {
+                activity: event.source.clone(),
+                account: event.account.clone(),
+                date: event.date,
+                amount: flow.unclassified,
+                currency: event.currency.clone(),
+                outflow: flow.leg_outflow,
+            })
+        })
+        .collect();
+    transfers.sort_by(|a, b| (a.date, &a.activity).cmp(&(b.date, &b.activity)));
+    transfers.dedup_by(|a, b| a.activity == b.activity);
+    transfers
+}
+
 fn has_estimated_holdings_flows(flows: &[PeriodFlow]) -> bool {
     flows
         .iter()
@@ -1757,6 +1871,8 @@ fn build_result(
         },
         is_holdings_mode,
         is_mixed_tracking_mode,
+        amounts: Amounts::default(),
+        unclassified_transfers: Vec::new(),
         holdings_flows_unavailable: false,
         coverage_unavailable: false,
     };
@@ -2756,6 +2872,8 @@ struct ComponentMetrics {
     /// book cost, over book cost).
     gain: Option<Decimal>,
     capital: Option<Decimal>,
+    holdings: bool,
+    amounts: Amounts,
     contributes_to_scope: bool,
     basis_status: BasisStatus,
     attribution: Attribution,
@@ -2939,18 +3057,20 @@ fn mixed_scope_performance(
             )
         };
 
+        let holdings = component.tracking == TrackingMode::Holdings;
+        let flows = period_flows(history);
+        let baseline = inputs.attribution_baseline(
+            holdings,
+            window.start,
+            std::slice::from_ref(&component.account),
+        );
         let (gain, capital) = if amount.is_some() {
-            let holdings = component.tracking == TrackingMode::Holdings;
             component_gain_and_capital(
                 history,
-                &period_flows(history),
+                &flows,
                 component.tracking,
                 is_all_time,
-                inputs.attribution_baseline(
-                    holdings,
-                    window.start,
-                    std::slice::from_ref(&component.account),
-                ),
+                baseline,
                 amount,
             )
         } else {
@@ -2963,6 +3083,15 @@ fn mixed_scope_performance(
             amount,
             gain,
             capital,
+            holdings,
+            amounts: period_amounts(
+                start_point,
+                end_point,
+                &flows,
+                holdings,
+                is_all_time,
+                baseline,
+            ),
             contributes_to_scope,
             basis_status,
             attribution,
@@ -3001,6 +3130,16 @@ fn build_mixed_result(
         QualityNote::MixedMoneyWeightedNotApplicable,
     ];
     let mut coverage_complete = true;
+    // Gain and capital of the transactions accounts, then of the holdings
+    // accounts; the amounts of the accounts the ROI is measured on.
+    let mut parts = [(Decimal::ZERO, Decimal::ZERO); 2];
+    let mut amounts = Amounts {
+        start_value: Some(Decimal::ZERO),
+        money_in: Some(Decimal::ZERO),
+        money_out: Some(Decimal::ZERO),
+        end_value: Some(Decimal::ZERO),
+        ..Amounts::default()
+    };
 
     if metrics.is_empty() {
         reasons.push(QualityNote::TwoValuationPointsRequired);
@@ -3037,6 +3176,10 @@ fn build_mixed_result(
             (Some(value), Some(component_gain)) => {
                 capital += value;
                 gain += component_gain;
+                let part = &mut parts[usize::from(component.holdings)];
+                part.0 += component_gain;
+                part.1 += value;
+                add_amounts(&mut amounts, &component.amounts);
             }
             _ if component.amount.is_none() && component.contributes_to_scope => {
                 coverage_complete = false;
@@ -3114,6 +3257,22 @@ fn build_mixed_result(
         false,
         true,
     );
+    // The amounts stand behind the ROI: without it there is nothing to show.
+    if value_return.is_some() {
+        let stored = |value: Decimal| value.round_dp(STORED_PRECISION);
+        amounts.gain = Some(stored(gain));
+        amounts.capital = Some(stored(capital));
+        amounts.parts = [TrackingMode::Transactions, TrackingMode::Holdings]
+            .into_iter()
+            .zip(parts)
+            .map(|(tracking, (gain, capital))| AmountsPart {
+                tracking,
+                gain: stored(gain),
+                capital: stored(capital),
+            })
+            .collect();
+        result.amounts = amounts;
+    }
     result.basis_status = metrics
         .iter()
         .map(|m| m.basis_status)
@@ -3126,6 +3285,19 @@ fn build_mixed_result(
     };
     refresh_summary(&mut result);
     result
+}
+
+/// Adds one account's amounts to a scope's: an amount one account lacks is
+/// lacking for the scope, and the weakest knowledge of the flows marks it.
+fn add_amounts(total: &mut Amounts, part: &Amounts) {
+    let add = |total: &mut Option<Decimal>, part: Option<Decimal>| {
+        *total = total.zip(part).map(|(total, part)| total + part);
+    };
+    add(&mut total.start_value, part.start_value);
+    add(&mut total.money_in, part.money_in);
+    add(&mut total.money_out, part.money_out);
+    add(&mut total.end_value, part.end_value);
+    total.flows = total.flows.combine(part.flows);
 }
 
 fn add_attribution(target: &mut Attribution, source: &Attribution) {

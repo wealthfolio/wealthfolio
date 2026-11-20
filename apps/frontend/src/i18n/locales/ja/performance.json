@@ -88,6 +88,22 @@
       "coverage": "この期間の開始時または終了時に価格のない保有銘柄があります。",
       "not_enough_history": "この期間の履歴が不足しています。",
       "mixed_coverage": "このポートフォリオには、合算できる利益や投資額のない口座があります。"
+    },
+    "amounts": {
+      "start_value": "開始時の評価額",
+      "money_in": "入金額",
+      "money_out": "出金額",
+      "capital": "投資元本",
+      "gain": "利益",
+      "end_value": "終了時の評価額",
+      "unknown": "不明",
+      "estimated": "入金額と出金額は記録ではなく推定値です。",
+      "by_tracking": "口座の管理方法別",
+      "part_transactions": "取引",
+      "part_holdings": "保有銘柄"
+    },
+    "unclassified_transfers": {
+      "intro": "この期間の振替のうち、他の口座と対応付けられておらず、外部とも指定されていないもの:"
     }
   },
   "metric": {

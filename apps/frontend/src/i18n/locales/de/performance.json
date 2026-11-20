@@ -88,6 +88,22 @@
       "coverage": "Für einige Positionen fehlt am Anfang oder Ende dieses Zeitraums ein Kurs.",
       "not_enough_history": "Nicht genug Historie in diesem Zeitraum.",
       "mixed_coverage": "Einige Konten in diesem Portfolio haben keinen Gewinn oder investierten Betrag zum Zusammenrechnen."
+    },
+    "amounts": {
+      "start_value": "Anfangswert",
+      "money_in": "Zuflüsse",
+      "money_out": "Abflüsse",
+      "capital": "Investiertes Kapital",
+      "gain": "Gewinn",
+      "end_value": "Endwert",
+      "unknown": "Unbekannt",
+      "estimated": "Zu- und Abflüsse sind geschätzt, nicht erfasst.",
+      "by_tracking": "Konten nach Erfassung",
+      "part_transactions": "Transaktionen",
+      "part_holdings": "Bestände"
+    },
+    "unclassified_transfers": {
+      "intro": "Überweisungen in diesem Zeitraum, die weder einem anderen Konto zugeordnet noch als extern markiert sind:"
     }
   },
   "metric": {

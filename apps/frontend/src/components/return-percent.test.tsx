@@ -1,6 +1,7 @@
 import type { PerformanceResult, Settings } from "@/lib/types";
 import { render, screen, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReturnPercent } from "./return-percent";
 
@@ -16,7 +17,21 @@ vi.mock("@/lib/settings-provider", () => ({
   }),
 }));
 
-function result(returns: PerformanceResult["returns"]): PerformanceResult {
+vi.mock("@/hooks/use-accounts", () => ({
+  useAccounts: () => ({ accounts: [{ id: "acc-1", name: "Brokerage" }] }),
+}));
+
+function result(
+  returns: PerformanceResult["returns"],
+  extra: Partial<PerformanceResult> = {},
+): PerformanceResult {
+  return {
+    ...base(returns),
+    ...extra,
+  };
+}
+
+function base(returns: PerformanceResult["returns"]): PerformanceResult {
   return {
     scope: { id: "scope", currency: "USD" },
     period: { startDate: "2026-01-01", endDate: "2026-06-30" },
@@ -161,6 +176,154 @@ describe("ReturnPercent", () => {
         "Time-weighted isn't available here. Not available for portfolios that mix accounts tracked by holdings and by transactions.",
       ),
     ).toBeVisible();
+  });
+
+  it("shows the dates the figure covers and the amounts it is built from", async () => {
+    render(
+      <ReturnPercent
+        result={result(bothMethods.returns, {
+          amounts: {
+            startValue: 10000,
+            moneyIn: 2000,
+            moneyOut: 500,
+            gain: 600,
+            endValue: 12100,
+            flows: "confirmed",
+          },
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Time-weighted / }));
+    const popover = await screen.findByRole("dialog");
+
+    expect(within(popover).getByText("From Jan 1, 2026 to Jun 30, 2026")).toBeVisible();
+    const row = (label: string) => within(popover).getByText(label).parentElement;
+    expect(row("Start value")).toHaveTextContent("$10,000.00");
+    expect(row("Money in")).toHaveTextContent("$2,000.00");
+    expect(row("Money out")).toHaveTextContent("$500.00");
+    expect(row("Gain")).toHaveTextContent("+$600.00");
+    expect(row("End value")).toHaveTextContent("$12,100.00");
+    // Recorded flows need no caveat, and a single account has no capital row.
+    expect(within(popover).queryByText(/estimated/)).toBeNull();
+    expect(within(popover).queryByText("Capital invested")).toBeNull();
+  });
+
+  it("says when the money in and out are estimated", async () => {
+    render(
+      <ReturnPercent
+        result={result(bothMethods.returns, {
+          amounts: {
+            startValue: 200,
+            moneyIn: 50,
+            moneyOut: 0,
+            gain: 20,
+            endValue: 270,
+            flows: "inferred",
+          },
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Time-weighted / }));
+
+    const popover = await screen.findByRole("dialog");
+    expect(
+      within(popover).getByText("Money in and out are estimated, not recorded."),
+    ).toBeVisible();
+  });
+
+  it("shows a mixed portfolio's two halves behind its ROI", async () => {
+    render(
+      <ReturnPercent
+        result={result(
+          {
+            twr: { unavailableReasonCode: "MIXED_TWR_NOT_APPLICABLE" },
+            moneyWeighted: { unavailableReasonCode: "MIXED_MONEY_WEIGHTED_NOT_APPLICABLE" },
+            returnOnCost: { period: 0.0251 },
+          },
+          {
+            amounts: {
+              gain: 32.52,
+              capital: 1295.45,
+              endValue: 1327.97,
+              flows: "inferred",
+              parts: [
+                { tracking: "TRANSACTIONS", gain: 12.52, capital: 1095.45 },
+                { tracking: "HOLDINGS", gain: 20, capital: 200 },
+              ],
+            },
+          },
+        )}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Return on investment \(ROI\) / }));
+    const popover = await screen.findByRole("dialog");
+
+    expect(within(popover).getAllByText("Capital invested")[0].parentElement).toHaveTextContent(
+      "$1,295.45",
+    );
+    const halves = within(popover).getByRole("table");
+    const transactions = within(halves).getByRole("row", { name: /^Transactions/ });
+    expect(transactions).toHaveTextContent("+$12.52");
+    expect(transactions).toHaveTextContent("$1,095.45");
+    const holdings = within(halves).getByRole("row", { name: /^Holdings/ });
+    expect(holdings).toHaveTextContent("+$20.00");
+    expect(holdings).toHaveTextContent("$200.00");
+    // Nothing is known about its money in and out over the full history.
+    expect(within(popover).queryByText("Money in")).toBeNull();
+    expect(within(popover).queryByText(/estimated/)).toBeNull();
+  });
+
+  it("names the transfers that withhold the return and links to Health", async () => {
+    const transfer = (activityId: string, date: string) => ({
+      activityId,
+      accountId: "acc-1",
+      date,
+      amount: 200,
+      currency: "USD",
+      outflow: false,
+    });
+    render(
+      <MemoryRouter>
+        <ReturnPercent
+          result={result(
+            {
+              twr: { unavailableReasonCode: "TWR_UNKNOWN_FLOW" },
+              moneyWeighted: { unavailableReasonCode: "MONEY_WEIGHTED_UNKNOWN_FLOW" },
+              returnOnCost: { unavailableReasonCode: "RETURN_ON_COST_NOT_APPLICABLE" },
+            },
+            {
+              amounts: { startValue: 1000, endValue: 1200, flows: "missing" },
+              unclassifiedTransfers: [
+                transfer("t-1", "2026-03-02"),
+                transfer("t-2", "2026-03-09"),
+                transfer("t-3", "2026-03-16"),
+                transfer("t-4", "2026-03-23"),
+              ],
+            },
+          )}
+        />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Time-weighted / }));
+    const popover = await screen.findByRole("dialog");
+
+    expect(
+      within(popover).getByText(
+        "Transfers in this period that are neither matched to another account nor marked external:",
+      ),
+    ).toBeVisible();
+    const first = within(popover).getByText("Mar 2, 2026").closest("li");
+    expect(first).toHaveTextContent("Brokerage");
+    expect(first).toHaveTextContent("$200.00");
+    // Three are listed; the fourth is counted.
+    expect(within(popover).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(popover).getByText("+1")).toBeVisible();
+    expect(
+      within(popover).getByRole("link", { name: "Review the details in the Health Center." }),
+    ).toHaveAttribute("href", "/health");
+    // The money in and out cannot be totalled.
+    expect(within(popover).getByText("Money in").parentElement).toHaveTextContent("Unknown");
+    expect(within(popover).queryByText("Gain")).toBeNull();
   });
 
   it("saves the method picked in the popover", async () => {

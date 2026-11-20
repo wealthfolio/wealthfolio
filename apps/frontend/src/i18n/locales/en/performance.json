@@ -88,6 +88,22 @@
       "coverage": "Some holdings have no price at the start or end of this period.",
       "not_enough_history": "Not enough history in this period.",
       "mixed_coverage": "Some accounts in this portfolio have no gain or invested amount to add up."
+    },
+    "amounts": {
+      "start_value": "Start value",
+      "money_in": "Money in",
+      "money_out": "Money out",
+      "capital": "Capital invested",
+      "gain": "Gain",
+      "end_value": "End value",
+      "unknown": "Unknown",
+      "estimated": "Money in and out are estimated, not recorded.",
+      "by_tracking": "Accounts tracked by",
+      "part_transactions": "Transactions",
+      "part_holdings": "Holdings"
+    },
+    "unclassified_transfers": {
+      "intro": "Transfers in this period that are neither matched to another account nor marked external:"
     }
   },
   "metric": {

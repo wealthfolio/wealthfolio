@@ -667,6 +667,34 @@ fn summary_status(status: engine::model::SummaryStatus) -> PerformanceSummarySta
     }
 }
 
+fn amounts(amounts: engine::model::Amounts) -> PerformanceAmounts {
+    PerformanceAmounts {
+        start_value: amounts.start_value,
+        money_in: amounts.money_in,
+        money_out: amounts.money_out,
+        gain: amounts.gain,
+        end_value: amounts.end_value,
+        capital: amounts.capital,
+        flows: match amounts.flows {
+            engine::model::FlowKnowledge::Confirmed => PerformanceFlowKnowledge::Confirmed,
+            engine::model::FlowKnowledge::Inferred => PerformanceFlowKnowledge::Inferred,
+            engine::model::FlowKnowledge::Missing => PerformanceFlowKnowledge::Missing,
+        },
+        parts: amounts
+            .parts
+            .into_iter()
+            .map(|part| PerformanceAmountsPart {
+                tracking: match part.tracking {
+                    engine::model::TrackingMode::Holdings => TrackingMode::Holdings,
+                    _ => TrackingMode::Transactions,
+                },
+                gain: part.gain,
+                capital: part.capital,
+            })
+            .collect(),
+    }
+}
+
 /// The kernel result in the API contract shape.
 pub fn from_kernel(result: engine::model::PerformanceResult) -> PerformanceResult {
     PerformanceResult {
@@ -718,6 +746,19 @@ pub fn from_kernel(result: engine::model::PerformanceResult) -> PerformanceResul
         },
         is_holdings_mode: result.is_holdings_mode,
         is_mixed_tracking_mode: result.is_mixed_tracking_mode,
+        amounts: amounts(result.amounts),
+        unclassified_transfers: result
+            .unclassified_transfers
+            .into_iter()
+            .map(|transfer| PerformanceUnclassifiedTransfer {
+                activity_id: transfer.activity.as_str().to_string(),
+                account_id: transfer.account.as_str().to_string(),
+                date: transfer.date,
+                amount: transfer.amount,
+                currency: transfer.currency.as_str().to_string(),
+                outflow: transfer.outflow,
+            })
+            .collect(),
     }
 }
 

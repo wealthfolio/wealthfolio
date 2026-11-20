@@ -155,8 +155,11 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
       });
       await page.keyboard.press("Escape");
       await expect(dialog).not.toBeVisible();
+      // The series note belongs to the figure shown: the scope's ROI.
       await page
-        .getByRole("button", { name: /calculation notes? for money-weighted(?: return)?$/i })
+        .getByRole("button", {
+          name: /calculation notes? for (?:ROI|return on investment \(ROI\))$/i,
+        })
         .click();
       await expect(page.getByText(SERIES_WARNING, { exact: true })).toBeVisible();
       await page.keyboard.press("Escape");

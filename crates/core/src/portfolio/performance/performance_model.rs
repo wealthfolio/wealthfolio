@@ -232,6 +232,8 @@ pub fn unavailable_performance_metrics(
         },
         is_holdings_mode: false,
         is_mixed_tracking_mode: false,
+        amounts: PerformanceAmounts::default(),
+        unclassified_transfers: Vec::new(),
     }
 }
 
@@ -391,6 +393,61 @@ impl Default for PerformanceSummary {
     }
 }
 
+/// How the money in and out of a period is known.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PerformanceFlowKnowledge {
+    /// Recorded transactions.
+    #[default]
+    Confirmed,
+    /// Estimated, for example from the change between two holdings snapshots.
+    Inferred,
+    /// A flow in the period has no known amount or boundary.
+    Missing,
+}
+
+/// The gain and capital of the accounts of one tracking mode in a mixed scope.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceAmountsPart {
+    pub tracking: TrackingMode,
+    pub gain: Decimal,
+    pub capital: Decimal,
+}
+
+/// The amounts a period's return is built from, in the scope's currency. An
+/// amount that does not apply to the scope, or cannot be known, is absent.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceAmounts {
+    pub start_value: Option<Decimal>,
+    /// Deposits and transfers in; purchases in an account that does not track cash.
+    pub money_in: Option<Decimal>,
+    pub money_out: Option<Decimal>,
+    pub gain: Option<Decimal>,
+    pub end_value: Option<Decimal>,
+    /// What an ROI divides the gain by: book cost, or a mixed scope's capital.
+    pub capital: Option<Decimal>,
+    pub flows: PerformanceFlowKnowledge,
+    /// A mixed scope's transactions accounts and its holdings accounts.
+    #[serde(default)]
+    pub parts: Vec<PerformanceAmountsPart>,
+}
+
+/// A transfer that is neither matched to another account nor marked
+/// external; it withholds the time- and money-weighted returns of its period.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceUnclassifiedTransfer {
+    pub activity_id: String,
+    pub account_id: String,
+    pub date: NaiveDate,
+    /// Unsigned, in `currency`; absent for a transfer of securities.
+    pub amount: Option<Decimal>,
+    pub currency: String,
+    pub outflow: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformanceResult {
@@ -408,6 +465,10 @@ pub struct PerformanceResult {
     pub is_holdings_mode: bool,
     #[serde(default)]
     pub is_mixed_tracking_mode: bool,
+    #[serde(default)]
+    pub amounts: PerformanceAmounts,
+    #[serde(default)]
+    pub unclassified_transfers: Vec<PerformanceUnclassifiedTransfer>,
 }
 
 // This struct now only holds the calculated performance metrics.
@@ -482,6 +543,26 @@ mod tests {
             },
             is_holdings_mode: false,
             is_mixed_tracking_mode: true,
+            amounts: PerformanceAmounts {
+                money_in: Some(Decimal::new(500, 0)),
+                gain: Some(Decimal::new(1234, 2)),
+                capital: Some(Decimal::new(1000, 0)),
+                flows: PerformanceFlowKnowledge::Inferred,
+                parts: vec![PerformanceAmountsPart {
+                    tracking: TrackingMode::Holdings,
+                    gain: Decimal::new(1234, 2),
+                    capital: Decimal::new(1000, 0),
+                }],
+                ..PerformanceAmounts::default()
+            },
+            unclassified_transfers: vec![PerformanceUnclassifiedTransfer {
+                activity_id: "activity-1".to_string(),
+                account_id: "account-1".to_string(),
+                date: NaiveDate::from_ymd_opt(2026, 3, 2).expect("valid date"),
+                amount: Some(Decimal::new(200, 0)),
+                currency: "CAD".to_string(),
+                outflow: false,
+            }],
         };
 
         let value = serde_json::to_value(&result).expect("performance result should serialize");
@@ -499,6 +580,21 @@ mod tests {
         );
         assert_eq!(value["basisStatus"], json!("partialUnknown"));
         assert_eq!(value["isMixedTrackingMode"], json!(true));
+        assert_eq!(value["amounts"]["moneyIn"], json!(500.0));
+        assert_eq!(value["amounts"]["startValue"], json!(null));
+        assert_eq!(value["amounts"]["flows"], json!("inferred"));
+        assert_eq!(value["amounts"]["parts"][0]["tracking"], json!("HOLDINGS"));
+        assert_eq!(
+            value["unclassifiedTransfers"][0],
+            json!({
+                "activityId": "activity-1",
+                "accountId": "account-1",
+                "date": "2026-03-02",
+                "amount": 200.0,
+                "currency": "CAD",
+                "outflow": false,
+            })
+        );
         assert!(value.get("headline").is_none());
         assert!(value["summary"].get("componentCoverage").is_none());
         assert!(value["summary"].get("percent").is_none());

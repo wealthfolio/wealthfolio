@@ -1342,6 +1342,7 @@ export default function PerformancePage() {
     hasErrors,
     errorMessages,
     displayDateRange,
+    formattedStartDate: requestedStartDate,
   } = useCalculatePerformanceHistory({
     selectedItems: isAccountsLoading || isAccountsError ? [] : selectedItems,
     dateRange: getPerformanceDateRangeForRequest(dateRange),
@@ -1724,6 +1725,18 @@ export default function PerformancePage() {
     }
     return values.size ? values : null;
   }, [isMobile, scrubDate, visibleChartData]);
+  // The selected item's history can start inside the range asked for: its
+  // figures then cover these dates, not the range.
+  const measuredDateRange = useMemo(() => {
+    const selected = selectedPerformanceData;
+    const period = selected?.result.period;
+    if (!requestedStartDate || selected?.isSymbol || !period?.startDate || !period.endDate) {
+      return null;
+    }
+    return period.startDate > requestedStartDate
+      ? dateFormatting.formatCalendarDateRange(period.startDate, period.endDate)
+      : null;
+  }, [dateFormatting, requestedStartDate, selectedPerformanceData]);
   const chartStartDate = visibleChartData[0]?.returns[0]?.date;
   const scrubDateLabel =
     scrubValues && scrubDate ? dateFormatting.formatCalendarDate(scrubDate) : null;
@@ -1917,7 +1930,7 @@ export default function PerformancePage() {
                   {t("performance:performance")}
                 </CardTitle>
                 <CardDescription className="mt-0.5 truncate text-xs sm:text-sm">
-                  {[scrubDateLabel ?? displayDateRange, selectedItemData?.name]
+                  {[scrubDateLabel ?? measuredDateRange ?? displayDateRange, selectedItemData?.name]
                     .filter(Boolean)
                     .join(" · ")}
                 </CardDescription>

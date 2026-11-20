@@ -572,6 +572,28 @@ describe("PerformancePage shared scope", () => {
     expect(await screen.findByText(TWR_WARNING)).toBeInTheDocument();
   });
 
+  it("shows the dates the figures cover when the history starts inside the range", async () => {
+    const response = (formattedStartDate: string) => ({
+      data: [resultWithWarning],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+      displayDateRange: "Requested range",
+      formattedStartDate,
+    });
+    // The range asked for starts five years back; the history starts in 2026.
+    mocks.performance.mockReturnValue(response("2021-03-01"));
+    const { unmount } = renderPage();
+    expect(await screen.findByText(/^Jan 1 – Mar 1, 2026 · /)).toBeVisible();
+    expect(screen.queryByText(/Requested range/)).toBeNull();
+    unmount();
+
+    // History covering the whole range keeps the range's own label.
+    mocks.performance.mockReturnValue(response("2026-01-01"));
+    renderPage();
+    expect(await screen.findByText(/^Requested range · /)).toBeVisible();
+  });
+
   it.each([false, true])(
     "shows partial P&L and its cash-FX reason in the attribution panel (mobile=%s)",
     async (mobile) => {

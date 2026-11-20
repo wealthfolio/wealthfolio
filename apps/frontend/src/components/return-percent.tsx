@@ -1,3 +1,4 @@
+import { useAccounts } from "@/hooks/use-accounts";
 import { useReturnMethod } from "@/hooks/use-return-method";
 import {
   performanceViewReturn,
@@ -5,12 +6,25 @@ import {
   type ChosenReturnView,
   type PresentedReturn,
 } from "@/lib/performance";
-import type { PerformanceResult, PerformanceReturnViewKey } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { AnimatedToggleGroup, GainPercent, useNumberFormatting } from "@wealthfolio/ui";
+import type {
+  PerformanceAmounts,
+  PerformanceResult,
+  PerformanceReturnViewKey,
+  PerformanceUnclassifiedTransfer,
+} from "@/lib/types";
+import { cn, formatDate } from "@/lib/utils";
+import {
+  AnimatedToggleGroup,
+  GainAmount,
+  GainPercent,
+  PrivacyAmount,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 const VIEW_NAME_KEYS: Record<PerformanceReturnViewKey, string> = {
   twr: "performance:return_view.twr",
@@ -194,6 +208,9 @@ function ReturnPopoverBody({
           {unavailableReason ? ` ${unavailableReason}` : ""}
         </p>
       )}
+      {result?.unclassifiedTransfers?.length ? (
+        <UnclassifiedTransfers transfers={result.unclassifiedTransfers} />
+      ) : null}
       <dl className="space-y-1">
         {rows.map((view) => {
           const value = performanceViewReturn(result, view);
@@ -211,7 +228,166 @@ function ReturnPopoverBody({
           );
         })}
       </dl>
+      {result && <ReturnAmounts result={result} />}
       <ReturnMethodToggle size="compact" className="w-full [&>button]:flex-1" />
     </>
+  );
+}
+
+/** Transfers shown before pointing to Health for the rest. */
+const SHOWN_TRANSFERS = 3;
+
+/**
+ * The transfers that withhold the period's return: each one's date, account
+ * and amount, and where to settle them.
+ */
+function UnclassifiedTransfers({ transfers }: { transfers: PerformanceUnclassifiedTransfer[] }) {
+  const { t } = useTranslation();
+  const dateFormatting = useDateFormatting();
+  const { formatDecimal } = useNumberFormatting();
+  const { accounts } = useAccounts({ filterActive: false, includeArchived: true });
+  const accountName = (id: string) => accounts.find((account) => account.id === id)?.name;
+  const hidden = transfers.length - SHOWN_TRANSFERS;
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-muted-foreground">
+        {t("performance:return_view.unclassified_transfers.intro")}
+      </p>
+      <ul className="space-y-1">
+        {transfers.slice(0, SHOWN_TRANSFERS).map((transfer) => (
+          <li key={transfer.activityId} className="flex items-baseline justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block">{formatDate(transfer.date, dateFormatting)}</span>
+              <span className="text-muted-foreground block truncate text-xs">
+                {accountName(transfer.accountId)}
+              </span>
+            </span>
+            {transfer.amount != null && (
+              <PrivacyAmount
+                className="shrink-0 tabular-nums"
+                value={transfer.outflow ? -transfer.amount : transfer.amount}
+                currency={transfer.currency}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {formatDecimal(hidden, { signDisplay: "always", maximumFractionDigits: 0 })}
+        </p>
+      )}
+      <Link to="/health" className="text-xs underline underline-offset-4">
+        {t("common:notifications.review_the_details_in_the_health_center")}
+      </Link>
+    </div>
+  );
+}
+
+const AMOUNT_ROWS: {
+  field: Exclude<keyof PerformanceAmounts, "flows" | "parts">;
+  label: string;
+}[] = [
+  { field: "startValue", label: "performance:return_view.amounts.start_value" },
+  { field: "moneyIn", label: "performance:return_view.amounts.money_in" },
+  { field: "moneyOut", label: "performance:return_view.amounts.money_out" },
+  { field: "capital", label: "performance:return_view.amounts.capital" },
+  { field: "gain", label: "performance:return_view.amounts.gain" },
+  { field: "endValue", label: "performance:return_view.amounts.end_value" },
+];
+
+const PART_LABELS = {
+  TRANSACTIONS: "performance:return_view.amounts.part_transactions",
+  HOLDINGS: "performance:return_view.amounts.part_holdings",
+} as const;
+
+/**
+ * The dates the figure covers and the amounts it is built from. A mixed
+ * portfolio also shows its two halves, whose gains and capital add up to
+ * its ROI.
+ */
+function ReturnAmounts({ result }: { result: PerformanceResult }) {
+  const { t } = useTranslation();
+  const dateFormatting = useDateFormatting();
+  const { amounts, period } = result;
+  const currency = result.scope.currency;
+  const flowsMissing = amounts?.flows === "missing";
+  const rows = AMOUNT_ROWS.filter(
+    ({ field }) =>
+      amounts?.[field] != null || (flowsMissing && (field === "moneyIn" || field === "moneyOut")),
+  );
+  const hasPeriod = Boolean(period.startDate && period.endDate);
+  if (!hasPeriod && rows.length === 0) return null;
+  const estimated =
+    amounts?.flows === "inferred" && (amounts.moneyIn != null || amounts.moneyOut != null);
+
+  return (
+    <div className="space-y-1 border-t pt-3 text-xs">
+      {hasPeriod && (
+        <p className="text-muted-foreground">
+          {t("account:from_to", {
+            start: formatDate(period.startDate, dateFormatting),
+            end: formatDate(period.endDate, dateFormatting),
+          })}
+        </p>
+      )}
+      {rows.length > 0 && (
+        <dl className="space-y-1">
+          {rows.map(({ field, label }) => {
+            const value = amounts?.[field];
+            return (
+              <div key={field} className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">{t(label)}</dt>
+                <dd className="tabular-nums">
+                  {value == null ? (
+                    <span className="text-muted-foreground">
+                      {t("performance:return_view.amounts.unknown")}
+                    </span>
+                  ) : field === "gain" ? (
+                    <GainAmount value={value} currency={currency} />
+                  ) : (
+                    <PrivacyAmount value={value} currency={currency} />
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+      {estimated && (
+        <p className="text-muted-foreground">{t("performance:return_view.amounts.estimated")}</p>
+      )}
+      {amounts?.parts?.length ? (
+        <table className="mt-2 w-full">
+          <thead>
+            <tr className="text-muted-foreground align-bottom">
+              <th className="text-start font-normal">
+                {t("performance:return_view.amounts.by_tracking")}
+              </th>
+              <th className="ps-3 text-end font-normal">
+                {t("performance:return_view.amounts.gain")}
+              </th>
+              <th className="ps-3 text-end font-normal">
+                {t("performance:return_view.amounts.capital")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {amounts.parts.map((part) => (
+              <tr key={part.tracking}>
+                <th className="text-start font-normal">{t(PART_LABELS[part.tracking])}</th>
+                <td className="ps-3 text-end tabular-nums">
+                  <GainAmount value={part.gain} currency={currency} />
+                </td>
+                <td className="ps-3 text-end tabular-nums">
+                  <PrivacyAmount value={part.capital} currency={currency} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </div>
   );
 }

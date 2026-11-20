@@ -6,6 +6,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `PerformanceResult.amounts`: the amounts a return is built from (`startValue`,
+  `moneyIn`, `moneyOut`, `gain`, `endValue`, and `capital` for an ROI), with
+  `flows` saying whether the money in and out is `confirmed`, `inferred` or
+  `missing`, and `parts` for the two halves of a mixed scope.
+- `PerformanceResult.unclassifiedTransfers`: the transfers in the period that
+  are neither matched to another account nor marked external, which withhold the
+  time- and money-weighted returns.
+
 ### Breaking
 
 - `PerformanceResult.returns` holds one view per return method, each with its
