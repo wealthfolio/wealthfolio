@@ -10,12 +10,14 @@ import HealthPage from "./health-page";
 const adapters = vi.hoisted(() => ({
   getHealthStatus: vi.fn(),
   dismissHealthIssue: vi.fn(),
+  restoreHealthIssue: vi.fn(),
 }));
 
 vi.mock("@/adapters", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/adapters")>()),
   getHealthStatus: adapters.getHealthStatus,
   dismissHealthIssue: adapters.dismissHealthIssue,
+  restoreHealthIssue: adapters.restoreHealthIssue,
 }));
 
 vi.mock("@/context/auth-context", () => ({
@@ -147,5 +149,55 @@ describe("HealthPage issue sheet", () => {
 
     await waitFor(() => expect(adapters.dismissHealthIssue).toHaveBeenCalled());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("HealthPage dismissed issues", () => {
+  beforeEach(() => {
+    adapters.getHealthStatus.mockReset();
+    adapters.restoreHealthIssue.mockReset();
+  });
+
+  const withDismissed = (dismissed: HealthIssue[]): HealthStatus => ({
+    ...status([]),
+    dismissedIssues: dismissed,
+  });
+
+  it("lists dismissed issues apart from a healthy list and shows one again", async () => {
+    const user = userEvent.setup();
+    adapters.getHealthStatus
+      .mockResolvedValueOnce(withDismissed([issue]))
+      .mockResolvedValue(status([issue]));
+    adapters.restoreHealthIssue.mockResolvedValue(undefined);
+    renderPage();
+
+    // The active list stays healthy: a dismissed issue isn't one of its issues.
+    expect(await screen.findByText("Your Data Looks Great")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Dismissed issue (1)" }));
+    expect(screen.getByText(issue.title)).toBeInTheDocument();
+    expect(screen.getByText("Warning")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show again" }));
+
+    expect(adapters.restoreHealthIssue.mock.calls[0]?.[0]).toBe(issue.id);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Dismissed issue/ })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(issue.title)).toBeInTheDocument();
+  });
+
+  it("opens a dismissed issue's details with a way to show it again", async () => {
+    const user = userEvent.setup();
+    adapters.getHealthStatus.mockResolvedValue(withDismissed([issue]));
+    adapters.restoreHealthIssue.mockResolvedValue(undefined);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Dismissed issue (1)" }));
+    await user.click(screen.getByText(issue.title));
+    const sheet = await screen.findByRole("dialog");
+
+    expect(within(sheet).queryByTestId("dismiss-confirm")).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("button", { name: "Show again" }));
+    expect(adapters.restoreHealthIssue.mock.calls[0]?.[0]).toBe(issue.id);
   });
 });

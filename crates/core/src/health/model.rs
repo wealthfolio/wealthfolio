@@ -1243,6 +1243,12 @@ pub struct HealthStatus {
 
     /// True if the cached results are older than 5 minutes
     pub is_stale: bool,
+
+    /// Detected issues the user dismissed, whose data hasn't changed since.
+    /// Kept apart so they can be reviewed and restored; they count toward
+    /// neither `overall_severity` nor `issue_counts`.
+    #[serde(default)]
+    pub dismissed_issues: Vec<HealthIssue>,
 }
 
 impl HealthStatus {
@@ -1254,6 +1260,7 @@ impl HealthStatus {
             issues: Vec::new(),
             checked_at: Utc::now(),
             is_stale: false,
+            dismissed_issues: Vec::new(),
         }
     }
 
@@ -1275,7 +1282,14 @@ impl HealthStatus {
             issues,
             checked_at: Utc::now(),
             is_stale: false,
+            dismissed_issues: Vec::new(),
         }
+    }
+
+    /// Attaches the dismissed issues, leaving severity and counts as they are.
+    pub fn with_dismissed_issues(mut self, dismissed_issues: Vec<HealthIssue>) -> Self {
+        self.dismissed_issues = dismissed_issues;
+        self
     }
 
     /// Returns the total number of issues.
