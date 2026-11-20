@@ -105,7 +105,13 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
     afterAvg,
     hangoverPct,
     outOfRange,
+    outOfRangeTotal,
   } = chart;
+  // Tagged days outside the event can be in another year (a deposit paid the
+  // year before), and a bare "Nov 3–Apr 9" then reads backwards.
+  const outOfRangeWithYear = outOfRange.some(
+    (dateKey) => dateKey.slice(0, 4) !== event.startDate.slice(0, 4),
+  );
   const categories = useMemo(
     () =>
       rawCategories.map((category) => ({
@@ -282,11 +288,16 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           <span className="text-foreground/90">
             {t("spending:eventDetail.taggedOutside", { count: outOfRange.length })}
             <span className="text-muted-foreground/80 ms-1 tabular-nums">
-              ({formatOutOfRangeDate(outOfRange[0], dateFormatting)}
+              ({formatOutOfRangeDate(outOfRange[0], dateFormatting, outOfRangeWithYear)}
               {outOfRange.length > 1
-                ? `–${formatOutOfRangeDate(outOfRange[outOfRange.length - 1], dateFormatting)}`
+                ? `–${formatOutOfRangeDate(
+                    outOfRange[outOfRange.length - 1],
+                    dateFormatting,
+                    outOfRangeWithYear,
+                  )}`
                 : ""}
-              )
+              {" · "}
+              {isBalanceHidden ? "••••" : formatting.formatAmount(outOfRangeTotal, currency)})
             </span>
           </span>
           <button
@@ -389,8 +400,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           <DailyBars
             series={tagged.series}
             inWindow={tagged.inWindow}
-            chartStartDate={tagged.chartStartDate}
-            chartEndDate={tagged.chartEndDate}
+            dates={tagged.dates}
             eventDays={days}
             baseline={baseline}
             currency={currency}
@@ -565,8 +575,7 @@ function Hr() {
 function DailyBars({
   series,
   inWindow,
-  chartStartDate,
-  chartEndDate,
+  dates,
   eventDays,
   baseline,
   currency,
@@ -577,8 +586,8 @@ function DailyBars({
   isBalanceHidden: boolean;
   series: number[];
   inWindow: boolean[];
-  chartStartDate: Date;
-  chartEndDate: Date;
+  /** The day each bar stands for. Bars outside the event are not contiguous. */
+  dates: Date[];
   eventDays: number;
   baseline: number;
   currency: string;
@@ -589,6 +598,7 @@ function DailyBars({
   const dateFormatting = useDateFormatting();
   const max = Math.max(1, baseline, ...series);
   const hasOutOfWindow = inWindow.some((v) => !v);
+  const lastBar = dates.length - 1;
 
   return (
     <div className="mt-3">
@@ -611,6 +621,7 @@ function DailyBars({
               )}
               style={{ height: `${(Math.max(v, 0) / max) * 100}%` }}
               title={
+                `${formatBarDay(dates[i], isOut, dateFormatting)} · ` +
                 (isBalanceHidden ? "••••" : formatting.formatAmount(v, currency)) +
                 (isOut ? ` · ${t("spending:eventDetail.outsideWindow")}` : "")
               }
@@ -628,12 +639,14 @@ function DailyBars({
         })}
       </div>
       <div className="text-muted-foreground/80 text-2xs mt-2 flex items-center justify-between tracking-wide">
-        <span className="tabular-nums">{formatPeakDay(chartStartDate, dateFormatting)}</span>
+        <span className="tabular-nums">{formatBarDay(dates[0], !inWindow[0], dateFormatting)}</span>
         <span className="text-muted-foreground/60">
           {t("spending:eventDetail.daysCount", { count: eventDays })}
           {hasOutOfWindow ? ` · ${t("spending:eventDetail.inclOutside")}` : ""}
         </span>
-        <span className="tabular-nums">{formatPeakDay(chartEndDate, dateFormatting)}</span>
+        <span className="tabular-nums">
+          {formatBarDay(dates[lastBar], !inWindow[lastBar], dateFormatting)}
+        </span>
       </div>
     </div>
   );
@@ -759,6 +772,20 @@ function formatPeakDay(d: Date, formatting: Pick<FormattingApi, "formatCalendarD
   });
 }
 
+/** A bar's day. One outside the event's dates carries its year: it can be months away. */
+function formatBarDay(
+  d: Date,
+  isOutside: boolean,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
+  if (!isOutside) return formatPeakDay(d, formatting);
+  return formatting.formatCalendarDate(calendarDateFromLocalDate(d), {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function formatChipDate(d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">): string {
   return formatMonthDay(d, formatting);
 }
@@ -816,10 +843,17 @@ function formatRange(
   );
 }
 
-/** "2026-05-08" → "May 8" (parsed at noon to avoid UTC drift). */
+/** "2026-05-08" → "May 8", or "May 8, 2026" with the year (parsed at noon to avoid UTC drift). */
 function formatOutOfRangeDate(
   dateKey: string,
   formatting: Pick<FormattingApi, "formatCalendarDate">,
+  withYear: boolean,
 ): string {
-  return formatMonthDay(new Date(`${dateKey.slice(0, 10)}T12:00:00`), formatting);
+  const d = new Date(`${dateKey.slice(0, 10)}T12:00:00`);
+  if (!withYear) return formatMonthDay(d, formatting);
+  return formatting.formatCalendarDate(calendarDateFromLocalDate(d), {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

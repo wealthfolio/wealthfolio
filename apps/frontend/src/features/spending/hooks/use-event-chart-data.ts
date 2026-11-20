@@ -18,6 +18,8 @@ export interface EventCategoryRow {
 export interface EventTaggedSeries {
   series: number[];
   inWindow: boolean[];
+  /** The day each bar stands for; bars outside the event are not contiguous. */
+  dates: Date[];
   chartStartDate: Date;
   chartEndDate: Date;
 }
@@ -43,17 +45,14 @@ export interface EventChartData {
   hangoverPct: number;
   /** ISO date strings of tagged tx that fall outside the event's own window. */
   outOfRange: string[];
+  /** Tagged spending on those days. It is part of the event total. */
+  outOfRangeTotal: number;
 }
 
-function buildEventDailySeries(event: EventSpendingSummary, days: number): number[] {
-  const start = parseLocalDate(event.startDate);
-  const series = new Array(days).fill(0);
-  for (const [dateKey, amount] of Object.entries(event.dailySpending ?? {})) {
-    const d = new Date(`${dateKey}T12:00:00`);
-    const idx = Math.round((d.getTime() - start.getTime()) / 86_400_000);
-    if (idx >= 0 && idx < days) series[idx] = amount;
-  }
-  return series;
+function toDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 function findPeakDayAt(series: number[], base: Date): { date: Date; amount: number } | null {
@@ -72,44 +71,39 @@ function findPeakDayAt(series: number[], base: Date): { date: Date; amount: numb
 }
 
 /**
- * Build a per-day tagged-spend series covering the union of the event window
- * and any tagged transactions outside it. The `inWindow` mask flags which
- * indices fall within the event's own [startDate, endDate].
+ * Build the day-by-day bars: one for every day of the event's own
+ * [startDate, endDate], plus one for each day outside it that has tagged
+ * spending. Empty days outside the event get no bar, so a deposit paid months
+ * ahead sits next to the event instead of stretching the chart across the gap.
+ * The `inWindow` mask flags the bars within the event's own dates.
  */
 function buildEventTaggedSeries(event: EventSpendingSummary): EventTaggedSeries {
   const evStartKey = event.startDate.slice(0, 10);
   const evEndKey = event.endDate.slice(0, 10);
-  const allKeys = [
-    evStartKey,
-    evEndKey,
-    ...Object.keys(event.dailySpending ?? {}).map((k) => k.slice(0, 10)),
-  ].sort();
-  const chartStartDate = new Date(`${allKeys[0]}T12:00:00`);
-  const chartEndDate = new Date(`${allKeys[allKeys.length - 1]}T12:00:00`);
-  // Day count via Math.round + 1 is DST-safe at the endpoint level: spring
-  // forward (23h elapsed) rounds to 1, fall back (25h) also rounds to 1.
-  const days = Math.round((chartEndDate.getTime() - chartStartDate.getTime()) / 86_400_000) + 1;
+  const spendByDay = new Map<string, number>();
+  for (const [dateKey, amount] of Object.entries(event.dailySpending ?? {})) {
+    spendByDay.set(dateKey.slice(0, 10), amount);
+  }
 
-  const series = new Array(days).fill(0);
-  const inWindow = new Array(days).fill(false);
-  // Use ISO date keys for the in-window membership check rather than
-  // ms-arithmetic from chartStartDate. A fixed 86_400_000 step drifts by one
-  // hour across DST so the day after spring-forward would otherwise drop
-  // out of the window. Walking dates via setDate handles DST correctly.
-  const cursor = new Date(chartStartDate);
-  for (let i = 0; i < days; i++) {
-    const dayKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(
-      cursor.getDate(),
-    ).padStart(2, "0")}`;
-    inWindow[i] = dayKey >= evStartKey && dayKey <= evEndKey;
+  const dayKeys = new Set<string>([evStartKey, evEndKey, ...spendByDay.keys()]);
+  // Walk the event's days with setDate and compare ISO date keys, rather than
+  // stepping a fixed 86_400_000 ms: that drifts by an hour across DST and
+  // would drop the day after spring-forward.
+  const cursor = new Date(`${evStartKey}T12:00:00`);
+  while (toDayKey(cursor) <= evEndKey) {
+    dayKeys.add(toDayKey(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
-  for (const [dateKey, amount] of Object.entries(event.dailySpending ?? {})) {
-    const d = new Date(`${dateKey.slice(0, 10)}T12:00:00`);
-    const idx = Math.round((d.getTime() - chartStartDate.getTime()) / 86_400_000);
-    if (idx >= 0 && idx < days) series[idx] = amount;
-  }
-  return { series, inWindow, chartStartDate, chartEndDate };
+
+  const keys = Array.from(dayKeys).sort();
+  const dates = keys.map((key) => new Date(`${key}T12:00:00`));
+  return {
+    series: keys.map((key) => spendByDay.get(key) ?? 0),
+    inWindow: keys.map((key) => key >= evStartKey && key <= evEndKey),
+    dates,
+    chartStartDate: dates[0],
+    chartEndDate: dates[dates.length - 1],
+  };
 }
 
 function buildWindowSeries(
@@ -184,7 +178,20 @@ export function useEventChartData(
   const endDate = useMemo(() => parseLocalDate(event.endDate), [event.endDate]);
   // `inclusiveDays` is ≥ 1, and we floor at 1 anyway, so days > 0 always.
   const days = Math.max(1, inclusiveDays(startDate, endDate));
-  const dailyDuring = event.totalSpending / days;
+
+  const tagged = useMemo(() => buildEventTaggedSeries(event), [event]);
+  // Spending on the event's own days. Tagged spending outside them (a deposit
+  // paid months ahead) counts in the event total, but not in what a day of the
+  // event cost or which of its days peaked.
+  const dailySeries = useMemo(
+    () => tagged.series.filter((_, i) => tagged.inWindow[i]),
+    [tagged.series, tagged.inWindow],
+  );
+  const outOfRangeTotal = useMemo(
+    () => tagged.series.reduce((sum, v, i) => (tagged.inWindow[i] ? sum : sum + v), 0),
+    [tagged.series, tagged.inWindow],
+  );
+  const dailyDuring = dailySeries.reduce((sum, v) => sum + v, 0) / days;
 
   const baseline = useMemo(
     () =>
@@ -217,12 +224,7 @@ export function useEventChartData(
     [categories],
   );
 
-  const dailySeries = useMemo(() => buildEventDailySeries(event, days), [event, days]);
-  const tagged = useMemo(() => buildEventTaggedSeries(event), [event]);
-  const peak = useMemo(
-    () => findPeakDayAt(tagged.series, tagged.chartStartDate),
-    [tagged.series, tagged.chartStartDate],
-  );
+  const peak = useMemo(() => findPeakDayAt(dailySeries, startDate), [dailySeries, startDate]);
 
   const beforeSeries = useMemo(
     () => buildWindowSeries(heatmapActivities, accountTypeById, startDate, -7, 7),
@@ -258,5 +260,6 @@ export function useEventChartData(
     afterAvg,
     hangoverPct,
     outOfRange,
+    outOfRangeTotal,
   };
 }
