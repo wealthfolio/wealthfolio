@@ -963,7 +963,7 @@
       "suggested": "Suggerimento: {{account}} · {{date}} · {{amount}}",
       "link": "Collega",
       "hint": "Scegli l'altro conto per collegare entrambi i lati, oppure lascialo così.",
-      "savesFirst": "Scegliendo un conto, questa modifica viene salvata prima e poi i due lati vengono collegati."
+      "savesFirst": "Se scegli un conto, questa modifica viene salvata e poi i due lati vengono collegati."
     }
   },
   "txTab": {
