@@ -6,10 +6,13 @@ import { calculatePerformanceSummaries, performanceSummaryScopeKey } from "@/ada
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentAccountValuations } from "@/hooks/use-current-account-valuations";
 import { AccountPurpose } from "@/lib/constants";
-import { performanceSummaryReturn, performancePeriodPnl } from "@/lib/performance";
+import { returnViewName, returnViewShortName } from "@/components/return-percent";
+import { useReturnMethod } from "@/hooks/use-return-method";
+import { performancePeriodPnl, presentedReturn } from "@/lib/performance";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type {
+  PerformanceReturnViewKey,
   Account,
   CurrentAccountValuation,
   DateRange,
@@ -43,6 +46,8 @@ interface AccountSummaryDisplayData {
   totalGainLossAmountAccountCurrency?: number | null;
   accountCurrency?: string;
   totalGainLossPercent: number | null;
+  /** The view the percent comes from when the chosen method is unavailable. */
+  totalGainLossFallbackView?: PerformanceReturnViewKey | null;
   accountId?: string;
   accountType?: string;
   accountGroup?: string | null;
@@ -281,7 +286,20 @@ const AccountSummaryComponent = React.memo(
               <Separator orientation="vertical" className="h-3 md:h-4" />
             </>
           )}
-          <GainPercent className="text-sm" value={gainPercentToDisplay} />
+          <GainPercent
+            className="text-sm"
+            value={gainPercentToDisplay}
+            title={
+              item.totalGainLossFallbackView
+                ? returnViewName(item.totalGainLossFallbackView, t)
+                : undefined
+            }
+          />
+          {item.totalGainLossFallbackView && (
+            <span className="text-muted-foreground text-xs">
+              {returnViewShortName(item.totalGainLossFallbackView, t)}
+            </span>
+          )}
         </>
       );
       shouldExposeSecondaryMetric = true;
@@ -418,6 +436,7 @@ export const AccountsSummary = React.memo(
   }) => {
     const { t } = useTranslation();
     const { accountsGrouped, setAccountsGrouped, settings } = useSettingsContext();
+    const { returnView } = useReturnMethod();
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
     // Hidden accounts are excluded from the rendered rows below, but they still carry value
@@ -516,7 +535,7 @@ export const AccountsSummary = React.memo(
         const totalValueBaseCurrency = valuation.totalValueBase;
 
         const gainLossBaseCurrency = performancePeriodPnl(perf);
-        const gainPercent = performanceSummaryReturn(perf);
+        const gainPercent = presentedReturn(perf, returnView);
 
         return {
           accountName: acc.name,
@@ -535,7 +554,8 @@ export const AccountsSummary = React.memo(
                   valuation.fxRateToBase > 0
                 ? gainLossBaseCurrency / valuation.fxRateToBase
                 : null,
-          totalGainLossPercent: gainPercent,
+          totalGainLossPercent: gainPercent?.value ?? null,
+          totalGainLossFallbackView: gainPercent?.isFallback ? gainPercent.view : null,
           accountId: acc.id,
           accountType: acc.accountType,
           accountGroup: acc.group ?? null,
@@ -544,7 +564,13 @@ export const AccountsSummary = React.memo(
           isActive: acc.isActive,
         };
       });
-    }, [accounts, currentAccountValuations, performanceSummaries, settings?.baseCurrency]);
+    }, [
+      accounts,
+      currentAccountValuations,
+      performanceSummaries,
+      returnView,
+      settings?.baseCurrency,
+    ]);
 
     const toggleGroup = useCallback((groupName: string) => {
       setExpandedGroups((prev) => ({
@@ -650,7 +676,7 @@ export const AccountsSummary = React.memo(
           );
 
           const totalGainLossAmountBase = performancePeriodPnl(groupPerformance);
-          const groupTotalReturnPercentBase = performanceSummaryReturn(groupPerformance);
+          const groupReturn = presentedReturn(groupPerformance, returnView);
 
           actualGroups.push({
             accountName: groupName,
@@ -659,7 +685,8 @@ export const AccountsSummary = React.memo(
             totalValueBaseCurrency,
             baseCurrency,
             totalGainLossAmountBaseCurrency: totalGainLossAmountBase,
-            totalGainLossPercent: groupTotalReturnPercentBase,
+            totalGainLossPercent: groupReturn?.value ?? null,
+            totalGainLossFallbackView: groupReturn?.isFallback ? groupReturn.view : null,
             accountCurrency: baseCurrency,
             totalValueAccountCurrency: totalValueBaseCurrency,
             totalGainLossAmountAccountCurrency: totalGainLossAmountBase,
@@ -763,6 +790,7 @@ export const AccountsSummary = React.memo(
       isLoadingCurrentValuations,
       isLoadingPerformanceQueries,
       performanceSummaries,
+      returnView,
       isErrorAccounts,
       errorAccounts,
       settings?.baseCurrency,

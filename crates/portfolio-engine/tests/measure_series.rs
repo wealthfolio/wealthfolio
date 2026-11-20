@@ -37,9 +37,18 @@ fn only_history_requests_build_the_return_series() {
         .unwrap()
     };
     let (history, summary) = (measure(true), measure(false));
-    assert!(!history.series.is_empty());
-    assert!(summary.series.is_empty());
-    assert_eq!(summary.returns, history.returns);
+    assert!(!history.returns.twr.series.is_empty());
+    assert!(!history.returns.money_weighted.series.is_empty());
+    assert!(summary.returns.twr.series.is_empty());
+    assert!(summary.returns.money_weighted.series.is_empty());
+    // Apart from the curves, a history and a summary report the same returns.
+    let without_curves = |returns: &Returns| {
+        let mut returns = returns.clone();
+        returns.twr.series.clear();
+        returns.money_weighted.series.clear();
+        returns
+    };
+    assert_eq!(summary.returns, without_curves(&history.returns));
 
     // An all-time mixed scope has no series; only a series request says so.
     let scope = pipeline.portfolio_scope();

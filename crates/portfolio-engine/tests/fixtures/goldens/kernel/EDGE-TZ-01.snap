@@ -115,12 +115,45 @@ baseline:
           period_start: 2025-01-01
           quality: ok
           returns:
-            annualized_irr: "7.66481443"
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: "0.03"
-            twr: "0.03"
-            value_return: "0.03"
+            money_weighted:
+              annualized: ~
+              period: "0.03"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0.03"
+                - date: 2025-01-04
+                  value: "0.03"
+                - date: 2025-01-05
+                  value: "0.03"
+                - date: 2025-01-06
+                  value: "0.03"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "0.03"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0.03"
+                - date: 2025-01-04
+                  value: "0.03"
+                - date: 2025-01-05
+                  value: "0.03"
+                - date: 2025-01-06
+                  value: "0.03"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
@@ -128,27 +161,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-02
             volatility: "0.25263699"
-          series:
-            - date: 2025-01-01
-              value: "0"
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0.03"
-            - date: 2025-01-04
-              value: "0.03"
-            - date: 2025-01-05
-              value: "0.03"
-            - date: 2025-01-06
-              value: "0.03"
           summary:
             amount: "60"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "0.03"
-            percent_status: complete
             quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
@@ -293,12 +310,45 @@ baseline:
       period_start: 2025-01-01
       quality: ok
       returns:
-        annualized_irr: "7.66481443"
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: "0.03"
-        twr: "0.03"
-        value_return: "0.03"
+        money_weighted:
+          annualized: ~
+          period: "0.03"
+          series:
+            - date: 2025-01-01
+              value: "0"
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0.03"
+            - date: 2025-01-04
+              value: "0.03"
+            - date: 2025-01-05
+              value: "0.03"
+            - date: 2025-01-06
+              value: "0.03"
+          unavailable_reason: ~
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: "0.03"
+          series:
+            - date: 2025-01-01
+              value: "0"
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0.03"
+            - date: 2025-01-04
+              value: "0.03"
+            - date: 2025-01-05
+              value: "0.03"
+            - date: 2025-01-06
+              value: "0.03"
+          unavailable_reason: ~
       risk:
         drawdown_duration_days: 1
         max_drawdown: "0"
@@ -306,27 +356,11 @@ baseline:
         recovery_date: ~
         trough_date: 2025-01-02
         volatility: "0.25263699"
-      series:
-        - date: 2025-01-01
-          value: "0"
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "0.03"
-        - date: 2025-01-04
-          value: "0.03"
-        - date: 2025-01-05
-          value: "0.03"
-        - date: 2025-01-06
-          value: "0.03"
       summary:
         amount: "60"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
-        method: timeWeighted
-        percent: "0.03"
-        percent_status: complete
         quality: ok
   portfolio_flows: []
 scenario: EDGE-TZ-01

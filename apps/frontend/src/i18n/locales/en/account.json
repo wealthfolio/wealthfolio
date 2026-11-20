@@ -105,7 +105,7 @@
   "unrealized_pnl": "Unrealized P&L",
   "not_available": "N/A",
   "more_count": "+{{count}} more",
-  "twr_irr_require_transactions": "TWR and IRR require transaction tracking.",
+  "holdings_returns_note": "Holdings accounts show ROI over their full history; returns for shorter periods are estimated from snapshots.",
   "last_updated": "Last updated: {{date}}",
   "from_to": "From {{start}} to {{end}}",
   "snapshot": {
@@ -154,16 +154,15 @@
   "action_transfer_holdings": "Transfer Holdings",
   "review_cash_impact": "Review cash impact",
   "metric": {
-    "value_return": "Value Return",
+    "return_on_cost": "Return on Investment (ROI)",
     "total_pnl": "Total P&L",
     "total_pnl_info": "Total profit or loss over the selected period.",
     "annualized_twr": "Annualized TWR",
-    "annualized_irr": "Annualized IRR",
-    "irr": "IRR",
+    "mwr": "Money-Weighted Return",
     "cumulative_twr": "Cumulative TWR",
-    "period_irr": "Period IRR",
+    "cumulative_mwr": "Cumulative MWR",
     "twr_hover_hint": " Hover the value to see cumulative TWR.",
-    "irr_hover_hint": " Hover the value to see the selected-period IRR."
+    "mwr_hover_hint": " Hover the value to see cumulative MWR."
   },
   "more_count_one": "+{{count}} more",
   "more_count_other": "+{{count}} more"

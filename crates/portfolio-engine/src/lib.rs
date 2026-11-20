@@ -33,8 +33,8 @@ pub use engine::Engine;
 pub use error::EngineError;
 pub use impact::{impact, FactChange, Impact, BEGINNING};
 pub use measure::{
-    measure_account, measure_price_series, measure_scope, CashFxEffect, MeasureInputs,
-    MeasureProfile,
+    measure_account, measure_price_series, measure_price_series_replayed, measure_scope,
+    scope_cash_flows, CashFxEffect, MeasureInputs, MeasureProfile, ScopeCashFlows,
 };
 pub use normalize::{
     fx_conflicts, normalize, normalize_fx_rates, normalize_quotes, FxConflict, Normalized,

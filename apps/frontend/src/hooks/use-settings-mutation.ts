@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 // Appearance changes show the moment they apply, so saving them needs no confirmation.
+// The return method only picks which of the returns already loaded to show.
 const appearanceKeys = new Set([
   "theme",
   "themeId",
@@ -15,6 +16,7 @@ const appearanceKeys = new Set([
   "font",
   "textSize",
   "menuBarVisible",
+  "defaultReturnMetric",
 ]);
 
 export function useSettingsMutation(
@@ -27,11 +29,7 @@ export function useSettingsMutation(
     mutationFn: updateSettings,
     onSuccess: async (updatedSettings, variables) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.SETTINGS] });
-      if (
-        "baseCurrency" in variables ||
-        "defaultReturnMetric" in variables ||
-        "timezone" in variables
-      ) {
+      if ("baseCurrency" in variables || "timezone" in variables) {
         invalidatePerformanceCaches(queryClient);
       }
       if ("baseCurrency" in variables || "timezone" in variables) {

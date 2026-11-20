@@ -209,7 +209,9 @@
     "update_value": "Wert aktualisieren",
     "review_transaction": "Transaktion prüfen",
     "review_entry": "Eintrag prüfen",
-    "match_option_expiry_contracts": "Zugeordnete Kontrakte verwenden"
+    "match_option_expiry_contracts": "Zugeordnete Kontrakte verwenden",
+    "undo": "Rückgängig",
+    "restore": "Wiederherstellen"
   },
   "updatedAt": "Aktualisiert um {{time}}",
   "healthy": {
@@ -300,5 +302,12 @@
     "insufficient_quantity": "Diese Transaktion entfernt {{requested}} Einheiten von {{asset}}, es wurden jedoch nur {{held}} gehalten. Die verbleibenden {{excess}} Einheiten haben keine Kostenbasis.",
     "missing_final_cash": "Diese gebuchte Transaktion hat keinen endgültigen Barbetrag und hat daher den Barbestand nicht verändert.",
     "option_expiry_not_option": "Dieser Optionsverfall nennt {{asset}}, das kein Optionskontrakt ist, daher hat er nichts verändert. Verknüpfen Sie ihn mit dem verfallenen Kontrakt."
+  },
+  "dismissed": {
+    "filter": "Ausgeblendet",
+    "note": "Du hast dieses Problem ausgeblendet. Es erscheint wieder, wenn sich seine Daten ändern.",
+    "noOpenTitle": "Keine offenen Probleme",
+    "show_one": "{{count}} ausgeblendetes Problem anzeigen",
+    "show_other": "{{count}} ausgeblendete Probleme anzeigen"
   }
 }

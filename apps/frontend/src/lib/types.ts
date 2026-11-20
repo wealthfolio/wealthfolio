@@ -1078,6 +1078,7 @@ export interface Settings {
   /** Formatting regions for amounts in specific currencies, keyed by currency code. */
   currencyFormattingRegions?: Record<string, string>;
   baseCurrency: string;
+  /** Return method shown across the app; legacy "valueReturn" reads as money-weighted. */
   defaultReturnMetric: "twr" | "irr" | "valueReturn";
   timezone: string;
   onboardingCompleted: boolean;
@@ -1446,16 +1447,66 @@ export interface ReturnData {
 export interface PerformanceResult {
   scope: PerformanceScopeDescriptor;
   period: PerformancePeriod;
-  mode: ReturnMethod;
   returns: PerformanceReturns;
   attribution: PerformanceAttribution;
   risk: PerformanceRisk;
   dataQuality: PerformanceDataQuality;
   basisStatus?: BasisStatus;
   summary?: PerformanceSummary;
-  series: ReturnData[];
   isHoldingsMode?: boolean;
   isMixedTrackingMode?: boolean;
+  /** What the returns are built from. */
+  amounts?: PerformanceAmounts;
+  /** Transfers in the period that withhold the time- and money-weighted returns. */
+  unclassifiedTransfers?: PerformanceUnclassifiedTransfer[];
+}
+
+/** How the money in and out of a period is known. */
+export type PerformanceFlowKnowledge = "confirmed" | "inferred" | "missing";
+
+/** The gain and capital of the accounts of one tracking mode in a mixed scope. */
+export interface PerformanceAmountsPart {
+  tracking: "TRANSACTIONS" | "HOLDINGS";
+  gain: number;
+  capital: number;
+}
+
+/**
+ * The amounts a period's return is built from, in the scope's currency. An
+ * amount that does not apply to the scope, or cannot be known, is missing.
+ */
+export interface PerformanceAmounts {
+  /**
+   * The day the amounts open on, when it is later than the period's start: an
+   * account that earned income before any money was put in is measured from
+   * the close before its first deposit.
+   */
+  startDate?: string | null;
+  startValue?: number | null;
+  /** Deposits and transfers in; purchases in an account that does not track cash. */
+  moneyIn?: number | null;
+  moneyOut?: number | null;
+  gain?: number | null;
+  endValue?: number | null;
+  /** What an ROI divides the gain by: book cost, or a mixed scope's capital. */
+  capital?: number | null;
+  flows: PerformanceFlowKnowledge;
+  /** A mixed scope's transactions accounts and its holdings accounts. */
+  parts?: PerformanceAmountsPart[];
+}
+
+/**
+ * A transfer that is neither matched to another account nor marked external;
+ * it withholds the time- and money-weighted returns of its period.
+ */
+export interface PerformanceUnclassifiedTransfer {
+  activityId: string;
+  accountId: string;
+  date: string;
+  /** Unsigned, in `currency`; missing for a transfer of securities. */
+  amount?: number | null;
+  currency: string;
+  outflow: boolean;
 }
 
 export type PerformanceSummaryProfile = "full" | "summary" | "dashboard";
@@ -1470,8 +1521,6 @@ export interface PerformancePeriod {
   endDate?: string | null;
 }
 
-export type ReturnMethod = "timeWeighted" | "valueReturn" | "symbolPriceBased" | "notApplicable";
-
 export type BasisStatus = "complete" | "partialUnknown" | "unknown" | "notApplicable";
 
 export type PerformanceSummaryBasis = "marketValue" | "bookBasis" | "mixed" | "notApplicable";
@@ -1480,26 +1529,35 @@ export type PerformanceSummaryStatus = "complete" | "unavailable";
 
 export interface PerformanceSummary {
   amount?: number | null;
-  percent?: number | null;
-  method: ReturnMethod;
   basis: PerformanceSummaryBasis;
   quality: PerformanceDataQuality["status"];
   amountStatus: PerformanceSummaryStatus;
-  percentStatus: PerformanceSummaryStatus;
   basisStatus: BasisStatus;
   reasons: string[];
 }
 
-export interface PerformanceReturns {
-  twr?: number | null;
-  annualizedTwr?: number | null;
-  /** Selected-period money-weighted return derived from annualized XIRR. */
-  irr?: number | null;
-  /** Annualized XIRR using dated cash flows. */
-  annualizedIrr?: number | null;
-  valueReturn?: number | null;
-  annualizedValueReturn?: number | null;
+/** One way of measuring return; `period` is missing when the scope cannot support it. */
+export interface PerformanceReturnView {
+  period?: number | null;
+  /** Yearly rate: the same return over a year, from one year of history. ROI has none. */
+  annualized?: number | null;
+  /** Cumulative curve, filled for history requests only. */
+  series?: ReturnData[];
+  unavailableReason?: string | null;
+  /** Stable code of `unavailableReason`, for showing translated text. */
+  unavailableReasonCode?: string | null;
 }
+
+export interface PerformanceReturns {
+  /** Time-weighted: deposits and withdrawals do not move it. */
+  twr: PerformanceReturnView;
+  /** Money-weighted: the internal rate of return on the dated deposits and withdrawals. */
+  moneyWeighted: PerformanceReturnView;
+  /** ROI, gain over the capital put in: holdings accounts over their full history, and mixed scopes. */
+  returnOnCost: PerformanceReturnView;
+}
+
+export type PerformanceReturnViewKey = keyof PerformanceReturns;
 
 export interface PerformanceAttribution {
   contributions: number;
@@ -2623,6 +2681,8 @@ export interface HealthStatus {
   issues: HealthIssue[];
   checkedAt: string;
   isStale: boolean;
+  /** Dismissed issues whose data hasn't changed; not in `issues` or `issueCounts`. */
+  dismissedIssues: HealthIssue[];
 }
 
 /**

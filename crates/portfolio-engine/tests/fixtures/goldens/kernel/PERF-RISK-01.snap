@@ -73,12 +73,205 @@ baseline:
           period_start: 2025-01-02
           quality: ok
           returns:
-            annualized_irr: "5.11767318"
-            annualized_twr: "5.11767318"
-            annualized_value_return: "5.11767318"
-            irr: "0.25"
-            twr: "0.25"
-            value_return: "0.25"
+            money_weighted:
+              annualized: ~
+              period: "0.25"
+              series:
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0.0143"
+                - date: 2025-01-04
+                  value: "0.0286"
+                - date: 2025-01-05
+                  value: "0.0429"
+                - date: 2025-01-06
+                  value: "0.0571"
+                - date: 2025-01-07
+                  value: "0.0714"
+                - date: 2025-01-08
+                  value: "0.0857"
+                - date: 2025-01-09
+                  value: "0.1"
+                - date: 2025-01-10
+                  value: "0.1143"
+                - date: 2025-01-11
+                  value: "0.1286"
+                - date: 2025-01-12
+                  value: "0.1429"
+                - date: 2025-01-13
+                  value: "0.1571"
+                - date: 2025-01-14
+                  value: "0.1714"
+                - date: 2025-01-15
+                  value: "0.1857"
+                - date: 2025-01-16
+                  value: "0.2"
+                - date: 2025-01-17
+                  value: "0.188"
+                - date: 2025-01-18
+                  value: "0.176"
+                - date: 2025-01-19
+                  value: "0.164"
+                - date: 2025-01-20
+                  value: "0.152"
+                - date: 2025-01-21
+                  value: "0.14"
+                - date: 2025-01-22
+                  value: "0.128"
+                - date: 2025-01-23
+                  value: "0.116"
+                - date: 2025-01-24
+                  value: "0.104"
+                - date: 2025-01-25
+                  value: "0.092"
+                - date: 2025-01-26
+                  value: "0.08"
+                - date: 2025-01-27
+                  value: "0.068"
+                - date: 2025-01-28
+                  value: "0.056"
+                - date: 2025-01-29
+                  value: "0.044"
+                - date: 2025-01-30
+                  value: "0.032"
+                - date: 2025-01-31
+                  value: "0.02"
+                - date: 2025-02-01
+                  value: "0.0353"
+                - date: 2025-02-02
+                  value: "0.0507"
+                - date: 2025-02-03
+                  value: "0.066"
+                - date: 2025-02-04
+                  value: "0.0813"
+                - date: 2025-02-05
+                  value: "0.0967"
+                - date: 2025-02-06
+                  value: "0.112"
+                - date: 2025-02-07
+                  value: "0.1273"
+                - date: 2025-02-08
+                  value: "0.1427"
+                - date: 2025-02-09
+                  value: "0.158"
+                - date: 2025-02-10
+                  value: "0.1733"
+                - date: 2025-02-11
+                  value: "0.1887"
+                - date: 2025-02-12
+                  value: "0.204"
+                - date: 2025-02-13
+                  value: "0.2193"
+                - date: 2025-02-14
+                  value: "0.2347"
+                - date: 2025-02-15
+                  value: "0.25"
+                - date: 2025-02-16
+                  value: "0.25"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "0.25"
+              series:
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0.0143"
+                - date: 2025-01-04
+                  value: "0.0286"
+                - date: 2025-01-05
+                  value: "0.0429"
+                - date: 2025-01-06
+                  value: "0.0571"
+                - date: 2025-01-07
+                  value: "0.0714"
+                - date: 2025-01-08
+                  value: "0.0857"
+                - date: 2025-01-09
+                  value: "0.1"
+                - date: 2025-01-10
+                  value: "0.1143"
+                - date: 2025-01-11
+                  value: "0.1286"
+                - date: 2025-01-12
+                  value: "0.1429"
+                - date: 2025-01-13
+                  value: "0.1571"
+                - date: 2025-01-14
+                  value: "0.1714"
+                - date: 2025-01-15
+                  value: "0.1857"
+                - date: 2025-01-16
+                  value: "0.2"
+                - date: 2025-01-17
+                  value: "0.188"
+                - date: 2025-01-18
+                  value: "0.176"
+                - date: 2025-01-19
+                  value: "0.164"
+                - date: 2025-01-20
+                  value: "0.152"
+                - date: 2025-01-21
+                  value: "0.14"
+                - date: 2025-01-22
+                  value: "0.128"
+                - date: 2025-01-23
+                  value: "0.116"
+                - date: 2025-01-24
+                  value: "0.104"
+                - date: 2025-01-25
+                  value: "0.092"
+                - date: 2025-01-26
+                  value: "0.08"
+                - date: 2025-01-27
+                  value: "0.068"
+                - date: 2025-01-28
+                  value: "0.056"
+                - date: 2025-01-29
+                  value: "0.044"
+                - date: 2025-01-30
+                  value: "0.032"
+                - date: 2025-01-31
+                  value: "0.02"
+                - date: 2025-02-01
+                  value: "0.0353"
+                - date: 2025-02-02
+                  value: "0.0507"
+                - date: 2025-02-03
+                  value: "0.066"
+                - date: 2025-02-04
+                  value: "0.0813"
+                - date: 2025-02-05
+                  value: "0.0967"
+                - date: 2025-02-06
+                  value: "0.112"
+                - date: 2025-02-07
+                  value: "0.1273"
+                - date: 2025-02-08
+                  value: "0.1427"
+                - date: 2025-02-09
+                  value: "0.158"
+                - date: 2025-02-10
+                  value: "0.1733"
+                - date: 2025-02-11
+                  value: "0.1887"
+                - date: 2025-02-12
+                  value: "0.204"
+                - date: 2025-02-13
+                  value: "0.2193"
+                - date: 2025-02-14
+                  value: "0.2347"
+                - date: 2025-02-15
+                  value: "0.25"
+                - date: 2025-02-16
+                  value: "0.25"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 27
             max_drawdown: "-0.15"
@@ -86,107 +279,11 @@ baseline:
             recovery_date: 2025-02-12
             trough_date: 2025-01-31
             volatility: "0.21951991"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0.0143"
-            - date: 2025-01-04
-              value: "0.0286"
-            - date: 2025-01-05
-              value: "0.0429"
-            - date: 2025-01-06
-              value: "0.0571"
-            - date: 2025-01-07
-              value: "0.0714"
-            - date: 2025-01-08
-              value: "0.0857"
-            - date: 2025-01-09
-              value: "0.1"
-            - date: 2025-01-10
-              value: "0.1143"
-            - date: 2025-01-11
-              value: "0.1286"
-            - date: 2025-01-12
-              value: "0.1429"
-            - date: 2025-01-13
-              value: "0.1571"
-            - date: 2025-01-14
-              value: "0.1714"
-            - date: 2025-01-15
-              value: "0.1857"
-            - date: 2025-01-16
-              value: "0.2"
-            - date: 2025-01-17
-              value: "0.188"
-            - date: 2025-01-18
-              value: "0.176"
-            - date: 2025-01-19
-              value: "0.164"
-            - date: 2025-01-20
-              value: "0.152"
-            - date: 2025-01-21
-              value: "0.14"
-            - date: 2025-01-22
-              value: "0.128"
-            - date: 2025-01-23
-              value: "0.116"
-            - date: 2025-01-24
-              value: "0.104"
-            - date: 2025-01-25
-              value: "0.092"
-            - date: 2025-01-26
-              value: "0.08"
-            - date: 2025-01-27
-              value: "0.068"
-            - date: 2025-01-28
-              value: "0.056"
-            - date: 2025-01-29
-              value: "0.044"
-            - date: 2025-01-30
-              value: "0.032"
-            - date: 2025-01-31
-              value: "0.02"
-            - date: 2025-02-01
-              value: "0.0353"
-            - date: 2025-02-02
-              value: "0.0507"
-            - date: 2025-02-03
-              value: "0.066"
-            - date: 2025-02-04
-              value: "0.0813"
-            - date: 2025-02-05
-              value: "0.0967"
-            - date: 2025-02-06
-              value: "0.112"
-            - date: 2025-02-07
-              value: "0.1273"
-            - date: 2025-02-08
-              value: "0.1427"
-            - date: 2025-02-09
-              value: "0.158"
-            - date: 2025-02-10
-              value: "0.1733"
-            - date: 2025-02-11
-              value: "0.1887"
-            - date: 2025-02-12
-              value: "0.204"
-            - date: 2025-02-13
-              value: "0.2193"
-            - date: 2025-02-14
-              value: "0.2347"
-            - date: 2025-02-15
-              value: "0.25"
-            - date: 2025-02-16
-              value: "0.25"
           summary:
             amount: "250"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "0.25"
-            percent_status: complete
             quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
@@ -1131,12 +1228,205 @@ baseline:
       period_start: 2025-01-02
       quality: ok
       returns:
-        annualized_irr: "5.11767318"
-        annualized_twr: "5.11767318"
-        annualized_value_return: "5.11767318"
-        irr: "0.25"
-        twr: "0.25"
-        value_return: "0.25"
+        money_weighted:
+          annualized: ~
+          period: "0.25"
+          series:
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0.0143"
+            - date: 2025-01-04
+              value: "0.0286"
+            - date: 2025-01-05
+              value: "0.0429"
+            - date: 2025-01-06
+              value: "0.0571"
+            - date: 2025-01-07
+              value: "0.0714"
+            - date: 2025-01-08
+              value: "0.0857"
+            - date: 2025-01-09
+              value: "0.1"
+            - date: 2025-01-10
+              value: "0.1143"
+            - date: 2025-01-11
+              value: "0.1286"
+            - date: 2025-01-12
+              value: "0.1429"
+            - date: 2025-01-13
+              value: "0.1571"
+            - date: 2025-01-14
+              value: "0.1714"
+            - date: 2025-01-15
+              value: "0.1857"
+            - date: 2025-01-16
+              value: "0.2"
+            - date: 2025-01-17
+              value: "0.188"
+            - date: 2025-01-18
+              value: "0.176"
+            - date: 2025-01-19
+              value: "0.164"
+            - date: 2025-01-20
+              value: "0.152"
+            - date: 2025-01-21
+              value: "0.14"
+            - date: 2025-01-22
+              value: "0.128"
+            - date: 2025-01-23
+              value: "0.116"
+            - date: 2025-01-24
+              value: "0.104"
+            - date: 2025-01-25
+              value: "0.092"
+            - date: 2025-01-26
+              value: "0.08"
+            - date: 2025-01-27
+              value: "0.068"
+            - date: 2025-01-28
+              value: "0.056"
+            - date: 2025-01-29
+              value: "0.044"
+            - date: 2025-01-30
+              value: "0.032"
+            - date: 2025-01-31
+              value: "0.02"
+            - date: 2025-02-01
+              value: "0.0353"
+            - date: 2025-02-02
+              value: "0.0507"
+            - date: 2025-02-03
+              value: "0.066"
+            - date: 2025-02-04
+              value: "0.0813"
+            - date: 2025-02-05
+              value: "0.0967"
+            - date: 2025-02-06
+              value: "0.112"
+            - date: 2025-02-07
+              value: "0.1273"
+            - date: 2025-02-08
+              value: "0.1427"
+            - date: 2025-02-09
+              value: "0.158"
+            - date: 2025-02-10
+              value: "0.1733"
+            - date: 2025-02-11
+              value: "0.1887"
+            - date: 2025-02-12
+              value: "0.204"
+            - date: 2025-02-13
+              value: "0.2193"
+            - date: 2025-02-14
+              value: "0.2347"
+            - date: 2025-02-15
+              value: "0.25"
+            - date: 2025-02-16
+              value: "0.25"
+          unavailable_reason: ~
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: "0.25"
+          series:
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0.0143"
+            - date: 2025-01-04
+              value: "0.0286"
+            - date: 2025-01-05
+              value: "0.0429"
+            - date: 2025-01-06
+              value: "0.0571"
+            - date: 2025-01-07
+              value: "0.0714"
+            - date: 2025-01-08
+              value: "0.0857"
+            - date: 2025-01-09
+              value: "0.1"
+            - date: 2025-01-10
+              value: "0.1143"
+            - date: 2025-01-11
+              value: "0.1286"
+            - date: 2025-01-12
+              value: "0.1429"
+            - date: 2025-01-13
+              value: "0.1571"
+            - date: 2025-01-14
+              value: "0.1714"
+            - date: 2025-01-15
+              value: "0.1857"
+            - date: 2025-01-16
+              value: "0.2"
+            - date: 2025-01-17
+              value: "0.188"
+            - date: 2025-01-18
+              value: "0.176"
+            - date: 2025-01-19
+              value: "0.164"
+            - date: 2025-01-20
+              value: "0.152"
+            - date: 2025-01-21
+              value: "0.14"
+            - date: 2025-01-22
+              value: "0.128"
+            - date: 2025-01-23
+              value: "0.116"
+            - date: 2025-01-24
+              value: "0.104"
+            - date: 2025-01-25
+              value: "0.092"
+            - date: 2025-01-26
+              value: "0.08"
+            - date: 2025-01-27
+              value: "0.068"
+            - date: 2025-01-28
+              value: "0.056"
+            - date: 2025-01-29
+              value: "0.044"
+            - date: 2025-01-30
+              value: "0.032"
+            - date: 2025-01-31
+              value: "0.02"
+            - date: 2025-02-01
+              value: "0.0353"
+            - date: 2025-02-02
+              value: "0.0507"
+            - date: 2025-02-03
+              value: "0.066"
+            - date: 2025-02-04
+              value: "0.0813"
+            - date: 2025-02-05
+              value: "0.0967"
+            - date: 2025-02-06
+              value: "0.112"
+            - date: 2025-02-07
+              value: "0.1273"
+            - date: 2025-02-08
+              value: "0.1427"
+            - date: 2025-02-09
+              value: "0.158"
+            - date: 2025-02-10
+              value: "0.1733"
+            - date: 2025-02-11
+              value: "0.1887"
+            - date: 2025-02-12
+              value: "0.204"
+            - date: 2025-02-13
+              value: "0.2193"
+            - date: 2025-02-14
+              value: "0.2347"
+            - date: 2025-02-15
+              value: "0.25"
+            - date: 2025-02-16
+              value: "0.25"
+          unavailable_reason: ~
       risk:
         drawdown_duration_days: 27
         max_drawdown: "-0.15"
@@ -1144,107 +1434,11 @@ baseline:
         recovery_date: 2025-02-12
         trough_date: 2025-01-31
         volatility: "0.21951991"
-      series:
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "0.0143"
-        - date: 2025-01-04
-          value: "0.0286"
-        - date: 2025-01-05
-          value: "0.0429"
-        - date: 2025-01-06
-          value: "0.0571"
-        - date: 2025-01-07
-          value: "0.0714"
-        - date: 2025-01-08
-          value: "0.0857"
-        - date: 2025-01-09
-          value: "0.1"
-        - date: 2025-01-10
-          value: "0.1143"
-        - date: 2025-01-11
-          value: "0.1286"
-        - date: 2025-01-12
-          value: "0.1429"
-        - date: 2025-01-13
-          value: "0.1571"
-        - date: 2025-01-14
-          value: "0.1714"
-        - date: 2025-01-15
-          value: "0.1857"
-        - date: 2025-01-16
-          value: "0.2"
-        - date: 2025-01-17
-          value: "0.188"
-        - date: 2025-01-18
-          value: "0.176"
-        - date: 2025-01-19
-          value: "0.164"
-        - date: 2025-01-20
-          value: "0.152"
-        - date: 2025-01-21
-          value: "0.14"
-        - date: 2025-01-22
-          value: "0.128"
-        - date: 2025-01-23
-          value: "0.116"
-        - date: 2025-01-24
-          value: "0.104"
-        - date: 2025-01-25
-          value: "0.092"
-        - date: 2025-01-26
-          value: "0.08"
-        - date: 2025-01-27
-          value: "0.068"
-        - date: 2025-01-28
-          value: "0.056"
-        - date: 2025-01-29
-          value: "0.044"
-        - date: 2025-01-30
-          value: "0.032"
-        - date: 2025-01-31
-          value: "0.02"
-        - date: 2025-02-01
-          value: "0.0353"
-        - date: 2025-02-02
-          value: "0.0507"
-        - date: 2025-02-03
-          value: "0.066"
-        - date: 2025-02-04
-          value: "0.0813"
-        - date: 2025-02-05
-          value: "0.0967"
-        - date: 2025-02-06
-          value: "0.112"
-        - date: 2025-02-07
-          value: "0.1273"
-        - date: 2025-02-08
-          value: "0.1427"
-        - date: 2025-02-09
-          value: "0.158"
-        - date: 2025-02-10
-          value: "0.1733"
-        - date: 2025-02-11
-          value: "0.1887"
-        - date: 2025-02-12
-          value: "0.204"
-        - date: 2025-02-13
-          value: "0.2193"
-        - date: 2025-02-14
-          value: "0.2347"
-        - date: 2025-02-15
-          value: "0.25"
-        - date: 2025-02-16
-          value: "0.25"
       summary:
         amount: "250"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
-        method: timeWeighted
-        percent: "0.25"
-        percent_status: complete
         quality: ok
   portfolio_flows: []
 scenario: PERF-RISK-01

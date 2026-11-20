@@ -16,12 +16,13 @@ import {
   metricWarningItems,
   MONEY_WEIGHTED_RETURN_INFO_KEY,
   PRICE_RETURN_INFO_KEY,
+  RETURN_ON_COST_INFO_KEY,
   SIMPLE_RETURN_INFO_KEY,
   TIME_WEIGHTED_RETURN_INFO_KEY,
-  VALUE_RETURN_INFO_KEY,
   VOLATILITY_INFO_KEY as volatilityInfo,
 } from "@/components/metric-display";
 import { PerformanceChart, type PerformanceChartSeries } from "@/components/performance-chart";
+import type { AccountScope, PerformanceReturnViewKey } from "@/lib/types";
 
 import { PERFORMANCE_CHART_COLORS } from "@/components/performance-chart-colors";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -31,9 +32,20 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { AccountPurpose, PORTFOLIO_SCOPE_ID } from "@/lib/constants";
 import {
   performancePeriodPnl,
-  performanceSummaryReturn,
+  performanceViewAnnualized,
+  performanceViewReason,
+  performanceViewReturn,
+  presentedReturn,
   shouldDisplayAnnualizedPerformanceReturn,
+  type ChosenReturnView,
 } from "@/lib/performance";
+import {
+  ReturnMethodToggle,
+  returnReasonText,
+  returnViewName,
+  returnViewShortName,
+} from "@/components/return-percent";
+import { useReturnMethod } from "@/hooks/use-return-method";
 import { getPerformanceDateRangeForRequest } from "@/lib/performance-date-range";
 import { DateRange, PerformanceResult, TrackedItem } from "@/lib/types";
 import { cn, parseLocalDate } from "@/lib/utils";
@@ -84,7 +96,11 @@ import { AccountSelector } from "../../components/account-selector";
 import { AccountSelectorMobile } from "../../components/account-selector-mobile";
 import { BenchmarkSymbolSelectorMobile } from "../../components/benchmark-symbol-selector-mobile";
 import { useCalculatePerformanceHistory } from "./hooks/use-performance-data";
-import { comparablePerformanceChartData, type PerformanceMetric } from "./performance-chart-series";
+import {
+  chartViewFor,
+  comparablePerformanceChartData,
+  type PerformanceMetric,
+} from "./performance-chart-series";
 import {
   ALL_PORTFOLIO_ITEM,
   migratePerformanceSelectedItemId,
@@ -112,10 +128,6 @@ function performanceItemLabel(item: { id: string; name: string }, t: TFunction):
   return item.id === PORTFOLIO_SCOPE_ID ? t("performance:all_portfolio") : item.name;
 }
 
-function chartMetricForResult(result: PerformanceResult): PerformanceMetric {
-  return result.mode === "valueReturn" ? "valueReturn" : "twr";
-}
-
 function trackingModeBadge(
   result: PerformanceResult,
   t: TFunction,
@@ -126,7 +138,7 @@ function trackingModeBadge(
   if (result.isMixedTrackingMode) {
     return { label: t("performance:tracking_mode.mixed"), variant: "warning" };
   }
-  if (result.isHoldingsMode || result.mode === "valueReturn") {
+  if (result.isHoldingsMode) {
     return {
       label: t("performance:tracking_mode.holdings"),
       variant: "outline",
@@ -135,7 +147,7 @@ function trackingModeBadge(
   return null;
 }
 
-type ChartExclusionKind = "missingData" | "differentReturnMethod" | "dateOverlap";
+type ChartExclusionKind = "missingData" | "dateOverlap";
 
 interface ChartExclusion {
   kind: ChartExclusionKind;
@@ -144,7 +156,7 @@ interface ChartExclusion {
 
 function chartExclusion(
   result: PerformanceResult | undefined,
-  metric: PerformanceMetric,
+  metric: PerformanceMetric | PerformanceReturnViewKey,
   t: TFunction,
 ): ChartExclusion {
   if (!result) {
@@ -153,35 +165,17 @@ function chartExclusion(
       message: t("performance:exclusion.no_data"),
     };
   }
-  if (!result.series.length) {
-    return {
-      kind: "missingData",
-      message: t("performance:exclusion.no_series"),
-    };
-  }
-  // A return the engine reports as unavailable (an unpriced or unconvertible
-  // period endpoint) has no line worth drawing: the series would only trace
-  // the excluded days as zeros.
+  // A return the engine reports as unavailable has no line worth drawing; the
+  // engine says why (e.g. no time-weighted return over a holdings account's
+  // full history).
   if (
-    (metric === "twr" || metric === "irr" || metric === "valueReturn") &&
-    metricValue(result, metric) == null
+    (metric === "twr" || metric === "moneyWeighted" || metric === "returnOnCost") &&
+    (performanceViewReturn(result, metric) == null ||
+      (result.returns[metric].series ?? []).length < 2)
   ) {
     return {
       kind: "missingData",
-      message: t("performance:exclusion.no_data"),
-    };
-  }
-
-  if (metric === "twr" && result.mode === "valueReturn") {
-    return {
-      kind: "differentReturnMethod",
-      message: t("performance:exclusion.holdings_not_twr"),
-    };
-  }
-  if (metric === "valueReturn" && result.mode === "timeWeighted") {
-    return {
-      kind: "differentReturnMethod",
-      message: t("performance:exclusion.transaction_not_value"),
+      message: performanceViewReason(result, metric) ?? t("performance:exclusion.no_data"),
     };
   }
 
@@ -192,14 +186,14 @@ function chartExclusion(
 }
 
 function comparisonNoticeMessage(kinds: ChartExclusionKind[], t: TFunction): string {
-  if (kinds.includes("differentReturnMethod")) {
-    return t("performance:comparison_notice.different_methods");
+  if (kinds.includes("missingData")) {
+    return t("performance:comparison_notice.missing_return");
   }
   return t("performance:comparison_notice.not_enough_overlap");
 }
 
 function metricPresentation(
-  metric: PerformanceMetric,
+  metric: PerformanceMetric | PerformanceReturnViewKey,
   t: TFunction,
 ): {
   label: string;
@@ -211,15 +205,15 @@ function metricPresentation(
         label: t("performance:metric.time_weighted_return"),
         infoText: t(TIME_WEIGHTED_RETURN_INFO_KEY),
       };
-    case "irr":
+    case "moneyWeighted":
       return {
         label: t("performance:metric.money_weighted_return"),
         infoText: t(MONEY_WEIGHTED_RETURN_INFO_KEY),
       };
-    case "valueReturn":
+    case "returnOnCost":
       return {
-        label: t("performance:metric.value_return"),
-        infoText: t(VALUE_RETURN_INFO_KEY),
+        label: t("performance:metric.return_on_cost"),
+        infoText: t(RETURN_ON_COST_INFO_KEY),
       };
     case "volatility":
       return {
@@ -234,76 +228,82 @@ function metricPresentation(
   }
 }
 
+/**
+ * A benchmark's views: its time-weighted view is the price return, and its
+ * money-weighted view replays the selected scope's deposits into it.
+ */
+function benchmarkPresentation(
+  view: PerformanceReturnViewKey,
+  t: TFunction,
+): { label: string; shortLabel: string; infoText: string } {
+  if (view === "moneyWeighted") {
+    return {
+      label: t("performance:metric.benchmark_money_weighted"),
+      shortLabel: t("performance:metric.benchmark_money_weighted_short"),
+      infoText: t("performance:metric_info.benchmark_money_weighted"),
+    };
+  }
+  return {
+    label: t("performance:metric.price_return"),
+    shortLabel: t("performance:metric.price_return_short"),
+    infoText: t(PRICE_RETURN_INFO_KEY),
+  };
+}
+
 function stripReturnLabel(label: string | undefined, t: TFunction): string {
   switch (label) {
     case t("performance:metric.time_weighted_return"):
       return t("performance:metric.time_weighted_short");
     case t("performance:metric.money_weighted_return"):
       return t("performance:metric.money_weighted_short");
-    case t("performance:metric.value_return"):
-      return t("performance:metric.value_return_short");
+    case t("performance:metric.return_on_cost"):
+      return t("performance:metric.return_on_cost_short");
     case t("performance:metric.price_return"):
       return t("performance:metric.price_return_short");
+    case t("performance:metric.benchmark_money_weighted"):
+      return t("performance:metric.benchmark_money_weighted_short");
     default:
       return label ?? t("performance:metric.return");
   }
 }
 
-function metricValue(result: PerformanceResult, metric: PerformanceMetric): number | null {
-  switch (metric) {
-    case "twr":
-      return result.returns.twr == null ? null : Number(result.returns.twr);
-    case "irr":
-      return result.returns.irr == null ? null : Number(result.returns.irr);
-    case "valueReturn":
-      if (result.mode === "valueReturn") {
-        return performanceSummaryReturn(result);
-      }
-      return result.returns.valueReturn == null ? null : Number(result.returns.valueReturn);
-    case "volatility":
-      return result.risk.volatility == null ? null : Number(result.risk.volatility);
-    case "drawdown":
-      return result.risk.maxDrawdown == null ? null : Number(result.risk.maxDrawdown);
-  }
+function riskValue(result: PerformanceResult, metric: "volatility" | "drawdown"): number | null {
+  const value = metric === "volatility" ? result.risk.volatility : result.risk.maxDrawdown;
+  return value == null ? null : Number(value);
 }
 
-function annualizedMetricValue(
+/** The other method's figure for the panel: its yearly rate from one year, else the period. */
+function otherMethodFigure(
   result: PerformanceResult,
-  metric: PerformanceMetric,
-): number | null {
-  switch (metric) {
-    case "twr":
-      return result.returns.annualizedTwr == null ? null : Number(result.returns.annualizedTwr);
-    case "irr":
-      return result.returns.annualizedIrr == null ? null : Number(result.returns.annualizedIrr);
-    case "valueReturn":
-      if (result.mode === "valueReturn" && performanceSummaryReturn(result) == null) {
-        return null;
-      }
-      return result.returns.annualizedValueReturn == null
-        ? null
-        : Number(result.returns.annualizedValueReturn);
-    case "volatility":
-    case "drawdown":
-      return null;
+  view: ChosenReturnView,
+  t: TFunction,
+): { value: number | null; label: string; shortLabel: string } {
+  const annualized = shouldDisplayAnnualizedPerformanceReturn(result)
+    ? performanceViewAnnualized(result, view)
+    : null;
+  const isMoneyWeighted = view === "moneyWeighted";
+  if (annualized != null) {
+    return {
+      value: annualized,
+      label: t(
+        isMoneyWeighted ? "performance:metric.annualized_mwr" : "performance:metric.annualized_twr",
+      ),
+      shortLabel: t(
+        isMoneyWeighted ? "performance:metric.ann_mwr_short" : "performance:metric.ann_twr_short",
+      ),
+    };
   }
-}
-
-function displayMetricValue(result: PerformanceResult, metric: PerformanceMetric): number | null {
-  if (result.mode === "symbolPriceBased" && (metric === "twr" || metric === "valueReturn")) {
-    return metricValue(result, "valueReturn");
-  }
-  return metricValue(result, metric);
-}
-
-function annualizedDisplayMetricValue(
-  result: PerformanceResult,
-  metric: PerformanceMetric,
-): number | null {
-  if (result.mode === "symbolPriceBased" && (metric === "twr" || metric === "valueReturn")) {
-    return annualizedMetricValue(result, "valueReturn");
-  }
-  return annualizedMetricValue(result, metric);
+  return {
+    value: performanceViewReturn(result, view),
+    label: t(
+      isMoneyWeighted
+        ? "performance:metric.money_weighted_return"
+        : "performance:metric.time_weighted_return",
+    ),
+    shortLabel: t(
+      isMoneyWeighted ? "performance:metric.mwr_short" : "performance:metric.twr_short",
+    ),
+  };
 }
 
 function firstNotApplicableReason(result: PerformanceResult): string | undefined {
@@ -312,14 +312,6 @@ function firstNotApplicableReason(result: PerformanceResult): string | undefined
 
 function isMoneyWeightedMessage(message: string): boolean {
   return /\bIRR\b|\bMWR\b|money-weighted|XIRR/i.test(message);
-}
-
-function firstMoneyWeightedReason(result: PerformanceResult): string | undefined {
-  const messages = [
-    ...(result.dataQuality.notApplicableReasons ?? []),
-    ...(result.dataQuality.warnings ?? []),
-  ];
-  return messages.find(isMoneyWeightedMessage);
 }
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -358,9 +350,11 @@ function presentMoneyWeightedWarning(
   t: TFunction,
   formatting: Pick<FormattingApi, "formatDecimal">,
 ): string {
+  // The engine's reason for a holdings account's full history, the one MWR
+  // reason the app translates.
   if (
     text ===
-    "IRR unavailable for holdings-only scopes because transaction cash flows are not tracked."
+    "Money-weighted return unavailable over the full history of a holdings account because deposits and withdrawals are not tracked."
   ) {
     return t("performance:exclusion.holdings_not_mwr");
   }
@@ -663,7 +657,8 @@ function AttributionDetailMetric({
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const resolvedLabel = label ?? t("performance:attribution.period_gain_loss");
-  if (!result || result.mode === "symbolPriceBased") return null;
+  if (!result) return null;
+  // A symbol has no attributed gain: its summary amount is unavailable.
   const periodPnl = performancePeriodPnl(result);
   if (periodPnl == null) return null;
   // A missing mixed-scope return series does not make attributed P&L incomplete.
@@ -855,6 +850,7 @@ function AttributionDetailMetric({
 
 function PerformanceContent({
   chartData,
+  emptyChartReason,
   isLoading,
   hasErrors,
   errorMessages,
@@ -863,6 +859,8 @@ function PerformanceContent({
   onScrub,
 }: {
   chartData: PerformanceChartSeries[] | undefined;
+  /** Why the selected item draws no line, when it has a return. */
+  emptyChartReason: string | null;
   isLoading: boolean;
   hasErrors: boolean;
   errorMessages: string[];
@@ -889,7 +887,9 @@ function PerformanceContent({
           <EmptyHeader>
             <EmptyMedia variant="icon">{<Icons.BarChart className="size-10" />}</EmptyMedia>
             <EmptyTitle>{t("performance:empty.title")}</EmptyTitle>
-            <EmptyDescription>{t("performance:empty.description")}</EmptyDescription>
+            <EmptyDescription>
+              {emptyChartReason ?? t("performance:empty.description")}
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       )}
@@ -1051,6 +1051,7 @@ function ComparedSeriesTable({
   scrubValues?: Map<string, number> | null;
 }) {
   const { t } = useTranslation();
+  const { returnView } = useReturnMethod();
   const [isExpanded, setIsExpanded] = useState(false);
   const canFold = rows.length > SERIES_TABLE_FOLDED_ROWS + 1;
   const shownRows = canFold && !isExpanded ? rows.slice(0, SERIES_TABLE_FOLDED_ROWS) : rows;
@@ -1081,12 +1082,10 @@ function ComparedSeriesTable({
         <tbody>
           {shownRows.map((row) => {
             const label = performanceItemLabel(row.item, t);
-            const metric = row.result ? chartMetricForResult(row.result) : "twr";
+            const rowReturn = presentedReturn(row.result, returnView);
             const returnValue = scrubValues
               ? (scrubValues.get(row.item.id) ?? null)
-              : row.result
-                ? displayMetricValue(row.result, metric)
-                : null;
+              : (rowReturn?.value ?? null);
             const muted = !row.isPlotted || row.isHidden;
             return (
               <tr
@@ -1127,17 +1126,25 @@ function ComparedSeriesTable({
                 </td>
                 <td className={cn(cellClass, muted && "opacity-60")}>
                   <MetricValue value={returnValue} className="text-sm font-medium" />
+                  {!scrubValues && rowReturn?.isFallback && (
+                    <span
+                      className="text-muted-foreground text-2xs block"
+                      title={returnViewName(rowReturn.view, t)}
+                    >
+                      {returnViewShortName(rowReturn.view, t)}
+                    </span>
+                  )}
                 </td>
                 <td className={cn(cellClass, "hidden sm:table-cell", muted && "opacity-60")}>
                   <MetricValue
-                    value={row.result ? metricValue(row.result, "volatility") : null}
+                    value={row.result ? riskValue(row.result, "volatility") : null}
                     tone="neutral"
                     className="text-sm"
                   />
                 </td>
                 <td className={cn(cellClass, "hidden sm:table-cell", muted && "opacity-60")}>
                   <MetricValue
-                    value={row.result ? metricValue(row.result, "drawdown") : null}
+                    value={row.result ? riskValue(row.result, "drawdown") : null}
                     className="text-sm"
                   />
                 </td>
@@ -1314,6 +1321,19 @@ export default function PerformancePage() {
     return map;
   }, [accounts]);
 
+  // Benchmarks replay the money of the selected account or portfolio (the
+  // first one when a benchmark is selected) for their money-weighted view.
+  const { returnView } = useReturnMethod();
+  // Only the money-weighted view shows the replay, so only it asks for one:
+  // a time-weighted page does not reload every benchmark per selected account.
+  const benchmarkScope = useMemo((): AccountScope | undefined => {
+    if (returnView !== "moneyWeighted") return undefined;
+    const accountItems = selectedItems.filter((item) => item.type === "account");
+    const anchor = accountItems.find((item) => item.id === selectedItemId) ?? accountItems[0];
+    if (!anchor) return undefined;
+    return anchor.accountScope ?? { type: "account", accountId: anchor.id };
+  }, [returnView, selectedItemId, selectedItems]);
+
   // Use the custom hook for parallel data fetching with effective date calculation
   const {
     data: performanceData,
@@ -1322,9 +1342,11 @@ export default function PerformancePage() {
     hasErrors,
     errorMessages,
     displayDateRange,
+    formattedStartDate: requestedStartDate,
   } = useCalculatePerformanceHistory({
     selectedItems: isAccountsLoading || isAccountsError ? [] : selectedItems,
     dateRange: getPerformanceDateRangeForRequest(dateRange),
+    benchmarkScope,
   });
 
   const selectedPerformanceData = useMemo(() => {
@@ -1338,12 +1360,16 @@ export default function PerformancePage() {
     return {
       result: found,
       name,
-      chartMetric: chartMetricForResult(found),
+      isSymbol: selectedItem?.type === "symbol",
     };
   }, [selectedItemId, performanceData, selectedItems, t]);
 
-  const selectedChartMetric = selectedPerformanceData?.chartMetric ?? "twr";
   const activeChartAnchorId = selectedPerformanceData?.result.id ?? selectedItemId;
+  // The selected item's own figure decides what the chart draws.
+  const selectedChartMetric = useMemo(
+    () => chartViewFor(performanceData, returnView, activeChartAnchorId ?? null),
+    [activeChartAnchorId, performanceData, returnView],
+  );
 
   // Calculate derived chart data
   const chartData = useMemo(() => {
@@ -1353,6 +1379,16 @@ export default function PerformancePage() {
       activeChartAnchorId ?? null,
     ).map((item) => ({ ...item, name: performanceItemLabel(item, t) }));
   }, [activeChartAnchorId, performanceData, selectedChartMetric, t]);
+
+  // A selected item with a return but no line (e.g. a mixed portfolio whose
+  // accounts start inside the period) says so, instead of asking for accounts.
+  const emptyChartReason = useMemo(() => {
+    const anchor = performanceData?.find((item) => item?.id === activeChartAnchorId);
+    if (!anchor) return null;
+    return presentedReturn(anchor, returnView)
+      ? t("performance:empty.no_curve")
+      : returnReasonText(anchor, returnView, t);
+  }, [activeChartAnchorId, performanceData, returnView, t]);
 
   const chartColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1416,16 +1452,21 @@ export default function PerformancePage() {
   const selectedItemData = useMemo(() => {
     if (!selectedPerformanceData) return null;
     const found = selectedPerformanceData.result;
-    const selectedMetric = selectedPerformanceData.chartMetric;
-    const selectedMetricPresentation =
-      found.mode === "symbolPriceBased" &&
-      (selectedMetric === "twr" || selectedMetric === "valueReturn")
-        ? {
-            label: t("performance:metric.price_return"),
-            infoText: t(PRICE_RETURN_INFO_KEY),
-          }
-        : metricPresentation(selectedMetric, t);
-    const selectedMetricValue = displayMetricValue(found, selectedMetric);
+    const isSymbol = selectedPerformanceData.isSymbol;
+    // The chosen method, or a labelled stand-in when this scope cannot
+    // support it (return on cost, then the other method).
+    const presented = presentedReturn(found, returnView);
+    const shownView = presented?.view ?? returnView;
+    // A benchmark replays the selected scope's deposits only when there is a
+    // scope with history; otherwise both its views are the price return, and
+    // it reads as that one figure.
+    const benchmarkReplayed =
+      isSymbol &&
+      performanceViewReturn(found, "moneyWeighted") !== performanceViewReturn(found, "twr");
+    const selectedMetricPresentation = isSymbol
+      ? benchmarkPresentation(benchmarkReplayed ? shownView : "twr", t)
+      : metricPresentation(shownView, t);
+    const selectedMetricValue = presented?.value ?? null;
     const rawWarnings = found.dataQuality.warnings ?? [];
     const rawMoneyWeightedWarnings = rawWarnings.filter(isMoneyWeightedMessage);
     const visibleWarnings = rawWarnings
@@ -1434,46 +1475,60 @@ export default function PerformancePage() {
     const moneyWeightedWarnings = rawMoneyWeightedWarnings.map((warning) =>
       presentMoneyWeightedWarning(warning, accountNamesById, t, numberFormatting),
     );
-    const rawReason = selectedMetricValue == null ? firstNotApplicableReason(found) : undefined;
-    const showAnnualizedMoneyWeightedReturn =
-      shouldDisplayAnnualizedPerformanceReturn(found) && found.returns.annualizedIrr != null;
-    const moneyWeightedReturn = showAnnualizedMoneyWeightedReturn
-      ? Number(found.returns.annualizedIrr)
-      : metricValue(found, "irr");
-    const rawMoneyWeightedReason =
-      moneyWeightedReturn == null ? firstMoneyWeightedReason(found) : undefined;
-    const presentedMoneyWeightedReason = rawMoneyWeightedReason
-      ? presentMoneyWeightedWarning(rawMoneyWeightedReason, accountNamesById, t, numberFormatting)
-      : undefined;
-    const moneyWeightedReason =
-      presentedMoneyWeightedReason ??
-      (moneyWeightedReturn == null ? moneyWeightedWarnings[0] : undefined);
-    // Money-weighted return needs cash flows; a benchmark symbol never has them.
-    const showMoneyWeightedReturn =
-      found.mode !== "symbolPriceBased" &&
-      (moneyWeightedReturn != null ||
-        Boolean(moneyWeightedReason) ||
-        moneyWeightedWarnings.length > 0);
-    const moneyWeightedReturnLabel = showAnnualizedMoneyWeightedReturn
-      ? t("performance:metric.annualized_mwr")
-      : t("performance:metric.money_weighted_return");
-    const moneyWeightedHelpWarnings = [
-      ...moneyWeightedWarnings,
-      ...(moneyWeightedReason ? [moneyWeightedReason] : []),
+    const chosenReason =
+      returnReasonText(found, returnView, t) ??
+      presented?.chosenUnavailableReason ??
+      performanceViewReason(found, returnView);
+    const rawReason =
+      selectedMetricValue == null
+        ? (chosenReason ?? firstNotApplicableReason(found))
+        : presented?.isFallback
+          ? (chosenReason ?? undefined)
+          : undefined;
+    // A symbol has no cash flows, so both methods equal its price return.
+    // The second tile shows the method the first does not: the other one, or
+    // the chosen one (unavailable, with its reason) when a stand-in leads.
+    const otherView: ChosenReturnView =
+      shownView === returnView ? (returnView === "twr" ? "moneyWeighted" : "twr") : returnView;
+    // A benchmark's other view is its period figure, labelled for a benchmark.
+    const otherFigure = isSymbol
+      ? {
+          value: performanceViewReturn(found, otherView),
+          ...benchmarkPresentation(otherView, t),
+          shortLabel: benchmarkPresentation(otherView, t).shortLabel,
+        }
+      : otherMethodFigure(found, otherView, t);
+    const otherReason =
+      otherFigure.value == null
+        ? (returnReasonText(found, otherView, t) ?? performanceViewReason(found, otherView))
+        : null;
+    const otherWarnings = [
+      ...(otherView === "moneyWeighted" ? moneyWeightedWarnings : []),
+      ...(otherReason
+        ? [presentMoneyWeightedWarning(otherReason, accountNamesById, t, numberFormatting)]
+        : []),
     ];
-    const periodPnl = found.mode === "symbolPriceBased" ? null : performancePeriodPnl(found);
+    const showSecondaryReturn = shownView !== otherView && (!isSymbol || benchmarkReplayed);
+    const secondaryReturnInfoText = isSymbol
+      ? benchmarkPresentation(otherView, t).infoText
+      : metricPresentation(otherView, t).infoText;
+    const primaryWarnings = [
+      ...visibleWarnings,
+      ...(shownView === "moneyWeighted" ? moneyWeightedWarnings : []),
+    ];
+    const periodPnl = isSymbol ? null : performancePeriodPnl(found);
     const helpItems: StripHelpItem[] = [
       {
         label: selectedMetricPresentation.label,
         infoText: selectedMetricPresentation.infoText,
-        warningText: visibleWarnings,
+        warningText: primaryWarnings,
       },
-      ...(showMoneyWeightedReturn
+      ...(showSecondaryReturn
         ? [
             {
-              label: moneyWeightedReturnLabel,
-              infoText: t(MONEY_WEIGHTED_RETURN_INFO_KEY),
-              warningText: moneyWeightedHelpWarnings,
+              label: otherFigure.label,
+              infoText: secondaryReturnInfoText,
+              warningText: otherWarnings,
             },
           ]
         : []),
@@ -1502,7 +1557,6 @@ export default function PerformancePage() {
       id: found.id,
       name: selectedPerformanceData.name,
       result: found,
-      chartMetric: selectedMetric,
       selectedMetricValue,
       selectedMetricReason: rawReason
         ? presentWarning(rawReason, accountNamesById, numberFormatting)
@@ -1510,24 +1564,26 @@ export default function PerformancePage() {
       warningTerms: Array.from(accountNamesById.values()),
       // Annualizing a few months extrapolates them into a misleading yearly rate.
       annualizedReturn: shouldDisplayAnnualizedPerformanceReturn(found)
-        ? annualizedDisplayMetricValue(found, selectedMetric)
+        ? (presented?.annualized ?? null)
         : null,
-      moneyWeightedReturn,
-      moneyWeightedReturnLabel,
-      moneyWeightedWarnings: moneyWeightedHelpWarnings,
-      showMoneyWeightedReturn,
-      volatility: metricValue(found, "volatility"),
-      maxDrawdown: metricValue(found, "drawdown"),
+      secondaryReturn: otherFigure.value,
+      secondaryReturnLabel: otherFigure.label,
+      secondaryReturnShortLabel: otherFigure.shortLabel,
+      secondaryReturnInfoText,
+      secondaryReturnWarnings: otherWarnings,
+      showSecondaryReturn,
+      volatility: riskValue(found, "volatility"),
+      maxDrawdown: riskValue(found, "drawdown"),
       periodPnl,
       helpItems,
       ...selectedMetricPresentation,
       trackingModeBadge: trackingModeBadge(found, t),
-      returnWarnings: visibleWarnings,
+      returnWarnings: primaryWarnings,
       volatilityWarnings: [],
       warnings: visibleWarnings,
       notApplicableReasons: found.dataQuality.notApplicableReasons ?? [],
     };
-  }, [selectedPerformanceData, accountNamesById, numberFormatting, t]);
+  }, [selectedPerformanceData, accountNamesById, numberFormatting, returnView, t]);
 
   const preserveCurrentChartAnchor = (fallbackId: string) => {
     setSelectedItemId(
@@ -1669,6 +1725,18 @@ export default function PerformancePage() {
     }
     return values.size ? values : null;
   }, [isMobile, scrubDate, visibleChartData]);
+  // The selected item's history can start inside the range asked for: its
+  // figures then cover these dates, not the range.
+  const measuredDateRange = useMemo(() => {
+    const selected = selectedPerformanceData;
+    const period = selected?.result.period;
+    if (!requestedStartDate || selected?.isSymbol || !period?.startDate || !period.endDate) {
+      return null;
+    }
+    return period.startDate > requestedStartDate
+      ? dateFormatting.formatCalendarDateRange(period.startDate, period.endDate)
+      : null;
+  }, [dateFormatting, requestedStartDate, selectedPerformanceData]);
   const chartStartDate = visibleChartData[0]?.returns[0]?.date;
   const scrubDateLabel =
     scrubValues && scrubDate ? dateFormatting.formatCalendarDate(scrubDate) : null;
@@ -1714,11 +1782,6 @@ export default function PerformancePage() {
           isPlotted={plotState.isPlotted}
           isHidden={hiddenSeriesIds.includes(item.id) && item.id !== activeChartAnchorId}
           plotReason={plotState.reason}
-          contextLabel={
-            selectedChartMetric === "valueReturn" && item.type === "symbol"
-              ? t("performance:reference")
-              : undefined
-          }
           onSelect={() => handleSeriesSelect(item)}
           onDelete={(e) => handleBadgeDelete(e, item)}
           color={plotState.isPlotted ? chartColorMap.get(item.id) : undefined}
@@ -1745,7 +1808,8 @@ export default function PerformancePage() {
       </div>
 
       <div className="flex flex-col space-y-4">
-        <div className="flex items-center justify-end gap-2 md:hidden">
+        <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
+          <ReturnMethodToggle size="compact" />
           <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
           <DateRangeSelector
             asOf={today}
@@ -1828,6 +1892,8 @@ export default function PerformancePage() {
             />
             <BenchmarkSymbolSelector onSelect={handleSymbolSelect} className={addButtonClassName} />
           </div>
+          {/* The header has no room beside the page tabs; the method sits with the chart's items. */}
+          <ReturnMethodToggle size="compact" className="ms-auto shrink-0" />
         </div>
 
         {/* Mobile sheets controlled by dropdown - rendered but hidden by Sheet component */}
@@ -1864,7 +1930,7 @@ export default function PerformancePage() {
                   {t("performance:performance")}
                 </CardTitle>
                 <CardDescription className="mt-0.5 truncate text-xs sm:text-sm">
-                  {[scrubDateLabel ?? displayDateRange, selectedItemData?.name]
+                  {[scrubDateLabel ?? measuredDateRange ?? displayDateRange, selectedItemData?.name]
                     .filter(Boolean)
                     .join(" · ")}
                 </CardDescription>
@@ -1927,18 +1993,13 @@ export default function PerformancePage() {
                     scrubValues && "opacity-40",
                   )}
                 >
-                  {selectedItemData?.showMoneyWeightedReturn && (
+                  {selectedItemData?.showSecondaryReturn && (
                     <MetricTile
                       variant="mini"
-                      label={
-                        selectedItemData.moneyWeightedReturnLabel ===
-                        t("performance:metric.annualized_mwr")
-                          ? t("performance:metric.ann_mwr_short")
-                          : t("performance:metric.mwr_short")
-                      }
-                      value={selectedItemData.moneyWeightedReturn}
-                      infoText={t(MONEY_WEIGHTED_RETURN_INFO_KEY)}
-                      warningText={selectedItemData.moneyWeightedWarnings}
+                      label={selectedItemData.secondaryReturnShortLabel}
+                      value={selectedItemData.secondaryReturn}
+                      infoText={selectedItemData.secondaryReturnInfoText}
+                      warningText={selectedItemData.secondaryReturnWarnings}
                       boldTerms={selectedItemData.warningTerms}
                     />
                   )}
@@ -1983,12 +2044,12 @@ export default function PerformancePage() {
                   ]}
                   boldTerms={selectedItemData?.warningTerms}
                 />
-                {selectedItemData?.showMoneyWeightedReturn && (
+                {selectedItemData?.showSecondaryReturn && (
                   <MetricTile
-                    label={selectedItemData.moneyWeightedReturnLabel}
-                    value={selectedItemData.moneyWeightedReturn}
-                    infoText={t(MONEY_WEIGHTED_RETURN_INFO_KEY)}
-                    warningText={selectedItemData.moneyWeightedWarnings}
+                    label={selectedItemData.secondaryReturnLabel}
+                    value={selectedItemData.secondaryReturn}
+                    infoText={selectedItemData.secondaryReturnInfoText}
+                    warningText={selectedItemData.secondaryReturnWarnings}
                     boldTerms={selectedItemData.warningTerms}
                   />
                 )}
@@ -2047,6 +2108,7 @@ export default function PerformancePage() {
               <div className="h-72 sm:h-80 md:h-[max(22rem,calc(100vh-30rem))]">
                 <PerformanceContent
                   chartData={visibleChartData}
+                  emptyChartReason={emptyChartReason}
                   isLoading={isLoadingPerformance || isAccountsLoading}
                   hasErrors={hasErrors || isAccountsError}
                   errorMessages={

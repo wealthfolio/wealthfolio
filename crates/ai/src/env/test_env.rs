@@ -50,8 +50,9 @@ use wealthfolio_core::{
     portfolio::income::{IncomeServiceTrait, IncomeSummary},
     portfolio::performance::{
         DataQualityStatus, PerformanceAttribution, PerformanceDataQuality, PerformancePeriod,
-        PerformanceResult, PerformanceReturns, PerformanceRisk, PerformanceScopeDescriptor,
-        PerformanceServiceTrait, PerformanceSummary, PerformanceSummaryProfile, ReturnMethod,
+        PerformanceResult, PerformanceReturnView, PerformanceReturns, PerformanceRisk,
+        PerformanceScopeDescriptor, PerformanceServiceTrait, PerformanceSummary,
+        PerformanceSummaryProfile,
     },
     quotes::{
         LatestQuotePair, LatestQuoteSnapshot, ProviderInfo, Quote, QuoteImport, QuoteServiceTrait,
@@ -1630,14 +1631,17 @@ fn mock_performance_result(id: &str) -> PerformanceResult {
             start_date: None,
             end_date: None,
         },
-        mode: ReturnMethod::NotApplicable,
-        returns: PerformanceReturns {
-            twr: Some(rust_decimal::Decimal::ZERO),
-            annualized_twr: Some(rust_decimal::Decimal::ZERO),
-            irr: Some(rust_decimal::Decimal::ZERO),
-            annualized_irr: Some(rust_decimal::Decimal::ZERO),
-            value_return: Some(rust_decimal::Decimal::ZERO),
-            annualized_value_return: Some(rust_decimal::Decimal::ZERO),
+        returns: {
+            let zero = PerformanceReturnView {
+                period: Some(rust_decimal::Decimal::ZERO),
+                annualized: Some(rust_decimal::Decimal::ZERO),
+                ..PerformanceReturnView::default()
+            };
+            PerformanceReturns {
+                twr: zero.clone(),
+                money_weighted: zero.clone(),
+                return_on_cost: zero,
+            }
         },
         attribution: PerformanceAttribution::default(),
         risk: PerformanceRisk {
@@ -1655,9 +1659,10 @@ fn mock_performance_result(id: &str) -> PerformanceResult {
         },
         basis_status: BasisStatus::NotApplicable,
         summary: PerformanceSummary::default(),
-        series: Vec::new(),
         is_holdings_mode: false,
         is_mixed_tracking_mode: false,
+        amounts: Default::default(),
+        unclassified_transfers: Vec::new(),
     }
 }
 

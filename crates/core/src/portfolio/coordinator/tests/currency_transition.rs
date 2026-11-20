@@ -41,6 +41,7 @@ async fn switching_base_currency_rebuilds_all_historical_rows_and_flows() {
     assert!(before_performance
         .returns
         .twr
+        .period
         .is_some_and(|value| value != Decimal::ZERO));
 
     *harness.base_currency.write().unwrap() = "CAD".to_string();
@@ -103,10 +104,10 @@ async fn switching_base_currency_rebuilds_all_historical_rows_and_flows() {
         .unwrap()
         .iter()
         .all(|row| row.base_currency == "CAD"));
-    assert_eq!(after_performance.returns.twr, Some(Decimal::ZERO));
+    assert_eq!(after_performance.returns.twr.period, Some(Decimal::ZERO));
     assert_ne!(
-        before_performance.returns.twr,
-        after_performance.returns.twr
+        before_performance.returns.twr.period,
+        after_performance.returns.twr.period
     );
     assert!(harness.projections.pending_markers().unwrap().is_empty());
 }

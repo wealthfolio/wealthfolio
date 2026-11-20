@@ -49,7 +49,7 @@
     "sync_devices": "Sincronizar dispositivos",
     "update_prices": "Atualizar preços",
     "rebuild_full_history": "Atualizar todo o histórico",
-    "verify_data": "Verificar dados"
+    "data_health": "Status dos dados"
   },
   "update": {
     "as_of": "Em:",

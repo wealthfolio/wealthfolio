@@ -402,6 +402,13 @@ export function AppLauncher() {
         keywords: ["contribution", "limits", "manage", "edit", "settings"],
         label: t("common:component.manage_contribution_limits"),
       },
+      {
+        title: t("health:page.heading"),
+        href: "/health",
+        icon: <Icons.ShieldCheck className="size-6" />,
+        keywords: ["health", "data", "issues", "problems", "verify", "check", "dismissed"],
+        label: t("health:page.heading"),
+      },
     ];
 
     const navItems = [

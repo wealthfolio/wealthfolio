@@ -825,8 +825,21 @@ to see these APIs in action.
 ## Performance API
 
 Calculate portfolio and account performance metrics with historical analysis.
-`returns.irr` is the selected-period money-weighted return.
-`returns.annualizedIrr` is the annualized XIRR on the same dated cash flows.
+`returns` holds one view per return method, each with `period`, `annualized`,
+`series` (from `calculateHistory`) and an `unavailableReason` when `period` is
+missing:
+
+- `returns.twr`: time-weighted return; deposits and withdrawals do not move it.
+- `returns.moneyWeighted`: the internal rate of return on the dated deposits and
+  withdrawals, for the period; `annualized` is the same rate over a year, from
+  one year of history. Unavailable for a holdings account and for a scope that
+  includes one.
+- `returns.returnOnCost`: ROI. Gain over book cost for holdings accounts over
+  their full history; for a scope that mixes holdings and transactions accounts,
+  their summed gains over their summed capital. It has no yearly rate.
+
+`Settings.defaultReturnMetric` (`'twr'` or `'irr'`) is the method the person
+chose to see.
 
 ### Methods
 
@@ -841,7 +854,11 @@ const history = await ctx.api.performance.calculateHistory(
   "2024-01-01",
   "2024-12-31",
 );
-console.log(history.returns.twr, history.returns.irr, history.series);
+console.log(
+  history.returns.twr.period,
+  history.returns.moneyWeighted.period,
+  history.returns.twr.series,
+);
 ```
 
 #### `calculateSummary(args: { itemType: 'account' | 'symbol'; itemId: string; startDate?: string | null; endDate?: string | null; }): Promise<PerformanceResult>`
@@ -856,8 +873,8 @@ const summary = await ctx.api.performance.calculateSummary({
   endDate: "2024-12-31",
 });
 console.log(
-  summary.returns.twr ?? summary.returns.valueReturn,
-  summary.returns.irr,
+  summary.returns.twr.period ?? summary.returns.returnOnCost.period,
+  summary.returns.moneyWeighted.period,
   summary.risk.maxDrawdown,
 );
 ```

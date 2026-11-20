@@ -11,7 +11,6 @@
   "error_calculating": "計算績效資料時發生錯誤",
   "not_available": "不適用",
   "not_plotted": "未顯示於圖表",
-  "reference": "參考",
   "unknown": "未知",
   "remove_item": "移除 {{name}}",
   "time_period": "期間",
@@ -55,32 +54,76 @@
     "holdings": "持有部位模式"
   },
   "exclusion": {
-    "holdings_not_mwr": "僅持倉模式不追蹤交易現金流，因此無法計算資金加權報酬率（MWR）。",
+    "holdings_not_mwr": "以持倉追蹤的帳戶不記錄存入與提領，因此無法計算其完整歷史的 MWR。",
     "no_data": "目前所選項目沒有可用的績效資料。",
-    "no_series": "此期間沒有可用的圖表資料。",
-    "holdings_not_twr": "持有部位模式帳戶使用價值報酬，不以 TWR 繪製。",
-    "transaction_not_value": "交易模式帳戶使用 TWR，不以價值報酬繪製。",
     "no_overlap": "圖表日期與所選項目沒有重疊。"
   },
   "comparison_notice": {
-    "different_methods": "不同的報酬計算方式無法顯示在同一張圖表。選取淡色標籤即可切換圖表模式。",
     "not_enough_overlap": "所選項目與目前圖表的日期重疊不足。",
+    "missing_return": "所選的這些項目在此方法與期間內沒有報酬資料。",
     "not_plotted_count_one": "{{count}} 個所選項目未顯示於圖表",
     "not_plotted_count_other": "{{count}} 個所選項目未顯示於圖表"
+  },
+  "return_view": {
+    "twr": "時間加權",
+    "money_weighted": "金額加權",
+    "return_on_cost": "投資報酬率（ROI）",
+    "twr_short": "TWR",
+    "money_weighted_short": "MWR",
+    "return_on_cost_short": "ROI",
+    "twr_explainer": "假設你從未存入或提領資金時的投資表現。用於與指數比較。",
+    "money_weighted_explainer": "考量存入與提領資金的時間後，你的資金實際賺到的報酬。",
+    "return_on_cost_explainer": "收益與你投入的資金相比。",
+    "method_label": "報酬計算方法",
+    "trigger_label": "{{method}} {{value}}：查看兩種方法並切換",
+    "chosen_unavailable": "此處無法使用{{method}}。",
+    "reason": {
+      "mixed_twr": "對混合以持倉追蹤帳戶與以交易追蹤帳戶的投資組合不可用。",
+      "holdings_full_history": "以持倉追蹤的帳戶不記錄存入與提領，因此在其完整歷史中不可用。",
+      "holdings_money_weighted": "以持倉追蹤的帳戶不記錄存入與提領，因此不可用。",
+      "roi_holdings_only": "ROI 適用於以持倉追蹤帳戶的完整歷史，以及包含這類帳戶的投資組合。",
+      "unknown_flow": "此期間內有存入或提領的金額不明。",
+      "no_capital": "此期間內平均沒有投入資金。",
+      "no_solution": "沒有任何報酬率能符合此期間的存入、提領與價值。",
+      "coverage": "部分持倉在此期間開始或結束時沒有價格。",
+      "not_enough_history": "此期間的歷史資料不足。",
+      "mixed_coverage": "此投資組合中部分帳戶沒有可加總的收益或投入金額。"
+    },
+    "amounts": {
+      "start_value": "期初價值",
+      "money_in": "投入資金",
+      "money_out": "提領資金",
+      "capital": "投入本金",
+      "gain": "收益",
+      "end_value": "期末價值",
+      "unknown": "不明",
+      "estimated": "投入與提領的資金為估算值，並非記錄值。",
+      "by_tracking": "依帳戶追蹤方式",
+      "part_transactions": "交易",
+      "part_holdings": "持倉"
+    },
+    "unclassified_transfers": {
+      "intro": "此期間內既未與其他帳戶配對、也未標記為外部的轉帳："
+    }
   },
   "metric": {
     "return": "報酬率",
     "time_weighted_return": "時間加權報酬率",
     "time_weighted_short": "時間加權",
+    "twr_short": "TWR",
     "money_weighted_return": "金額加權報酬率",
     "money_weighted_short": "金額加權",
     "mwr_short": "MWR",
     "annualized_mwr": "年化 MWR",
     "ann_mwr_short": "年化 MWR",
-    "value_return": "價值報酬率",
-    "value_return_short": "價值報酬率",
+    "annualized_twr": "年化 TWR",
+    "ann_twr_short": "年化 TWR",
+    "return_on_cost": "投資報酬率（ROI）",
+    "return_on_cost_short": "ROI",
     "price_return": "價格報酬率",
     "price_return_short": "價格報酬率",
+    "benchmark_money_weighted": "金額加權（你的存入）",
+    "benchmark_money_weighted_short": "按你的存入",
     "volatility": "波動率",
     "max_drawdown": "最大跌幅",
     "max_drawdown_short": "最大跌幅",
@@ -97,7 +140,8 @@
   },
   "empty": {
     "title": "尚無績效資料",
-    "description": "選取帳戶，比較一段期間內的績效。"
+    "description": "選取帳戶，比較一段期間內的績效。",
+    "no_curve": "此選擇有報酬資料，但此期間沒有圖表。"
   },
   "attribution": {
     "partial_data": "資料不完整",
@@ -126,12 +170,12 @@
     "distributions_desc": "從帳戶提領的現金"
   },
   "metric_info": {
-    "time_weighted_return": "時間加權報酬率（TWR）衡量排除入金和出金影響後的投資績效。少於一年的期間顯示所選期間報酬率；一年及以上的期間在可用時顯示年化報酬率。",
-    "money_weighted_return": "金額加權報酬率（MWR）根據外部現金流的金額和時間衡量投資績效。它使用 IRR/XIRR 計算；對於一年及以上的期間，標準顯示方式為年化 XIRR。",
-    "irr": "內部報酬率（IRR）根據外部現金流的金額和時間衡量金額加權績效。對於一年及以上的期間，標準顯示方式為年化 XIRR。",
+    "time_weighted_return": "時間加權報酬率（TWR）顯示假設你從未存入或提領資金時的投資表現。用於與指數比較。期間達一年以上時，也會顯示年化報酬率。",
+    "money_weighted_return": "金額加權報酬率（MWR）顯示考量存入與提領資金的時間後，你的資金實際賺到的報酬：讓你存入的資金扣除提領後成長為目前價值的唯一成長率。期間達一年以上時，也會顯示年化報酬率。",
     "simple_return": "簡單報酬率將總收益或虧損與淨投入進行比較。它是累計報酬率，不進行時間加權。",
-    "value_return": "當交易層級現金流不可用時，價值報酬率衡量帳戶價值在所選期間的變化。",
+    "return_on_cost": "投資報酬率（ROI）將你的收益與你投入的資金比較。以持倉追蹤的帳戶在完整歷史中使用此指標，包含這類帳戶的投資組合則在所有期間使用，因為這類帳戶不記錄存入與提領。",
     "price_return": "價格報酬率衡量所選證券在所選期間的價格變化。",
+    "benchmark_money_weighted": "將你自己的存入與提領按相同日期投入該基準時的金額加權報酬率：你的資金在那裡原可賺得的報酬。僅計價格，不含匯率影響。",
     "volatility": "波動率衡量某項投資報酬率的離散程度。波動率越高，投資價值在短期內大幅變化的可能性越大。它根據日曆日報酬率進行年化。",
     "max_drawdown": "最大跌幅表示投資組合價值在指定期間內從峰值到後續谷值的最大百分比跌幅，反映下行風險。",
     "annualized_return": "年化報酬率是所選期間的平均每年複合報酬率，而非累計總收益或虧損。",

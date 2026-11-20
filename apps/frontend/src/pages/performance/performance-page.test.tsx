@@ -31,6 +31,19 @@ vi.mock("@/hooks/use-portfolios", () => ({
 }));
 vi.mock("@/hooks/use-platform", () => ({
   useIsMobileViewport: () => mocks.mobile,
+  // A selected benchmark's badge reads the platform.
+  usePlatform: () => ({
+    platform: null,
+    isMobile: mocks.mobile,
+    isDesktop: !mocks.mobile,
+    isIOS: false,
+    isAndroid: false,
+    isMacOS: false,
+    isWindows: false,
+    isLinux: false,
+    isWeb: true,
+    isTauri: false,
+  }),
 }));
 vi.mock("./hooks/use-performance-data", () => ({
   useCalculatePerformanceHistory: mocks.performance,
@@ -102,13 +115,10 @@ const resultWithWarning = {
   name: ALL_PORTFOLIO_ITEM.name,
   scope: { id: ALL_PORTFOLIO_ITEM.id, currency: "USD" },
   period: { startDate: "2026-01-01", endDate: "2026-03-01" },
-  mode: "timeWeighted",
   returns: {
-    twr: 0.1,
-    annualizedTwr: 0.2,
-    irr: null,
-    annualizedIrr: null,
-    valueReturn: null,
+    twr: { period: 0.1, annualized: 0.2, series: [{ date: "2026-01-01", value: 0 }] },
+    moneyWeighted: {},
+    returnOnCost: {},
   },
   attribution: {
     contributions: 0,
@@ -127,7 +137,6 @@ const resultWithWarning = {
     warnings: [TWR_WARNING],
     notApplicableReasons: [],
   },
-  series: [{ date: "2026-01-01", value: 0 }],
 };
 
 const initialState = useAccountScopeStore.getState();
@@ -181,6 +190,117 @@ describe("PerformancePage shared scope", () => {
       errorMessages: [],
     });
     mocks.getAccounts.mockResolvedValue(accounts);
+  });
+
+  it("labels a selected benchmark by the method shown, with the other as its second figure", async () => {
+    // Money-weighted chosen: the benchmark replays the portfolio's deposits.
+    mocks.settings = {
+      timezone: "Asia/Shanghai",
+      defaultReturnMetric: "irr",
+    } as unknown as typeof mocks.settings;
+    const benchmark: TrackedItem = { id: "SPY", type: "symbol", name: "SPY" };
+    localStorage.setItem(
+      "performance:selectedItems",
+      JSON.stringify([ALL_PORTFOLIO_ITEM, benchmark]),
+    );
+    localStorage.setItem("performance:selectedItemId", JSON.stringify("SPY"));
+    const curve = [
+      { date: "2026-01-01", value: 0 },
+      { date: "2026-03-01", value: 0.02 },
+    ];
+    mocks.performance.mockReturnValue({
+      data: [
+        resultWithWarning,
+        {
+          ...resultWithWarning,
+          id: "SPY",
+          type: "symbol",
+          name: "SPY",
+          scope: { id: "SPY", currency: "USD" },
+          returns: {
+            twr: { period: 0.05, series: curve },
+            moneyWeighted: { period: 0.02, series: curve },
+            returnOnCost: {},
+          },
+        },
+      ],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(enPerformance.metric.benchmark_money_weighted_short),
+    ).toBeVisible();
+    expect(screen.getByText(enPerformance.metric.price_return)).toBeVisible();
+  });
+
+  it("shows a benchmark that replayed no deposits as its price return only", async () => {
+    // No scope to replay: both views are the price return.
+    mocks.settings = {
+      timezone: "Asia/Shanghai",
+      defaultReturnMetric: "irr",
+    } as unknown as typeof mocks.settings;
+    const benchmark: TrackedItem = { id: "SPY", type: "symbol", name: "SPY" };
+    localStorage.setItem("performance:selectedItems", JSON.stringify([benchmark]));
+    localStorage.setItem("performance:selectedItemId", JSON.stringify("SPY"));
+    const curve = [
+      { date: "2026-01-01", value: 0 },
+      { date: "2026-03-01", value: 0.05 },
+    ];
+    mocks.performance.mockReturnValue({
+      data: [
+        {
+          ...resultWithWarning,
+          id: "SPY",
+          type: "symbol",
+          name: "SPY",
+          scope: { id: "SPY", currency: "USD" },
+          returns: {
+            twr: { period: 0.05, series: curve },
+            moneyWeighted: { period: 0.05, series: curve },
+            returnOnCost: {},
+          },
+        },
+      ],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    renderPage();
+
+    expect(await screen.findByText(enPerformance.metric.price_return_short)).toBeVisible();
+    expect(screen.queryByText(enPerformance.metric.benchmark_money_weighted)).toBeNull();
+    expect(screen.queryByText(enPerformance.metric.benchmark_money_weighted_short)).toBeNull();
+  });
+
+  it("asks benchmarks to replay deposits only when money-weighted is chosen", async () => {
+    const benchmark: TrackedItem = { id: "SPY", type: "symbol", name: "SPY" };
+    localStorage.setItem(
+      "performance:selectedItems",
+      JSON.stringify([ALL_PORTFOLIO_ITEM, benchmark]),
+    );
+    mocks.settings = {
+      timezone: "Asia/Shanghai",
+      defaultReturnMetric: "twr",
+    } as unknown as typeof mocks.settings;
+    const first = renderPage();
+    await screen.findAllByText(ALL_PORTFOLIO_ITEM.name);
+    expect(mocks.performance).toHaveBeenLastCalledWith(
+      expect.objectContaining({ benchmarkScope: undefined }),
+    );
+    first.unmount();
+
+    mocks.settings = {
+      timezone: "Asia/Shanghai",
+      defaultReturnMetric: "irr",
+    } as unknown as typeof mocks.settings;
+    renderPage();
+    await screen.findAllByText(ALL_PORTFOLIO_ITEM.name);
+    expect(mocks.performance).toHaveBeenLastCalledWith(
+      expect.objectContaining({ benchmarkScope: expect.anything() }),
+    );
   });
 
   it("updates the default range when settings arrive after the initial render", async () => {
@@ -452,6 +572,28 @@ describe("PerformancePage shared scope", () => {
     expect(await screen.findByText(TWR_WARNING)).toBeInTheDocument();
   });
 
+  it("shows the dates the figures cover when the history starts inside the range", async () => {
+    const response = (formattedStartDate: string) => ({
+      data: [resultWithWarning],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+      displayDateRange: "Requested range",
+      formattedStartDate,
+    });
+    // The range asked for starts five years back; the history starts in 2026.
+    mocks.performance.mockReturnValue(response("2021-03-01"));
+    const { unmount } = renderPage();
+    expect(await screen.findByText(/^Jan 1 – Mar 1, 2026 · /)).toBeVisible();
+    expect(screen.queryByText(/Requested range/)).toBeNull();
+    unmount();
+
+    // History covering the whole range keeps the range's own label.
+    mocks.performance.mockReturnValue(response("2026-01-01"));
+    renderPage();
+    expect(await screen.findByText(/^Requested range · /)).toBeVisible();
+  });
+
   it.each([false, true])(
     "shows partial P&L and its cash-FX reason in the attribution panel (mobile=%s)",
     async (mobile) => {
@@ -470,8 +612,6 @@ describe("PerformancePage shared scope", () => {
             summary: {
               amount: 25,
               amountStatus: "complete",
-              percent: 0.1,
-              percentStatus: "complete",
               quality: "partial",
               reasons: [warning],
             },
@@ -530,8 +670,6 @@ describe("PerformancePage shared scope", () => {
           summary: {
             amount: 25,
             amountStatus: "complete",
-            percent: 0.1,
-            percentStatus: "complete",
             quality,
             reasons: [...warnings, ...reasons],
           },
@@ -584,9 +722,13 @@ describe("PerformancePage shared scope", () => {
         data: [
           {
             ...resultWithWarning,
-            mode: "valueReturn",
+            // A mixed portfolio has neither method; its ROI stands in, labelled.
+            returns: {
+              twr: { unavailableReason: reasons[0] },
+              moneyWeighted: { unavailableReason: reasons[1] },
+              returnOnCost: { period: 0 },
+            },
             isMixedTrackingMode: true,
-            series: [],
             dataQuality: {
               status: "partial",
               warnings,
@@ -595,8 +737,6 @@ describe("PerformancePage shared scope", () => {
             summary: {
               amount: 0,
               amountStatus: "complete",
-              percent: 0,
-              percentStatus: "complete",
               quality: "partial",
               reasons: [...warnings, ...reasons],
             },
@@ -627,7 +767,7 @@ describe("PerformancePage shared scope", () => {
       await userEvent.click(within(dialog).getByRole("button", { name: "Close attribution" }));
       await userEvent.click(
         screen.getByRole("button", {
-          name: /calculation notes? for value(?: return)?$/i,
+          name: /calculation notes? for (?:ROI|return on investment \(ROI\))$/i,
         }),
       );
       expect(await screen.findByText(seriesWarning)).toBeVisible();
@@ -642,8 +782,6 @@ describe("PerformancePage shared scope", () => {
           summary: {
             amount: null,
             amountStatus: "unavailable",
-            percent: null,
-            percentStatus: "unavailable",
             quality: "partial",
             reasons: [TWR_WARNING],
           },
@@ -802,7 +940,7 @@ describe("PerformancePage built-in display labels", () => {
     const i18n = await language();
     const data = {
       ...resultWithWarning,
-      returns: { ...resultWithWarning.returns, irr: 0.08 },
+      returns: { ...resultWithWarning.returns, moneyWeighted: { period: 0.08 } },
     };
     const original = structuredClone(data);
     mocks.performance.mockReturnValue({
@@ -838,7 +976,7 @@ describe("PerformancePage built-in display labels", () => {
 
   it.each([
     {
-      raw: "IRR unavailable for holdings-only scopes because transaction cash flows are not tracked.",
+      raw: "Money-weighted return unavailable over the full history of a holdings account because deposits and withdrawals are not tracked.",
       known: true,
     },
     { raw: "MWR provider detail: keep this wording.", known: false },
@@ -846,6 +984,7 @@ describe("PerformancePage built-in display labels", () => {
     const i18n = await language();
     const data = {
       ...resultWithWarning,
+      returns: { ...resultWithWarning.returns, moneyWeighted: { unavailableReason: raw } },
       dataQuality: {
         status: "partial",
         warnings: [],

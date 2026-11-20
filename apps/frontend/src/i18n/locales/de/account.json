@@ -72,7 +72,7 @@
   "unrealized_pnl": "Nicht realisierte G&V",
   "not_available": "N/V",
   "more_count": "+{{count}} weitere",
-  "twr_irr_require_transactions": "TWR und IRR erfordern die Transaktionsverfolgung.",
+  "holdings_returns_note": "Bestandskonten zeigen über die gesamte Historie den ROI; Renditen für kürzere Zeiträume werden aus Momentaufnahmen geschätzt.",
   "last_updated": "Zuletzt aktualisiert: {{date}}",
   "from_to": "Von {{start}} bis {{end}}",
   "snapshot": {
@@ -121,16 +121,15 @@
   "action_transfer_holdings": "Bestände übertragen",
   "review_cash_impact": "Auswirkung auf Bargeld prüfen",
   "metric": {
-    "value_return": "Wertrendite",
+    "return_on_cost": "Kapitalrendite (ROI)",
     "total_pnl": "Gesamt-G&V",
     "total_pnl_info": "Gesamtgewinn oder -verlust über den ausgewählten Zeitraum.",
     "annualized_twr": "Annualisierter TWR",
-    "annualized_irr": "Annualisierter IRR",
-    "irr": "IRR",
+    "mwr": "Geldgewichtete Rendite",
     "cumulative_twr": "Kumulierter TWR",
-    "period_irr": "Perioden-IRR",
+    "cumulative_mwr": "Kumulierter MWR",
     "twr_hover_hint": " Bewegen Sie den Mauszeiger über den Wert, um den kumulierten TWR zu sehen.",
-    "irr_hover_hint": " Bewegen Sie den Mauszeiger über den Wert, um den IRR des ausgewählten Zeitraums zu sehen."
+    "mwr_hover_hint": " Bewegen Sie den Mauszeiger über den Wert, um den kumulierten MWR zu sehen."
   },
   "edit_account": "Konto bearbeiten",
   "delete_account": "Konto löschen",

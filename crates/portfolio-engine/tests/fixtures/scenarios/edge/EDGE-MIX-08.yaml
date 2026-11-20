@@ -1,0 +1,43 @@
+id: EDGE-MIX-08
+title: An account closed at zero does not blank a mixed scope's ROI
+intent: >
+  A scope mixing transactions and holdings accounts reports one figure, ROI:
+  its accounts' gains over the capital they were earned on, with the capital
+  tested on the total. acc-c (TRANSACTIONS) is emptied on 01-03 and holds
+  nothing since: over the dated window it has no gain and no capital, and adds
+  nothing. acc-t gains 100 on 1000 and acc-h 50 on 700, so the window's ROI is
+  150 / 1700. Tested per account, the capital acc-c lacks made the whole
+  scope's percentage unavailable.
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-12 }
+accounts:
+  - { id: acc-t, currency: USD }
+  - { id: acc-c, currency: USD }
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+assets:
+  - { id: aapl, quote_ccy: USD }
+  - { id: msft, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-t, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 1000 }
+  - { id: buy-1, account: acc-t, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 5, unit_price: 100, amount: 500 }
+  - { id: dep-c, account: acc-c, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 500 }
+  - { id: wd-c, account: acc-c, type: WITHDRAWAL, date: 2025-01-03T11:00:00Z, amount: 500 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 110 }
+  - { asset: aapl, day: 2025-01-12, close: 120 }
+  - { asset: msft, day: 2025-01-02, close: 50 }
+  - { asset: msft, day: 2025-01-08, close: 52 }
+  - { asset: msft, day: 2025-01-12, close: 55 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-02
+    positions: [{ asset: msft, quantity: 10, average_cost: 50 }]
+    cash: { USD: 200 }
+performance_windows:
+  - { label: dated, start: 2025-01-05, end: 2025-01-12 }
+expected_notes: >
+  acc-t: value 1000 -> 1050 (01-08) -> 1100 (01-12). acc-h: value 700 -> 720
+  -> 750, book 700. acc-c: 500 on 01-02, 0 from 01-03. Dated window, portfolio:
+  time-weighted and money-weighted unavailable (mixed); ROI
+  (100 + 0 + 50) / (1000 + 0 + 700) = 0.08823529, no yearly rate. All time:
+  acc-c had 500 for one day of ten, so it adds capital 50 and no gain.

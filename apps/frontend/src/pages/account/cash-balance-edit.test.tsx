@@ -8,6 +8,10 @@ import AccountMetrics from "./account-metrics";
 
 const mocks = vi.hoisted(() => ({ createActivity: vi.fn() }));
 
+vi.mock("@/hooks/use-return-method", () => ({
+  useReturnMethod: () => ({ returnView: "twr", setReturnView: vi.fn() }),
+}));
+
 vi.mock("@/adapters", () => mocks);
 vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({ toast: vi.fn() }));
 vi.mock("./performance-grid", () => ({ PerformanceGrid: () => null }));

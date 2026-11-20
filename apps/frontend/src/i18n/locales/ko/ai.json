@@ -423,10 +423,8 @@
     "today": "오늘",
     "title": "성과",
     "annualizedReturn": "연환산 수익률",
-    "annualizedTwr": "연환산 TWR",
     "notAvailable": "해당 없음",
     "notAvailableUpper": "N/A",
-    "irr": "IRR",
     "irrAnn": "{{value}} 연환산",
     "volatility": "변동성",
     "maxDrawdown": "최대 낙폭"

@@ -2,17 +2,21 @@ import type { PerformanceResult } from "@/lib/types";
 import { describe, expect, it } from "vitest";
 
 import {
+  chosenReturnView,
   performancePeriodPnl,
-  performanceSummaryReturn,
+  presentedReturn,
+  returnMetricForView,
   shouldDisplayAnnualizedPerformanceReturn,
-  simpleReturnFromNetContribution,
 } from "./performance";
 
 const baseResult = (): PerformanceResult => ({
   scope: { id: "account-1", currency: "CAD" },
   period: { startDate: "2026-01-01", endDate: "2026-01-31" },
-  mode: "valueReturn",
-  returns: { valueReturn: null },
+  returns: {
+    twr: { unavailableReason: "TWR unavailable." },
+    moneyWeighted: { unavailableReason: "MWR unavailable." },
+    returnOnCost: { unavailableReason: "Return on cost unavailable." },
+  },
   attribution: {
     contributions: 0,
     distributions: 0,
@@ -33,16 +37,12 @@ const baseResult = (): PerformanceResult => ({
   basisStatus: "complete",
   summary: {
     amount: null,
-    percent: null,
-    method: "valueReturn",
     basis: "bookBasis",
     quality: "partial",
     amountStatus: "unavailable",
-    percentStatus: "unavailable",
     basisStatus: "complete",
     reasons: [],
   },
-  series: [],
 });
 
 describe("performancePeriodPnl", () => {
@@ -91,65 +91,70 @@ describe("performancePeriodPnl", () => {
   });
 });
 
-describe("performanceSummaryReturn", () => {
-  it("uses backend summary percent when complete", () => {
-    const result = baseResult();
-    result.mode = "valueReturn";
-    result.returns = {
-      twr: 0.99,
-      annualizedTwr: null,
-      irr: null,
-      annualizedIrr: null,
-      valueReturn: 0.12,
-      annualizedValueReturn: null,
-    };
-    result.summary!.percent = 0.08;
-    result.summary!.percentStatus = "complete";
-
-    expect(performanceSummaryReturn(result)).toBe(0.08);
-  });
-
-  it("does not fall back to returns when summary percent is unavailable", () => {
-    const result = baseResult();
-    result.returns = { valueReturn: 0.12, twr: 0.99 };
-    result.summary!.percent = 0.08;
-    result.summary!.percentStatus = "unavailable";
-
-    expect(performanceSummaryReturn(result)).toBeNull();
-  });
-
-  it("does not infer summary percent availability from display reasons", () => {
-    const result = baseResult();
-    result.returns = { valueReturn: 0.12 };
-    result.dataQuality.notApplicableReasons = ["Display copy says summary percent is unavailable."];
-    result.summary!.percent = null;
-    result.summary!.percentStatus = "unavailable";
-    result.summary!.reasons = ["Display copy says basis is incomplete."];
-
-    expect(performanceSummaryReturn(result)).toBeNull();
-  });
-
-  it("uses holdings summary percent only when backend marks it complete", () => {
-    const result = baseResult();
-    result.isHoldingsMode = true;
-    result.basisStatus = "partialUnknown";
-    result.returns = { valueReturn: 0.12 };
-    result.summary!.percent = 0.12;
-    result.summary!.percentStatus = "complete";
-    result.summary!.basisStatus = "partialUnknown";
-
-    expect(performanceSummaryReturn(result)).toBe(0.12);
+describe("chosenReturnView", () => {
+  it("reads the setting, with legacy valueReturn as money-weighted", () => {
+    expect(chosenReturnView("twr")).toBe("twr");
+    expect(chosenReturnView(undefined)).toBe("twr");
+    expect(chosenReturnView("irr")).toBe("moneyWeighted");
+    expect(chosenReturnView("valueReturn")).toBe("moneyWeighted");
+    expect(returnMetricForView("moneyWeighted")).toBe("irr");
+    expect(returnMetricForView("twr")).toBe("twr");
   });
 });
 
-describe("simpleReturnFromNetContribution", () => {
-  it("divides return amount by net contribution", () => {
-    expect(simpleReturnFromNetContribution(75_000, 188_000)).toBeCloseTo(0.3989, 4);
+describe("presentedReturn", () => {
+  it("shows the chosen method when it is available", () => {
+    const result = baseResult();
+    result.returns.twr = { period: 0.05, annualized: 0.04 };
+    result.returns.moneyWeighted = { period: 0.08, annualized: 0.07 };
+
+    expect(presentedReturn(result, "twr")).toEqual({
+      view: "twr",
+      value: 0.05,
+      annualized: 0.04,
+      isFallback: false,
+      chosenUnavailableReason: null,
+    });
+    expect(presentedReturn(result, "moneyWeighted")?.value).toBe(0.08);
   });
 
-  it("returns null when net contribution is not positive", () => {
-    expect(simpleReturnFromNetContribution(75_000, 0)).toBeNull();
-    expect(simpleReturnFromNetContribution(75_000, -100)).toBeNull();
+  it("falls back to return on cost, labelled, when the chosen method is unavailable", () => {
+    // A holdings account over its full history.
+    const result = baseResult();
+    result.returns.returnOnCost = { period: 0.12 };
+    result.returns.moneyWeighted = { period: 0.3 };
+
+    expect(presentedReturn(result, "twr")).toEqual({
+      view: "returnOnCost",
+      value: 0.12,
+      annualized: null,
+      isFallback: true,
+      chosenUnavailableReason: "TWR unavailable.",
+    });
+  });
+
+  it("falls back to the other method when there is no return on cost", () => {
+    // A mixed portfolio under TWR.
+    const result = baseResult();
+    result.returns.moneyWeighted = { period: 0.09 };
+
+    const presented = presentedReturn(result, "twr");
+    expect(presented?.view).toBe("moneyWeighted");
+    expect(presented?.isFallback).toBe(true);
+  });
+
+  it("returns null when no view has a value", () => {
+    expect(presentedReturn(baseResult(), "moneyWeighted")).toBeNull();
+    expect(presentedReturn(null, "twr")).toBeNull();
+  });
+
+  it("does not read summary or display reasons for the value", () => {
+    const result = baseResult();
+    result.summary!.amount = 25;
+    result.summary!.amountStatus = "complete";
+    result.dataQuality.notApplicableReasons = ["Display copy."];
+
+    expect(presentedReturn(result, "twr")).toBeNull();
   });
 });
 

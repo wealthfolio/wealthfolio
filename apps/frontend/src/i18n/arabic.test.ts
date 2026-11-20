@@ -167,7 +167,7 @@ describe("Arabic financial terminology", () => {
     "performance:annualized_return",
     "performance:metric.annualized_return",
     "ai:performance.annualizedReturn",
-    "account:metric.annualized_irr",
+    "performance:metric.annualized_mwr",
   ])("keeps annualized metrics explicit in %s", (key) => {
     expect(i18n.t(key)).toContain("على أساس سنوي");
   });

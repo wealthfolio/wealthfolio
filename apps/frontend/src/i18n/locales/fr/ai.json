@@ -467,10 +467,8 @@
     "today": "Aujourd'hui",
     "title": "Performance",
     "annualizedReturn": "Rendement annualisé",
-    "annualizedTwr": "TWR annualisé",
     "notAvailable": "n/d",
     "notAvailableUpper": "N/D",
-    "irr": "TRI",
     "irrAnn": "{{value}} ann.",
     "volatility": "Volatilité",
     "maxDrawdown": "Perte max."

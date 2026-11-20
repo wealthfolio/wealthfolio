@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 34
 ---
 as_of: 2025-01-05
 base_currency: CAD
@@ -57,12 +56,41 @@ baseline:
           period_start: 2025-01-01
           quality: ok
           returns:
-            annualized_irr: "-0.00000004"
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: "0"
-            twr: "0"
-            value_return: "0"
+            money_weighted:
+              annualized: ~
+              period: "0"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0"
+                - date: 2025-01-04
+                  value: "0"
+                - date: 2025-01-05
+                  value: "0"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "0"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0"
+                - date: 2025-01-04
+                  value: "0"
+                - date: 2025-01-05
+                  value: "0"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
@@ -70,25 +98,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-02
             volatility: "0"
-          series:
-            - date: 2025-01-01
-              value: "0"
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
           summary:
             amount: "0"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "0"
-            percent_status: complete
             quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
@@ -256,12 +270,41 @@ baseline:
           period_start: 2025-01-01
           quality: ok
           returns:
-            annualized_irr: "-0.00000004"
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: "0"
-            twr: "0"
-            value_return: "0"
+            money_weighted:
+              annualized: ~
+              period: "0"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0"
+                - date: 2025-01-04
+                  value: "0"
+                - date: 2025-01-05
+                  value: "0"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "0"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0"
+                - date: 2025-01-04
+                  value: "0"
+                - date: 2025-01-05
+                  value: "0"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
@@ -269,25 +312,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-02
             volatility: "0"
-          series:
-            - date: 2025-01-01
-              value: "0"
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
           summary:
             amount: "0"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "0"
-            percent_status: complete
             quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
@@ -412,12 +441,41 @@ baseline:
       period_start: 2025-01-01
       quality: ok
       returns:
-        annualized_irr: "0"
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: "0"
-        twr: "0"
-        value_return: "0"
+        money_weighted:
+          annualized: ~
+          period: "0"
+          series:
+            - date: 2025-01-01
+              value: "0"
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0"
+            - date: 2025-01-04
+              value: "0"
+            - date: 2025-01-05
+              value: "0"
+          unavailable_reason: ~
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: "0"
+          series:
+            - date: 2025-01-01
+              value: "0"
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0"
+            - date: 2025-01-04
+              value: "0"
+            - date: 2025-01-05
+              value: "0"
+          unavailable_reason: ~
       risk:
         drawdown_duration_days: 1
         max_drawdown: "0"
@@ -425,25 +483,11 @@ baseline:
         recovery_date: ~
         trough_date: 2025-01-02
         volatility: "0"
-      series:
-        - date: 2025-01-01
-          value: "0"
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "0"
-        - date: 2025-01-04
-          value: "0"
-        - date: 2025-01-05
-          value: "0"
       summary:
         amount: "0"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
-        method: timeWeighted
-        percent: "0"
-        percent_status: complete
         quality: ok
   portfolio_flows:
     - date: 2025-01-03

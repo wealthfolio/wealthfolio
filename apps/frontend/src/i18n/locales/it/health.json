@@ -241,7 +241,9 @@
     "update_value": "Aggiorna valore",
     "review_transaction": "Verifica transazione",
     "review_entry": "Esamina voce",
-    "match_option_expiry_contracts": "Usa i contratti trovati"
+    "match_option_expiry_contracts": "Usa i contratti trovati",
+    "undo": "Annulla",
+    "restore": "Ripristina"
   },
   "updatedAt": "Aggiornato {{time}}",
   "healthy": {
@@ -336,5 +338,13 @@
     "insufficient_quantity": "Questa transazione rimuove {{requested}} unità di {{asset}}, ma ne erano detenute solo {{held}}. Le {{excess}} unità rimanenti non hanno una base di costo.",
     "missing_final_cash": "Questa transazione contabilizzata non ha un importo finale in contanti, quindi non ha modificato il saldo di liquidità.",
     "option_expiry_not_option": "Questa scadenza di opzione indica {{asset}}, che non è un contratto di opzione, quindi non ha modificato nulla. Collegala al contratto scaduto."
+  },
+  "dismissed": {
+    "filter": "Ignorati",
+    "note": "Hai ignorato questo problema. Riapparirà se i suoi dati cambiano.",
+    "noOpenTitle": "Nessun problema aperto",
+    "show_one": "Mostra {{count}} problema ignorato",
+    "show_many": "Mostra {{count}} problemi ignorati",
+    "show_other": "Mostra {{count}} problemi ignorati"
   }
 }

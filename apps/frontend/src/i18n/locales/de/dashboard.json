@@ -49,7 +49,7 @@
     "sync_devices": "Geräte synchronisieren",
     "update_prices": "Kurse aktualisieren",
     "rebuild_full_history": "Gesamten Verlauf aktualisieren",
-    "verify_data": "Daten prüfen"
+    "data_health": "Datenzustand"
   },
   "update": {
     "as_of": "Stand:",

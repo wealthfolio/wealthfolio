@@ -51,12 +51,51 @@ baseline:
           period_start: 2025-01-02
           quality: partial
           returns:
-            annualized_irr: ~
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: ~
-            twr: ~
-            value_return: "0.11764706"
+            money_weighted:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
+            return_on_cost:
+              annualized: ~
+              period: "0.11764706"
+              series:
+                - date: 2025-01-02
+                  value: "0.07142857"
+                - date: 2025-01-03
+                  value: "0.07142857"
+                - date: 2025-01-04
+                  value: "0.07142857"
+                - date: 2025-01-05
+                  value: "0.08571429"
+                - date: 2025-01-06
+                  value: "0.08571429"
+                - date: 2025-01-07
+                  value: "0.08571429"
+                - date: 2025-01-08
+                  value: "0.10714286"
+                - date: 2025-01-09
+                  value: "0.10714286"
+                - date: 2025-01-10
+                  value: "0.10714286"
+                - date: 2025-01-11
+                  value: "0.10714286"
+                - date: 2025-01-12
+                  value: "0.10588235"
+                - date: 2025-01-13
+                  value: "0.10588235"
+                - date: 2025-01-14
+                  value: "0.10588235"
+                - date: 2025-01-15
+                  value: "0.10588235"
+                - date: 2025-01-16
+                  value: "0.11764706"
+              unavailable_reason: ~
+            twr:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: HOLDINGS_TWR_NOT_APPLICABLE
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
@@ -64,45 +103,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-03
             volatility: "0.14588661"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0.01333333"
-            - date: 2025-01-06
-              value: "0.01333333"
-            - date: 2025-01-07
-              value: "0.01333333"
-            - date: 2025-01-08
-              value: "0.03333333"
-            - date: 2025-01-09
-              value: "0.03333333"
-            - date: 2025-01-10
-              value: "0.03333333"
-            - date: 2025-01-11
-              value: "0.03333333"
-            - date: 2025-01-12
-              value: "0.05333333"
-            - date: 2025-01-13
-              value: "0.05333333"
-            - date: 2025-01-14
-              value: "0.05333333"
-            - date: 2025-01-15
-              value: "0.05333333"
-            - date: 2025-01-16
-              value: "0.06453901"
           summary:
             amount: "200"
             amount_status: complete
             basis: bookBasis
             basis_status: complete
-            method: valueReturn
-            percent: "0.11764706"
-            percent_status: complete
             quality: partial
         mid:
           attribution:
@@ -123,12 +128,45 @@ baseline:
           period_start: 2025-01-05
           quality: partial
           returns:
-            annualized_irr: ~
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: ~
-            twr: ~
-            value_return: "0.05053191"
+            money_weighted:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "0.05053191"
+              series:
+                - date: 2025-01-05
+                  value: "0"
+                - date: 2025-01-06
+                  value: "0"
+                - date: 2025-01-07
+                  value: "0"
+                - date: 2025-01-08
+                  value: "0.01973684"
+                - date: 2025-01-09
+                  value: "0.01973684"
+                - date: 2025-01-10
+                  value: "0.01973684"
+                - date: 2025-01-11
+                  value: "0.01973684"
+                - date: 2025-01-12
+                  value: "0.03947368"
+                - date: 2025-01-13
+                  value: "0.03947368"
+                - date: 2025-01-14
+                  value: "0.03947368"
+                - date: 2025-01-15
+                  value: "0.03947368"
+                - date: 2025-01-16
+                  value: "0.05053191"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
@@ -136,39 +174,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-06
             volatility: "0.15295596"
-          series:
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0.01973684"
-            - date: 2025-01-09
-              value: "0.01973684"
-            - date: 2025-01-10
-              value: "0.01973684"
-            - date: 2025-01-11
-              value: "0.01973684"
-            - date: 2025-01-12
-              value: "0.03947368"
-            - date: 2025-01-13
-              value: "0.03947368"
-            - date: 2025-01-14
-              value: "0.03947368"
-            - date: 2025-01-15
-              value: "0.03947368"
-            - date: 2025-01-16
-              value: "0.05053191"
           summary:
             amount: "80"
             amount_status: complete
             basis: bookBasis
             basis_status: complete
-            method: valueReturn
-            percent: "0.05053191"
-            percent_status: complete
             quality: partial
       tracking_mode: HOLDINGS
       valuations:
@@ -493,12 +503,51 @@ baseline:
       period_start: 2025-01-02
       quality: partial
       returns:
-        annualized_irr: ~
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: ~
-        twr: ~
-        value_return: "0.11764706"
+        money_weighted:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
+        return_on_cost:
+          annualized: ~
+          period: "0.11764706"
+          series:
+            - date: 2025-01-02
+              value: "0.07142857"
+            - date: 2025-01-03
+              value: "0.07142857"
+            - date: 2025-01-04
+              value: "0.07142857"
+            - date: 2025-01-05
+              value: "0.08571429"
+            - date: 2025-01-06
+              value: "0.08571429"
+            - date: 2025-01-07
+              value: "0.08571429"
+            - date: 2025-01-08
+              value: "0.10714286"
+            - date: 2025-01-09
+              value: "0.10714286"
+            - date: 2025-01-10
+              value: "0.10714286"
+            - date: 2025-01-11
+              value: "0.10714286"
+            - date: 2025-01-12
+              value: "0.10588235"
+            - date: 2025-01-13
+              value: "0.10588235"
+            - date: 2025-01-14
+              value: "0.10588235"
+            - date: 2025-01-15
+              value: "0.10588235"
+            - date: 2025-01-16
+              value: "0.11764706"
+          unavailable_reason: ~
+        twr:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: HOLDINGS_TWR_NOT_APPLICABLE
       risk:
         drawdown_duration_days: 1
         max_drawdown: "0"
@@ -506,45 +555,11 @@ baseline:
         recovery_date: ~
         trough_date: 2025-01-03
         volatility: "0.14588661"
-      series:
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "0"
-        - date: 2025-01-04
-          value: "0"
-        - date: 2025-01-05
-          value: "0.01333333"
-        - date: 2025-01-06
-          value: "0.01333333"
-        - date: 2025-01-07
-          value: "0.01333333"
-        - date: 2025-01-08
-          value: "0.03333333"
-        - date: 2025-01-09
-          value: "0.03333333"
-        - date: 2025-01-10
-          value: "0.03333333"
-        - date: 2025-01-11
-          value: "0.03333333"
-        - date: 2025-01-12
-          value: "0.05333333"
-        - date: 2025-01-13
-          value: "0.05333333"
-        - date: 2025-01-14
-          value: "0.05333333"
-        - date: 2025-01-15
-          value: "0.05333333"
-        - date: 2025-01-16
-          value: "0.06453901"
       summary:
         amount: "100"
         amount_status: complete
         basis: bookBasis
         basis_status: complete
-        method: valueReturn
-        percent: "0.11764706"
-        percent_status: complete
         quality: partial
     mid:
       attribution:
@@ -565,12 +580,45 @@ baseline:
       period_start: 2025-01-05
       quality: partial
       returns:
-        annualized_irr: ~
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: ~
-        twr: ~
-        value_return: "0.05053191"
+        money_weighted:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: "0.05053191"
+          series:
+            - date: 2025-01-05
+              value: "0"
+            - date: 2025-01-06
+              value: "0"
+            - date: 2025-01-07
+              value: "0"
+            - date: 2025-01-08
+              value: "0.01973684"
+            - date: 2025-01-09
+              value: "0.01973684"
+            - date: 2025-01-10
+              value: "0.01973684"
+            - date: 2025-01-11
+              value: "0.01973684"
+            - date: 2025-01-12
+              value: "0.03947368"
+            - date: 2025-01-13
+              value: "0.03947368"
+            - date: 2025-01-14
+              value: "0.03947368"
+            - date: 2025-01-15
+              value: "0.03947368"
+            - date: 2025-01-16
+              value: "0.05053191"
+          unavailable_reason: ~
       risk:
         drawdown_duration_days: 1
         max_drawdown: "0"
@@ -578,39 +626,11 @@ baseline:
         recovery_date: ~
         trough_date: 2025-01-06
         volatility: "0.15295596"
-      series:
-        - date: 2025-01-05
-          value: "0"
-        - date: 2025-01-06
-          value: "0"
-        - date: 2025-01-07
-          value: "0"
-        - date: 2025-01-08
-          value: "0.01973684"
-        - date: 2025-01-09
-          value: "0.01973684"
-        - date: 2025-01-10
-          value: "0.01973684"
-        - date: 2025-01-11
-          value: "0.01973684"
-        - date: 2025-01-12
-          value: "0.03947368"
-        - date: 2025-01-13
-          value: "0.03947368"
-        - date: 2025-01-14
-          value: "0.03947368"
-        - date: 2025-01-15
-          value: "0.03947368"
-        - date: 2025-01-16
-          value: "0.05053191"
       summary:
         amount: "80"
         amount_status: complete
         basis: bookBasis
         basis_status: complete
-        method: valueReturn
-        percent: "0.05053191"
-        percent_status: complete
         quality: partial
   portfolio_flows:
     - date: 2025-01-12

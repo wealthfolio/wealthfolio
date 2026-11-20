@@ -11,7 +11,6 @@
   "error_calculating": "Fehler bei der Berechnung der Performancedaten",
   "not_available": "N/V",
   "not_plotted": "Nicht dargestellt",
-  "reference": "Referenz",
   "unknown": "Unbekannt",
   "remove_item": "{{name}} entfernen",
   "time_period": "Zeitraum",
@@ -55,32 +54,76 @@
     "holdings": "Bestandsmodus"
   },
   "exclusion": {
-    "holdings_not_mwr": "Die geldgewichtete Rendite (MWR) ist im reinen Bestandsmodus nicht verfügbar, da die Zahlungsströme der Transaktionen nicht erfasst werden.",
+    "holdings_not_mwr": "Der MWR ist über die gesamte Historie eines Bestandskontos nicht verfügbar, da Ein- und Auszahlungen nicht erfasst werden.",
     "no_data": "Für diese Auswahl sind keine Performancedaten verfügbar.",
-    "no_series": "Für diesen Zeitraum ist keine Diagrammreihe verfügbar.",
-    "holdings_not_twr": "Konten im Bestandsmodus verwenden die Wertrendite und werden nicht mit dem TWR dargestellt.",
-    "transaction_not_value": "Konten im Transaktionsmodus verwenden den TWR und werden nicht mit der Wertrendite dargestellt.",
     "no_overlap": "Keine überlappenden Diagrammdaten mit dem ausgewählten Element."
   },
   "comparison_notice": {
-    "different_methods": "Unterschiedliche Renditemethoden können sich nicht dasselbe Diagramm teilen. Wählen Sie einen abgeblendeten Chip, um den Diagrammmodus zu wechseln.",
     "not_enough_overlap": "Diese ausgewählten Elemente haben nicht genügend überlappende Diagrammdaten mit dem aktiven Diagramm.",
+    "missing_return": "Für diese ausgewählten Einträge gibt es für diese Methode und diesen Zeitraum keine Rendite.",
     "not_plotted_count_one": "{{count}} ausgewähltes Element wird nicht dargestellt",
     "not_plotted_count_other": "{{count}} ausgewählte Elemente werden nicht dargestellt"
+  },
+  "return_view": {
+    "twr": "Zeitgewichtet",
+    "money_weighted": "Geldgewichtet",
+    "return_on_cost": "Kapitalrendite (ROI)",
+    "twr_short": "TWR",
+    "money_weighted_short": "MWR",
+    "return_on_cost_short": "ROI",
+    "twr_explainer": "Wie sich Ihre Anlagen entwickelt haben, als hätten Sie nie Geld ein- oder ausgezahlt. Für den Vergleich mit einem Index.",
+    "money_weighted_explainer": "Was Ihr Geld tatsächlich verdient hat, unter Berücksichtigung, wann Sie ein- oder ausgezahlt haben.",
+    "return_on_cost_explainer": "Ihr Gewinn im Verhältnis zu dem Geld, das Sie investiert haben.",
+    "method_label": "Renditemethode",
+    "trigger_label": "{{method}} {{value}}: beide Methoden ansehen und wechseln",
+    "chosen_unavailable": "{{method}} ist hier nicht verfügbar.",
+    "reason": {
+      "mixed_twr": "Nicht verfügbar für Portfolios, die Bestandskonten und Transaktionskonten mischen.",
+      "holdings_full_history": "Über die gesamte Historie eines Bestandskontos nicht verfügbar, da dessen Ein- und Auszahlungen nicht erfasst werden.",
+      "holdings_money_weighted": "Für ein Bestandskonto nicht verfügbar, da dessen Ein- und Auszahlungen nicht erfasst werden.",
+      "roi_holdings_only": "Der ROI gilt für Bestandskonten über ihre gesamte Historie und für Portfolios, die eines enthalten.",
+      "unknown_flow": "Eine Ein- oder Auszahlung in diesem Zeitraum hat keinen bekannten Betrag.",
+      "no_capital": "In diesem Zeitraum war im Durchschnitt kein Kapital investiert.",
+      "no_solution": "Keine Rendite passt zu den Ein- und Auszahlungen und Werten in diesem Zeitraum.",
+      "coverage": "Für einige Positionen fehlt am Anfang oder Ende dieses Zeitraums ein Kurs.",
+      "not_enough_history": "Nicht genug Historie in diesem Zeitraum.",
+      "mixed_coverage": "Einige Konten in diesem Portfolio haben keinen Gewinn oder investierten Betrag zum Zusammenrechnen."
+    },
+    "amounts": {
+      "start_value": "Anfangswert",
+      "money_in": "Zuflüsse",
+      "money_out": "Abflüsse",
+      "capital": "Investiertes Kapital",
+      "gain": "Gewinn",
+      "end_value": "Endwert",
+      "unknown": "Unbekannt",
+      "estimated": "Zu- und Abflüsse sind geschätzt, nicht erfasst.",
+      "by_tracking": "Konten nach Erfassung",
+      "part_transactions": "Transaktionen",
+      "part_holdings": "Bestände"
+    },
+    "unclassified_transfers": {
+      "intro": "Überweisungen in diesem Zeitraum, die weder einem anderen Konto zugeordnet noch als extern markiert sind:"
+    }
   },
   "metric": {
     "return": "Rendite",
     "time_weighted_return": "Zeitgewichtete Rendite",
     "time_weighted_short": "Zeitgewichtet",
+    "twr_short": "TWR",
     "money_weighted_return": "Geldgewichtete Rendite",
     "money_weighted_short": "Geldgewichtet",
     "mwr_short": "MWR",
     "annualized_mwr": "Annualisierter MWR",
     "ann_mwr_short": "Ann. MWR",
-    "value_return": "Wertrendite",
-    "value_return_short": "Wertrendite",
+    "annualized_twr": "Annualisierter TWR",
+    "ann_twr_short": "Ann. TWR",
+    "return_on_cost": "Kapitalrendite (ROI)",
+    "return_on_cost_short": "ROI",
     "price_return": "Kursrendite",
     "price_return_short": "Kursrendite",
+    "benchmark_money_weighted": "Geldgewichtet (Ihre Einzahlungen)",
+    "benchmark_money_weighted_short": "Mit Ihren Einzahlungen",
     "volatility": "Volatilität",
     "max_drawdown": "Max. Drawdown",
     "max_drawdown_short": "Max. Drawdown",
@@ -97,7 +140,8 @@
   },
   "empty": {
     "title": "Keine Performancedaten",
-    "description": "Wählen Sie Konten aus, um ihre Performance im Zeitverlauf zu vergleichen."
+    "description": "Wählen Sie Konten aus, um ihre Performance im Zeitverlauf zu vergleichen.",
+    "no_curve": "Für diese Auswahl gibt es eine Rendite, aber für diesen Zeitraum kein Diagramm."
   },
   "attribution": {
     "partial_data": "Unvollständige Daten",
@@ -126,12 +170,12 @@
     "distributions_desc": "Vom Konto abgehobene Barmittel"
   },
   "metric_info": {
-    "time_weighted_return": "Die zeitgewichtete Rendite (TWR) misst die Anlageentwicklung ohne den Einfluss von Ein- und Auszahlungen. Für Zeiträume unter einem Jahr wird die Rendite des gewählten Zeitraums angezeigt; ab einem Jahr wird sie, sofern verfügbar, annualisiert angezeigt.",
-    "money_weighted_return": "Die geldgewichtete Rendite (MWR) misst die Anlageentwicklung unter Berücksichtigung von Höhe und Zeitpunkt externer Zahlungsströme. Sie wird mit IRR/XIRR berechnet; für Zeiträume ab einem Jahr ist die annualisierte XIRR die Standarddarstellung.",
-    "irr": "Der interne Zinsfuß (IRR) misst die geldgewichtete Anlageentwicklung unter Berücksichtigung von Höhe und Zeitpunkt externer Zahlungsströme. Für Zeiträume ab einem Jahr ist die annualisierte XIRR die Standarddarstellung.",
+    "time_weighted_return": "Die zeitgewichtete Rendite (TWR) zeigt, wie sich Ihre Anlagen entwickelt haben, als hätten Sie nie Geld ein- oder ausgezahlt. Sie eignet sich für den Vergleich mit einem Index. Ab einem Jahr wird sie auch als jährliche Rate angezeigt.",
+    "money_weighted_return": "Die geldgewichtete Rendite (MWR) zeigt, was Ihr Geld tatsächlich verdient hat, unter Berücksichtigung, wann Sie ein- oder ausgezahlt haben: die eine Wachstumsrate, mit der aus Ihren Einzahlungen abzüglich Ihrer Auszahlungen Ihr heutiger Wert wird. Ab einem Jahr wird sie auch als jährliche Rate angezeigt.",
     "simple_return": "Die einfache Rendite vergleicht den gesamten Gewinn oder Verlust mit den Nettoeinzahlungen. Sie ist kumulativ und nicht zeitgewichtet.",
-    "value_return": "Die Wertrendite misst die Veränderung des Kontowerts im gewählten Zeitraum, wenn keine Zahlungsströme auf Transaktionsebene verfügbar sind.",
+    "return_on_cost": "Die Kapitalrendite (ROI) vergleicht Ihren Gewinn mit dem Geld, das Sie investiert haben. Bestandskonten verwenden sie über ihre gesamte Historie, und Portfolios, die eines enthalten, in jedem Zeitraum, da Ein- und Auszahlungen dort nicht erfasst werden.",
     "price_return": "Die Kursrendite misst die Kursänderung des gewählten Wertpapiers im gewählten Zeitraum.",
+    "benchmark_money_weighted": "Die geldgewichtete Rendite der Benchmark, wenn Ihre eigenen Ein- und Auszahlungen an denselben Tagen in sie geflossen wären: was Ihr Geld dort verdient hätte. Nur Kurse, ohne Währungseffekte.",
     "volatility": "Die Volatilität misst die Streuung der Renditen einer Anlage. Höhere Volatilität bedeutet, dass sich ihr Wert innerhalb kurzer Zeit stark verändern kann. Sie wird aus kalendertäglichen Renditen annualisiert.",
     "max_drawdown": "Der maximale Rückgang bezeichnet den größten prozentualen Verlust vom Höchststand bis zu einem nachfolgenden Tiefststand des Portfoliowerts im angegebenen Zeitraum. Er zeigt das Abwärtsrisiko an.",
     "annualized_return": "Die annualisierte Rendite ist die durchschnittliche jährliche Zinseszinsrate für den gewählten Zeitraum. Sie ist nicht der kumulierte Gesamtgewinn oder -verlust.",

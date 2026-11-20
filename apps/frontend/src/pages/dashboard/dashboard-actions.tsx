@@ -13,7 +13,7 @@ import {
   useRecalculatePortfolioMutation,
   useUpdatePortfolioMutation,
 } from "@/hooks/use-calculate-portfolio";
-import { useRunHealthChecks } from "@/hooks/use-health";
+import { useRefreshHealthStatus } from "@/hooks/use-health";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useMemo, useState } from "react";
@@ -45,7 +45,7 @@ export function DashboardActions({
   // Portfolio update mutations
   const updatePortfolioMutation = useUpdatePortfolioMutation();
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
-  const runHealthChecksMutation = useRunHealthChecks({ navigate });
+  const refreshHealthStatus = useRefreshHealthStatus();
 
   // Wealthfolio Connect sync
   const { isEnabled, isConnected, userInfo } = useWealthfolioConnect();
@@ -175,8 +175,12 @@ export function DashboardActions({
             : []),
           {
             icon: Icons.ShieldCheck,
-            label: t("dashboard:actions.verify_data"),
-            onClick: () => runHealthChecksMutation.mutate(),
+            label: t("dashboard:actions.data_health"),
+            // A fresh check, as before; the page shows it once it lands.
+            onClick: () => {
+              void refreshHealthStatus();
+              navigate("/health");
+            },
           },
         ],
       },
@@ -196,7 +200,7 @@ export function DashboardActions({
     syncBrokerData,
     updatePortfolioMutation,
     recalculatePortfolioMutation,
-    runHealthChecksMutation,
+    refreshHealthStatus,
   ]);
 
   return (

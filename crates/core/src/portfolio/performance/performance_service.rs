@@ -48,6 +48,20 @@ pub trait PerformanceServiceTrait: Send + Sync {
         end_date: Option<NaiveDate>,
     ) -> Result<PerformanceResult>;
 
+    /// A benchmark symbol measured with a scope's own money: its
+    /// money-weighted view replays the accounts' deposits and withdrawals
+    /// into the symbol; its time-weighted view stays the price return.
+    async fn calculate_symbol_performance_replayed(
+        &self,
+        symbol: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+        _account_ids: &[String],
+    ) -> Result<PerformanceResult> {
+        self.calculate_performance_history("symbol", symbol, start_date, end_date, None, None)
+            .await
+    }
+
     async fn calculate_performance_summary(
         &self,
         item_type: &str,
@@ -372,6 +386,50 @@ impl PerformanceService {
             MeasureTarget::Account(id) => std::slice::from_ref(id),
             MeasureTarget::Scope { accounts, .. } => accounts,
         };
+        let window = engine::Window { start, end };
+        let kernel_profile = match profile {
+            PerformanceSummaryProfile::Full => engine::MeasureProfile::Full,
+            PerformanceSummaryProfile::Summary => engine::MeasureProfile::Summary,
+            PerformanceSummaryProfile::Dashboard => engine::MeasureProfile::Dashboard,
+        };
+        let result = self
+            .with_measure_inputs(account_ids, settings, kernel_profile, true, |inputs| {
+                Ok(match target {
+                    MeasureTarget::Account(id) => engine::measure_account(
+                        inputs,
+                        &AccountId::new(id),
+                        window,
+                        kernel_profile,
+                        include_series,
+                    )?,
+                    MeasureTarget::Scope { id, accounts } => {
+                        let scope: Vec<AccountId> = accounts.iter().map(AccountId::new).collect();
+                        engine::measure_scope(
+                            inputs,
+                            id,
+                            &scope,
+                            window,
+                            kernel_profile,
+                            include_series,
+                        )?
+                    }
+                })
+            })
+            .await?;
+        Ok(from_kernel(result))
+    }
+
+    /// Loads the stored rows of `account_ids` and runs `read` over the
+    /// measure inputs built from them. Lots and disposals feed only the
+    /// attribution, so a read that needs no attribution skips them.
+    async fn with_measure_inputs<T>(
+        &self,
+        account_ids: &[String],
+        settings: &ReadSettings,
+        profile: engine::MeasureProfile,
+        load_lots: bool,
+        read: impl FnOnce(&engine::MeasureInputs<'_>) -> Result<T>,
+    ) -> Result<T> {
         let measured = rows::measure_engine(
             &self.sources,
             account_ids,
@@ -388,42 +446,68 @@ impl PerformanceService {
                 self.valuations
                     .get_historical_valuations(account_id, None, None)?,
             );
-            lot_rows.extend(self.lots.get_all_lots_for_account(account_id).await?);
-            disposal_rows.extend(self.lots.get_lot_disposals_for_account(account_id).await?);
+            if load_lots {
+                lot_rows.extend(self.lots.get_all_lots_for_account(account_id).await?);
+                disposal_rows.extend(self.lots.get_lot_disposals_for_account(account_id).await?);
+            }
         }
         let series = rows::stored_series(&valuation_rows);
         let lots = rows::stored_lots(&lot_rows);
         let disposals = rows::stored_disposals(&disposal_rows);
         let rejected = rows::stored_rejections(&self.sources, &measured)?;
-        let window = engine::Window { start, end };
-        let kernel_profile = match profile {
-            PerformanceSummaryProfile::Full => engine::MeasureProfile::Full,
-            PerformanceSummaryProfile::Summary => engine::MeasureProfile::Summary,
-            PerformanceSummaryProfile::Dashboard => engine::MeasureProfile::Dashboard,
-        };
-        let inputs = measured.measure_inputs(&series, &lots, &disposals, &rejected, kernel_profile);
-        let result = match target {
-            MeasureTarget::Account(id) => engine::measure_account(
-                &inputs,
-                &AccountId::new(id),
-                window,
-                kernel_profile,
-                include_series,
-            )?,
-            MeasureTarget::Scope { id, accounts } => {
-                let scope: Vec<AccountId> = accounts.iter().map(AccountId::new).collect();
-                engine::measure_scope(&inputs, id, &scope, window, kernel_profile, include_series)?
-            }
-        };
-        Ok(from_kernel(result))
+        let inputs = measured.measure_inputs(&series, &lots, &disposals, &rejected, profile);
+        read(&inputs)
     }
 
-    async fn symbol_performance(
+    /// The scope's opening capital and dated deposits and withdrawals over
+    /// the window, to replay into a benchmark. Loads the accounts' whole
+    /// history, so it runs off the async workers.
+    async fn scope_cash_flows(
+        &self,
+        account_ids: Vec<String>,
+        start: Option<NaiveDate>,
+        end: Option<NaiveDate>,
+    ) -> Result<Option<engine::ScopeCashFlows>> {
+        Self::validate_window(start, end)?;
+        let timezone = self.timezone();
+        let settings = ReadSettings {
+            base_currency: self.base_currency(),
+            as_of: user_today(parse_user_timezone_or_default(&timezone)),
+            timezone,
+        };
+        let service = self.clone();
+        let handle = tokio::runtime::Handle::current();
+        blocking(move || {
+            handle.block_on(async {
+                let scope: Vec<AccountId> = account_ids.iter().map(AccountId::new).collect();
+                service
+                    .with_measure_inputs(
+                        &account_ids,
+                        &settings,
+                        engine::MeasureProfile::Full,
+                        false,
+                        |inputs| {
+                            Ok(engine::scope_cash_flows(
+                                inputs,
+                                &scope,
+                                engine::Window { start, end },
+                            )?)
+                        },
+                    )
+                    .await
+            })
+        })
+        .await
+    }
+
+    /// The symbol's daily closes over the window, or the result explaining
+    /// why there are none.
+    async fn symbol_price_points(
         &self,
         asset_id: &str,
         start: Option<NaiveDate>,
         end: Option<NaiveDate>,
-    ) -> Result<PerformanceResult> {
+    ) -> Result<std::result::Result<(Currency, Vec<(NaiveDate, Decimal)>), PerformanceResult>> {
         let end_date = end.unwrap_or_else(|| self.today());
         let start_date = start.unwrap_or_else(|| end_date - Duration::days(365));
         if start_date > end_date {
@@ -441,13 +525,13 @@ impl PerformanceService {
                 "Asset '{}': No quote data found between {} and {}.",
                 asset_id, start_date, end_date
             );
-            return Ok(unavailable_performance_metrics(
+            return Ok(Err(unavailable_performance_metrics(
                 asset_id,
                 "USD".to_string(),
                 Some(start_date),
                 Some(end_date),
                 "Performance unavailable: no quote data found for the selected period.",
-            ));
+            )));
         }
         let currency = quotes[0].currency.clone();
         let mut points: Vec<(NaiveDate, Decimal)> = quotes
@@ -463,9 +547,23 @@ impl PerformanceService {
         points.dedup_by_key(|(date, _)| *date);
         let currency = Currency::parse(&currency)
             .unwrap_or_else(|| Currency::parse("USD").expect("valid currency"));
-        Ok(from_kernel(engine::measure_price_series(
-            asset_id, &currency, &points,
-        )))
+        Ok(Ok((currency, points)))
+    }
+
+    async fn symbol_performance(
+        &self,
+        asset_id: &str,
+        start: Option<NaiveDate>,
+        end: Option<NaiveDate>,
+    ) -> Result<PerformanceResult> {
+        Ok(
+            match self.symbol_price_points(asset_id, start, end).await? {
+                Ok((currency, points)) => {
+                    from_kernel(engine::measure_price_series(asset_id, &currency, &points))
+                }
+                Err(unavailable) => unavailable,
+            },
+        )
     }
 
     /// Legacy `calculate_simple_performance`: latest-row gain and weight.
@@ -507,12 +605,26 @@ impl PerformanceService {
     }
 }
 
-fn return_method(method: engine::model::ReturnMethod) -> ReturnMethod {
-    match method {
-        engine::model::ReturnMethod::TimeWeighted => ReturnMethod::TimeWeighted,
-        engine::model::ReturnMethod::ValueReturn => ReturnMethod::ValueReturn,
-        engine::model::ReturnMethod::SymbolPriceBased => ReturnMethod::SymbolPriceBased,
-        engine::model::ReturnMethod::NotApplicable => ReturnMethod::NotApplicable,
+fn return_view(view: engine::model::ReturnView) -> PerformanceReturnView {
+    PerformanceReturnView {
+        period: view.period,
+        annualized: view.annualized,
+        series: view
+            .series
+            .into_iter()
+            .map(|p| ReturnData {
+                date: p.date,
+                value: p.value,
+            })
+            .collect(),
+        unavailable_reason_code: view.unavailable_reason.as_ref().and_then(|note| {
+            serde_json::to_value(note)
+                .ok()?
+                .get("code")?
+                .as_str()
+                .map(ToString::to_string)
+        }),
+        unavailable_reason: view.unavailable_reason.map(|note| note.to_string()),
     }
 }
 
@@ -555,6 +667,35 @@ fn summary_status(status: engine::model::SummaryStatus) -> PerformanceSummarySta
     }
 }
 
+fn amounts(amounts: engine::model::Amounts) -> PerformanceAmounts {
+    PerformanceAmounts {
+        start_date: amounts.start_date,
+        start_value: amounts.start_value,
+        money_in: amounts.money_in,
+        money_out: amounts.money_out,
+        gain: amounts.gain,
+        end_value: amounts.end_value,
+        capital: amounts.capital,
+        flows: match amounts.flows {
+            engine::model::FlowKnowledge::Confirmed => PerformanceFlowKnowledge::Confirmed,
+            engine::model::FlowKnowledge::Inferred => PerformanceFlowKnowledge::Inferred,
+            engine::model::FlowKnowledge::Missing => PerformanceFlowKnowledge::Missing,
+        },
+        parts: amounts
+            .parts
+            .into_iter()
+            .map(|part| PerformanceAmountsPart {
+                tracking: match part.tracking {
+                    engine::model::TrackingMode::Holdings => TrackingMode::Holdings,
+                    _ => TrackingMode::Transactions,
+                },
+                gain: part.gain,
+                capital: part.capital,
+            })
+            .collect(),
+    }
+}
+
 /// The kernel result in the API contract shape.
 pub fn from_kernel(result: engine::model::PerformanceResult) -> PerformanceResult {
     PerformanceResult {
@@ -566,14 +707,10 @@ pub fn from_kernel(result: engine::model::PerformanceResult) -> PerformanceResul
             start_date: result.period_start,
             end_date: result.period_end,
         },
-        mode: return_method(result.method),
         returns: PerformanceReturns {
-            twr: result.returns.twr,
-            annualized_twr: result.returns.annualized_twr,
-            irr: result.returns.irr,
-            annualized_irr: result.returns.annualized_irr,
-            value_return: result.returns.value_return,
-            annualized_value_return: result.returns.annualized_value_return,
+            twr: return_view(result.returns.twr),
+            money_weighted: return_view(result.returns.money_weighted),
+            return_on_cost: return_view(result.returns.return_on_cost),
         },
         attribution: PerformanceAttribution {
             contributions: result.attribution.contributions,
@@ -602,30 +739,84 @@ pub fn from_kernel(result: engine::model::PerformanceResult) -> PerformanceResul
         basis_status: basis(result.basis_status),
         summary: PerformanceSummary {
             amount: result.summary.amount,
-            percent: result.summary.percent,
-            method: return_method(result.summary.method),
             basis: summary_basis(result.summary.basis),
             quality: quality(result.summary.quality),
             amount_status: summary_status(result.summary.amount_status),
-            percent_status: summary_status(result.summary.percent_status),
             basis_status: basis(result.summary.basis_status),
             reasons: notes(result.summary.reasons),
         },
-        series: result
-            .series
-            .into_iter()
-            .map(|p| ReturnData {
-                date: p.date,
-                value: p.value,
-            })
-            .collect(),
         is_holdings_mode: result.is_holdings_mode,
         is_mixed_tracking_mode: result.is_mixed_tracking_mode,
+        amounts: amounts(result.amounts),
+        unclassified_transfers: result
+            .unclassified_transfers
+            .into_iter()
+            .map(|transfer| PerformanceUnclassifiedTransfer {
+                activity_id: transfer.activity.as_str().to_string(),
+                account_id: transfer.account.as_str().to_string(),
+                date: transfer.date,
+                amount: transfer.amount,
+                currency: transfer.currency.as_str().to_string(),
+                outflow: transfer.outflow,
+            })
+            .collect(),
     }
 }
 
 #[async_trait]
 impl PerformanceServiceTrait for PerformanceService {
+    async fn calculate_symbol_performance_replayed(
+        &self,
+        symbol: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+        account_ids: &[String],
+    ) -> Result<PerformanceResult> {
+        // The prices and the scope's flows are independent reads.
+        let cash_flows = async {
+            if account_ids.is_empty() {
+                return None;
+            }
+            // The replay only adds a view: a failure to read the scope leaves
+            // the benchmark's price return, as before it replayed anything.
+            match self
+                .scope_cash_flows(account_ids.to_vec(), start_date, end_date)
+                .await
+            {
+                Ok(cash) => cash,
+                // The error text can carry account data: it stays out of the log.
+                Err(_) => {
+                    warn!("Benchmark '{}': deposits not replayed", symbol);
+                    None
+                }
+            }
+        };
+        let (prices, cash) = futures::join!(
+            self.symbol_price_points(symbol, start_date, end_date),
+            cash_flows
+        );
+        let (currency, points) = match prices? {
+            Ok(prices) => prices,
+            Err(unavailable) => return Ok(unavailable),
+        };
+        match cash {
+            // The replay solves a rate at every close, so it grows with the
+            // history: off the async workers, like the scope's own measure.
+            Some(cash) => {
+                let symbol = symbol.to_string();
+                blocking(move || {
+                    Ok(from_kernel(engine::measure_price_series_replayed(
+                        &symbol, &currency, &points, &cash,
+                    )))
+                })
+                .await
+            }
+            None => Ok(from_kernel(engine::measure_price_series(
+                symbol, &currency, &points,
+            ))),
+        }
+    }
+
     async fn calculate_performance_history(
         &self,
         item_type: &str,
@@ -806,5 +997,26 @@ impl PerformanceServiceTrait for PerformanceService {
             }
         }
         Ok(results)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_return_view_keeps_its_reason_as_text_and_code() {
+        let view = return_view(engine::model::ReturnView {
+            unavailable_reason: Some(engine::model::QualityNote::MixedTwrNotApplicable),
+            ..engine::model::ReturnView::default()
+        });
+        assert_eq!(
+            view.unavailable_reason_code.as_deref(),
+            Some("MIXED_TWR_NOT_APPLICABLE")
+        );
+        assert_eq!(
+            view.unavailable_reason.as_deref(),
+            Some("TWR unavailable for mixed transaction and holdings scopes.")
+        );
     }
 }

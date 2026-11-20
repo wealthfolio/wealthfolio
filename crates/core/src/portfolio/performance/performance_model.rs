@@ -20,17 +20,6 @@ pub struct TotalReturn {
     pub amount: Decimal,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[derive(Default)]
-pub enum ReturnMethod {
-    #[default]
-    TimeWeighted,
-    ValueReturn,
-    SymbolPriceBased,
-    NotApplicable,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReturnData {
     pub date: NaiveDate,
@@ -51,17 +40,36 @@ pub struct PerformancePeriod {
     pub end_date: Option<NaiveDate>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// One way of measuring return over the period. `period` is missing when
+/// the scope cannot support it, and `unavailable_reason` says why.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceReturnView {
+    pub period: Option<Decimal>,
+    pub annualized: Option<Decimal>,
+    /// Cumulative curve; filled for history requests only.
+    #[serde(default)]
+    pub series: Vec<ReturnData>,
+    pub unavailable_reason: Option<String>,
+    /// Stable code of `unavailable_reason` (e.g. `MIXED_TWR_NOT_APPLICABLE`),
+    /// so a host can show its own text.
+    #[serde(default)]
+    pub unavailable_reason_code: Option<String>,
+}
+
+/// Every return computed for a scope. Each keeps one meaning for every kind
+/// of scope; the host picks which one to show.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformanceReturns {
-    pub twr: Option<Decimal>,
-    pub annualized_twr: Option<Decimal>,
-    /// Selected-period money-weighted return derived from annualized XIRR.
-    pub irr: Option<Decimal>,
-    /// Annualized XIRR using dated cash flows.
-    pub annualized_irr: Option<Decimal>,
-    pub value_return: Option<Decimal>,
-    pub annualized_value_return: Option<Decimal>,
+    /// Time-weighted return: deposits and withdrawals do not move it.
+    pub twr: PerformanceReturnView,
+    /// Money-weighted return: the internal rate of return on the dated
+    /// deposits and withdrawals; the yearly rate is the same rate over a
+    /// year.
+    pub money_weighted: PerformanceReturnView,
+    /// Gain over book cost, for holdings accounts over their full history.
+    pub return_on_cost: PerformanceReturnView,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -190,14 +198,16 @@ pub fn unavailable_performance_metrics(
             start_date,
             end_date,
         },
-        mode: ReturnMethod::NotApplicable,
-        returns: PerformanceReturns {
-            twr: None,
-            annualized_twr: None,
-            irr: None,
-            annualized_irr: None,
-            value_return: None,
-            annualized_value_return: None,
+        returns: {
+            let unavailable = PerformanceReturnView {
+                unavailable_reason: Some(reason.clone()),
+                ..PerformanceReturnView::default()
+            };
+            PerformanceReturns {
+                twr: unavailable.clone(),
+                money_weighted: unavailable.clone(),
+                return_on_cost: unavailable,
+            }
         },
         attribution: PerformanceAttribution::default(),
         risk: PerformanceRisk {
@@ -220,9 +230,10 @@ pub fn unavailable_performance_metrics(
             reasons: vec![reason],
             ..PerformanceSummary::default()
         },
-        series: Vec::new(),
         is_holdings_mode: false,
         is_mixed_tracking_mode: false,
+        amounts: PerformanceAmounts::default(),
+        unclassified_transfers: Vec::new(),
     }
 }
 
@@ -362,12 +373,9 @@ pub enum PerformanceSummaryStatus {
 #[serde(rename_all = "camelCase")]
 pub struct PerformanceSummary {
     pub amount: Option<Decimal>,
-    pub percent: Option<Decimal>,
-    pub method: ReturnMethod,
     pub basis: PerformanceSummaryBasis,
     pub quality: DataQualityStatus,
     pub amount_status: PerformanceSummaryStatus,
-    pub percent_status: PerformanceSummaryStatus,
     pub basis_status: BasisStatus,
     pub reasons: Vec<String>,
 }
@@ -376,16 +384,73 @@ impl Default for PerformanceSummary {
     fn default() -> Self {
         Self {
             amount: None,
-            percent: None,
-            method: ReturnMethod::NotApplicable,
             basis: PerformanceSummaryBasis::NotApplicable,
             quality: DataQualityStatus::NotApplicable,
             amount_status: PerformanceSummaryStatus::Unavailable,
-            percent_status: PerformanceSummaryStatus::Unavailable,
             basis_status: BasisStatus::NotApplicable,
             reasons: Vec::new(),
         }
     }
+}
+
+/// How the money in and out of a period is known.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PerformanceFlowKnowledge {
+    /// Recorded transactions.
+    #[default]
+    Confirmed,
+    /// Estimated, for example from the change between two holdings snapshots.
+    Inferred,
+    /// A flow in the period has no known amount or boundary.
+    Missing,
+}
+
+/// The gain and capital of the accounts of one tracking mode in a mixed scope.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceAmountsPart {
+    pub tracking: TrackingMode,
+    pub gain: Decimal,
+    pub capital: Decimal,
+}
+
+/// The amounts a period's return is built from, in the scope's currency. An
+/// amount that does not apply to the scope, or cannot be known, is absent.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceAmounts {
+    /// The close the amounts open on, when it is later than the period's
+    /// start: an account that earned income before any money was put in is
+    /// measured from the close before its first deposit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<NaiveDate>,
+    pub start_value: Option<Decimal>,
+    /// Deposits and transfers in; purchases in an account that does not track cash.
+    pub money_in: Option<Decimal>,
+    pub money_out: Option<Decimal>,
+    pub gain: Option<Decimal>,
+    pub end_value: Option<Decimal>,
+    /// What an ROI divides the gain by: book cost, or a mixed scope's capital.
+    pub capital: Option<Decimal>,
+    pub flows: PerformanceFlowKnowledge,
+    /// A mixed scope's transactions accounts and its holdings accounts.
+    #[serde(default)]
+    pub parts: Vec<PerformanceAmountsPart>,
+}
+
+/// A transfer that is neither matched to another account nor marked
+/// external; it withholds the time- and money-weighted returns of its period.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceUnclassifiedTransfer {
+    pub activity_id: String,
+    pub account_id: String,
+    pub date: NaiveDate,
+    /// Unsigned, in `currency`; absent for a transfer of securities.
+    pub amount: Option<Decimal>,
+    pub currency: String,
+    pub outflow: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -393,7 +458,6 @@ impl Default for PerformanceSummary {
 pub struct PerformanceResult {
     pub scope: PerformanceScopeDescriptor,
     pub period: PerformancePeriod,
-    pub mode: ReturnMethod,
     pub returns: PerformanceReturns,
     pub attribution: PerformanceAttribution,
     pub risk: PerformanceRisk,
@@ -402,11 +466,14 @@ pub struct PerformanceResult {
     pub basis_status: BasisStatus,
     #[serde(default, alias = "headline")]
     pub summary: PerformanceSummary,
-    pub series: Vec<ReturnData>,
     #[serde(default)]
     pub is_holdings_mode: bool,
     #[serde(default)]
     pub is_mixed_tracking_mode: bool,
+    #[serde(default)]
+    pub amounts: PerformanceAmounts,
+    #[serde(default)]
+    pub unclassified_transfers: Vec<PerformanceUnclassifiedTransfer>,
 }
 
 // This struct now only holds the calculated performance metrics.
@@ -441,14 +508,20 @@ mod tests {
                 start_date: Some(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap()),
                 end_date: Some(NaiveDate::from_ymd_opt(2026, 6, 30).unwrap()),
             },
-            mode: ReturnMethod::ValueReturn,
             returns: PerformanceReturns {
-                twr: None,
-                annualized_twr: None,
-                irr: None,
-                annualized_irr: None,
-                value_return: Some(Decimal::new(12, 2)),
-                annualized_value_return: None,
+                twr: PerformanceReturnView {
+                    unavailable_reason: Some("display reason".to_string()),
+                    ..PerformanceReturnView::default()
+                },
+                money_weighted: PerformanceReturnView {
+                    period: Some(Decimal::new(12, 2)),
+                    series: vec![ReturnData {
+                        date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+                        value: Decimal::new(12, 2),
+                    }],
+                    ..PerformanceReturnView::default()
+                },
+                return_on_cost: PerformanceReturnView::default(),
             },
             attribution: PerformanceAttribution::default(),
             risk: PerformanceRisk {
@@ -467,32 +540,75 @@ mod tests {
             basis_status: BasisStatus::PartialUnknown,
             summary: PerformanceSummary {
                 amount: Some(Decimal::new(1234, 2)),
-                percent: None,
-                method: ReturnMethod::ValueReturn,
                 basis: PerformanceSummaryBasis::Mixed,
                 quality: DataQualityStatus::Partial,
                 amount_status: PerformanceSummaryStatus::Complete,
-                percent_status: PerformanceSummaryStatus::Unavailable,
                 basis_status: BasisStatus::PartialUnknown,
                 reasons: vec!["display reason".to_string()],
             },
-            series: Vec::new(),
             is_holdings_mode: false,
             is_mixed_tracking_mode: true,
+            amounts: PerformanceAmounts {
+                start_date: NaiveDate::from_ymd_opt(2026, 3, 15),
+                money_in: Some(Decimal::new(500, 0)),
+                gain: Some(Decimal::new(1234, 2)),
+                capital: Some(Decimal::new(1000, 0)),
+                flows: PerformanceFlowKnowledge::Inferred,
+                parts: vec![PerformanceAmountsPart {
+                    tracking: TrackingMode::Holdings,
+                    gain: Decimal::new(1234, 2),
+                    capital: Decimal::new(1000, 0),
+                }],
+                ..PerformanceAmounts::default()
+            },
+            unclassified_transfers: vec![PerformanceUnclassifiedTransfer {
+                activity_id: "activity-1".to_string(),
+                account_id: "account-1".to_string(),
+                date: NaiveDate::from_ymd_opt(2026, 3, 2).expect("valid date"),
+                amount: Some(Decimal::new(200, 0)),
+                currency: "CAD".to_string(),
+                outflow: false,
+            }],
         };
 
         let value = serde_json::to_value(&result).expect("performance result should serialize");
 
-        assert_eq!(value["mode"], json!("valueReturn"));
+        assert!(value.get("mode").is_none());
+        assert!(value.get("series").is_none());
+        assert_eq!(value["returns"]["moneyWeighted"]["period"], json!(0.12));
+        assert_eq!(
+            value["returns"]["moneyWeighted"]["series"][0]["date"],
+            json!("2026-06-30")
+        );
+        assert_eq!(
+            value["returns"]["twr"]["unavailableReason"],
+            json!("display reason")
+        );
         assert_eq!(value["basisStatus"], json!("partialUnknown"));
         assert_eq!(value["isMixedTrackingMode"], json!(true));
+        assert_eq!(value["amounts"]["startDate"], json!("2026-03-15"));
+        assert_eq!(value["amounts"]["moneyIn"], json!(500.0));
+        assert_eq!(value["amounts"]["startValue"], json!(null));
+        assert_eq!(value["amounts"]["flows"], json!("inferred"));
+        assert_eq!(value["amounts"]["parts"][0]["tracking"], json!("HOLDINGS"));
+        assert_eq!(
+            value["unclassifiedTransfers"][0],
+            json!({
+                "activityId": "activity-1",
+                "accountId": "account-1",
+                "date": "2026-03-02",
+                "amount": 200.0,
+                "currency": "CAD",
+                "outflow": false,
+            })
+        );
         assert!(value.get("headline").is_none());
         assert!(value["summary"].get("componentCoverage").is_none());
-        assert_eq!(value["summary"]["method"], json!("valueReturn"));
+        assert!(value["summary"].get("percent").is_none());
+        assert!(value["summary"].get("method").is_none());
         assert_eq!(value["summary"]["basis"], json!("mixed"));
         assert_eq!(value["summary"]["quality"], json!("partial"));
         assert_eq!(value["summary"]["amountStatus"], json!("complete"));
-        assert_eq!(value["summary"]["percentStatus"], json!("unavailable"));
         assert_eq!(value["summary"]["basisStatus"], json!("partialUnknown"));
         assert_eq!(value["summary"]["reasons"][0], json!("display reason"));
     }

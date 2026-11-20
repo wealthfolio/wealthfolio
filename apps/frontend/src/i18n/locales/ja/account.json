@@ -105,7 +105,7 @@
   "unrealized_pnl": "評価損益",
   "not_available": "N/A",
   "more_count": "他{{count}}件",
-  "twr_irr_require_transactions": "TWRとIRRの算出には取引ベースのトラッキングが必要です。",
+  "holdings_returns_note": "保有銘柄で管理する口座では、全期間はROIを表示します。より短い期間のリターンはスナップショットから推定されます。",
   "last_updated": "最終更新: {{date}}",
   "from_to": "{{start}}〜{{end}}",
   "snapshot": {
@@ -154,16 +154,15 @@
   "action_transfer_holdings": "保有銘柄を振替",
   "review_cash_impact": "現金への影響を確認",
   "metric": {
-    "value_return": "評価額リターン",
+    "return_on_cost": "投資収益率（ROI）",
     "total_pnl": "損益合計",
     "total_pnl_info": "選択期間の損益合計です。",
     "annualized_twr": "年率TWR",
-    "annualized_irr": "年率IRR",
-    "irr": "IRR",
+    "mwr": "金額加重リターン",
     "cumulative_twr": "累積TWR",
-    "period_irr": "期間IRR",
+    "cumulative_mwr": "累積MWR",
     "twr_hover_hint": " 数値にカーソルを合わせると累積TWRを表示します。",
-    "irr_hover_hint": " 数値にカーソルを合わせると選択期間のIRRを表示します。"
+    "mwr_hover_hint": " 値にカーソルを合わせると累積MWRが表示されます。"
   },
   "more_count_other": "他{{count}}件"
 }

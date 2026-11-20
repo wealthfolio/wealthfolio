@@ -1682,9 +1682,16 @@ fn priced_events(
                     } => valuer.transfer_units(event, *direction, *quantity),
                     _ => Decimal::ZERO,
                 };
+                let unclassified = match &event.flow.value {
+                    FlowValue::Cash(gross) if priced_as == ScopeBoundary::Unknown => {
+                        Some(*gross).filter(|gross| !gross.is_zero())
+                    }
+                    _ => None,
+                };
                 Some(PricedFlow {
                     amount,
                     source,
+                    unclassified,
                     outflow: match security_outflow {
                         Some(outflow) => outflow,
                         None => {

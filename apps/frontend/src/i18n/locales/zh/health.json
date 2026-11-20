@@ -209,7 +209,9 @@
     "update_value": "更新估值",
     "review_transaction": "检查交易",
     "review_entry": "查看记录",
-    "match_option_expiry_contracts": "使用匹配的合约"
+    "match_option_expiry_contracts": "使用匹配的合约",
+    "undo": "撤销",
+    "restore": "恢复"
   },
   "updatedAt": "更新于 {{time}}",
   "healthy": {
@@ -299,5 +301,11 @@
     "insufficient_quantity": "此交易减少{{requested}}单位的{{asset}}，但仅持有{{held}}单位。剩余{{excess}}单位没有成本基础。",
     "missing_final_cash": "此已入账交易没有最终现金金额，因此未改变现金余额。",
     "option_expiry_not_option": "此期权到期记录指向的{{asset}}不是期权合约，因此没有任何变更。请将其关联到已到期的合约。"
+  },
+  "dismissed": {
+    "filter": "已忽略",
+    "note": "你已忽略此问题。如果相关数据发生变化，它会重新出现。",
+    "noOpenTitle": "没有待处理的问题",
+    "show_other": "显示 {{count}} 个已忽略的问题"
   }
 }

@@ -2,6 +2,7 @@ import {
   useDismissHealthIssue,
   useExecuteHealthFix,
   useHealthStatus,
+  useRestoreHealthIssue,
   useRunHealthChecks,
 } from "@/hooks/use-health";
 import { HOVER_SLOT } from "@/lib/hover-slot";
@@ -33,6 +34,9 @@ const SEVERITY_LABEL_KEYS: Record<HealthSeverity, string> = {
   ERROR: "severity.error",
   CRITICAL: "severity.critical",
 };
+
+/** The list shows one severity, the dismissed issues, or (null) every open issue. */
+type HealthFilter = HealthSeverity | "DISMISSED";
 
 const CATEGORY_LABEL_KEYS: Record<HealthCategory, string> = {
   PRICE_STALENESS: "category.prices",
@@ -93,17 +97,23 @@ function SeverityDot({ severity }: { severity: HealthSeverity }) {
 
 function HealthIssueRow({
   issue,
+  dismissed,
   onClick,
   onDismiss,
+  onRestore,
   onFix,
   isDismissing,
+  isRestoring,
   isFixing,
 }: {
   issue: HealthIssue;
+  dismissed: boolean;
   onClick: () => void;
   onDismiss: () => void;
+  onRestore: () => void;
   onFix: () => void;
   isDismissing: boolean;
+  isRestoring: boolean;
   isFixing: boolean;
 }) {
   const { t } = useTranslation();
@@ -112,7 +122,7 @@ function HealthIssueRow({
   const categoryLabel = t(`health:${CATEGORY_LABEL_KEYS[issue.category]}`);
   const hasDiagnosticActions =
     issue.diagnostics?.some((diagnostic) => diagnostic.actions.length > 0) ?? false;
-  const showQuickFix = Boolean(issue.fixAction && !hasDiagnosticActions);
+  const showQuickFix = Boolean(issue.fixAction && !hasDiagnosticActions && !dismissed);
 
   return (
     <div
@@ -121,7 +131,7 @@ function HealthIssueRow({
     >
       <SeverityDot severity={issue.severity} />
 
-      <div className="min-w-0 flex-1">
+      <div className={cn("min-w-0 flex-1", dismissed && "opacity-60")}>
         <div className="flex items-center gap-2">
           <span className="line-clamp-2 text-sm font-medium sm:line-clamp-1">
             {translateIssueText(t, issue, "title")}
@@ -175,20 +185,46 @@ function HealthIssueRow({
             )}
           </Button>
         )}
-        <Button
-          size="icon"
-          variant="ghost"
-          // Shown on touch screens, which can't hover to reveal it.
-          className={cn("text-muted-foreground h-7 w-7", HOVER_SLOT)}
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation();
-            onDismiss();
-          }}
-          disabled={isDismissing}
-          aria-label={t("health:detail.dismiss")}
-        >
-          {isDismissing ? <Spinner className="h-3.5 w-3.5" /> : <Icons.X className="h-3.5 w-3.5" />}
-        </Button>
+        {dismissed ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2.5 text-xs"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              onRestore();
+            }}
+            disabled={isRestoring}
+          >
+            {isRestoring ? (
+              <Spinner className="h-3 w-3" />
+            ) : (
+              <>
+                <Icons.Undo className="me-1 h-3 w-3" />
+                {t("health:actions.restore")}
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            size="icon"
+            variant="ghost"
+            // Shown on touch screens, which can't hover to reveal it.
+            className={cn("text-muted-foreground h-7 w-7", HOVER_SLOT)}
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              onDismiss();
+            }}
+            disabled={isDismissing}
+            aria-label={t("health:detail.dismiss")}
+          >
+            {isDismissing ? (
+              <Spinner className="h-3.5 w-3.5" />
+            ) : (
+              <Icons.X className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -196,17 +232,19 @@ function HealthIssueRow({
 
 function StatusSummary({
   counts,
-  selectedSeverity,
-  onSeverityClick,
+  dismissedCount,
+  selectedFilter,
+  onFilterClick,
 }: {
   counts: Partial<Record<HealthSeverity, number>>;
-  selectedSeverity: HealthSeverity | null;
-  onSeverityClick: (severity: HealthSeverity | null) => void;
+  dismissedCount: number;
+  selectedFilter: HealthFilter | null;
+  onFilterClick: (filter: HealthFilter | null) => void;
 }) {
   const { t } = useTranslation();
   const totalIssues = Object.values(counts).reduce((a, b) => (a ?? 0) + (b ?? 0), 0);
 
-  if (totalIssues === 0) {
+  if (totalIssues === 0 && dismissedCount === 0) {
     return null;
   }
 
@@ -219,12 +257,12 @@ function StatusSummary({
         if (count === 0) return null;
         const config = SEVERITY_CONFIG[severity];
         const severityLabel = t(`health:${SEVERITY_LABEL_KEYS[severity]}`);
-        const isActive = selectedSeverity === severity;
+        const isActive = selectedFilter === severity;
 
         return (
           <button
             key={severity}
-            onClick={() => onSeverityClick(isActive ? null : severity)}
+            onClick={() => onFilterClick(isActive ? null : severity)}
             className={cn(
               "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
               config.bgColor,
@@ -238,12 +276,25 @@ function StatusSummary({
           </button>
         );
       })}
-      {selectedSeverity && (
+      {dismissedCount > 0 && (
+        <button
+          onClick={() => onFilterClick(selectedFilter === "DISMISSED" ? null : "DISMISSED")}
+          className={cn(
+            "bg-muted text-muted-foreground flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+            selectedFilter === "DISMISSED" && "ring-2 ring-current ring-offset-1",
+          )}
+        >
+          <Icons.EyeOff className="h-3 w-3" />
+          <span>{dismissedCount}</span>
+          <span className="sr-only sm:not-sr-only">{t("health:dismissed.filter")}</span>
+        </button>
+      )}
+      {selectedFilter && (
         <Button
           variant="ghost"
           size="sm"
           className="text-muted-foreground ms-1 h-7 px-2 text-xs"
-          onClick={() => onSeverityClick(null)}
+          onClick={() => onFilterClick(null)}
         >
           {t("health:actions.clear")}
         </Button>
@@ -252,17 +303,35 @@ function StatusSummary({
   );
 }
 
-function HealthyState() {
+/** No open issues. Dismissed ones are still counted, so the page doesn't call the data clean. */
+function HealthyState({
+  dismissedCount,
+  onShowDismissed,
+}: {
+  dismissedCount: number;
+  onShowDismissed: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <div className="text-success-subtle-foreground mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-current/15">
         <Icons.CheckCircle className="h-8 w-8" />
       </div>
-      <h2 className="mb-2 text-lg font-semibold">{t("health:healthy.title")}</h2>
-      <p className="text-muted-foreground max-w-sm text-center text-sm">
-        {t("health:healthy.description")}
-      </p>
+      {dismissedCount > 0 ? (
+        <>
+          <h2 className="mb-2 text-lg font-semibold">{t("health:dismissed.noOpenTitle")}</h2>
+          <Button variant="link" size="sm" onClick={onShowDismissed}>
+            {t("health:dismissed.show", { count: dismissedCount })}
+          </Button>
+        </>
+      ) : (
+        <>
+          <h2 className="mb-2 text-lg font-semibold">{t("health:healthy.title")}</h2>
+          <p className="text-muted-foreground max-w-sm text-center text-sm">
+            {t("health:healthy.description")}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -270,12 +339,13 @@ function HealthyState() {
 export default function HealthPage() {
   const formatting = useDateFormatting();
   const { t } = useTranslation();
-  const [selectedSeverity, setSelectedSeverity] = useState<HealthSeverity | null>(null);
+  const [filter, setFilter] = useState<HealthFilter | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<HealthIssue | null>(null);
 
   const { data: status, isLoading, error } = useHealthStatus();
   const runChecksMutation = useRunHealthChecks();
   const dismissMutation = useDismissHealthIssue();
+  const restoreMutation = useRestoreHealthIssue();
   const fixMutation = useExecuteHealthFix();
   // A fix that resolves the open issue removes it from the fresh status, so its
   // sheet closes with it, as after a dismiss.
@@ -293,10 +363,16 @@ export default function HealthPage() {
     runChecksMutation.mutate();
   };
 
-  const filteredIssues = status?.issues.filter((issue) => {
-    if (selectedSeverity && issue.severity !== selectedSeverity) return false;
-    return true;
-  });
+  const dismissedIssues = status?.dismissedIssues ?? [];
+  // Restoring the last dismissed issue ends the Dismissed view, and a later
+  // dismissal does not bring it back.
+  if (filter === "DISMISSED" && status && dismissedIssues.length === 0) setFilter(null);
+  const activeFilter = filter === "DISMISSED" && dismissedIssues.length === 0 ? null : filter;
+  const showingDismissed = activeFilter === "DISMISSED";
+  const filteredIssues = showingDismissed
+    ? dismissedIssues
+    : status?.issues.filter((issue) => !activeFilter || issue.severity === activeFilter);
+  const isDismissed = (issue: HealthIssue) => dismissedIssues.some((d) => d.id === issue.id);
 
   const headerActions = (
     <div className="flex items-center gap-2">
@@ -363,8 +439,9 @@ export default function HealthPage() {
             <div className="flex items-center justify-between">
               <StatusSummary
                 counts={status.issueCounts}
-                selectedSeverity={selectedSeverity}
-                onSeverityClick={setSelectedSeverity}
+                dismissedCount={dismissedIssues.length}
+                selectedFilter={activeFilter}
+                onFilterClick={setFilter}
               />
               {status.checkedAt && (
                 <Tooltip>
@@ -394,6 +471,7 @@ export default function HealthPage() {
                     <HealthIssueRow
                       key={issue.id}
                       issue={issue}
+                      dismissed={showingDismissed}
                       onClick={() => setSelectedIssue(issue)}
                       onDismiss={() =>
                         dismissMutation.mutate({
@@ -401,14 +479,19 @@ export default function HealthPage() {
                           dataHash: issue.dataHash,
                         })
                       }
+                      onRestore={() => restoreMutation.mutate(issue.id)}
                       onFix={() => issue.fixAction && fixMutation.mutate(issue.fixAction)}
                       isDismissing={dismissMutation.isPending}
+                      isRestoring={restoreMutation.isPending}
                       isFixing={fixMutation.isPending}
                     />
                   ))}
                 </div>
               ) : (
-                <HealthyState />
+                <HealthyState
+                  dismissedCount={dismissedIssues.length}
+                  onShowDismissed={() => setFilter("DISMISSED")}
+                />
               )}
             </div>
           </div>
@@ -441,6 +524,10 @@ export default function HealthPage() {
           }
         }}
         onRunFixAction={runFix}
+        // A restored issue's sheet stays open; it then offers Dismiss again.
+        isDismissed={selectedIssue !== null && isDismissed(selectedIssue)}
+        onRestore={() => selectedIssue && restoreMutation.mutate(selectedIssue.id)}
+        isRestoring={restoreMutation.isPending}
         isDismissing={dismissMutation.isPending}
         isFixing={fixMutation.isPending}
       />

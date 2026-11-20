@@ -1,23 +1,24 @@
+import type { PerformanceReturnViewKey } from "@/lib/types";
+
+/** One return view from the tool output; `period` is missing when the scope cannot support it. */
+export interface PerformanceToolReturn {
+  period: number | null;
+  annualized: number | null;
+  unavailableReason: string | null;
+}
+
 export interface PerformanceToolResult {
   id: string;
   periodStartDate?: string | null;
   periodEndDate?: string | null;
   currency: string;
-  mode?: string;
-  twr?: number | null;
-  annualizedTwr?: number | null;
-  irr?: number | null;
-  annualizedIrr?: number | null;
-  valueReturn?: number | null;
-  annualizedValueReturn?: number | null;
+  returns: Record<PerformanceReturnViewKey, PerformanceToolReturn>;
   attribution?: PerformanceToolAttribution | null;
   volatility?: number | null;
   maxDrawdown?: number | null;
   isMixedTrackingMode?: boolean;
   summaryAmount?: number | null;
-  summaryPercent?: number | null;
   summaryAmountStatus?: string;
-  summaryPercentStatus?: string;
   summaryBasisStatus?: string;
   basisStatus?: string;
   warnings?: string[];
@@ -46,6 +47,68 @@ function numberOrNull(value: unknown): number | null {
   if (value == null) return null;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function toolReturn(view: Record<string, unknown> | undefined): PerformanceToolReturn {
+  return {
+    period: numberOrNull(view?.period),
+    annualized: numberOrNull(view?.annualized),
+    unavailableReason:
+      (view?.unavailableReason as string | undefined) ??
+      (view?.unavailable_reason as string | undefined) ??
+      null,
+  };
+}
+
+/**
+ * The tool's return views. Chats saved before the views existed hold flat
+ * fields (`twr`, `annualizedIrr`, `valueReturn`, `mode`); those map onto the
+ * closest view so old messages still render.
+ */
+function toolReturns(
+  returns: Record<string, unknown> | undefined,
+  legacyMode: string | undefined,
+  legacyMixed: boolean,
+): Record<PerformanceReturnViewKey, PerformanceToolReturn> {
+  const twr = asRecord(returns?.twr);
+  const moneyWeighted = asRecord(returns?.moneyWeighted ?? returns?.money_weighted);
+  if (twr || moneyWeighted) {
+    return {
+      twr: toolReturn(twr),
+      moneyWeighted: toolReturn(moneyWeighted),
+      returnOnCost: toolReturn(asRecord(returns?.returnOnCost ?? returns?.return_on_cost)),
+    };
+  }
+  const legacy = (camel: string, snake: string) =>
+    numberOrNull(returns?.[camel] ?? returns?.[snake]);
+  // A mixed scope's legacy value return was money-weighted; a holdings one
+  // was gain on cost.
+  const legacyValueReturn = legacyMode === "valueReturn" && !legacyMixed;
+  return {
+    twr: {
+      period: numberOrNull(returns?.twr),
+      annualized: legacy("annualizedTwr", "annualized_twr"),
+      unavailableReason: null,
+    },
+    moneyWeighted: {
+      period: legacyMixed ? legacy("valueReturn", "value_return") : numberOrNull(returns?.irr),
+      annualized: legacy("annualizedIrr", "annualized_irr"),
+      unavailableReason: null,
+    },
+    returnOnCost: {
+      period: legacyValueReturn ? legacy("valueReturn", "value_return") : null,
+      annualized: legacyValueReturn
+        ? legacy("annualizedValueReturn", "annualized_value_return")
+        : null,
+      unavailableReason: null,
+    },
+  };
 }
 
 export function normalizePerformanceToolResult(
@@ -102,16 +165,6 @@ export function normalizePerformanceToolResult(
           ? "complete"
           : "unavailable"
         : undefined;
-  const legacyPercentStatus =
-    typeof legacyComponentCoverage?.percentComplete === "boolean"
-      ? legacyComponentCoverage.percentComplete
-        ? "complete"
-        : "unavailable"
-      : typeof legacyComponentCoverage?.percent_complete === "boolean"
-        ? legacyComponentCoverage.percent_complete
-          ? "complete"
-          : "unavailable"
-        : undefined;
   const warnings = Array.isArray(dataQuality?.warnings)
     ? (dataQuality.warnings as string[])
     : Array.isArray(candidate.warnings)
@@ -142,25 +195,11 @@ export function normalizePerformanceToolResult(
       (candidate.Currency as string | undefined) ??
       (scope?.currency as string | undefined) ??
       fallbackCurrency,
-    mode: (candidate.mode as string | undefined) ?? (candidate.Mode as string | undefined),
-    twr: returns?.twr != null || returns?.Twr != null ? Number(returns.twr ?? returns.Twr) : null,
-    annualizedTwr:
-      returns?.annualizedTwr != null || returns?.annualized_twr != null
-        ? Number(returns.annualizedTwr ?? returns.annualized_twr)
-        : null,
-    irr: returns?.irr != null || returns?.Irr != null ? Number(returns.irr ?? returns.Irr) : null,
-    annualizedIrr:
-      returns?.annualizedIrr != null || returns?.annualized_irr != null
-        ? Number(returns.annualizedIrr ?? returns.annualized_irr)
-        : null,
-    valueReturn:
-      returns?.valueReturn != null || returns?.value_return != null
-        ? Number(returns.valueReturn ?? returns.value_return)
-        : null,
-    annualizedValueReturn:
-      returns?.annualizedValueReturn != null || returns?.annualized_value_return != null
-        ? Number(returns.annualizedValueReturn ?? returns.annualized_value_return)
-        : null,
+    returns: toolReturns(
+      returns,
+      (candidate.mode as string | undefined) ?? (candidate.Mode as string | undefined),
+      Boolean(candidate.isMixedTrackingMode ?? candidate.is_mixed_tracking_mode ?? false),
+    ),
     attribution: attribution
       ? {
           income: Number(attribution.income ?? attribution.Income ?? 0),
@@ -186,15 +225,10 @@ export function normalizePerformanceToolResult(
       candidate.isMixedTrackingMode ?? candidate.is_mixed_tracking_mode ?? false,
     ),
     summaryAmount: numberOrNull(summary?.amount ?? summary?.Amount),
-    summaryPercent: numberOrNull(summary?.percent ?? summary?.Percent),
     summaryAmountStatus:
       (summary?.amountStatus as string | undefined) ??
       (summary?.amount_status as string | undefined) ??
       legacyAmountStatus,
-    summaryPercentStatus:
-      (summary?.percentStatus as string | undefined) ??
-      (summary?.percent_status as string | undefined) ??
-      legacyPercentStatus,
     summaryBasisStatus:
       (summary?.basisStatus as string | undefined) ?? (summary?.basis_status as string | undefined),
     basisStatus:

@@ -241,7 +241,9 @@
     "update_value": "Atualizar valor",
     "review_transaction": "Revisar transação",
     "review_entry": "Rever registo",
-    "match_option_expiry_contracts": "Usar os contratos encontrados"
+    "match_option_expiry_contracts": "Usar os contratos encontrados",
+    "undo": "Desfazer",
+    "restore": "Restaurar"
   },
   "updatedAt": "Atualizado {{time}}",
   "healthy": {
@@ -336,5 +338,13 @@
     "insufficient_quantity": "Esta transação retira {{requested}} unidades de {{asset}}, mas havia apenas {{held}}. As {{excess}} unidades restantes não têm base de custo.",
     "missing_final_cash": "Esta transação contabilizada não tem um valor final em dinheiro, por isso não alterou o saldo de caixa.",
     "option_expiry_not_option": "Este vencimento de opção indica {{asset}}, que não é um contrato de opção, por isso não alterou nada. Vincule-o ao contrato que venceu."
+  },
+  "dismissed": {
+    "filter": "Dispensados",
+    "note": "Você dispensou este problema. Ele volta a aparecer se os dados mudarem.",
+    "noOpenTitle": "Nenhum problema em aberto",
+    "show_one": "Mostrar {{count}} problema dispensado",
+    "show_many": "Mostrar {{count}} problemas dispensados",
+    "show_other": "Mostrar {{count}} problemas dispensados"
   }
 }

@@ -26,6 +26,8 @@
   "auto_update_title": "Mises à jour automatiques",
   "auto_update_enable": "Activer la vérification automatique des mises à jour",
   "auto_update_description": "Lorsqu'elle est activée, Wealthfolio vérifiera automatiquement les mises à jour au démarrage de l'application. Vous pouvez toujours vérifier manuellement les mises à jour depuis le menu Aide.",
+  "return_method_title": "Méthode de rendement",
+  "return_method_description": "Choisissez le rendement affiché dans le tableau de bord, vos comptes et Performance.",
   "auto_update_error_description": "Échec de la mise à jour des paramètres de mise à jour automatique. Veuillez réessayer.",
   "database_encryption_title": "Chiffrement de la base de données",
   "database_encryption_enable": "Chiffrer les données stockées",

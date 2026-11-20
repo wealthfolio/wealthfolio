@@ -26,6 +26,8 @@
   "auto_update_title": "自动更新",
   "auto_update_enable": "启用自动检查更新",
   "auto_update_description": "启用后，Wealthfolio 将在应用启动时自动检查更新。您仍可从帮助菜单手动检查更新。",
+  "return_method_title": "回报计算方法",
+  "return_method_description": "选择在仪表板、账户和业绩中显示的回报。",
   "auto_update_error_description": "更新自动更新设置失败。请重试。",
   "database_encryption_title": "数据库加密",
   "database_encryption_enable": "加密已存储的数据",

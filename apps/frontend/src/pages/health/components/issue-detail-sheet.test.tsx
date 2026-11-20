@@ -92,6 +92,9 @@ function renderIssueSheet(issue: HealthIssue) {
               onDismiss={noop}
               onFix={noop}
               onRunFixAction={noop}
+              isDismissed={false}
+              onRestore={() => undefined}
+              isRestoring={false}
               isDismissing={false}
               isFixing={false}
             />
@@ -353,6 +356,9 @@ describe("IssueDetailSheet", () => {
           onDismiss={noop}
           onFix={noop}
           onRunFixAction={noop}
+          isDismissed={false}
+          onRestore={() => undefined}
+          isRestoring={false}
           isDismissing={false}
           isFixing={false}
         />
@@ -552,6 +558,9 @@ describe("IssueDetailSheet", () => {
           onDismiss={noop}
           onFix={noop}
           onRunFixAction={onRunFixAction}
+          isDismissed={false}
+          onRestore={() => undefined}
+          isRestoring={false}
           isDismissing={false}
           isFixing={false}
         />
@@ -577,6 +586,9 @@ describe("IssueDetailSheet", () => {
           onDismiss={noop}
           onFix={noop}
           onRunFixAction={onRunFixAction}
+          isDismissed={false}
+          onRestore={() => undefined}
+          isRestoring={false}
           isDismissing={false}
           isFixing={false}
         />
@@ -760,6 +772,9 @@ describe("IssueDetailSheet", () => {
           onDismiss={noop}
           onFix={noop}
           onRunFixAction={noop}
+          isDismissed={false}
+          onRestore={() => undefined}
+          isRestoring={false}
           isDismissing={false}
           isFixing={false}
         />

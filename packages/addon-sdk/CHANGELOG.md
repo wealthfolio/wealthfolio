@@ -4,6 +4,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `PerformanceResult.amounts`: the amounts a return is built from (`startValue`,
+  `moneyIn`, `moneyOut`, `gain`, `endValue`, and `capital` for an ROI), with
+  `flows` saying whether the money in and out is `confirmed`, `inferred` or
+  `missing`, and `parts` for the two halves of a mixed scope. `startDate` is set
+  when the amounts open later than `period.startDate`: an account that earned
+  income before any money was put in is measured, by both return methods, from
+  the close before its first deposit.
+- `PerformanceResult.unclassifiedTransfers`: the transfers in the period that
+  are neither matched to another account nor marked external, which withhold the
+  time- and money-weighted returns.
+
+### Breaking
+
+- `PerformanceResult.returns` holds one view per return method, each with its
+  own meaning for every kind of account: `twr` (time-weighted), `moneyWeighted`
+  (the internal rate of return on the dated deposits and withdrawals, for the
+  period) and `returnOnCost` (ROI, gain over the capital put in: book cost for a
+  holdings account over its full history, and the summed gains over the summed
+  capital for a scope that mixes holdings and transactions accounts). Each view
+  has `period`, `annualized`, `series` and an `unavailableReason` when `period`
+  is missing. `annualized` is the same return over a year and is present from
+  one year of history; ROI has none. A holdings account, and a scope that
+  includes one, has no `moneyWeighted` return. The flat `twr`, `annualizedTwr`,
+  `irr`, `annualizedIrr`, `valueReturn` and `annualizedValueReturn` fields are
+  removed; `valueReturn` meant something different for holdings, transaction and
+  mixed scopes.
+- `PerformanceResult.mode`, the top-level `series`, `summary.percent`,
+  `summary.method`, `summary.percentStatus` and the `ReturnMethod` type are
+  removed. Read the curve from `returns.<view>.series`, and pick the view to
+  show from `Settings.defaultReturnMetric` (`'twr'` or `'irr'`).
+
 ## [3.13.1] - 2026-11-18
 
 ### Changed

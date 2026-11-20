@@ -49,8 +49,11 @@ expected_notes: >
   01-05 0 (chain starts on opening 995), 01-07 30/995 = 0.03015075, 01-09
   20/1025 = 0.0195122 -> headline 1045/995 - 1 = 0.05025126 = last series
   point; no not-applicable reasons. value_return rebased at 01-04:
-  (1045 - 995 - 0)/995 = 0.05025126. IRR: -1000 @01-04, +1045 @01-10 (period
-  0.06044558). Attribution (inception): contributions 1000, unrealized 50,
+  (1045 - 995 - 0)/995 = 0.05025126. Money-weighted: nothing is contributed
+  on the first close, so the period opens with the time-weighted chain, on
+  the close before the deposit (-5), moved on to the first close worth >= 1
+  (01-04, 995): 1045/995 - 1 = 0.05025126, the same curve as the TWR. The
+  fee booked before funding stays out of both percentages. Attribution (inception): contributions 1000, unrealized 50,
   fees 5 (the inception-day FEE counts against an inception baseline): the
   components sum to 1045 = the delta, quality ok, summary amount 45. Risk:
   max_drawdown 0, peak_date 01-02 (opening date).

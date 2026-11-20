@@ -1600,7 +1600,7 @@ async fn a_holdings_account_without_a_snapshot_changes_no_figure() {
         values(history.expect("history with the account")),
         values(reference_history.unwrap())
     );
-    assert!(reference.returns.twr.is_some());
+    assert!(reference.returns.twr.period.is_some());
     assert_eq!(
         serde_json::to_value(&performance.returns).unwrap(),
         serde_json::to_value(&reference.returns).unwrap()

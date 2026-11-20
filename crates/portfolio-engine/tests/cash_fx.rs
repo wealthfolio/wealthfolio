@@ -108,9 +108,12 @@ fn check(kind: &str, cash: Decimal, security: Decimal, bounded: bool) {
             }
             .unwrap();
             assert_complete(&result, expected);
-            assert_eq!(result.returns.twr, Some(dec!(-0.01428571)));
+            assert_eq!(result.returns.twr.period, Some(dec!(-0.01428571)));
             if profile == MeasureProfile::Full {
-                assert_eq!(result.returns.irr, Some(dec!(-0.01428571)));
+                assert_eq!(
+                    result.returns.money_weighted.period,
+                    Some(dec!(-0.01428571))
+                );
             }
             if profile != MeasureProfile::Dashboard {
                 assert_eq!(result.attribution.fx_effect, expected);
@@ -754,8 +757,8 @@ fx_rates:
         assert_eq!(result.attribution.fx_effect, dec!(-100));
         assert_eq!(result.attribution.unrealized_pnl_change, dec!(10));
         assert_eq!(result.attribution.pnl(), dec!(-90));
-        assert!(result.returns.twr.is_none());
-        assert!(result.returns.irr.is_none());
+        assert!(result.returns.twr.period.is_none());
+        assert!(result.returns.money_weighted.period.is_none());
     }
 }
 

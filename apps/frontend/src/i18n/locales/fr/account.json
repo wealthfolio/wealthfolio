@@ -105,7 +105,7 @@
   "unrealized_pnl": "P&L latent",
   "not_available": "N/D",
   "more_count": "+{{count}} de plus",
-  "twr_irr_require_transactions": "Le TWR et le TRI nécessitent le suivi des transactions.",
+  "holdings_returns_note": "Les comptes suivis par positions affichent le ROI sur tout leur historique ; les rendements des périodes plus courtes sont estimés à partir des instantanés.",
   "last_updated": "Dernière mise à jour : {{date}}",
   "from_to": "Du {{start}} au {{end}}",
   "snapshot": {
@@ -155,16 +155,15 @@
   "action_transfer_holdings": "Transférer des positions",
   "review_cash_impact": "Examiner l'impact sur la trésorerie",
   "metric": {
-    "value_return": "Rendement en valeur",
+    "return_on_cost": "Retour sur investissement (ROI)",
     "total_pnl": "P&L total",
     "total_pnl_info": "Profit ou perte total sur la période sélectionnée.",
     "annualized_twr": "TWR annualisé",
-    "annualized_irr": "TRI annualisé",
-    "irr": "TRI",
+    "mwr": "Rendement pondéré par l'argent",
     "cumulative_twr": "TWR cumulé",
-    "period_irr": "TRI de la période",
+    "cumulative_mwr": "MWR cumulé",
     "twr_hover_hint": " Survolez la valeur pour voir le TWR cumulé.",
-    "irr_hover_hint": " Survolez la valeur pour voir le TRI de la période sélectionnée."
+    "mwr_hover_hint": " Survolez la valeur pour voir le MWR cumulé."
   },
   "more_count_one": "+{{count}} de plus",
   "more_count_other": "+{{count}} de plus",

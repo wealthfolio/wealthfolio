@@ -1,21 +1,24 @@
 import {
   HOLDINGS_MODE_MAX_DRAWDOWN_INFO_KEY,
   HOLDINGS_MODE_VOLATILITY_INFO_KEY,
-  IRR_RETURN_INFO_KEY,
   MAX_DRAWDOWN_INFO_KEY,
   MetricDisplay,
+  MONEY_WEIGHTED_RETURN_INFO_KEY,
+  RETURN_ON_COST_INFO_KEY,
   TIME_WEIGHTED_RETURN_INFO_KEY,
-  VALUE_RETURN_INFO_KEY,
   VOLATILITY_INFO_KEY,
 } from "@/components/metric-display";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Icons } from "@wealthfolio/ui";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
-import { PerformanceResult } from "@/lib/types";
+import type { PerformanceResult, PerformanceReturnViewKey } from "@/lib/types";
 import {
+  type ChosenReturnView,
   performancePeriodPnl,
-  performanceSummaryReturn,
+  performanceViewAnnualized,
+  performanceViewReason,
+  performanceViewReturn,
   shouldDisplayAnnualizedPerformanceReturn,
 } from "@/lib/performance";
 import { cn } from "@/lib/utils";
@@ -29,6 +32,10 @@ export interface PerformanceGridProps {
   className?: string;
   /** If true, shows holdings-mode return cards instead of transaction return cards. */
   isHoldingsMode?: boolean;
+  /** The full history is selected: a holdings account reports ROI, else its TWR. */
+  isAllTime?: boolean;
+  /** The return method the person chose. */
+  returnView?: ChosenReturnView;
 }
 
 export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
@@ -37,6 +44,8 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
   performanceError,
   className,
   isHoldingsMode = false,
+  isAllTime = false,
+  returnView = "twr",
 }) => {
   const { t } = useTranslation();
   if (performanceError) {
@@ -76,26 +85,38 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
     );
   }
 
-  const twrValue = performance.returns.twr ?? undefined;
-  const twrAnnualized = performance.returns.annualizedTwr ?? undefined;
-  const irrValue = performance.returns.irr ?? undefined;
-  const irrAnnualized = performance.returns.annualizedIrr ?? undefined;
+  const twrValue = performanceViewReturn(performance, "twr") ?? undefined;
+  const twrAnnualized = performanceViewAnnualized(performance, "twr") ?? undefined;
+  const mwrValue = performanceViewReturn(performance, "moneyWeighted") ?? undefined;
+  const mwrAnnualized = performanceViewAnnualized(performance, "moneyWeighted") ?? undefined;
   const shouldDisplayAnnualized = shouldDisplayAnnualizedPerformanceReturn(performance);
   const showAnnualizedTwr = shouldDisplayAnnualized && twrAnnualized !== undefined;
-  const showAnnualizedIrr = shouldDisplayAnnualized && irrAnnualized !== undefined;
+  const showAnnualizedMwr = shouldDisplayAnnualized && mwrAnnualized !== undefined;
   const twrDisplayValue = showAnnualizedTwr ? twrAnnualized : twrValue;
-  const irrDisplayValue = showAnnualizedIrr ? irrAnnualized : irrValue;
+  const mwrDisplayValue = showAnnualizedMwr ? mwrAnnualized : mwrValue;
   const twrInfoText = showAnnualizedTwr
     ? `${t(TIME_WEIGHTED_RETURN_INFO_KEY)}${t("account:metric.twr_hover_hint")}`
     : t(TIME_WEIGHTED_RETURN_INFO_KEY);
-  const irrInfoText = showAnnualizedIrr
-    ? `${t(IRR_RETURN_INFO_KEY)}${t("account:metric.irr_hover_hint")}`
-    : t(IRR_RETURN_INFO_KEY);
-  const holdingsValueReturn = performanceSummaryReturn(performance) ?? undefined;
+  const mwrInfoText = showAnnualizedMwr
+    ? `${t(MONEY_WEIGHTED_RETURN_INFO_KEY)}${t("account:metric.mwr_hover_hint")}`
+    : t(MONEY_WEIGHTED_RETURN_INFO_KEY);
+  // Holdings accounts report ROI over their full history; for a dated period
+  // the chosen method, or the other one when the chosen one is unavailable.
+  const otherView: ChosenReturnView = returnView === "twr" ? "moneyWeighted" : "twr";
+  const holdingsView: PerformanceReturnViewKey = isAllTime
+    ? "returnOnCost"
+    : performanceViewReturn(performance, returnView) == null &&
+        performanceViewReturn(performance, otherView) != null
+      ? otherView
+      : returnView;
+  const holdingsReturn = performanceViewReturn(performance, holdingsView) ?? undefined;
   const periodPnl = performancePeriodPnl(performance) ?? undefined;
   const volatility = performance.risk.volatility ?? undefined;
   const maxDrawdown = performance.risk.maxDrawdown ?? undefined;
   const unavailableReason = performance.dataQuality.notApplicableReasons?.[0];
+  const twrReason = performanceViewReason(performance, "twr") ?? unavailableReason;
+  const mwrReason = performanceViewReason(performance, "moneyWeighted") ?? unavailableReason;
+  const holdingsReason = performanceViewReason(performance, holdingsView) ?? unavailableReason;
 
   // For HOLDINGS mode accounts:
   // - TWR/IRR are NOT available (require cash flow tracking)
@@ -107,10 +128,22 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
           <CardContent className="p-0">
             <div className="grid grid-cols-2 gap-3">
               <MetricDisplay
-                label={t("account:metric.value_return")}
-                value={holdingsValueReturn}
-                emptyReason={unavailableReason}
-                infoText={t(VALUE_RETURN_INFO_KEY)}
+                label={
+                  holdingsView === "returnOnCost"
+                    ? t("account:metric.return_on_cost")
+                    : holdingsView === "moneyWeighted"
+                      ? t("account:metric.mwr")
+                      : t("account:time_weighted_return")
+                }
+                value={holdingsReturn}
+                emptyReason={holdingsReason}
+                infoText={t(
+                  holdingsView === "returnOnCost"
+                    ? RETURN_ON_COST_INFO_KEY
+                    : holdingsView === "moneyWeighted"
+                      ? MONEY_WEIGHTED_RETURN_INFO_KEY
+                      : TIME_WEIGHTED_RETURN_INFO_KEY,
+                )}
                 isPercentage={true}
                 className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
               />
@@ -163,20 +196,22 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
               secondaryValueLabel={
                 showAnnualizedTwr ? t("account:metric.cumulative_twr") : undefined
               }
-              emptyReason={unavailableReason}
+              emptyReason={twrReason}
               infoText={twrInfoText}
               isPercentage={true}
               className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
             />
             <MetricDisplay
               label={
-                showAnnualizedIrr ? t("account:metric.annualized_irr") : t("account:metric.irr")
+                showAnnualizedMwr ? t("performance:metric.annualized_mwr") : t("account:metric.mwr")
               }
-              value={irrDisplayValue}
-              secondaryValue={showAnnualizedIrr ? irrValue : undefined}
-              secondaryValueLabel={showAnnualizedIrr ? t("account:metric.period_irr") : undefined}
-              emptyReason={unavailableReason}
-              infoText={irrInfoText}
+              value={mwrDisplayValue}
+              secondaryValue={showAnnualizedMwr ? mwrValue : undefined}
+              secondaryValueLabel={
+                showAnnualizedMwr ? t("account:metric.cumulative_mwr") : undefined
+              }
+              emptyReason={mwrReason}
+              infoText={mwrInfoText}
               isPercentage={true}
               className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
             />

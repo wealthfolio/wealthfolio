@@ -421,6 +421,17 @@ describe("AccountPage", () => {
         isFetching: false,
         error: null,
       } as unknown as ReturnType<typeof useCurrentValuation>);
+      mockUseCalculatePerformanceHistory.mockReturnValue({
+        data: [
+          {
+            ...createPerformanceResult(),
+            returns: { twr: { period: 0.25 }, moneyWeighted: { period: 0.25 }, returnOnCost: {} },
+          },
+        ],
+        isLoading: false,
+        hasErrors: false,
+        errorMessages: [],
+      } as unknown as ReturnType<typeof useCalculatePerformanceHistory>);
       render(<AccountPage />);
       fireEvent.click(screen.getByRole("button", { name: "All time" }));
       expect(Boolean(screen.queryByText("gain-amount:25"))).toBe(accountValueStatus === "complete");
@@ -810,8 +821,7 @@ function createCurrentSummary(overrides: {
 function createPerformanceResult(): PerformanceResult {
   return {
     scope: { id: "account-1", currency: "USD" },
-    mode: "valueReturn",
-    returns: { valueReturn: null },
+    returns: { twr: {}, moneyWeighted: {}, returnOnCost: {} },
     attribution: {
       contributions: 0,
       distributions: 0,
@@ -825,7 +835,6 @@ function createPerformanceResult(): PerformanceResult {
     },
     risk: {},
     dataQuality: { status: "ok", warnings: [] },
-    series: [],
     period: { startDate: null, endDate: null },
   };
 }

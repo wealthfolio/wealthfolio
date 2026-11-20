@@ -11,7 +11,6 @@
   "error_calculating": "수익률 데이터를 계산하는 중 오류가 발생했습니다",
   "not_available": "해당 없음",
   "not_plotted": "표시되지 않음",
-  "reference": "참조",
   "unknown": "알 수 없음",
   "remove_item": "{{name}} 제거",
   "time_period": "기간",
@@ -55,32 +54,76 @@
     "holdings": "보유 종목 모드"
   },
   "exclusion": {
-    "holdings_not_mwr": "보유 내역 전용 모드에서는 거래 현금 흐름을 추적하지 않으므로 금액 가중 수익률(MWR)을 계산할 수 없습니다.",
+    "holdings_not_mwr": "보유 종목으로 관리하는 계좌는 입출금을 기록하지 않으므로 전체 기간의 MWR을 사용할 수 없습니다.",
     "no_data": "이 선택 항목에 대한 수익률 데이터가 없습니다.",
-    "no_series": "이 기간에 대한 차트 계열이 없습니다.",
-    "holdings_not_twr": "보유 종목 모드 계좌는 가치 수익률을 사용하므로 시간가중수익률로 표시되지 않습니다.",
-    "transaction_not_value": "거래 모드 계좌는 시간가중수익률을 사용하므로 가치 수익률로 표시되지 않습니다.",
     "no_overlap": "선택한 항목과 겹치는 차트 날짜가 없습니다."
   },
   "comparison_notice": {
-    "different_methods": "서로 다른 수익률 산출 방식은 같은 차트를 공유할 수 없습니다. 흐리게 표시된 칩을 선택해 차트 모드를 전환하세요.",
     "not_enough_overlap": "선택한 항목이 현재 차트와 겹치는 날짜가 충분하지 않습니다.",
+    "missing_return": "선택한 이 항목들에는 이 방식과 기간의 수익률이 없습니다.",
     "not_plotted_count_one": "선택한 항목 {{count}}개가 표시되지 않습니다",
     "not_plotted_count_other": "선택한 항목 {{count}}개가 표시되지 않습니다"
+  },
+  "return_view": {
+    "twr": "시간가중",
+    "money_weighted": "금액가중",
+    "return_on_cost": "투자수익률(ROI)",
+    "twr_short": "TWR",
+    "money_weighted_short": "MWR",
+    "return_on_cost_short": "ROI",
+    "twr_explainer": "입금이나 출금이 없었다고 가정했을 때의 투자 성과입니다. 지수와 비교할 때 사용하세요.",
+    "money_weighted_explainer": "입금과 출금 시점을 반영해 내 돈이 실제로 벌어들인 수익입니다.",
+    "return_on_cost_explainer": "투자한 금액 대비 수익입니다.",
+    "method_label": "수익률 계산 방식",
+    "trigger_label": "{{method}} {{value}}: 두 방식 보기 및 전환",
+    "chosen_unavailable": "여기서는 {{method}}을(를) 사용할 수 없습니다.",
+    "reason": {
+      "mixed_twr": "보유 종목 계좌와 거래 계좌가 섞인 포트폴리오에서는 사용할 수 없습니다.",
+      "holdings_full_history": "보유 종목으로 관리하는 계좌는 입출금을 기록하지 않으므로 전체 기간에서는 사용할 수 없습니다.",
+      "holdings_money_weighted": "보유 종목으로 관리하는 계좌는 입출금을 기록하지 않으므로 사용할 수 없습니다.",
+      "roi_holdings_only": "ROI는 보유 종목으로 관리하는 계좌의 전체 기간과, 그런 계좌가 포함된 포트폴리오에 적용됩니다.",
+      "unknown_flow": "이 기간의 입금 또는 출금 중 금액을 알 수 없는 항목이 있습니다.",
+      "no_capital": "이 기간에는 평균적으로 투자된 금액이 없습니다.",
+      "no_solution": "이 기간의 입금, 출금, 평가액에 맞는 수익률이 없습니다.",
+      "coverage": "이 기간의 시작 또는 끝에 가격이 없는 보유 종목이 있습니다.",
+      "not_enough_history": "이 기간의 기록이 충분하지 않습니다.",
+      "mixed_coverage": "이 포트폴리오에는 합산할 수익이나 투자 금액이 없는 계좌가 있습니다."
+    },
+    "amounts": {
+      "start_value": "시작 평가액",
+      "money_in": "입금액",
+      "money_out": "출금액",
+      "capital": "투자 원금",
+      "gain": "수익",
+      "end_value": "종료 평가액",
+      "unknown": "알 수 없음",
+      "estimated": "입금액과 출금액은 기록이 아닌 추정치입니다.",
+      "by_tracking": "계좌 추적 방식별",
+      "part_transactions": "거래",
+      "part_holdings": "보유 종목"
+    },
+    "unclassified_transfers": {
+      "intro": "이 기간의 이체 중 다른 계좌와 연결되지 않았고 외부로도 표시되지 않은 항목:"
+    }
   },
   "metric": {
     "return": "수익률",
     "time_weighted_return": "시간가중수익률",
     "time_weighted_short": "시간가중",
+    "twr_short": "TWR",
     "money_weighted_return": "금액가중수익률",
     "money_weighted_short": "금액가중",
     "mwr_short": "MWR",
     "annualized_mwr": "연환산 금액가중수익률",
     "ann_mwr_short": "연환산 MWR",
-    "value_return": "가치 수익률",
-    "value_return_short": "가치 수익률",
+    "annualized_twr": "연환산 시간가중수익률",
+    "ann_twr_short": "연환산 TWR",
+    "return_on_cost": "투자수익률(ROI)",
+    "return_on_cost_short": "ROI",
     "price_return": "가격 수익률",
     "price_return_short": "가격 수익률",
+    "benchmark_money_weighted": "금액가중 (내 입금)",
+    "benchmark_money_weighted_short": "내 입금 기준",
     "volatility": "변동성",
     "max_drawdown": "최대 낙폭",
     "max_drawdown_short": "최대 낙폭",
@@ -97,7 +140,8 @@
   },
   "empty": {
     "title": "수익률 데이터 없음",
-    "description": "계좌를 선택해 시간 경과에 따른 수익률을 비교해 보세요."
+    "description": "계좌를 선택해 시간 경과에 따른 수익률을 비교해 보세요.",
+    "no_curve": "이 선택 항목에는 수익률이 있지만 이 기간의 차트는 없습니다."
   },
   "attribution": {
     "partial_data": "일부 데이터 누락",
@@ -126,12 +170,12 @@
     "distributions_desc": "계좌에서 출금한 현금"
   },
   "metric_info": {
-    "time_weighted_return": "시간가중수익률(TWR)은 입출금의 영향을 제외한 투자 성과를 측정합니다. 1년 미만 기간은 선택 기간 수익률로 표시하며, 1년 이상 기간은 가능한 경우 연환산하여 표시합니다.",
-    "money_weighted_return": "금액가중수익률(MWR)은 외부 현금흐름의 규모와 시점을 반영하여 성과를 측정합니다. IRR/XIRR로 계산하며, 1년 이상 기간에는 연환산 XIRR을 기본으로 표시합니다.",
-    "irr": "내부수익률(IRR)은 외부 현금흐름의 규모와 시점을 반영하여 금액가중 성과를 측정합니다. 1년 이상 기간에는 연환산 XIRR을 기본으로 표시합니다.",
+    "time_weighted_return": "시간가중수익률(TWR)은 입금이나 출금이 없었다고 가정했을 때의 투자 성과를 보여줍니다. 지수와 비교할 때 사용하세요. 1년 이상의 기간에서는 연 수익률로도 표시됩니다.",
+    "money_weighted_return": "금액가중수익률(MWR)은 입금과 출금 시점을 반영해 내 돈이 실제로 벌어들인 수익을 보여줍니다. 입금액에서 출금액을 뺀 금액이 현재 평가액이 되게 하는 단 하나의 성장률입니다. 1년 이상의 기간에서는 연 수익률로도 표시됩니다.",
     "simple_return": "단순 수익률은 총이익 또는 총손실을 순납입금과 비교합니다. 누적 수익률이며 시간가중 방식이 아닙니다.",
-    "value_return": "가치 수익률은 거래별 현금흐름을 사용할 수 없을 때 선택 기간의 계좌 가치 변화를 측정합니다.",
+    "return_on_cost": "투자수익률(ROI)은 수익을 투자한 금액과 비교합니다. 보유 종목으로 관리하는 계좌는 입출금을 기록하지 않으므로, 그런 계좌는 전체 기간에, 그런 계좌가 포함된 포트폴리오는 모든 기간에 이 지표를 사용합니다.",
     "price_return": "가격 수익률은 선택 기간 동안 선택한 종목의 가격 변화를 측정합니다.",
+    "benchmark_money_weighted": "내 입금과 출금을 같은 날짜에 벤치마크에 적용했을 때의 금액가중수익률입니다. 내 돈이 그곳에서 벌었을 수익을 보여 줍니다. 가격만 반영하며 환율 효과는 제외됩니다.",
     "volatility": "변동성은 투자 수익률의 분산 정도를 측정합니다. 변동성이 높을수록 단기간에 투자 가치가 크게 변할 수 있습니다. 달력일 기준 일별 수익률로 연환산합니다.",
     "max_drawdown": "최대 낙폭은 지정 기간에 포트폴리오 가치가 고점에서 이후 저점까지 하락한 최대 비율입니다. 하방 위험을 나타냅니다.",
     "annualized_return": "연환산 수익률은 선택 기간의 연평균 복리 수익률입니다. 누적 총이익 또는 총손실이 아닙니다.",

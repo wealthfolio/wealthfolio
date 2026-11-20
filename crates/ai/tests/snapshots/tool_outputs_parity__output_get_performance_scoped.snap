@@ -22,14 +22,19 @@ expression: result
     },
     "id": "acc-1",
     "isMixedTrackingMode": false,
-    "mode": "notApplicable",
     "returns": {
-      "annualizedIrr": 0.0,
-      "annualizedTwr": 0.0,
-      "annualizedValueReturn": 0.0,
-      "irr": 0.0,
-      "twr": 0.0,
-      "valueReturn": 0.0
+      "moneyWeighted": {
+        "annualized": 0.0,
+        "period": 0.0
+      },
+      "returnOnCost": {
+        "annualized": 0.0,
+        "period": 0.0
+      },
+      "twr": {
+        "annualized": 0.0,
+        "period": 0.0
+      }
     },
     "risk": {
       "maxDrawdown": 0.0,
@@ -39,8 +44,6 @@ expression: result
       "amountStatus": "unavailable",
       "basis": "notApplicable",
       "basisStatus": "notApplicable",
-      "method": "notApplicable",
-      "percentStatus": "unavailable",
       "quality": "notApplicable"
     }
   }

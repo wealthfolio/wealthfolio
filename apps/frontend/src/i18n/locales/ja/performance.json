@@ -11,7 +11,6 @@
   "error_calculating": "パフォーマンスデータの計算でエラーが発生しました",
   "not_available": "N/A",
   "not_plotted": "非表示",
-  "reference": "基準",
   "unknown": "不明",
   "remove_item": "{{name}}を削除",
   "time_period": "期間",
@@ -55,32 +54,76 @@
     "holdings": "残高ベースモード"
   },
   "exclusion": {
-    "holdings_not_mwr": "保有残高のみのモードでは取引のキャッシュフローを記録しないため、金額加重収益率（MWR）は計算できません。",
+    "holdings_not_mwr": "保有銘柄で管理する口座では入出金を記録しないため、全期間のMWRは利用できません。",
     "no_data": "この選択ではパフォーマンスデータを利用できません。",
-    "no_series": "この期間に表示できるチャート系列がありません。",
-    "holdings_not_twr": "残高ベースの口座は評価額リターンを使用するため、時間加重リターンのチャートには表示されません。",
-    "transaction_not_value": "取引ベースの口座は時間加重リターンを使用するため、評価額リターンのチャートには表示されません。",
     "no_overlap": "選択した項目と重なるチャートの日付がありません。"
   },
   "comparison_notice": {
-    "different_methods": "リターンの算出方法が異なるため、同じチャートには表示できません。淡色のチップを選択するとチャートのモードを切り替えられます。",
     "not_enough_overlap": "選択した項目は、表示中のチャートと重なる日付が十分にありません。",
+    "missing_return": "選択したこれらの項目には、この計算方法と期間のリターンがありません。",
     "not_plotted_count_one": "選択した{{count}}件の項目は表示されていません",
     "not_plotted_count_other": "選択した{{count}}件の項目は表示されていません"
+  },
+  "return_view": {
+    "twr": "時間加重",
+    "money_weighted": "金額加重",
+    "return_on_cost": "投資収益率（ROI）",
+    "twr_short": "TWR",
+    "money_weighted_short": "MWR",
+    "return_on_cost_short": "ROI",
+    "twr_explainer": "入金や出金がなかったものとした場合の投資の成績です。指数との比較に使います。",
+    "money_weighted_explainer": "入金や出金のタイミングを考慮した、お金が実際に稼いだリターンです。",
+    "return_on_cost_explainer": "投資した金額に対する利益です。",
+    "method_label": "リターンの計算方法",
+    "trigger_label": "{{method}} {{value}}：両方の方法を表示して切り替え",
+    "chosen_unavailable": "ここでは{{method}}を利用できません。",
+    "reason": {
+      "mixed_twr": "保有銘柄で管理する口座と取引で管理する口座が混在するポートフォリオでは利用できません。",
+      "holdings_full_history": "保有銘柄で管理する口座では入出金を記録しないため、全期間では利用できません。",
+      "holdings_money_weighted": "保有銘柄で管理する口座では入出金を記録しないため、利用できません。",
+      "roi_holdings_only": "ROIは、保有銘柄で管理する口座の全期間と、その口座を含むポートフォリオに適用されます。",
+      "unknown_flow": "この期間の入金または出金に金額が不明なものがあります。",
+      "no_capital": "この期間は平均して資金が投資されていません。",
+      "no_solution": "この期間の入金・出金・評価額に当てはまる収益率がありません。",
+      "coverage": "この期間の開始時または終了時に価格のない保有銘柄があります。",
+      "not_enough_history": "この期間の履歴が不足しています。",
+      "mixed_coverage": "このポートフォリオには、合算できる利益や投資額のない口座があります。"
+    },
+    "amounts": {
+      "start_value": "開始時の評価額",
+      "money_in": "入金額",
+      "money_out": "出金額",
+      "capital": "投資元本",
+      "gain": "利益",
+      "end_value": "終了時の評価額",
+      "unknown": "不明",
+      "estimated": "入金額と出金額は記録ではなく推定値です。",
+      "by_tracking": "口座の管理方法別",
+      "part_transactions": "取引",
+      "part_holdings": "保有銘柄"
+    },
+    "unclassified_transfers": {
+      "intro": "この期間の振替のうち、他の口座と対応付けられておらず、外部とも指定されていないもの:"
+    }
   },
   "metric": {
     "return": "リターン",
     "time_weighted_return": "時間加重リターン",
     "time_weighted_short": "時間加重",
+    "twr_short": "TWR",
     "money_weighted_return": "金額加重リターン",
     "money_weighted_short": "金額加重",
     "mwr_short": "MWR",
     "annualized_mwr": "年率MWR",
     "ann_mwr_short": "年率MWR",
-    "value_return": "評価額リターン",
-    "value_return_short": "評価額リターン",
+    "annualized_twr": "年率TWR",
+    "ann_twr_short": "年率TWR",
+    "return_on_cost": "投資収益率（ROI）",
+    "return_on_cost_short": "ROI",
     "price_return": "価格リターン",
     "price_return_short": "価格リターン",
+    "benchmark_money_weighted": "金額加重（あなたの入金）",
+    "benchmark_money_weighted_short": "あなたの入金で",
     "volatility": "ボラティリティ",
     "max_drawdown": "最大ドローダウン",
     "max_drawdown_short": "最大ドローダウン",
@@ -97,7 +140,8 @@
   },
   "empty": {
     "title": "パフォーマンスデータなし",
-    "description": "口座を選択すると、期間ごとのパフォーマンスを比較できます。"
+    "description": "口座を選択すると、期間ごとのパフォーマンスを比較できます。",
+    "no_curve": "この選択にはリターンがありますが、この期間のチャートはありません。"
   },
   "attribution": {
     "partial_data": "一部のデータが不完全",
@@ -126,12 +170,12 @@
     "distributions_desc": "口座から出金した資金"
   },
   "metric_info": {
-    "time_weighted_return": "時間加重リターン（TWR）は、入金と出金の影響を除いて運用成績を測定します。1年未満の期間は選択期間の収益率を表示し、1年以上の期間は利用可能な場合に年率換算で表示します。",
-    "money_weighted_return": "金額加重リターン（MWR）は、外部キャッシュフローの金額とタイミングを考慮して運用成績を測定します。IRR/XIRRで計算し、1年以上の期間では年率換算XIRRが標準の表示です。",
-    "irr": "内部収益率（IRR）は、外部キャッシュフローの金額とタイミングを考慮して金額加重の運用成績を測定します。1年以上の期間では年率換算XIRRが標準の表示です。",
+    "time_weighted_return": "時間加重リターン（TWR）は、入金や出金がなかったものとした場合の投資の成績を示します。指数との比較に使います。1年以上の期間では年率でも表示されます。",
+    "money_weighted_return": "金額加重リターン（MWR）は、入金や出金のタイミングを考慮して、お金が実際に稼いだリターンを示します。入金から出金を差し引いた金額が現在の評価額になる、ただ一つの成長率です。1年以上の期間では年率でも表示されます。",
     "simple_return": "単純収益率は、総利益または総損失を純拠出額と比較します。累積値であり、時間加重ではありません。",
-    "value_return": "価値収益率は、取引単位のキャッシュフローを利用できない場合に、選択期間の口座価値の変化を測定します。",
+    "return_on_cost": "投資収益率（ROI）は、利益を投資した金額と比べます。保有銘柄で管理する口座では入出金を記録しないため、その口座は全期間で、その口座を含むポートフォリオはすべての期間でこの指標を使います。",
     "price_return": "価格収益率は、選択期間における選択銘柄の価格変化を測定します。",
+    "benchmark_money_weighted": "あなた自身の入出金を同じ日付でベンチマークに当てはめた場合の金額加重リターンです。お金がそこで得ていたであろうリターンを示します。価格のみで、為替の影響は含みません。",
     "volatility": "ボラティリティは、投資の収益率のばらつきを測定します。高いほど、短期間に投資価値が大きく変動する可能性があります。暦日ベースの日次収益率から年率換算します。",
     "max_drawdown": "最大ドローダウンは、指定期間中のポートフォリオ価値のピークからその後の底までの最大下落率です。下落リスクを示します。",
     "annualized_return": "年率換算収益率は、選択期間の平均年間複利収益率です。累積の総利益や総損失ではありません。",

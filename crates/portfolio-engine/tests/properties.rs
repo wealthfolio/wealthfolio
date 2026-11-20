@@ -12,8 +12,9 @@ use serde_json::Value;
 use support::*;
 use wealthfolio_portfolio_engine::model::*;
 use wealthfolio_portfolio_engine::{
-    aggregate_scope, project, project_accounts, value_window, DiagnosticCode, EngineError,
-    QuoteSurface, Resolved, ResolvedSurfaces, ValueInputs, Window,
+    aggregate_scope, measure_account, measure_scope, project, project_accounts, value_window,
+    DiagnosticCode, EngineError, MeasureProfile, QuoteSurface, Resolved, ResolvedSurfaces,
+    ValueInputs, Window,
 };
 
 const DUST: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
@@ -2465,5 +2466,89 @@ fn p_txf_legs_transfers_carry_their_lots() {
     assert!(
         filtered() || checked > 5,
         "only {checked} security transfer pairs checked"
+    );
+}
+
+/// P-CURVE: a return curve is the headline drawn through time. For every
+/// account and for the portfolio, over every window of every scenario, each
+/// curve ends on its headline; and a close the engine could not value, which
+/// carries a partial value, never moves an account's curve.
+#[test]
+fn p_curve_ends_on_its_headline_and_ignores_unvalued_closes() {
+    let mut curves = 0usize;
+    let mut unvalued_points = 0usize;
+    for scenario in corpus() {
+        let pipeline = Pipeline::from_scenario(&scenario);
+        let lots = pipeline.lots();
+        let inputs = pipeline.measure_inputs(&lots);
+        let scope = pipeline.portfolio_scope();
+        for spec in all_windows(&scenario) {
+            let window = Window {
+                start: spec.start,
+                end: spec.end,
+            };
+            let mut results = Vec::new();
+            for account in pipeline.series.keys() {
+                if let Ok(result) =
+                    measure_account(&inputs, account, window, MeasureProfile::Full, true)
+                {
+                    results.push((Some(account), result));
+                }
+            }
+            if let Ok(result) = measure_scope(
+                &inputs,
+                "portfolio",
+                &scope,
+                window,
+                MeasureProfile::Full,
+                true,
+            ) {
+                results.push((None, result));
+            }
+            for (account, result) in results {
+                let who = account.map_or("portfolio", |a| a.as_str());
+                let id = format!("{} {} {who}", scenario.id, spec.label);
+                let unvalued: BTreeSet<NaiveDate> = account
+                    .and_then(|a| pipeline.series.get(a))
+                    .map(|series| {
+                        series
+                            .days
+                            .iter()
+                            .filter(|day| day.value_status.is_unavailable_for_returns())
+                            .map(|day| day.date)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                for (name, view) in [
+                    ("time-weighted", &result.returns.twr),
+                    ("money-weighted", &result.returns.money_weighted),
+                    ("return on cost", &result.returns.return_on_cost),
+                ] {
+                    let (Some(period), Some(last)) = (view.period, view.series.last()) else {
+                        continue;
+                    };
+                    curves += 1;
+                    assert_eq!(
+                        last.value, period,
+                        "{id}: the {name} curve does not end on its headline"
+                    );
+                    for pair in view.series.windows(2) {
+                        if unvalued.contains(&pair[1].date) {
+                            unvalued_points += 1;
+                            assert_eq!(
+                                pair[1].value, pair[0].value,
+                                "{id}: the {name} curve moves on {}, an unvalued close",
+                                pair[1].date
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(filtered() || curves > 500, "only {curves} curves checked");
+    assert!(
+        filtered() || unvalued_points > 0,
+        "no curve crosses an unvalued close"
     );
 }

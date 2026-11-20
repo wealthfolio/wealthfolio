@@ -16,9 +16,8 @@ import { Link } from "react-router-dom";
 // Stable translation keys for metric explanations; resolve in the rendering locale.
 export const TIME_WEIGHTED_RETURN_INFO_KEY = "performance:metric_info.time_weighted_return";
 export const MONEY_WEIGHTED_RETURN_INFO_KEY = "performance:metric_info.money_weighted_return";
-export const IRR_RETURN_INFO_KEY = "performance:metric_info.irr";
 export const SIMPLE_RETURN_INFO_KEY = "performance:metric_info.simple_return";
-export const VALUE_RETURN_INFO_KEY = "performance:metric_info.value_return";
+export const RETURN_ON_COST_INFO_KEY = "performance:metric_info.return_on_cost";
 export const PRICE_RETURN_INFO_KEY = "performance:metric_info.price_return";
 export const VOLATILITY_INFO_KEY = "performance:metric_info.volatility";
 export const MAX_DRAWDOWN_INFO_KEY = "performance:metric_info.max_drawdown";

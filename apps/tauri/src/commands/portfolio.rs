@@ -11,7 +11,7 @@ use crate::{
 };
 
 use chrono::NaiveDate;
-use log::{debug, info};
+use log::{debug, info, warn};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -703,6 +703,48 @@ pub async fn calculate_performance_history(
         "TRANSACTIONS" => Some(TrackingMode::Transactions),
         _ => None,
     });
+    // A benchmark with a scope replays that scope's deposits and withdrawals.
+    let filter = match (item_type == "symbol", filter) {
+        (true, Some(filter)) => Err(filter),
+        (_, filter) => Ok(filter),
+    };
+    let filter = match filter {
+        Ok(filter) => filter,
+        Err(filter) => {
+            let base_currency = context.get_base_currency();
+            // The replay only adds a view: a scope that cannot be resolved
+            // leaves the benchmark's price return.
+            let account_ids = match filter.into_account_filter().and_then(|account_filter| {
+                let resolved = context
+                    .portfolio_service()
+                    .resolve_account_scope(&account_filter, &base_currency)
+                    .map_err(|e| e.to_string())?;
+                let accounts_by_id =
+                    performance_accounts_by_id(context.as_ref(), &resolved.account_ids)?;
+                Ok(performance_account_ids_from_map(
+                    &accounts_by_id,
+                    &resolved.account_ids,
+                ))
+            }) {
+                Ok(account_ids) => account_ids,
+                // The error text can carry account data: it stays out of the log.
+                Err(_) => {
+                    warn!("Benchmark scope not resolved; deposits not replayed");
+                    Vec::new()
+                }
+            };
+            return context
+                .performance_service()
+                .calculate_symbol_performance_replayed(
+                    &item_id,
+                    start_date_opt,
+                    end_date_opt,
+                    &account_ids,
+                )
+                .await
+                .map_err(|e| format!("Failed to calculate performance: {}", e));
+        }
+    };
     if let (true, Some(filter)) = (item_type == "account", filter) {
         let base_currency = context.get_base_currency();
         let account_filter = filter.into_account_filter()?;

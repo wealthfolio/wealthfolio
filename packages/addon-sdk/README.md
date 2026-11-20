@@ -570,8 +570,8 @@ export function usePortfolioData(ctx: AddonContext, accountId?: string) {
           itemId: accountId,
         });
         console.log(
-          performanceData.returns.twr,
-          performanceData.returns.irr,
+          performanceData.returns.twr.period,
+          performanceData.returns.moneyWeighted.period,
           performanceData.risk.maxDrawdown,
         );
         setPerformance(performanceData);
@@ -589,9 +589,13 @@ export function usePortfolioData(ctx: AddonContext, accountId?: string) {
 }
 ```
 
-`performanceData.returns.irr` is the selected-period money-weighted return.
-`performanceData.returns.annualizedIrr` is the annualized XIRR on the same dated
-cash flows.
+`performanceData.returns` holds one view per return method, each with `period`,
+`annualized`, `series` and an `unavailableReason` when `period` is missing:
+`twr` (time-weighted), `moneyWeighted` (the internal rate of return on the dated
+deposits and withdrawals, for the period; `annualized` is the same rate over a
+year, from one year of history) and `returnOnCost` (ROI: gain over book cost for
+holdings accounts over their full history, and summed gains over summed capital
+for a scope that mixes holdings and transactions accounts).
 
 ## 🔐 Security & Permissions
 

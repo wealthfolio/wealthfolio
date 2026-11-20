@@ -1,10 +1,12 @@
-import type { PerformanceResult, ReturnData } from "@/lib/types";
+import { performanceViewSeries, type ChosenReturnView } from "@/lib/performance";
+import type { PerformanceResult, PerformanceReturnViewKey, ReturnData } from "@/lib/types";
 
-export type PerformanceMetric = "twr" | "irr" | "valueReturn" | "volatility" | "drawdown";
+export type PerformanceMetric = ChosenReturnView | "volatility" | "drawdown";
 
 export interface ComparablePerformanceSeries extends PerformanceResult {
   id: string;
   name: string;
+  type?: "account" | "symbol";
 }
 
 export interface ComparableChartDataItem {
@@ -13,39 +15,15 @@ export interface ComparableChartDataItem {
   returns: ReturnData[];
 }
 
-type ChartSeriesGroup = "marketComparison" | "valueReturn";
+interface CurveSeries {
+  id: string;
+  name: string;
+  series: ReturnData[];
+}
 
 const ONE = 1;
 
-function chartSeriesGroupForMetric(
-  result: PerformanceResult,
-  metric: PerformanceMetric,
-): ChartSeriesGroup | null {
-  if (!result.series.length) return null;
-
-  if (metric === "twr") {
-    if (result.mode === "timeWeighted" && result.returns.twr != null) {
-      return "marketComparison";
-    }
-    if (result.mode === "symbolPriceBased" && result.returns.valueReturn != null) {
-      return "marketComparison";
-    }
-    return null;
-  }
-
-  if (metric === "valueReturn") {
-    if (result.mode === "valueReturn" && result.returns.valueReturn != null) {
-      return "valueReturn";
-    }
-    if (result.mode === "symbolPriceBased" && result.returns.valueReturn != null) {
-      return "valueReturn";
-    }
-  }
-
-  return null;
-}
-
-function comparableDateIntersection(series: ComparablePerformanceSeries[]): string[] {
+function comparableDateIntersection(series: CurveSeries[]): string[] {
   if (!series.length) return [];
 
   const [firstSeries, ...rest] = series.map((item) =>
@@ -64,14 +42,14 @@ function comparableDateIntersection(series: ComparablePerformanceSeries[]): stri
   return [...commonDates].sort((a, b) => a.localeCompare(b));
 }
 
-function comparableDateIntersectionLength(series: ComparablePerformanceSeries[]): number {
+function comparableDateIntersectionLength(series: CurveSeries[]): number {
   return comparableDateIntersection(series).length;
 }
 
 function selectComparableSeries(
-  series: ComparablePerformanceSeries[],
+  series: CurveSeries[],
   selectedItemId: string | null,
-): ComparablePerformanceSeries[] {
+): CurveSeries[] {
   if (!series.length) return [];
 
   const anchor = selectedItemId
@@ -120,37 +98,72 @@ function rebaseSeriesToDates(series: ReturnData[], dates: string[]): ReturnData[
   return rebased.every((point): point is ReturnData => point !== null) ? rebased : null;
 }
 
+/**
+ * The view the chart draws: the chosen method when the selected item has its
+ * curve, else the item's labelled stand-in (return on investment, then the
+ * other method), as its figure shows. Only lines of that view join it.
+ */
+export function chartViewFor(
+  performanceData: (ComparablePerformanceSeries | null)[] | undefined,
+  view: ChosenReturnView,
+  selectedItemId: string | null,
+): PerformanceReturnViewKey {
+  const items = (performanceData ?? []).filter(
+    (item): item is ComparablePerformanceSeries => item !== null,
+  );
+  const anchor = items.find((item) => item.id === selectedItemId) ?? items[0];
+  if (!anchor) return view;
+  const other: ChosenReturnView = view === "twr" ? "moneyWeighted" : "twr";
+  const candidates: PerformanceReturnViewKey[] = [view, "returnOnCost", other];
+  return (
+    candidates.find((candidate) => performanceViewSeries(anchor, candidate).length >= 2) ?? view
+  );
+}
+
+/**
+ * Lines for the chart in the chosen return method, the selected item first.
+ * Time-weighted curves compound, so they are rebased to the dates every line
+ * shares and start together at 0%. Money-weighted curves cannot be rebased:
+ * each keeps its own start, where its money was first invested.
+ */
 export function comparablePerformanceChartData(
   performanceData: (ComparablePerformanceSeries | null)[] | undefined,
-  metric: PerformanceMetric,
+  view: PerformanceReturnViewKey,
   selectedItemId: string | null,
 ): ComparableChartDataItem[] {
-  if (metric !== "twr" && metric !== "valueReturn") return [];
   if (!performanceData) return [];
 
-  const candidates = performanceData
+  const curves: CurveSeries[] = performanceData
     .filter(
-      (item): item is ComparablePerformanceSeries =>
-        item !== null && typeof item.id === "string" && Array.isArray(item.series),
+      (item): item is ComparablePerformanceSeries => item !== null && typeof item.id === "string",
     )
     .map((item) => ({
-      item,
-      group: chartSeriesGroupForMetric(item, metric),
+      id: item.id,
+      name: item.name,
+      // A benchmark has no ROI: beside a holdings account's ROI line it draws
+      // its price return, as a reference.
+      series: [
+        ...performanceViewSeries(
+          item,
+          view === "returnOnCost" && item.type === "symbol" ? "twr" : view,
+        ),
+      ].sort((a, b) => a.date.localeCompare(b.date)),
     }))
-    .filter(
-      (entry): entry is { item: ComparablePerformanceSeries; group: ChartSeriesGroup } =>
-        entry.group !== null,
-    );
+    .filter((item) => item.series.length >= 2);
+  if (!curves.length) return [];
 
-  const selectedGroup = selectedItemId
-    ? candidates.find((entry) => entry.item.id === selectedItemId)?.group
-    : candidates[0]?.group;
-  if (!selectedGroup) return [];
+  // Only compounding curves rebase; a money-weighted or return-on-investment
+  // curve keeps its own start.
+  if (view !== "twr") {
+    const anchor = curves.find((item) => item.id === selectedItemId) ?? curves[0];
+    return [anchor, ...curves.filter((item) => item.id !== anchor.id)].map((item) => ({
+      id: item.id,
+      name: item.name,
+      returns: item.series,
+    }));
+  }
 
-  const comparableSeries = candidates
-    .filter((entry) => entry.group === selectedGroup)
-    .map(({ item }) => item);
-  const selectedComparableSeries = selectComparableSeries(comparableSeries, selectedItemId);
+  const selectedComparableSeries = selectComparableSeries(curves, selectedItemId);
   const commonDates = comparableDateIntersection(selectedComparableSeries);
   if (commonDates.length < 2) return [];
 
@@ -175,7 +188,10 @@ export function earliestPerformanceStartDate(
 ): Date | undefined {
   let earliestMs: number | undefined;
   for (const result of results ?? []) {
-    const iso = result?.period?.startDate ?? result?.series?.[0]?.date;
+    const iso =
+      result?.period?.startDate ??
+      performanceViewSeries(result, "twr")[0]?.date ??
+      performanceViewSeries(result, "moneyWeighted")[0]?.date;
     if (!iso) continue;
     const ms = new Date(`${iso.slice(0, 10)}T00:00:00`).getTime();
     if (Number.isNaN(ms)) continue;
