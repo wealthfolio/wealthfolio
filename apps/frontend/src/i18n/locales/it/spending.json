@@ -79,6 +79,8 @@
     "reimbursementRefund": "Rimborso / restituzione"
   },
   "rules": {
+    "categoryOrPayee": "Categoria o beneficiario",
+    "payeeRuleHint": "Una regola per beneficiario si applica a ogni transazione corrispondente e non ne modifica la categoria.",
     "editTitle": "Modifica regola",
     "addTitle": "Aggiungi regola",
     "editDescription": "Etichetta automaticamente i movimenti in base al pattern del nome. Le regole con priorità più alta prevalgono quando più regole corrispondono.",
@@ -162,6 +164,7 @@
     "amountChipBetween": "Importo tra {{value}} e {{value2}}"
   },
   "transactions": {
+    "filterByPayee": "Mostra le transazioni di {{name}}",
     "deleteTitle_one": "Elimina transazione",
     "deleteTitle_many": "Elimina transazioni",
     "deleteTitle_other": "Elimina transazioni",
@@ -608,6 +611,14 @@
     "subheading": "Il piano, i valori effettivi e le eccezioni di questo mese."
   },
   "insightsPage": {
+    "topPayees": "Principali beneficiari",
+    "labelFilter": {
+      "search": "Cerca beneficiari ed eventi",
+      "only": "Solo",
+      "without": "Senza",
+      "payee": "Beneficiario: {{name}}",
+      "eventType": "Eventi {{name}}"
+    },
     "uncategorized": "Non categorizzato",
     "heading": "Analisi delle spese",
     "loadError": "Impossibile caricare le analisi.",
@@ -901,6 +912,13 @@
     "manage": "Gestisci →"
   },
   "cashForm": {
+    "payeeBulkSet": "Imposta beneficiario",
+    "payeeSearch": "Cerca o aggiungi un beneficiario",
+    "payeeEmpty": "Ancora nessun beneficiario. Digita un nome per aggiungerne uno.",
+    "payeeAdd": "Aggiungi «{{name}}»",
+    "payeeClear": "Nessun beneficiario",
+    "payee": "Beneficiario",
+    "payeePlaceholder": "Con chi è stato?",
     "none": "Nessuno",
     "addExpense": "Aggiungi spesa",
     "addIncome": "Aggiungi entrata",

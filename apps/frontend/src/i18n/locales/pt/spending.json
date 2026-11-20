@@ -79,6 +79,8 @@
     "reimbursementRefund": "Reembolso / devolução"
   },
   "rules": {
+    "categoryOrPayee": "Categoria ou beneficiário",
+    "payeeRuleHint": "Uma regra de beneficiário aplica-se a qualquer transação correspondente e não altera a sua categoria.",
     "editTitle": "Editar regra",
     "addTitle": "Adicionar regra",
     "editDescription": "Rotule automaticamente as atividades por padrão de nome. As regras de maior prioridade prevalecem quando várias coincidem.",
@@ -162,6 +164,7 @@
     "amountChipBetween": "Valor entre {{value}} e {{value2}}"
   },
   "transactions": {
+    "filterByPayee": "Mostrar transações de {{name}}",
     "deleteTitle_one": "Excluir transação",
     "deleteTitle_other": "Excluir transações",
     "deleteTitle_many": "Excluir transações",
@@ -608,6 +611,14 @@
     "subheading": "O plano, os dados reais e as exceções deste mês."
   },
   "insightsPage": {
+    "topPayees": "Principais beneficiários",
+    "labelFilter": {
+      "search": "Pesquisar beneficiários e eventos",
+      "only": "Apenas",
+      "without": "Sem",
+      "payee": "Beneficiário: {{name}}",
+      "eventType": "Eventos de {{name}}"
+    },
     "uncategorized": "Sem categoria",
     "heading": "Análise de gastos",
     "loadError": "Não foi possível carregar as análises.",
@@ -901,6 +912,13 @@
     "manage": "Gerenciar →"
   },
   "cashForm": {
+    "payeeBulkSet": "Definir beneficiário",
+    "payeeSearch": "Pesquisar ou adicionar um beneficiário",
+    "payeeEmpty": "Ainda não há beneficiários. Escreva um nome para adicionar um.",
+    "payeeAdd": "Adicionar «{{name}}»",
+    "payeeClear": "Sem beneficiário",
+    "payee": "Beneficiário",
+    "payeePlaceholder": "Com quem foi?",
     "none": "Nenhum",
     "addExpense": "Adicionar despesa",
     "addIncome": "Adicionar receita",

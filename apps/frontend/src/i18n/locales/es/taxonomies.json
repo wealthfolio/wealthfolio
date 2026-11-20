@@ -1,5 +1,6 @@
 {
   "taxonomyNames": {
+    "payees": "Beneficiarios",
     "instrument_type": "Tipo de instrumento",
     "regions": "Regiones",
     "income_sources": "Fuentes de ingresos",

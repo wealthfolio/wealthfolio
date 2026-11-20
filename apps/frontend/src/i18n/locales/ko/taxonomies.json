@@ -1,5 +1,6 @@
 {
   "taxonomyNames": {
+    "payees": "거래처",
     "instrument_type": "금융상품 유형",
     "regions": "지역",
     "income_sources": "소득 출처",

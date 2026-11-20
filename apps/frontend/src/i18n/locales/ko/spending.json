@@ -78,6 +78,8 @@
     "reimbursementRefund": "환급 / 환불"
   },
   "rules": {
+    "categoryOrPayee": "카테고리 또는 거래처",
+    "payeeRuleHint": "거래처 규칙은 일치하는 모든 거래에 적용되며 카테고리는 그대로 둡니다.",
     "editTitle": "규칙 수정",
     "addTitle": "규칙 추가",
     "editDescription": "이름 패턴에 따라 활동에 자동으로 태그를 지정합니다. 여러 규칙이 일치하면 우선순위가 높은 규칙이 적용됩니다.",
@@ -161,6 +163,7 @@
     "amountChipBetween": "금액 {{value}} ~ {{value2}}"
   },
   "transactions": {
+    "filterByPayee": "{{name}} 거래 보기",
     "deleteTitle_one": "거래 삭제",
     "deleteTitle_other": "거래 삭제",
     "deleteConfirmSingle": "{{amount}} {{type}}을(를) 삭제하시겠습니까?",
@@ -573,6 +576,14 @@
     "subheading": "이번 달 계획, 실적, 재정의 내역입니다."
   },
   "insightsPage": {
+    "topPayees": "상위 거래처",
+    "labelFilter": {
+      "search": "거래처 및 이벤트 검색",
+      "only": "만 보기",
+      "without": "제외",
+      "payee": "거래처: {{name}}",
+      "eventType": "{{name}} 이벤트"
+    },
     "uncategorized": "미분류",
     "heading": "지출 인사이트",
     "loadError": "인사이트를 불러올 수 없습니다.",
@@ -850,6 +861,13 @@
     "manage": "관리 →"
   },
   "cashForm": {
+    "payeeBulkSet": "거래처 지정",
+    "payeeSearch": "거래처 검색 또는 추가",
+    "payeeEmpty": "아직 거래처가 없습니다. 이름을 입력해 추가하세요.",
+    "payeeAdd": "‘{{name}}’ 추가",
+    "payeeClear": "거래처 없음",
+    "payee": "거래처",
+    "payeePlaceholder": "누구와의 거래인가요?",
     "none": "없음",
     "addExpense": "지출 추가",
     "addIncome": "수입 추가",
