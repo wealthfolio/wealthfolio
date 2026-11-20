@@ -945,13 +945,15 @@
     "typeChange": {
       "transferOut": "Cuenta como transferencia saliente. Hasta que se vincule con la otra cuenta, los informes la cuentan como gasto.",
       "transferIn": "Cuenta como transferencia entrante. Hasta que se vincule con la otra cuenta, los informes la cuentan como ingreso.",
-      "cardPayment": "Cuenta como un pago de la tarjeta, no como gasto ni reembolso.",
-      "cardAdvance": "Cuenta como transferencia de saldo o adelanto de efectivo: aumenta lo que debes, pero no es un gasto.",
+      "cardPayment": "Cuenta como un pago: reduce lo que debes y no es un gasto.",
+      "cardAdvance": "Cuenta como un adelanto de efectivo o una transferencia de saldo: aumenta lo que debes y no es un gasto.",
       "spending": "Cuenta como gasto en tus informes.",
       "refund": "Cuenta como un reembolso, que reduce tus gastos.",
       "income": "Cuenta como ingreso en tus informes.",
       "none": "Ya no cuenta como gasto ni como ingreso.",
-      "reversesBalance": "Además, el saldo se mueve en sentido contrario."
+      "reversesBalance": "Además, el saldo se mueve en sentido contrario.",
+      "owesMore": "Ahora aumenta lo que debes.",
+      "owesLess": "Ahora reduce lo que debes."
     },
     "linkRow": {
       "paidFrom": "Pagado desde",
@@ -960,7 +962,8 @@
       "untracked": "Una cuenta que no sigo",
       "suggested": "Sugerencia: {{account}} · {{date}} · {{amount}}",
       "link": "Vincular",
-      "hint": "Elige la otra cuenta para vincular ambos lados, o déjalo así."
+      "hint": "Elige la otra cuenta para vincular ambos lados, o déjalo así.",
+      "savesFirst": "Al elegir una cuenta, primero se guarda este cambio y luego se vinculan ambos lados."
     }
   },
   "txTab": {

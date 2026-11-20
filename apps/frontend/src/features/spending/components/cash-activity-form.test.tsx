@@ -443,24 +443,53 @@ describe("CashActivityForm type change", () => {
     expect(onLinkTransfer).not.toHaveBeenCalled();
   });
 
-  it("warns that a charge becoming a payment moves the balance the other way", async () => {
+  it("saves a charge made a payment before linking where it was paid from", async () => {
     const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onLinkTransfer = vi.fn();
     render(
       <CashActivityForm
         open
-        onOpenChange={vi.fn()}
-        onLinkTransfer={vi.fn()}
+        onOpenChange={onOpenChange}
+        onLinkTransfer={onLinkTransfer}
         activity={{ ...foreignCharge, currency: "CAD", fxRate: null } as unknown as Activity}
       />,
       { wrapper },
     );
     await chooseType(user, "Payment");
 
-    expect(
-      screen.getByText(`${typeChange.cardPayment} ${typeChange.reversesBalance}`),
-    ).toBeInTheDocument();
-    // Linked, a charge would become the card's balance transfer, not its payment.
-    expect(screen.queryByRole("button", { name: new RegExp(untracked) })).not.toBeInTheDocument();
+    // The payment note already says the balance now goes down.
+    expect(screen.getByText(typeChange.cardPayment)).toBeInTheDocument();
+    expect(screen.getByText(enSpending.cashForm.linkRow.savesFirst)).toBeInTheDocument();
+    // The saved charge would link as an outflow, so no suggestion is fetched for it.
+    expect(findTransferMatchCandidates).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: new RegExp(untracked) }));
+    await waitFor(() => expect(onLinkTransfer).toHaveBeenCalled());
+    expect(vi.mocked(updateActivity).mock.lastCall?.[0]).toMatchObject({
+      id: "act-1",
+      activityType: "TRANSFER_IN",
+    });
+    expect(onLinkTransfer).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ id: "act-1", activityType: "TRANSFER_IN" }),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says a card's payment made a purchase adds to what is owed", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={{ ...cardCredit, activityType: "TRANSFER_IN", subtype: undefined } as Activity}
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Purchase");
+
+    expect(screen.getByText(`${typeChange.spending} ${typeChange.owesMore}`)).toBeInTheDocument();
   });
 
   it("lets a one-sided bank transfer become a withdrawal again", async () => {

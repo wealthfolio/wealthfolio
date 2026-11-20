@@ -902,13 +902,15 @@
     "typeChange": {
       "transferOut": "Zählt als ausgehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie als Ausgabe.",
       "transferIn": "Zählt als eingehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie als Einnahme.",
-      "cardPayment": "Zählt als Zahlung auf die Karte, nicht als Ausgabe oder Erstattung.",
-      "cardAdvance": "Zählt als Saldoübertrag oder Bargeldbezug: Es erhöht, was Sie schulden, ist aber keine Ausgabe.",
+      "cardPayment": "Zählt als Zahlung: Sie senkt, was Sie schulden, und ist keine Ausgabe.",
+      "cardAdvance": "Zählt als Bargeldabhebung oder Saldoübertragung: Sie erhöht, was Sie schulden, und ist keine Ausgabe.",
       "spending": "Zählt in Ihren Berichten als Ausgabe.",
       "refund": "Zählt als Erstattung und senkt Ihre Ausgaben.",
       "income": "Zählt in Ihren Berichten als Einnahme.",
       "none": "Zählt nicht mehr als Ausgabe oder Einnahme.",
-      "reversesBalance": "Der Saldo bewegt sich außerdem in die andere Richtung."
+      "reversesBalance": "Der Saldo bewegt sich außerdem in die andere Richtung.",
+      "owesMore": "Es erhöht jetzt, was Sie schulden.",
+      "owesLess": "Es senkt jetzt, was Sie schulden."
     },
     "linkRow": {
       "paidFrom": "Bezahlt von",
@@ -917,7 +919,8 @@
       "untracked": "Ein Konto, das ich nicht erfasse",
       "suggested": "Vorschlag: {{account}} · {{date}} · {{amount}}",
       "link": "Verknüpfen",
-      "hint": "Wählen Sie das andere Konto, um beide Seiten zu verknüpfen, oder lassen Sie es so."
+      "hint": "Wählen Sie das andere Konto, um beide Seiten zu verknüpfen, oder lassen Sie es so.",
+      "savesFirst": "Wenn Sie ein Konto wählen, wird diese Änderung zuerst gespeichert und dann beide Seiten verknüpft."
     }
   },
   "txTab": {

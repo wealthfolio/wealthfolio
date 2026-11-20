@@ -945,13 +945,15 @@
     "typeChange": {
       "transferOut": "Conta come trasferimento in uscita. Finché non è collegato all'altro conto, i report lo contano come spesa.",
       "transferIn": "Conta come trasferimento in entrata. Finché non è collegato all'altro conto, i report lo contano come entrata.",
-      "cardPayment": "Conta come pagamento della carta, non come spesa o rimborso.",
-      "cardAdvance": "Conta come trasferimento di saldo o anticipo di contanti: aumenta quanto devi, ma non è una spesa.",
+      "cardPayment": "Conta come un pagamento: riduce quanto devi e non è una spesa.",
+      "cardAdvance": "Conta come un anticipo contante o un trasferimento saldo: aumenta quanto devi e non è una spesa.",
       "spending": "Conta come spesa nei tuoi report.",
       "refund": "Conta come rimborso, che riduce le tue spese.",
       "income": "Conta come entrata nei tuoi report.",
       "none": "Non conta più come spesa né come entrata.",
-      "reversesBalance": "Inoltre il saldo si muove nella direzione opposta."
+      "reversesBalance": "Inoltre il saldo si muove nella direzione opposta.",
+      "owesMore": "Ora aumenta quanto devi.",
+      "owesLess": "Ora riduce quanto devi."
     },
     "linkRow": {
       "paidFrom": "Pagato da",
@@ -960,7 +962,8 @@
       "untracked": "Un conto che non seguo",
       "suggested": "Suggerimento: {{account}} · {{date}} · {{amount}}",
       "link": "Collega",
-      "hint": "Scegli l'altro conto per collegare entrambi i lati, oppure lascialo così."
+      "hint": "Scegli l'altro conto per collegare entrambi i lati, oppure lascialo così.",
+      "savesFirst": "Scegliendo un conto, questa modifica viene salvata prima e poi i due lati vengono collegati."
     }
   },
   "txTab": {
