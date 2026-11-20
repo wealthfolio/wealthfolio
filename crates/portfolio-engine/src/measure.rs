@@ -1654,9 +1654,11 @@ fn return_on_cost_series(history: &[DailyValuation]) -> Vec<SeriesPoint> {
     history
         .iter()
         .map(|day| {
+            // The same book cost the headline accepts, so the last point
+            // is the period's return.
             if !day.value_status.is_unavailable_for_returns()
                 && holdings_basis_is_complete(day)
-                && day.book_basis_base >= MIN_RETURN_BASE
+                && day.book_basis_base > Decimal::ZERO
             {
                 if let Some(value) = arith::div(
                     day.total_value_base - day.book_basis_base,
@@ -3333,8 +3335,16 @@ fn mixed_component_series(component: &MixedComponent) -> Vec<DietzPoint> {
         return Vec::new();
     }
     // The bounded series only exists when no component starts at its
-    // inception, so every component opens on its first close.
-    dietz_points(history, &flows, holdings, Opening::Close).unwrap_or_default()
+    // inception, so every component opens on its first close. An unvalued
+    // close carries a partial value: the component holds its last point.
+    let unvalued: HashSet<NaiveDate> = history
+        .iter()
+        .filter(|day| day.value_status.is_unavailable_for_returns())
+        .map(|day| day.date)
+        .collect();
+    let mut points = dietz_points(history, &flows, holdings, Opening::Close).unwrap_or_default();
+    points.retain(|point| !unvalued.contains(&point.date));
+    points
 }
 
 fn mixed_bounded_series(
@@ -3519,7 +3529,8 @@ pub struct ScopeCashFlows {
 /// terms as its money-weighted return: from inception the capital is the
 /// money contributed by the first close, otherwise the first close. Flows
 /// without a known amount are left out, as holdings snapshots do. `None`
-/// when the scope has fewer than two closes in the window.
+/// when the scope has fewer than two closes in the window, or an unvalued
+/// first or last close.
 pub fn scope_cash_flows(
     inputs: &MeasureInputs<'_>,
     scope: &[AccountId],
@@ -3536,6 +3547,15 @@ pub fn scope_cash_flows(
     };
     let history: Vec<DailyValuation> = scoped.days.iter().map(DailyValuation::stored).collect();
     if history.len() < 2 {
+        return Ok(None);
+    }
+    // An unvalued endpoint leaves the scope's own money-weighted return
+    // unavailable: its partial value is not capital to replay.
+    if [history.first(), history.last()]
+        .into_iter()
+        .flatten()
+        .any(|day| day.value_status.is_unavailable_for_returns())
+    {
         return Ok(None);
     }
     let has_holdings = started
@@ -4569,6 +4589,22 @@ mod tests {
         let roi = holdings_measured(&history, None).returns.return_on_cost;
         assert_eq!(roi.period, Some(dec!(0.1)));
         assert_eq!(values(&roi.series), held);
+    }
+
+    #[test]
+    fn a_return_on_cost_curve_ends_on_its_headline_for_a_small_book_cost() {
+        let z = Decimal::ZERO;
+        let mut history = vec![
+            dated("2026-01-01", dec!(0.5), z, z),
+            dated("2026-01-02", dec!(0.75), z, z),
+        ];
+        for day in &mut history {
+            day.book_basis_base = dec!(0.5);
+            day.basis_status = BasisStatus::Complete;
+        }
+        let roi = holdings_measured(&history, None).returns.return_on_cost;
+        assert_eq!(roi.period, Some(dec!(0.5)));
+        assert_eq!(roi.series.last().map(|p| p.value), roi.period);
     }
 
     #[test]

@@ -407,7 +407,7 @@ fn dashboard_counts_the_first_days_gain_like_the_account_page() {
 
 #[test]
 fn scope_cash_flows_follow_the_money_weighted_opening() {
-    let p = pipeline(
+    let mut p = pipeline(
         r#"
 id: PERFORMANCE-WINDOW-REPLAY
 policy: { base_currency: USD, timezone: UTC, as_of: 2026-10-30 }
@@ -444,6 +444,27 @@ quotes:
     assert_eq!(later.opening_date, day("2026-02-15"));
     assert_eq!(later.opening_capital, dec!(1095.45));
     assert_eq!(later.flows, all.flows);
+
+    // An unvalued opening close is not capital to replay: the scope's own
+    // money-weighted return is unavailable there too.
+    let days = &mut p.series.get_mut(&ids[0]).unwrap().days;
+    let opening = days
+        .iter()
+        .position(|d| d.date == day("2026-02-15"))
+        .unwrap();
+    days[opening].value_status = ValueStatus::Unavailable;
+    let lots = p.lots();
+    let inputs = p.measure_inputs(&lots);
+    let window = window(Some("2026-02-15"));
+    assert_eq!(scope_cash_flows(&inputs, &ids, window).unwrap(), None);
+    assert_eq!(
+        measure_scope(&inputs, "acc", &ids, window, MeasureProfile::Full, false)
+            .unwrap()
+            .returns
+            .money_weighted
+            .period,
+        None
+    );
 }
 
 const MIXED: &str = r#"
@@ -629,6 +650,36 @@ observed_snapshots:
         assert!(roi.period.is_some());
         assert_eq!(roi.series.last().map(|point| point.value), roi.period);
     }
+}
+
+#[test]
+fn an_unvalued_day_in_one_account_puts_no_dip_in_a_mixed_curve() {
+    // The transactions account cannot be valued on one day in the middle
+    // (its row carries zero): it holds its last gain and capital that day.
+    let mut p = pipeline(MIXED);
+    let gap = "2026-06-15".parse::<chrono::NaiveDate>().unwrap();
+    let day = p
+        .series
+        .get_mut(&AccountId::new("acc"))
+        .unwrap()
+        .days
+        .iter_mut()
+        .find(|day| day.date == gap)
+        .unwrap();
+    day.value_status = ValueStatus::Unavailable;
+    day.total_value_base = dec!(0);
+    let roi = scope(&p, &["acc", "holdings"], window(Some("2026-02-01")))
+        .returns
+        .return_on_cost;
+    let at = |date| {
+        roi.series
+            .iter()
+            .find(|point| point.date == date)
+            .map(|point| point.value)
+    };
+    assert!(at(gap).is_some());
+    assert_eq!(at(gap), at(gap.pred_opt().unwrap()));
+    assert_eq!(roi.series.last().map(|point| point.value), roi.period);
 }
 
 #[test]
