@@ -184,7 +184,7 @@ describe("transfer activity summary", () => {
     expect(screen.queryByText("Could not load suggested matches.")).not.toBeInTheDocument();
   });
 
-  it("lets a late answer for an earlier activity pick nothing", async () => {
+  it("drops a late answer for an earlier activity", async () => {
     let answerFirst: (candidates: TransferMatchCandidate[]) => void = () => undefined;
     vi.mocked(findTransferMatchCandidates)
       .mockReturnValueOnce(new Promise((resolve) => (answerFirst = resolve)))
@@ -228,10 +228,8 @@ describe("transfer activity summary", () => {
       ]),
     );
 
-    expect(screen.getByRole("button", { name: /Candidate account/ })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(screen.queryByRole("button", { name: /Candidate account/ })).not.toBeInTheDocument();
+    expect(screen.getByText("No matches within 7 days of this activity.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Link" })).toBeDisabled();
   });
 
