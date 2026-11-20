@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -1612,9 +1612,18 @@ function TransferLinkDialog({
     unlinkTransferActivitiesMutation,
     updateActivityMutation,
   } = useActivityMutations();
+  // A conversion's preview runs before its mutation starts; the sheet stays
+  // busy through both, and a sheet closed meanwhile converts nothing.
+  const [previewing, setPreviewing] = useState(false);
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
   const isProcessing =
     mode === "link"
-      ? linkTransferActivitiesMutation.isPending || convertToTransferMutation.isPending
+      ? previewing ||
+        linkTransferActivitiesMutation.isPending ||
+        convertToTransferMutation.isPending
       : unlinkTransferActivitiesMutation.isPending || updateActivityMutation.isPending;
 
   const [suggestions, setSuggestions] = useState<TransferMatchCandidate[]>([]);
@@ -1690,6 +1699,7 @@ function TransferLinkDialog({
     if (canConvertToTransfer(selected.activity)) {
       // The other side is a deposit or withdrawal: converting retypes it and links both.
       let request: ConvertToTransferRequest;
+      setPreviewing(true);
       try {
         request = await reviewConversion({
           activityId: sourceActivity.id,
@@ -1703,7 +1713,10 @@ function TransferLinkDialog({
           });
         }
         return;
+      } finally {
+        setPreviewing(false);
       }
+      if (!openRef.current) return;
       try {
         await convertToTransferMutation.mutateAsync(request);
       } catch {

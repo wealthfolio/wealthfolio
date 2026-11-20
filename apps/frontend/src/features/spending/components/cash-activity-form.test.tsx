@@ -424,6 +424,42 @@ describe("CashActivityForm type change", () => {
     expect(onLinkTransfer).toHaveBeenCalledWith("bank-withdrawal");
   });
 
+  it("drops the suggestion once the chosen transfer needs saving first", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: {
+          id: "bank-withdrawal",
+          accountId: "chequing",
+          activityType: "WITHDRAWAL",
+          activityDate: "2026-07-13T12:00:00.000Z",
+          amount: "450",
+          currency: "CAD",
+        } as Activity,
+        matchKind: "cash",
+        confidence: "high",
+        score: 100,
+        reasons: [],
+        warnings: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        onLinkTransfer={vi.fn()}
+        activity={cardCredit}
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Payment");
+    expect(await screen.findByText(/Suggested: WS Chequing/)).toBeInTheDocument();
+
+    await chooseType(user, "Cash Advance / Balance Transfer");
+    expect(screen.getByText(enSpending.cashForm.linkRow.savesFirst)).toBeInTheDocument();
+    expect(screen.queryByText(/Suggested:/)).not.toBeInTheDocument();
+  });
+
   it("asks before leaving typed edits for the link sheet", async () => {
     const user = userEvent.setup();
     const onLinkTransfer = vi.fn();

@@ -780,7 +780,7 @@ export function CashActivityForm({
     !!savedType;
   const linkSavesFirst =
     canLink && linkableTransferType(savedType, selectedAccount?.accountType) !== watchType;
-  const { data: suggestedMatch } = useQuery({
+  const { data: savedSuggestion } = useQuery({
     queryKey: ["transfer-match-suggestion", activity?.id, savedType],
     queryFn: async () => {
       const [first] = await findTransferMatchCandidates({
@@ -796,6 +796,9 @@ export function CashActivityForm({
   });
   const formatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
+  // The query keeps its last answer once disabled: a match found for the
+  // saved row's own transfer doesn't fit a different one chosen since.
+  const suggestedMatch = linkSavesFirst ? null : savedSuggestion;
   const suggestedAccount = suggestedMatch
     ? accounts?.find((account) => account.id === suggestedMatch.activity.accountId)
     : undefined;
