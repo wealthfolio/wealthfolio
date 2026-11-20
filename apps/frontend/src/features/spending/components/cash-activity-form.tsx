@@ -78,6 +78,7 @@ import {
   getCashActivityLabel,
   isCreditCardAccountType,
   isCashActivityIncome,
+  isCashActivityOutflow,
   isSpendingAccountType,
 } from "../lib/constants";
 import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
@@ -202,9 +203,10 @@ interface CashActivityFormProps {
   onTransferClick?: (accountId: string) => void;
   /**
    * Called to link the saved row with the other account's side, a transfer's
-   * other leg. `counterpartId` is the suggested match to select.
+   * other leg. `counterpartId` is the suggested match to select. When the
+   * form saved the row first, `saved` is the row as it is now.
    */
-  onLinkTransfer?: (counterpartId?: string) => void;
+  onLinkTransfer?: (counterpartId?: string, saved?: Activity) => void;
   /** A known creation action opens directly on its details. */
   intent?: "expense" | "income";
 }
@@ -738,13 +740,21 @@ export function CashActivityForm({
           selectedAccount?.accountType,
         )
       : null;
+  // A card's payment and advance notes already say which way the balance goes.
+  const balanceNote = !isCreditCardAccount
+    ? t("spending:cashForm.typeChange.reversesBalance")
+    : typeChange?.effect === "cardPayment" || typeChange?.effect === "cardAdvance"
+      ? null
+      : isCashActivityOutflow(watchType, selectedAccount?.accountType)
+        ? t("spending:cashForm.typeChange.owesMore")
+        : t("spending:cashForm.typeChange.owesLess");
   const typeChangeNotice = typeChange ? (
     <Alert>
       <Icons.Info className="h-4 w-4" aria-hidden="true" />
       <AlertDescription>
         {[
           typeChange.effect && t(`spending:cashForm.typeChange.${typeChange.effect}`),
-          typeChange.reversesBalance && t("spending:cashForm.typeChange.reversesBalance"),
+          typeChange.reversesBalance && balanceNote,
         ]
           .filter(Boolean)
           .join(" ")}
@@ -753,8 +763,9 @@ export function CashActivityForm({
   ) : null;
 
   // A transfer's other side: the account the money came from or went to. A
-  // saved row links as the transfer it would become, so the row shows only
-  // while the chosen type is that transfer and the account is unchanged.
+  // saved row links as the transfer it would become. When the chosen transfer
+  // is a different one, such as a card advance made a payment, the row saves
+  // the change first and then links. The account must be unchanged.
   const isTransferChoice = watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT";
   // A card's transfer has no category, nor has a neutral row until its type
   // changes. A bank's one-sided transfer still counts under its category.
@@ -766,8 +777,9 @@ export function CashActivityForm({
     !!onLinkTransfer &&
     isTransferChoice &&
     watchAccountId === activity.accountId &&
-    !!savedType &&
-    linkableTransferType(savedType, selectedAccount?.accountType) === watchType;
+    !!savedType;
+  const linkSavesFirst =
+    canLink && linkableTransferType(savedType, selectedAccount?.accountType) !== watchType;
   const { data: suggestedMatch } = useQuery({
     queryKey: ["transfer-match-suggestion", activity?.id, savedType],
     queryFn: async () => {
@@ -779,7 +791,7 @@ export function CashActivityForm({
       });
       return first ?? null;
     },
-    enabled: open && canLink,
+    enabled: open && canLink && !linkSavesFirst,
     staleTime: 30_000,
   });
   const formatting = useAmountFormatting();
@@ -796,6 +808,13 @@ export function CashActivityForm({
   // Leaving for the link sheet drops what was typed here, so it asks first.
   const [pendingLink, setPendingLink] = useState<{ counterpartId?: string } | null>(null);
   const startLink = (counterpartId?: string) => {
+    if (linkSavesFirst) {
+      void form.handleSubmit(async (values) => {
+        const saved = await saveMutation.mutateAsync(values).catch(() => null);
+        if (saved) onLinkTransfer?.(undefined, saved);
+      })();
+      return;
+    }
     const hasOtherInput =
       Object.keys(dirtyFields).some((field) => field !== "activityType") ||
       eventId !== (activity?.eventId ?? null);
@@ -853,7 +872,11 @@ export function CashActivityForm({
         </div>
       ) : null}
       {!isMobile && (
-        <p className="text-muted-foreground text-xs">{t("spending:cashForm.linkRow.hint")}</p>
+        <p className="text-muted-foreground text-xs">
+          {linkSavesFirst
+            ? t("spending:cashForm.linkRow.savesFirst")
+            : t("spending:cashForm.linkRow.hint")}
+        </p>
       )}
     </FormItem>
   ) : null;

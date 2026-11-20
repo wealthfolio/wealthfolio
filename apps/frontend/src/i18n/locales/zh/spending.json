@@ -894,13 +894,15 @@
     "typeChange": {
       "transferOut": "计为转出。在与另一个账户关联之前，报告仍将其计为支出。",
       "transferIn": "计为转入。在与另一个账户关联之前，报告仍将其计为收入。",
-      "cardPayment": "计为信用卡还款，不计入支出或退款。",
-      "cardAdvance": "计为余额转移或预借现金：会增加欠款，但不算支出。",
+      "cardPayment": "计为还款：减少你的欠款，不算支出。",
+      "cardAdvance": "计为预借现金或余额转移：增加你的欠款，但不算支出。",
       "spending": "在报告中计为支出。",
       "refund": "计为退款，会减少你的支出。",
       "income": "在报告中计为收入。",
       "none": "不再计入支出或收入。",
-      "reversesBalance": "余额也会朝相反方向变动。"
+      "reversesBalance": "余额也会朝相反方向变动。",
+      "owesMore": "现在会增加你的欠款。",
+      "owesLess": "现在会减少你的欠款。"
     },
     "linkRow": {
       "paidFrom": "付款账户",
@@ -909,7 +911,8 @@
       "untracked": "我未记录的账户",
       "suggested": "建议：{{account}} · {{date}} · {{amount}}",
       "link": "关联",
-      "hint": "选择另一个账户以关联两边，或保持不变。"
+      "hint": "选择另一个账户以关联两边，或保持不变。",
+      "savesFirst": "选择账户会先保存此更改，然后关联两边。"
     }
   },
   "txTab": {

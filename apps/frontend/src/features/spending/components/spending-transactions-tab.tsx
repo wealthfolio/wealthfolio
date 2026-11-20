@@ -32,7 +32,7 @@ import { InfiniteScrollTrigger } from "@/components/infinite-scroll-trigger";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
 import { cn, formatDateISO } from "@/lib/utils";
-import type { Account, ActivityDetails, TaxonomyCategory } from "@/lib/types";
+import type { Account, Activity, ActivityDetails, TaxonomyCategory } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
 
 import {
@@ -237,6 +237,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       row: TransactionRowVM | null;
       /** Link mode: the suggested other side to select. */
       counterpartId?: string;
+      /** The row as the edit form just saved it, when it saved first. */
+      saved?: Activity;
     }>({ open: false, mode: "link", row: null });
     const [loanPaymentRow, setLoanPaymentRow] = useState<TransactionRowVM | null>(null);
     const [deletingIds, setDeletingIds] = useState<string[] | null>(null);
@@ -1432,13 +1434,14 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           onOpenChange={setShowForm}
           activity={editingActivityForForm}
           onTransferClick={handleTransferClick}
-          onLinkTransfer={(counterpartId) =>
+          onLinkTransfer={(counterpartId, saved) =>
             editingActivity &&
             setTransferMatchDialog({
               open: true,
               mode: "link",
               row: editingActivity,
               counterpartId,
+              saved,
             })
           }
         />
@@ -1496,7 +1499,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         <TransferMatchDialog
           open={transferMatchDialog.open}
           mode={transferMatchDialog.mode}
-          sourceActivity={transferMatchDialog.row?.activity}
+          sourceActivity={transferMatchDialog.saved ?? transferMatchDialog.row?.activity}
           counterpartId={transferMatchDialog.counterpartId}
           accounts={accounts}
           onOpenChange={(open) =>
@@ -1504,6 +1507,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               ...prev,
               open,
               row: open ? prev.row : null,
+              saved: open ? prev.saved : undefined,
             }))
           }
           onComplete={refetch}

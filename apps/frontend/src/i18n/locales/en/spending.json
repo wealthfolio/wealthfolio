@@ -902,13 +902,15 @@
     "typeChange": {
       "transferOut": "Counts as a transfer out. Until it's linked to the other account, reports still count it as spending.",
       "transferIn": "Counts as a transfer in. Until it's linked to the other account, reports still count it as income.",
-      "cardPayment": "Counts as a payment towards the card, not as spending or a refund.",
-      "cardAdvance": "Counts as a balance transfer or cash advance: it adds to what you owe but isn't spending.",
+      "cardPayment": "Counts as a payment: it lowers what you owe and isn't spending.",
+      "cardAdvance": "Counts as a cash advance or balance transfer: it adds to what you owe and isn't spending.",
       "spending": "Counts as spending in your reports.",
       "refund": "Counts as a refund, which lowers your spending.",
       "income": "Counts as income in your reports.",
       "none": "No longer counts as spending or income.",
-      "reversesBalance": "It also moves the balance the other way."
+      "reversesBalance": "It also moves the balance the other way.",
+      "owesMore": "It now adds to what you owe.",
+      "owesLess": "It now lowers what you owe."
     },
     "linkRow": {
       "paidFrom": "Paid from",
@@ -917,7 +919,8 @@
       "untracked": "An account I don't track",
       "suggested": "Suggested: {{account}} · {{date}} · {{amount}}",
       "link": "Link",
-      "hint": "Pick the other account to link both sides, or leave it as is."
+      "hint": "Pick the other account to link both sides, or leave it as is.",
+      "savesFirst": "Picking an account saves this change first, then links both sides."
     }
   },
   "txTab": {
