@@ -32,7 +32,7 @@ import {
 import { TemplatePicker } from "../components/template-picker";
 import { computeFieldMappings, useImportMapping } from "../hooks/use-import-mapping";
 import { autoMatchAccountMappings, collectCsvAccountValues } from "../utils/account-matching";
-import { ACTIVITY_SKIP, isFieldMapped } from "../utils/draft-utils";
+import { ACTIVITY_SKIP, getHeaderFields, isFieldMapped } from "../utils/draft-utils";
 import {
   validateTickerSymbol,
   findMappedActivityType,
@@ -63,7 +63,7 @@ import { ImportType } from "@/lib/types";
 
 export function MappingStepUnified() {
   const { state, dispatch } = useImportContext();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { headers, parsedRows, mapping, accountId, skippedRowIndexes } = state;
   const queryClient = useQueryClient();
   const [templateName, setTemplateName] = useState(mapping?.name ?? "");
@@ -249,6 +249,18 @@ export function MappingStepUnified() {
       visibleFieldSet.has(field as ImportFormat) && isFieldMapped(headerName, headers),
   ).length;
   const totalFields = importProfile.visibleMappingFields.length;
+
+  // CSV columns the import leaves out: those no field lists, fallback columns included. Of
+  // columns sharing a name, the import reads only the last, so the others count as left out.
+  const unusedHeaders = useMemo(() => {
+    const headerFields = getHeaderFields(
+      localMapping.fieldMappings,
+      importProfile.visibleMappingFields,
+    );
+    return headers.filter(
+      (header, index) => !headerFields.has(header) || headers.lastIndexOf(header) !== index,
+    );
+  }, [headers, importProfile.visibleMappingFields, localMapping.fieldMappings]);
 
   // Symbols validation — skip rows where symbol is not required
   const { distinctSymbols, invalidSymbols } = useMemo(() => {
@@ -1063,6 +1075,24 @@ export function MappingStepUnified() {
           size="sm"
           title={t("activity:import.mapping.allRowsSkipped")}
           description={t("activity:import.mapping.allRowsSkippedDescription")}
+          className="shrink-0"
+        />
+      )}
+
+      {unusedHeaders.length > 0 && (
+        <ImportAlert
+          variant="info"
+          size="sm"
+          title={t("activity:import.mapping.unusedColumns", {
+            count: unusedHeaders.length,
+            total: headers.length,
+          })}
+          // Each name keeps its own direction, so "Reference!" stays whole in Arabic
+          description={new Intl.ListFormat(i18n.language)
+            .formatToParts(unusedHeaders.map((header) => header || "-"))
+            .map((part, index) =>
+              part.type === "element" ? <bdi key={index}>{part.value}</bdi> : part.value,
+            )}
           className="shrink-0"
         />
       )}

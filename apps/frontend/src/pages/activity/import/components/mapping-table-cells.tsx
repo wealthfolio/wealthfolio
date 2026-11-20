@@ -43,15 +43,18 @@ export function MappingHeaderCell({
   mapping,
   headers,
   requiredFields = IMPORT_REQUIRED_FIELDS,
+  headerFields,
   handleColumnMapping,
 }: {
   field: ImportFormat;
   mapping: ImportMappingData;
   headers: string[];
   requiredFields?: readonly ImportFormat[];
+  // The fields that read each header, so the picker can name a header's other fields
+  headerFields?: ReadonlyMap<string, readonly ImportFormat[]>;
   handleColumnMapping: (field: ImportFormat, value: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [editingHeader, setEditingHeader] = useState<ImportFormat | null>(null);
   const mappedHeader = mapping.fieldMappings[field];
   const displayHeader = Array.isArray(mappedHeader) ? mappedHeader[0] : mappedHeader;
@@ -105,11 +108,28 @@ export function MappingHeaderCell({
                 <SelectSeparator />
               </>
             )}
-            {headers.map((header) => (
-              <SelectItem key={header || "-"} value={header || "-"}>
-                {header || "-"}
-              </SelectItem>
-            ))}
+            {headers.map((header) => {
+              // One column can feed two fields, so a used header stays selectable
+              const otherFields = headerFields?.get(header)?.filter((f) => f !== field) ?? [];
+              return (
+                <SelectItem key={header || "-"} value={header || "-"} label={header || "-"}>
+                  {otherFields.length > 0 ? (
+                    // The name keeps its own direction beside the note, and a space, not a
+                    // margin, lets the option's accessible name read the note apart
+                    <>
+                      <bdi>{header || "-"}</bdi>{" "}
+                      <span className="text-muted-foreground text-xs">
+                        {t("activity:import.mapping.usedBy", {
+                          fields: new Intl.ListFormat(i18n.language).format(otherFields),
+                        })}
+                      </span>
+                    </>
+                  ) : (
+                    header || "-"
+                  )}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       ) : (

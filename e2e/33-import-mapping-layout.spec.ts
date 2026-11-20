@@ -7,12 +7,18 @@ const SYMBOLS = (
   "ADBE CRM INTC AMD QQQ SPY VTI BND"
 ).split(" ");
 
-function buildCsv() {
-  const header =
-    "date,symbol,instrumentType,quantity,activityType,unitPrice,currency,fee,amount,fxRate,subtype";
+// Extra columns match no field, so the import leaves them out.
+function buildCsv(extraColumns: string[] = []) {
+  const header = [
+    "date,symbol,instrumentType,quantity,activityType,unitPrice,currency,fee,amount,fxRate,subtype",
+    ...extraColumns,
+  ].join(",");
   const rows = SYMBOLS.map((symbol, index) => {
     const day = String(index + 1).padStart(2, "0");
-    return `2024-01-${day},${symbol},EQUITY,${index + 1},BUY,${100 + index}.25,USD,4.95,,,`;
+    return [
+      `2024-01-${day},${symbol},EQUITY,${index + 1},BUY,${100 + index}.25,USD,4.95,,,`,
+      ...extraColumns.map((column) => `${column}-${index}`),
+    ].join(",");
   });
   return [header, ...rows].join("\n") + "\n";
 }
@@ -35,7 +41,10 @@ async function clippingAncestors(element: Locator) {
 
 // Without an account, the Mapping step asks for one in an extra alert. `dir=rtl` is the
 // development-only direction override (i18n/direction.tsx).
-async function openMapping(page: Page, { withAccount = true, dir = "ltr" } = {}) {
+async function openMapping(
+  page: Page,
+  { withAccount = true, dir = "ltr", extraColumns = [] as string[] } = {},
+) {
   await completeOnboardingIfNeeded(page);
 
   const params = new URLSearchParams();
@@ -62,7 +71,7 @@ async function openMapping(page: Page, { withAccount = true, dir = "ltr" } = {})
   await page.locator('input[type="file"]').setInputFiles({
     name: "mapping-layout.csv",
     mimeType: "text/csv",
-    buffer: Buffer.from(buildCsv()),
+    buffer: Buffer.from(buildCsv(extraColumns)),
   });
   const configureMapping = page.getByRole("button", { name: /Configure Mapping/i });
   await expect(configureMapping).toBeEnabled({ timeout: 10_000 });
@@ -210,3 +219,20 @@ test("filtered file preview keeps a whole line on a narrow phone", async ({ page
   await panel.scrollIntoViewIfNeeded();
   await expect.poll(() => clippingAncestors(line), { message: "matching line" }).toEqual([]);
 });
+
+// Issue #2266: the step names the CSV columns no field reads. The notice is a .grid alert too,
+// so it must keep its text whole on a phone.
+for (const dir of ["ltr", "rtl"]) {
+  test(`unused-columns notice keeps its text whole on a phone (${dir})`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const extraColumns = ["exchange", "segment", "series", "auction", "trade_id", "order_id"];
+    await openMapping(page, { dir, extraColumns });
+
+    const notice = page.getByRole("alert").filter({ hasText: "6 of 17 columns not imported" });
+    await notice.scrollIntoViewIfNeeded();
+    const text = notice.locator('[data-slot="alert-description"]');
+    await expect(text).toHaveText(/exchange, segment, series, auction, trade_id, and order_id/);
+    await expect.poll(() => clippingAncestors(text), { message: "notice text" }).toEqual([]);
+  });
+}
