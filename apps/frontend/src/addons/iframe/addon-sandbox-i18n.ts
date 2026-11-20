@@ -20,6 +20,7 @@ import itUi from "@/i18n/locales/it/ui.json";
 import jaUi from "@/i18n/locales/ja/ui.json";
 import koUi from "@/i18n/locales/ko/ui.json";
 import ptUi from "@/i18n/locales/pt/ui.json";
+import trUi from "@/i18n/locales/tr/ui.json";
 import zhUi from "@/i18n/locales/zh/ui.json";
 import zhHantUi from "@/i18n/locales/zh-Hant/ui.json";
 
@@ -46,6 +47,7 @@ const resources: Record<LocaleCode, { ui: Record<string, unknown> }> = {
   ja: { ui: jaUi },
   ko: { ui: koUi },
   pt: { ui: ptUi },
+  tr: { ui: trUi },
   zh: { ui: zhUi },
   "zh-Hant": { ui: zhHantUi },
 };

@@ -1,0 +1,302 @@
+{
+  "section": {
+    "deviceSync": "Cihaz Senkronizasyonu",
+    "connectedDevices": "Bağlı Cihazlar",
+    "otherConnectedDevices": "Diğer bağlı cihazlar",
+    "manageDevices": "Cihazları yönet",
+    "options": "Seçenekler",
+    "deviceActions": "Cihaz işlemleri"
+  },
+  "setup": {
+    "cardDescription": "Verilerinizi tüm cihazlarınız arasında güvenle senkronize edin.",
+    "connectToSync": "Senkronizasyon için bu cihazı bağlayın",
+    "keepInSync": "Cihazlarınızı senkronize tutun",
+    "foundOtherDevices": "Hesabınızda başka bağlı cihazlar bulundu. Bu cihazı bağlamak için devam edin.",
+    "encryptedInfo": "Verileriniz uçtan uca şifrelenir. Yalnızca sizin cihazlarınız okuyabilir.",
+    "morePreview": "+{{count}} tane daha",
+    "settingUp": "Kuruluyor...",
+    "connectThisDevice": "Bu cihazı bağla",
+    "enableDeviceSync": "Cihaz Senkronizasyonunu Etkinleştir",
+    "morePreview_one": "+{{count}} tane daha",
+    "morePreview_other": "+{{count}} tane daha"
+  },
+  "status": {
+    "syncError": "Senkronizasyon hatası",
+    "syncPaused": "Senkronizasyon duraklatıldı",
+    "synced": "Senkronize edildi",
+    "syncing": "Senkronize ediliyor",
+    "connected": "Bağlı",
+    "needsSetup": "Kurulum gerekli",
+    "revoked": "İptal edildi",
+    "notConnected": "Bağlı değil",
+    "online": "Çevrimiçi",
+    "never": "Hiç",
+    "minutesAgo": "{{count}} dk önce",
+    "hoursAgo": "{{count}} sa önce",
+    "daysAgo": "{{count}} gün önce",
+    "thisDevice": "Bu cihaz",
+    "thisDeviceSuffix": "· Bu cihaz",
+    "minutesAgo_one": "{{count}} dk önce",
+    "minutesAgo_other": "{{count}} dk önce",
+    "hoursAgo_one": "{{count}} sa önce",
+    "hoursAgo_other": "{{count}} sa önce",
+    "daysAgo_one": "{{count}} gün önce",
+    "daysAgo_other": "{{count}} gün önce"
+  },
+  "engine": {
+    "pauseSync": "Senkronizasyonu Duraklat",
+    "resumeSync": "Senkronizasyonu Sürdür",
+    "updating": "Güncelleniyor...",
+    "backgroundPaused": "Arka plan senkronizasyonu duraklatıldı",
+    "backgroundResumed": "Arka plan senkronizasyonu sürdürüldü",
+    "updateFailed": "Arka plan senkronizasyonu güncellenemedi"
+  },
+  "errorState": {
+    "failedToInitialize": "Cihaz senkronizasyonu başlatılamadı.",
+    "initializationFailed": "Başlatma Başarısız",
+    "failedToLoadDevices": "Cihazlar yüklenemedi",
+    "tryRefreshing": "Lütfen sayfayı yenilemeyi deneyin."
+  },
+  "stale": {
+    "keysNeedUpdating": "Anahtarların güncellenmesi gerekiyor",
+    "keysNeedUpdatingDescription": "Güvenlik ayarları başka bir cihazda değişti. Senkronizasyona devam etmek için bu cihazı yeniden bağlayın.",
+    "updateThisDevice": "Bu cihazı güncelle"
+  },
+  "orphaned": {
+    "restoreTitle": "Senkronizasyonu Geri Yüklemek İçin Bu Cihazı Kullanın",
+    "restoreDescription": "Kullanılabilir başka bağlı cihaz yok. Senkronizasyonu bu cihazdaki mevcut verilerle yeniden başlatacağız.",
+    "confirmDescription": "Senkronizasyonu bu cihazdaki mevcut verilerle yeniden başlatacağız.",
+    "restarting": "Yeniden başlatılıyor..."
+  },
+  "untrusted": {
+    "notConnectedYet": "Bu cihaz henüz bağlı değil",
+    "enterCodeFromDevices_one": "Diğer {{count}} bağlı cihazınızdan birindeki kodu girin.",
+    "enterCodeFromDevices_other": "Diğer {{count}} bağlı cihazınızdan birindeki kodu girin.",
+    "enterCodeGeneric": "Verilerinizi senkronize etmek için diğer bağlı cihazınızdaki kodu girin.",
+    "connectThisDevice": "Bu cihazı bağla",
+    "connectToStartSyncing": "Senkronizasyona başlamak için bu cihazı bağlayın."
+  },
+  "connect": {
+    "connectAnotherDevice": "Başka bir cihaz bağla",
+    "connectThisDevice": "Bu cihazı bağla",
+    "pair": "Eşleştir",
+    "unpair": "Eşleştirmeyi Kaldır",
+    "revoke": "İptal Et",
+    "rename": "Yeniden Adlandır",
+    "disconnect": "Bağlantıyı Kes"
+  },
+  "waitingSnapshot": {
+    "otherDeviceFinishing": "Diğer cihazınız kurulumu tamamlamaya devam ediyor.",
+    "setupAlmostDone": "Kurulumunuz neredeyse tamamlandı.",
+    "trustedHint": "İşlemi şimdi hızlandırabilir ya da bekleyebilirsiniz; arka planda otomatik olarak devam edeceğiz.",
+    "untrustedHint": "Lütfen önce diğer bağlı cihazınızda kurulumu tamamlayın. Bu sayfa otomatik olarak güncellenecek.",
+    "checking": "Kontrol ediliyor...",
+    "checkAgain": "Tekrar kontrol et",
+    "preparing": "Hazırlanıyor...",
+    "speedUpSetup": "Kurulumu hızlandır"
+  },
+  "bootstrap": {
+    "couldNotRetryTitle": "Senkronizasyon yeniden denenemedi"
+  },
+  "snapshot": {
+    "uploadedTitle": "Anlık görüntü yüklendi",
+    "uploadedDescription": "Yeni bağlanan cihazlar artık senkronizasyonu bu anlık görüntüden tamamlayabilir.",
+    "skippedTitle": "Anlık görüntü yüklemesi atlandı",
+    "cancelledTitle": "Anlık görüntü yüklemesi iptal edildi",
+    "resultTitle": "Anlık görüntü yükleme sonucu",
+    "failedTitle": "Anlık görüntü yüklenemedi"
+  },
+  "reinit": {
+    "title": "Senkronizasyon bu cihazdan yeniden kurulsun mu?",
+    "description": "Bu cihazdaki verileri koruyup senkronizasyonu yeniden başlatmak için kullanacağız. Diğer bağlı cihazların yeniden bağlanması gerekebilir.",
+    "notNow": "Şimdi değil",
+    "continue": "Devam Et"
+  },
+  "recovery": {
+    "title": "Bu cihazı yeniden kurun",
+    "description": "Bu cihaz için senkronizasyon kapatıldı. Verilerinizi cihazlarınız arasında güncel tutmak için yeniden kurun.",
+    "notNow": "Şimdi değil",
+    "settingUp": "Kuruluyor...",
+    "setUpAgain": "Bu cihazı yeniden kur"
+  },
+  "disconnectDialog": {
+    "title": "Bu cihazın bağlantısı kesilsin mi?",
+    "description": "Bu işlem, bu cihazdan senkronizasyonu kaldırır. Daha sonra yeniden kurabilirsiniz.",
+    "disconnecting": "Bağlantı kesiliyor...",
+    "disconnect": "Bağlantıyı Kes"
+  },
+  "unpairDialog": {
+    "titleLast": "Son cihazınızın eşleştirmesi kaldırılsın mı?",
+    "title": "Cihaz eşleştirmesi kaldırılsın mı?",
+    "descriptionLast": "Bu, bağlı tek cihazınız. Verilerinizi senkronize etmeye devam etmek için yeniden bir cihaz bağlamanız gerekecek.",
+    "description": "Bu işlem \"{{name}}\" cihazını hesabınızdan kaldırır. Verileri senkronize etmek için cihazın yeniden bağlanması gerekecek.",
+    "unpairing": "Eşleştirme kaldırılıyor...",
+    "unpair": "Eşleştirmeyi Kaldır"
+  },
+  "toasts": {
+    "reinitFailed": "Senkronizasyon yeniden başlatılamadı",
+    "disconnectFailed": "Bağlantı kesilemedi",
+    "unpairFailed": "Cihaz eşleştirmesi kaldırılamadı"
+  },
+  "pairing": {
+    "connectThisDeviceTitle": "Bu cihazı bağlayın",
+    "enterCodeDescription": "Diğer cihazınızda gösterilen kodu girin.",
+    "connectAnotherTitle": "Başka bir cihaz bağlayın",
+    "scanOrEnterDescription": "Bu kodu yeni cihazınızla tarayın veya oraya yazın.",
+    "gettingReadyTitle": "Bu cihaz hazırlanıyor",
+    "gettingReadyDescription": "Bu yalnızca birkaç saniye sürer.",
+    "prepareFailed": "Bu cihazın hazırlanması tamamlanamadı.",
+    "verifySecurityCode": "Güvenlik kodunu kontrol edin",
+    "transferringData": "Verileriniz aktarılıyor",
+    "transferringDataDescription": "Verilerinizin bir kopyası yeni cihazınız için şifreleniyor. Bu bir dakika sürebilir.",
+    "preparingData": "Verileriniz hazırlanıyor",
+    "preparingDataDescription": "Bağlantı onaylandı. Verileriniz hazırlanırken Wealthfolio'yu her iki cihazda da açık tutun.",
+    "securingConnection": "Bağlantı güvenli hâle getiriliyor",
+    "securingConnectionDescription": "Diğer cihazınızla şifreleme anahtarları değiş tokuş ediliyor."
+  },
+  "displayCode": {
+    "generating": "Kod oluşturuluyor",
+    "copyCode": "Kodu kopyala",
+    "copied": "Kopyalandı",
+    "expiresIn": "Kalan süre: {{time}}",
+    "expiredTitle": "Bu kodun süresi doldu",
+    "expiredDescription": "Eşleştirmeyi güvenli tutmak için kodlar birkaç dakika geçerlidir. Devam etmek için yeni bir kod alın.",
+    "newCode": "Yeni kod al"
+  },
+  "enterCode": {
+    "openingCamera": "Kamera açılıyor…",
+    "scanQrCode": "QR kodu tara",
+    "scanInstructions": "QR kodu çerçevenin içine hizalayın.",
+    "or": "Veya",
+    "paste": "Yapıştır",
+    "connecting": "Bağlanıyor…",
+    "connect": "Bağlan",
+    "cameraOpenError": "Kamera açılamadı. Lütfen tekrar deneyin.",
+    "cameraCloseError": "Kamera kapatılamadı. Lütfen tekrar deneyin.",
+    "cameraUnavailable": "Kullanılabilir kamera yok. Taramak için fiziksel bir cihaz kullanın veya aşağıya eşleştirme kodunu girin.",
+    "scanHint": "Kameranızı diğer cihazınızdaki koda doğrultun.",
+    "codeLabel": "Eşleştirme kodu"
+  },
+  "sas": {
+    "description": "Diğer cihazınızın aynı kodu gösterdiğinden emin olun. Bu, başkasının bağlanmasını önler.",
+    "codesMatch": "Kodlar eşleşiyor",
+    "codesDontMatch": "Eşleşmiyor",
+    "waitingDescription": "Diğer cihazınızın bu kodu gösterdiğini kontrol edin, ardından orada onaylayın.",
+    "mismatchTitle": "Eşleştirme durduruldu",
+    "mismatchDescription": "Kodlar eşleşmediği için hiçbir şey paylaşılmadı. Yeni bir kodla tekrar deneyin."
+  },
+  "waiting": {
+    "waitingForConfirmation": "Diğer cihazınızın onaylaması bekleniyor…"
+  },
+  "result": {
+    "allSet": "Her şey hazır!",
+    "connectedSuccessfully": "Cihaz başarıyla bağlandı",
+    "done": "Tamam",
+    "connectionFailed": "Bağlanılamadı",
+    "tryAgain": "Tekrar dene",
+    "devicesConnected": "Cihazlar bağlandı",
+    "finishOnOtherDevice": "Kurulumu diğer cihazınızda tamamlayın. Verileriniz yerine oturduğunda orada Hazır görünür."
+  },
+  "restore": {
+    "dialogTitle": "Bu cihazın kurulumunu tamamlayın",
+    "transferring": {
+      "title": "Verileriniz aktarılıyor",
+      "description": "Diğer cihazınızdaki şifreli kopya indiriliyor ve kontrol ediliyor."
+    },
+    "waiting": {
+      "title": "Güncel bir kopya bekleniyor",
+      "description": "Güncel şifreli bir kopya henüz mevcut değil. Hazır olduğunda kurulum otomatik olarak devam edecek."
+    },
+    "consent": {
+      "title": "Bu profildeki veriler değiştirilsin mi?",
+      "titleNamed": "\"{{profile}}\" profilindeki veriler değiştirilsin mi?",
+      "description": "Diğer cihazınızdaki veriler bu cihazdaki verilerin yerini alacak.",
+      "descriptionDated": "Diğer cihazınızdaki veriler ({{date}} tarihinde kopyalandı) bu cihazdaki verilerin yerini alacak.",
+      "replace": "Verileri değiştir",
+      "backupLabel": "Önce bu profili yedekle",
+      "backupAndReplace": "Yedekle ve değiştir",
+      "descriptionEmpty": "Diğer cihazınızdaki portföy boş. Devam ederseniz bu cihazdaki portföy o boş portföyle değiştirilir."
+    },
+    "backingUp": {
+      "title": "Bu profil yedekleniyor",
+      "description": "Herhangi bir şey değiştirilmeden önce bu profilin bir kopyası kaydediliyor."
+    },
+    "replacing": {
+      "title": "Bu cihazdaki veriler değiştiriliyor",
+      "description": "Diğer cihazınızdaki veriler yerine yerleştiriliyor."
+    },
+    "ready": {
+      "title": "Hazır",
+      "description": "Bu cihaz kuruldu ve senkronize."
+    },
+    "cancelled": {
+      "title": "Kurulum iptal edildi",
+      "description": "Hiçbir şey değiştirilmedi. Kurulumu istediğiniz zaman tamamlayabilirsiniz."
+    },
+    "cancelSetup": "Kurulumu iptal et",
+    "hide": "Gizle",
+    "continueInBackground": "Arka planda devam et",
+    "tryAgain": "Tekrar dene",
+    "startAgain": "Yeniden başla",
+    "finishSetup": "Kurulumu tamamla",
+    "retryHint": {
+      "transfer": "Hiçbir şey değiştirilmedi. Aktarımı tekrar deneyebilirsiniz.",
+      "consent": "Hiçbir şey değiştirilmedi. Tekrar denediğinizde onayınız yeniden istenir.",
+      "new_attempt": "Hiçbir şey değiştirilmedi. Diğer cihazınızdaki en son kopyayı kullanmak için yeniden başlayın."
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "Cihaz senkronizasyonu için aktif bir abonelik gerekir",
+      "DEVICE_NOT_READY": "Bu cihaz henüz senkronizasyona hazır değil",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Güncel bir kopya zamanında hazır olmadı",
+      "SNAPSHOT_UNAVAILABLE": "Diğer cihazınızdaki kopya artık mevcut değil",
+      "SNAPSHOT_SCHEMA_NEWER": "Kurulumu tamamlamak için bu uygulamayı güncelleyin",
+      "SNAPSHOT_INVALID": "Aktarılan veriler doğrulanamadı",
+      "TRANSFER_FAILED": "Aktarım tamamlanamadı",
+      "BACKUP_FAILED": "Yedekleme tamamlanamadı",
+      "RESTORE_FAILED": "Veriler değiştirilemedi"
+    },
+    "banner": {
+      "title": "Bu cihazda kurulum tamamlanmadı",
+      "running": "Kurulum arka planda devam ediyor.",
+      "needsApproval": "Bu profilin verilerini değiştirmek için onayınız gerekiyor.",
+      "failed": "Kurulum tamamlanmadan durdu.",
+      "cancelled": "Kurulum iptal edildi. Hazır olduğunuzda kurulumu tamamlayın.",
+      "show": "İlerlemeyi göster"
+    }
+  },
+  "errors": {
+    "portfolioRepair": "Bir portföyde silinmiş bir hesap bağlantısı var. Ayarlar > Portföyler'i açın, portföyü düzenleyip kaydedin.",
+    "fallback": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+    "restoreRequired": "Başka bir cihaz bağlamadan önce senkronizasyonun bu cihazdan geri yüklenmesi gerekiyor.",
+    "invalidCode": "Geçersiz kod. Kontrol edip tekrar deneyin.",
+    "expired": "Oturumun süresi doldu. Lütfen baştan başlayın.",
+    "cancelled": "Eşleştirme iptal edildi.",
+    "network": "Ağ hatası. Bağlantınızı kontrol edin.",
+    "timeout": "Bağlantı zaman aşımına uğradı.",
+    "notFound": "Oturum bulunamadı ya da süresi doldu.",
+    "security": "Güvenlik doğrulaması başarısız oldu.",
+    "technical": "Senkronizasyon tamamlanamadı. Lütfen tekrar deneyin. Sorun sürerse uygulama günlüklerini kontrol edin.",
+    "namedPortfolioRepair": "\"{{name}}\" portföyünde silinmiş bir hesap bağlantısı var. Ayarlar > Portföyler'i açın, portföyü düzenleyip kaydedin."
+  },
+  "wizard": {
+    "progressLabel": "Kurulum ilerlemesi",
+    "steps": {
+      "connect": "Bağlan",
+      "transfer": "Aktar",
+      "download": "İndir",
+      "apply": "Uygula",
+      "done": "Tamam"
+    },
+    "encryptedNote": "Uçtan uca şifreli. Verilerinizi yalnızca sizin cihazlarınız okuyabilir.",
+    "backgroundNote": "Bu pencereyi kapatabilirsiniz. Kurulum arka planda devam eder.",
+    "details": {
+      "encrypt": "Verilerinizi şifreleyin",
+      "upload": "Şifreli kopyayı yükleyin",
+      "sendKeys": "Anahtarları yeni cihazınıza gönderin",
+      "waitForUpload": "Güncel bir kopya bekleyin",
+      "downloadAndVerify": "Şifreli kopyayı indirin ve doğrulayın",
+      "replace": "Bu cihazdaki verileri değiştirin",
+      "backup": "Bu profili yedekleyin"
+    }
+  }
+}

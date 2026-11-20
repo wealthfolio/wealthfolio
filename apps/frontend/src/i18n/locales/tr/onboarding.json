@@ -1,0 +1,84 @@
+{
+  "buttons": {
+    "continue": "Devam Et",
+    "subscribeConnect": "Abone Ol ve Bağlan",
+    "getStarted": "Başlayın"
+  },
+  "steps": {
+    "chooseMode": {
+      "subtitle": "Portföyünüzü takip etmenin iki yolu.",
+      "holdings": {
+        "title": "Varlıklar",
+        "subtitle": "Değer Takibi",
+        "badge": "Az bakım gerektiren takip için en iyisi.",
+        "features": {
+          "netWorth": "Net değer ve dağılım",
+          "unrealizedPnl": "Değer ve gerçekleşmemiş K/Z",
+          "priceBased": "Fiyata dayalı performans",
+          "fastSetup": "Hızlı ve hafif kurulum"
+        },
+        "limit": "Sınır: İşleme dayalı TWR/IRR yok.",
+        "note": "Not: Varlıkların/pozisyonların güncel tutulmasını gerektirir."
+      },
+      "transactions": {
+        "title": "İşlemler",
+        "subtitle": "Performans Takibi",
+        "badge": "Tam performans analizi için en iyisi.",
+        "features": {
+          "totalReturn": "Zaman içinde toplam getiri",
+          "attribution": "Kâr ve nakit akışı ayrıştırması",
+          "completeView": "En eksiksiz performans görünümü",
+          "brokerSync": "Aracı kurum senkronizasyonu veya CSV içe aktarma ile en iyisi"
+        },
+        "limit": "Sınır: Tüm işlemlerin takip edilmesini gerektirir.",
+        "note": "Not: Bir aracı kurumla senkronize edilirse otomatiktir."
+      },
+      "footnote": "Farklı hesaplar için farklı modlar kullanabilirsiniz.",
+      "learnMore": "Daha fazla bilgi"
+    },
+    "preferences": {
+      "subtitle": "Başlamanız için yalnızca birkaç tercih",
+      "currencyLabel": "Para Birimi",
+      "timezoneLabel": "Saat Dilimi",
+      "other": "Diğer",
+      "selectCurrency": "Para Birimi Seçin",
+      "selectTimezone": "Saat Dilimi Seçin",
+      "searchCurrenciesPlaceholder": "Para birimlerinde ara...",
+      "searchTimezonesPlaceholder": "Saat dilimlerinde ara...",
+      "noCurrenciesFound": "Para birimi bulunamadı",
+      "noTimezonesFound": "Saat dilimi bulunamadı",
+      "currencyRequired": "Lütfen bir ana para birimi seçin.",
+      "timezoneRequired": "Lütfen bir saat dilimi seçin.",
+      "languageLabel": "Dil",
+      "formattingRegionLabel": "Bölge ve biçimler",
+      "searchRegionsPlaceholder": "Bölgelerde ara...",
+      "noRegionsFound": "Bölge bulunamadı",
+      "searchLanguagesPlaceholder": "Dillerde ara...",
+      "noLanguagesFound": "Dil bulunamadı"
+    }
+  },
+  "appearance": {
+    "subtitle": "Deneyiminizi özelleştirin",
+    "changeLater": "Bunları istediğiniz zaman Ayarlar'dan değiştirebilirsiniz."
+  },
+  "connect": {
+    "optional": "İsteğe Bağlı",
+    "title": "Wealthfolio Connect",
+    "subtitle": "Verilerinizi gizli tutarken aracı kurumlarınızı otomatik olarak senkronize edin.",
+    "learnMore": "Connect hakkında daha fazla bilgi",
+    "features": {
+      "brokerageSync": {
+        "title": "Aracı Kurum Senkronizasyonu",
+        "description": "Hesaplarınızı ve işlemlerinizi yerel veritabanınıza otomatik olarak senkronize edin."
+      },
+      "deviceSync": {
+        "title": "Cihaz Senkronizasyonu",
+        "description": "Uçtan uca şifreleme ile veritabanınızı tüm cihazlarınızda senkronize tutun."
+      },
+      "householdView": {
+        "title": "Hane Görünümü",
+        "description": "Seçtiğiniz hesapları ailenizle paylaşın ve birleşik bir görünümü birlikte izleyin."
+      }
+    }
+  }
+}
