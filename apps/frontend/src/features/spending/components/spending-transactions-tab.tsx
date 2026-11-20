@@ -706,16 +706,19 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         ]);
         return updateActivity(reviewed);
       },
-      onSuccess: (_, row) => {
+      onSuccess: (saved, row) => {
         invalidateSpendingCaches(qc);
         qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
         qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
+        // The form opens on the row as saved. A synced row keeps its source
+        // type and holds the reimbursement as an override, which replaces any
+        // earlier one: built from the old row, the form showed that earlier
+        // type, and saving it undid the reimbursement.
         const updatedRow: TransactionRowVM = {
           ...row,
           activity: {
             ...row.activity,
-            activityType: "CREDIT",
-            subtype: "REIMBURSEMENT",
+            ...saved,
             cashFlowBucket: "spending",
           },
           category: null,

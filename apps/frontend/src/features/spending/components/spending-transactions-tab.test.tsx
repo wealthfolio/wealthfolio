@@ -99,6 +99,7 @@ const mocks = vi.hoisted(() => {
     toastSuccess: vi.fn(),
     saveActivities: vi.fn(),
     useMutation: vi.fn(),
+    formProps: vi.fn(),
   };
 });
 
@@ -215,8 +216,10 @@ vi.mock("../hooks/use-spending-settings", () => ({
 }));
 
 vi.mock("./cash-activity-form", () => ({
-  CashActivityForm: ({ activity, open }: { activity?: { id: string }; open: boolean }) =>
-    open ? <div data-testid="cash-form">{activity?.id}</div> : null,
+  CashActivityForm: (props: { activity?: { id: string }; open: boolean }) => {
+    mocks.formProps(props);
+    return props.open ? <div data-testid="cash-form">{props.activity?.id}</div> : null;
+  },
 }));
 vi.mock("@/pages/activity/components/mobile-forms/mobile-activity-form", () => ({
   MobileActivityForm: () => null,
@@ -649,6 +652,72 @@ describe("SpendingTransactionsTab reimbursement split review", () => {
       expect(mocks.toastSuccess).not.toHaveBeenCalled();
     },
   );
+
+  it("opens the form on the row as saved, not on a synced row's earlier type", () => {
+    // A synced transfer the user had retyped as a deposit: its source type
+    // stays, and the user's type is an override.
+    const synced = {
+      ...row,
+      activity: {
+        ...row.activity,
+        activityType: ActivityType.TRANSFER_IN,
+        activityTypeOverride: ActivityType.DEPOSIT,
+        sourceSystem: "SIMPLEFIN",
+      },
+    } as TransactionRowVM;
+    const saved = {
+      ...synced.activity,
+      activityTypeOverride: "CREDIT",
+      subtype: "REIMBURSEMENT",
+      isUserModified: true,
+    };
+    const options = mount() as unknown as {
+      onSuccess: (saved: unknown, row: TransactionRowVM) => void;
+    };
+    act(() => options.onSuccess(saved, synced));
+
+    const form = mocks.formProps.mock.lastCall?.[0] as {
+      open: boolean;
+      activity: TransactionRowVM["activity"];
+    };
+    expect(form.open).toBe(true);
+    expect(form.activity).toMatchObject({
+      id: "income-1",
+      activityType: ActivityType.TRANSFER_IN,
+      activityTypeOverride: "CREDIT",
+      subtype: "REIMBURSEMENT",
+      cashFlowBucket: "spending",
+    });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("spending:txTab.markedReimbursement");
+  });
+
+  it("drops an override the save cleared", () => {
+    // An older manual row with an override: the save replaces it with the
+    // reimbursement itself, and the server sends the override as null.
+    const legacy = {
+      ...row,
+      activity: { ...row.activity, activityTypeOverride: ActivityType.DEPOSIT },
+    } as TransactionRowVM;
+    const saved = {
+      ...legacy.activity,
+      activityType: "CREDIT",
+      activityTypeOverride: null,
+      subtype: "REIMBURSEMENT",
+    };
+    const options = mount() as unknown as {
+      onSuccess: (saved: unknown, row: TransactionRowVM) => void;
+    };
+    act(() => options.onSuccess(saved, legacy));
+
+    const form = mocks.formProps.mock.lastCall?.[0] as {
+      activity: TransactionRowVM["activity"];
+    };
+    expect(form.activity).toMatchObject({
+      activityType: "CREDIT",
+      activityTypeOverride: null,
+      subtype: "REIMBURSEMENT",
+    });
+  });
 
   it("does not write when review fails and keeps ordinary error reporting", async () => {
     mocks.reviewActivitiesSplitEffects.mockRejectedValue(new Error("Review unavailable"));
