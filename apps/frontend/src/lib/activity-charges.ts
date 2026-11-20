@@ -67,6 +67,17 @@ export function getActivityChargeLines(activity: ChargeTotals): ActivityChargeLi
   return { fee, tax };
 }
 
+/**
+ * The metadata a copy of the activity needs to keep its fee and tax lines, or
+ * `undefined` when it has none that still add up to its totals.
+ */
+export function chargeLinesForCopy(
+  activity: ChargeTotals,
+): { [CHARGES_METADATA_KEY]: ActivityCharge[] } | undefined {
+  const lines = getActivityChargeLines(activity);
+  return lines ? { [CHARGES_METADATA_KEY]: [...lines.fee, ...lines.tax] } : undefined;
+}
+
 /** Scale of `scaledAmount`'s fixed-point integers. */
 const SCALE = 28;
 

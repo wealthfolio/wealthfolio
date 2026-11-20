@@ -112,6 +112,80 @@ describe("useActivityMutations", () => {
     },
   );
 
+  it("keeps the fee and tax lines of a duplicated same-account FX pair (#2747)", async () => {
+    const charges = [
+      { category: "fee", label: "FX fee", amount: "2" },
+      { category: "tax", label: "Levy", amount: "0.5" },
+    ];
+    const transferOut = {
+      id: "out",
+      accountId: "a",
+      activityType: ActivityType.TRANSFER_OUT,
+      amount: "100",
+      fee: "2",
+      tax: "0.5",
+      currency: "USD",
+      metadata: { flow: { is_external: false }, charges, mapping_reasons: ["x"] },
+    };
+    const transferIn = {
+      id: "in",
+      accountId: "a",
+      activityType: ActivityType.TRANSFER_IN,
+      amount: "92",
+      currency: "EUR",
+      metadata: { flow: { is_external: false } },
+    };
+    adapterMocks.getTransferPairForActivity.mockResolvedValue({ transferOut, transferIn });
+    adapterMocks.saveActivities.mockResolvedValue({
+      created: [transferOut, transferIn],
+      errors: [],
+    });
+    const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });
+    await act(async () => {
+      await result.current.duplicateActivityMutation.mutateAsync({
+        ...transferOut,
+        sourceGroupId: "old-group",
+        assetId: "",
+        assetSymbol: "CASH",
+      } as unknown as ActivityDetails);
+    });
+    const creates = adapterMocks.saveActivities.mock.calls[0][0].creates;
+    expect(creates[0]).toMatchObject({
+      fee: "2",
+      tax: "0.5",
+      metadata: { flow: { is_external: false }, charges },
+    });
+    expect(creates[0].metadata).not.toHaveProperty("mapping_reasons");
+    expect(creates[1].metadata).toEqual({ flow: { is_external: false } });
+  });
+
+  it("keeps the fee and tax lines of a duplicated trade (#2747)", async () => {
+    const charges = [
+      { category: "fee", label: "Brokerage", amount: "5" },
+      { category: "tax", label: "Stamp duty", amount: "1.25" },
+    ];
+    const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });
+    await act(async () => {
+      await result.current.duplicateActivityMutation.mutateAsync({
+        id: "buy-1",
+        accountId: "acc-1",
+        activityType: ActivityType.BUY,
+        assetId: "AAPL",
+        assetSymbol: "AAPL",
+        quantity: "10",
+        unitPrice: "100",
+        amount: "1000",
+        fee: "5",
+        tax: "1.25",
+        currency: "USD",
+        metadata: { charges, mapping_reasons: ["x"] },
+      } as unknown as ActivityDetails);
+    });
+    expect(adapterMocks.createActivity).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ fee: "5", tax: "1.25", metadata: { charges } }),
+    );
+  });
+
   it("duplicates a single leg, without its group, when the group resolves to no pair", async () => {
     adapterMocks.getTransferPairForActivity.mockResolvedValue(null);
     const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });

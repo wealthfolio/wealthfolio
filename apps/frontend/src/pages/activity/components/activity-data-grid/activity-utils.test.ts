@@ -947,6 +947,34 @@ describe("activity-utils", () => {
       expect(result.creates[0].idempotencyKey).toBe("manual-duplicate-123");
     });
 
+    it("should keep a new duplicate's fee and tax lines while they add up (#2747)", () => {
+      const charges = [
+        { category: "fee", label: "Brokerage", amount: "5" },
+        { category: "tax", label: "Stamp duty", amount: "1.25" },
+      ];
+      const duplicate = createMockTransaction({
+        id: "temp-new-1",
+        isNew: true,
+        fee: "5",
+        tax: "1.25",
+        metadata: { charges, mapping_reasons: ["x"] },
+      });
+      const payload = (transaction: LocalTransaction) =>
+        buildSavePayload(
+          [transaction],
+          new Set([transaction.id]),
+          new Set(),
+          mockResolveTransactionCurrency,
+          dirtyCurrencyLookup,
+          assetCurrencyLookup,
+          "USD",
+        ).creates[0];
+
+      expect(JSON.parse(payload(duplicate).metadata ?? "{}")).toEqual({ charges });
+      // A fee edited in the draft no longer matches its lines, so they are not saved.
+      expect(payload({ ...duplicate, fee: "6" }).metadata).toBeUndefined();
+    });
+
     it.each([true, false])(
       "should preserve only an explicit %s credit boundary for a new duplicate",
       (isExternal) => {

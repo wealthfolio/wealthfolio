@@ -1,6 +1,7 @@
 import { ActivityType } from "@/lib/constants";
 import { describe, expect, it } from "vitest";
 
+import { buildSavePayload } from "@/pages/activity/components/activity-data-grid/activity-utils";
 import type { SavePayloadResult } from "@/pages/activity/components/activity-data-grid/types";
 
 import type { CashActivity } from "../types/cash-activity";
@@ -385,6 +386,47 @@ describe("duplicateSpendingRow", () => {
       metadata: undefined,
     });
     expect(copy.id).not.toBe(source.id);
+  });
+
+  it("keeps the tax total and the fee and tax lines (#2747)", () => {
+    const charges = [{ category: "tax", label: "TDS", amount: "100" }];
+    const source = row({
+      activityType: "INTEREST",
+      amount: "900",
+      tax: "100",
+      metadata: { charges, mapping_reasons: ["x"] },
+    });
+    expect(duplicateSpendingRow(source, "CASH")).toMatchObject({
+      amount: "900",
+      tax: "100",
+      metadata: { charges },
+    });
+  });
+
+  it("saves a copy's lines only while they add up to its edited fee and tax (#2747)", () => {
+    const charges = [{ category: "tax", label: "TDS", amount: "100" }];
+    const copy = duplicateSpendingRow(
+      row({ activityType: "INTEREST", amount: "900", tax: "100", metadata: { charges } }),
+      "CASH",
+    );
+    const save = (draft: SpendingGridRow) =>
+      prepareSpendingPayload(
+        buildSavePayload(
+          [draft],
+          new Set([draft.id]),
+          new Set(),
+          () => "USD",
+          new Map(),
+          new Map(),
+          "USD",
+        ),
+        new Map([[draft.id, draft]]),
+        new Map(),
+      ).creates[0];
+
+    expect(JSON.parse(save(copy).metadata ?? "{}")).toEqual({ charges });
+    // The tax edited in the draft no longer matches the copied line, so the line is not saved.
+    expect(save({ ...copy, tax: "80" }).metadata).toBeUndefined();
   });
 
   it("drops a category from another taxonomy than the copy's", () => {

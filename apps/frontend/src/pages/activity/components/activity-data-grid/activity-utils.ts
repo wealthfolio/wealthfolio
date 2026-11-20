@@ -9,6 +9,7 @@ import {
 } from "@/lib/activity-utils";
 import { buildAssetResolutionInput, normalizeOptionalString } from "@/lib/asset-resolution-input";
 import { ActivityStatus, ActivityType, SUBTYPES_BY_ACTIVITY_TYPE } from "@/lib/constants";
+import { chargeLinesForCopy } from "@/lib/activity-charges";
 import type { Account } from "@/lib/types";
 import { normalizeDecimalString, parseLocalDateTime } from "@/lib/utils";
 import type {
@@ -642,20 +643,24 @@ export function buildSavePayload(
     const isNew = transaction.isNew === true;
 
     // Build metadata JSON if an explicit performance boundary is present.
-    let metadataJson: string | undefined;
+    let metadata: Record<string, unknown> | undefined;
     if (supportsBoundary && transaction.isExternal != null) {
-      // Existing updates retain metadata. New manual duplicates carry only the boundary marker.
+      // Existing updates retain metadata. New manual duplicates carry only the boundary marker
+      // and the fee and tax lines below.
       const existingMeta =
         !isNew && typeof transaction.metadata === "object" ? transaction.metadata : {};
-      const newMeta = {
+      metadata = {
         ...existingMeta,
         flow: {
           ...(existingMeta?.flow as Record<string, unknown> | undefined),
           is_external: transaction.isExternal,
         },
       };
-      metadataJson = JSON.stringify(newMeta);
     }
+    // A new duplicate keeps its source's lines while they still add up to the row's totals.
+    const chargeLines = isNew ? chargeLinesForCopy(transaction) : undefined;
+    if (chargeLines) metadata = { ...metadata, ...chargeLines };
+    const metadataJson = metadata ? JSON.stringify(metadata) : undefined;
 
     // Common payload fields (shared between create and update)
     const fxRate =

@@ -395,6 +395,34 @@ describe("SpendingTransactionsTab transfer edit", () => {
     },
   );
 
+  it("duplicates an interest with its withholding tax and its lines (#2747)", async () => {
+    render(<SpendingTransactionsTab />);
+    const duplicateOptions = mocks.useMutation.mock.calls[0][0] as {
+      mutationFn: (row: TransactionRowVM) => Promise<unknown>;
+    };
+    const charges = [{ category: "tax", label: "TDS", amount: "100" }];
+
+    await duplicateOptions.mutationFn({
+      activity: {
+        ...mocks.transferOut,
+        id: "interest-1",
+        activityType: ActivityType.INTEREST,
+        status: ActivityStatus.POSTED,
+        amount: "900",
+        tax: "100",
+        metadata: { charges },
+        cashFlowBucket: "income",
+      },
+      category: null,
+      splitCount: 0,
+      needsReview: false,
+    });
+
+    expect(mocks.createActivity).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ amount: "900", tax: "100", metadata: { charges } }),
+    );
+  });
+
   it("loads the counterpart leg when editing a linked transfer (#1563)", async () => {
     mocks.getTransferPairForActivity.mockResolvedValue({
       transferOut: {

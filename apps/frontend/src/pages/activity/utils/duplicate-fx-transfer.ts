@@ -1,4 +1,5 @@
 import { getTransferPairForActivity } from "@/adapters";
+import { chargeLinesForCopy } from "@/lib/activity-charges";
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { ActivityType } from "@/lib/constants";
 import { generateId } from "@/lib/id";
@@ -39,7 +40,8 @@ export async function buildSameAccountFxDuplicate(activity: ActivityDetails) {
         tax: leg.tax,
         fxRate: leg.fxRate,
         comment: leg.notes,
-        metadata: { flow: { is_external: false } },
+        // Each leg keeps its fee and tax lines while they still add up to its totals.
+        metadata: { flow: { is_external: false }, ...chargeLinesForCopy(leg) },
       }) satisfies ActivityCreate,
   );
 }

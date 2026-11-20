@@ -25,6 +25,7 @@ import {
   InternalTransferPairRequest,
   InternalTransferPairResponse,
 } from "@/lib/types";
+import { chargeLinesForCopy } from "@/lib/activity-charges";
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -400,6 +401,9 @@ export function useActivityMutations(
       supportsBoundary && typeof flow?.is_external === "boolean"
         ? { flow: { is_external: flow.is_external } }
         : undefined;
+    const chargeLines = chargeLinesForCopy(activityToDuplicate);
+    const metadata =
+      boundaryMetadata || chargeLines ? { ...boundaryMetadata, ...chargeLines } : undefined;
 
     // For duplicating, use nested asset object
     const createPayload: ActivityCreate = {
@@ -416,7 +420,7 @@ export function useActivityMutations(
       fxRate: restOfActivityData.fxRate ?? undefined,
       activityDate: new Date(),
       comment,
-      metadata: boundaryMetadata,
+      metadata,
       asset: buildAssetResolutionInput({
         id: _assetId,
         symbol: assetSymbol,
