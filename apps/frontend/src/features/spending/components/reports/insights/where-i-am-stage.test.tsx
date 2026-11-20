@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { DirectionProvider, FormattingProvider, type TextDirection } from "@wealthfolio/ui";
 import { cloneElement, isValidElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WhereIAmStage } from "./where-i-am-stage";
 import type { BudgetSnapshot } from "../../../types/budget";
 import type { MonthlyReport } from "../../../types/report";
@@ -299,7 +299,10 @@ describe("Where I am comparison labels", () => {
 });
 
 describe("Net cashflow with money brought back from savings", () => {
-  function renderMonth(saved: number, fromSavings: number) {
+  // The savings switch is remembered on the device: start each test with it on.
+  afterEach(() => localStorage.clear());
+
+  function renderMonth(saved: number, fromSavings: number, { savingsInChart = false } = {}) {
     const base = report(1500);
     const month = {
       iso: "2025-03-01",
@@ -322,7 +325,8 @@ describe("Net cashflow with money brought back from savings", () => {
         <FormattingProvider locale="en-US" timezone={timezone}>
           <WhereIAmStage
             range={range}
-            currentReport={base}
+            // The switch sits on the money flow, which shows it when the period has savings.
+            currentReport={savingsInChart ? month.report : base}
             priorReport={report(150)}
             months={[month]}
             taxonomyCategories={[]}
@@ -352,5 +356,19 @@ describe("Net cashflow with money brought back from savings", () => {
     expect(card).toHaveTextContent(/−\$1,200/);
     const saved = within(card).getByText("Net saved").parentElement!;
     expect(saved).toHaveTextContent(/\$700/);
+  });
+
+  it("nets income against spending alone once savings are switched off, and keeps net saved", () => {
+    const card = renderMonth(900, 200, { savingsInChart: true });
+    expect(card).toHaveTextContent(/−\$1,200/);
+
+    fireEvent.click(screen.getByRole("switch", { name: "Include savings" }));
+
+    expect(within(card).getByText("NET CASHFLOW · BEFORE SAVINGS")).toBeInTheDocument();
+    // 1,000 − 1,500, with the 700 saved beside it and not in it.
+    expect(card).toHaveTextContent(/−\$500/);
+    expect(within(card).getByText("Net saved").parentElement!).toHaveTextContent(/\$700/);
+    // The chart follows the same switch.
+    expect(screen.queryByText("To savings")).not.toBeInTheDocument();
   });
 });

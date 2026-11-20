@@ -37,6 +37,8 @@ import {
 import { usePersistentState } from "@/hooks/use-persistent-state";
 
 import { useBudget } from "../hooks/use-budget";
+import { useSavingsInCashFlow } from "../hooks/use-savings-in-cash-flow";
+import { SavingsInCashFlowToggle } from "./savings-in-cash-flow-toggle";
 import { useCashActivities, useUncategorizedCount } from "../hooks/use-cash-activities";
 import { useCategorizationRules } from "../hooks/use-categorization-rules";
 import { useSpendingReport } from "../hooks/use-spending-report";
@@ -613,6 +615,13 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
 
   const totalSpending = report?.current.outflow ?? 0;
   const totalSaved = report?.current.saved ?? 0;
+  const [includeSavings, setIncludeSavings] = useSavingsInCashFlow();
+  // What "Where it went" counts as saved: nothing while savings are left out.
+  const breakdownSaved = includeSavings ? totalSaved : 0;
+  // The switch is worth showing when it changes something, and stays while off
+  // so it can be turned back on in a period without savings.
+  const showSavingsToggle =
+    !includeSavings || totalSaved > 0 || (report?.current.fromSavings ?? 0) > 0;
   const priorSpending = priorReport?.current.outflow ?? 0;
   const delta = totalSpending - priorSpending;
   // `deltaPct` is a RATIO (0.2 == 20%) used for thresholds; convert to
@@ -969,12 +978,12 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
       spendingBreakdown: report.spendingBreakdown,
       priorSpendingBreakdown: priorReport?.spendingBreakdown ?? [],
       categoriesMeta,
-      totalSaved,
+      totalSaved: breakdownSaved,
       priorSaved: priorReport?.current.saved ?? 0,
       uncategorizedLabel: t("spending:insightsPage.uncategorized"),
       savingsLabel: t("spending:cashFlow.saving"),
     });
-  }, [report, priorReport, categoriesMeta, t, totalSaved]);
+  }, [report, priorReport, categoriesMeta, t, breakdownSaved]);
 
   const insights = useMemo(() => {
     const items: {
@@ -1147,6 +1156,7 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
             spending={report?.current.outflow ?? 0}
             saving={report?.current.saved ?? 0}
             fromSavings={report?.current.fromSavings ?? 0}
+            includeSavings={includeSavings}
             currency={currency}
             isLoading={isLoading}
             incomeHref={dashboardInsightHref.cashflow}
@@ -1448,6 +1458,12 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
                 className="order-1 overflow-hidden @min-[53rem]:order-none"
                 action={
                   <div className="flex items-center gap-3">
+                    {showSavingsToggle && (
+                      <SavingsInCashFlowToggle
+                        checked={includeSavings}
+                        onCheckedChange={setIncludeSavings}
+                      />
+                    )}
                     <SegmentedToggle
                       ariaLabel={t("spending:tabContent.whereItWentView")}
                       items={[
@@ -1471,7 +1487,7 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
                 ) : whereItWentView === "map" ? (
                   <CategoryTreemapMono
                     rows={categoryRows}
-                    total={totalSpending + totalSaved}
+                    total={totalSpending + breakdownSaved}
                     currency={currency}
                     themeColor={theme.deep}
                     hasNoIncludedAccounts={hasNoIncludedAccounts}
@@ -1480,7 +1496,7 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
                 ) : (
                   <CategoryRankedBar
                     rows={categoryRows}
-                    total={totalSpending + totalSaved}
+                    total={totalSpending + breakdownSaved}
                     currency={currency}
                     themeColor={theme.deep}
                     groupRows={budget?.computed.groupRows ?? []}

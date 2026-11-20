@@ -196,6 +196,9 @@
     "spending": "Spending",
     "saving": "Saving",
     "netSaved": "Net saved",
+    "netBeforeSavings": "Net before savings",
+    "includeSavings": "Include savings",
+    "includeSavingsHint": "Count money moved to and from savings in the net and in these charts.",
     "net": "Net"
   },
   "insights": {
@@ -752,6 +755,7 @@
     "vsRange": "vs {{from}} – {{to}}",
     "moreCount": "+{{count}} more",
     "netCashflow": "NET CASHFLOW",
+    "netCashflowBeforeSavings": "NET CASHFLOW · BEFORE SAVINGS",
     "leftOver": "Left over {{pct}}",
     "overspentCapped": "Overspent by 100%+",
     "overspentBy": "Overspent by {{pct}}",

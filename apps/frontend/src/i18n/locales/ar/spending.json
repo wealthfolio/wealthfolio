@@ -200,6 +200,9 @@
     "net": "الصافي",
     "saving": "الادخار",
     "netSaved": "صافي المدخر",
+    "netBeforeSavings": "الصافي قبل الادخار",
+    "includeSavings": "تضمين الادخار",
+    "includeSavingsHint": "احتساب الأموال المحوّلة إلى الادخار ومنه في الصافي وفي هذه المخططات.",
     "spending": "الإنفاق"
   },
   "cashForm": {
@@ -1276,6 +1279,7 @@
     "moreCount_two": "+{{count}}",
     "moreCount_zero": "+{{count}} أخرى",
     "netCashflow": "صافي التدفق النقدي",
+    "netCashflowBeforeSavings": "صافي التدفق النقدي · قبل الادخار",
     "noBudgetBody": "تتيح الميزانية عرض مؤشرات الوتيرة والتوقعات والرصيد المتبقي على هذه البطاقة.",
     "noBudgetSet": "لم يتم تحديد ميزانية",
     "noBudgetTitle": "حدد هدفًا شهريًا لترى مدى التزامك بالوتيرة.",

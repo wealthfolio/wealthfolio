@@ -7,6 +7,8 @@ import { Skeleton, useAmountFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import { netCashFlow } from "../hooks/use-savings-in-cash-flow";
+
 export interface CashFlowStripProps {
   income: number;
   spending: number;
@@ -14,6 +16,11 @@ export interface CashFlowStripProps {
   saving?: number;
   /** Money brought back from those accounts. The Saving figure shows the net. */
   fromSavings?: number;
+  /**
+   * Whether Net is what is left after saving too. When false it is income less
+   * spending, labelled as such; Net saved shows either way.
+   */
+  includeSavings?: boolean;
   currency: string;
   isLoading?: boolean;
   incomeHref?: string;
@@ -26,6 +33,7 @@ export function CashFlowStrip({
   spending,
   saving = 0,
   fromSavings = 0,
+  includeSavings = true,
   currency,
   isLoading,
   incomeHref,
@@ -33,7 +41,7 @@ export function CashFlowStrip({
   savingHref,
 }: CashFlowStripProps) {
   const { t } = useTranslation();
-  const net = income - spending - saving + fromSavings;
+  const net = netCashFlow({ income, spending, saved: saving, fromSavings }, includeSavings);
   const netPositive = net >= 0;
   // Net saving goes negative when more came back from savings than went in;
   // it shows with its sign rather than clamped, so the strip still adds up.
@@ -81,7 +89,9 @@ export function CashFlowStrip({
         />
       )}
       <KpiStat
-        label={t("spending:cashFlow.net")}
+        label={
+          includeSavings ? t("spending:cashFlow.net") : t("spending:cashFlow.netBeforeSavings")
+        }
         value={Math.abs(net)}
         sign={netPositive ? "+" : "−"}
         currency={currency}

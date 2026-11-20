@@ -196,11 +196,16 @@ export function moneyFlowInputFromReport(
     savings: TaxonomyCategory[];
   },
   labels: MoneyFlowLabels,
+  /**
+   * Without savings the flow is income against spending alone: no "To savings"
+   * or "From savings", and what is left over (or short) is before any saving.
+   */
+  { includeSavings = true }: { includeSavings?: boolean } = {},
 ): MoneyFlowInput {
   return {
     incomeBreakdown: report.incomeBreakdown,
-    savingsBreakdown: report.savingsBreakdown,
-    fromSavings: report.current.fromSavings ?? 0,
+    savingsBreakdown: includeSavings ? report.savingsBreakdown : [],
+    fromSavings: includeSavings ? (report.current.fromSavings ?? 0) : 0,
     groupRows: budget?.computed.groupRows ?? [],
     uncategorizedSpent:
       report.spendingBreakdown.find((row) => row.categoryId === UNCATEGORIZED_CATEGORY_ID)

@@ -201,6 +201,9 @@
     "spending": "Dépenses",
     "saving": "Épargne",
     "netSaved": "Épargne nette",
+    "netBeforeSavings": "Net avant épargne",
+    "includeSavings": "Inclure l'épargne",
+    "includeSavingsHint": "Compter l'argent versé vers l'épargne ou repris de celle-ci dans le net et dans ces graphiques.",
     "net": "Net"
   },
   "insights": {
@@ -791,6 +794,7 @@
     "vsPrior": "vs précédent",
     "moreCount": "+{{count}} de plus",
     "netCashflow": "FLUX NET",
+    "netCashflowBeforeSavings": "FLUX NET · AVANT ÉPARGNE",
     "leftOver": "Reste {{pct}}",
     "overspentCapped": "Dépassement de 100 %+",
     "overspentBy": "Dépassement de {{pct}}",

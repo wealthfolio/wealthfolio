@@ -13,6 +13,7 @@ function renderStrip(props: {
   spending: number;
   saving?: number;
   fromSavings?: number;
+  includeSavings?: boolean;
 }) {
   render(
     <FormattingProvider locale="en-US">
@@ -45,6 +46,15 @@ describe("CashFlowStrip", () => {
 
     expect(kpi("Net saved")).toBe("$500");
     expect(kpi("Net")).toBe("+$100");
+  });
+
+  it("nets income against spending alone when savings are left out, and still shows net saved", () => {
+    // A transfer of existing cash, far larger than the month's income.
+    renderStrip({ income: 1000, spending: 400, saving: 50_000, includeSavings: false });
+
+    expect(kpi("Net saved")).toBe("$50K");
+    expect(kpi("Net before savings")).toBe("+$600");
+    expect(screen.queryByText("Net")).not.toBeInTheDocument();
   });
 
   it("leaves saving out when nothing moved to or from savings", () => {

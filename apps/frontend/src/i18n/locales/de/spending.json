@@ -196,6 +196,9 @@
     "spending": "Ausgaben",
     "saving": "Sparen",
     "netSaved": "Netto gespart",
+    "netBeforeSavings": "Netto vor Sparen",
+    "includeSavings": "Sparen einbeziehen",
+    "includeSavingsHint": "Geld, das zum oder vom Sparen bewegt wurde, im Netto und in diesen Diagrammen mitzählen.",
     "net": "Netto"
   },
   "insights": {
@@ -751,6 +754,7 @@
     "vsPrior": "vs vorher",
     "moreCount": "+{{count}} weitere",
     "netCashflow": "NETTO-CASHFLOW",
+    "netCashflowBeforeSavings": "NETTO-CASHFLOW · VOR SPAREN",
     "leftOver": "Übrig {{pct}}",
     "overspentCapped": "Über 100 % zu viel ausgegeben",
     "overspentBy": "Zu viel ausgegeben um {{pct}}",

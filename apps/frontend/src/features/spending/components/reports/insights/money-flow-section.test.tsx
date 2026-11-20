@@ -215,6 +215,8 @@ interface FlowOptions {
   incomeCategories?: TaxonomyCategory[];
   toSavings?: number;
   fromSavings?: number;
+  includeSavings?: boolean;
+  onIncludeSavingsChange?: (includeSavings: boolean) => void;
 }
 
 function flow({
@@ -227,6 +229,8 @@ function flow({
   incomeCategories = salaryOnly,
   toSavings,
   fromSavings,
+  includeSavings = true,
+  onIncludeSavingsChange = () => undefined,
 }: FlowOptions) {
   return (
     <FormattingProvider locale="en-US">
@@ -240,6 +244,8 @@ function flow({
         currency="USD"
         isLoading={false}
         isMobile={isMobile}
+        includeSavings={includeSavings}
+        onIncludeSavingsChange={onIncludeSavingsChange}
         onCategoryClick={onCategoryClick}
       />
     </FormattingProvider>
@@ -442,6 +448,42 @@ describe("MoneyFlowSection", () => {
     expect(tooltip).toHaveTextContent("Brought back from savings and investment accounts.");
     // Not a share of income it wasn't part of: shares switch to the total.
     expect(tooltip).toHaveTextContent("17% of total");
+  });
+
+  it("leaves savings out of the flow when they are switched off", () => {
+    // A transfer far larger than the month's income: with savings in, the
+    // chart is one ribbon to savings and a matching shortfall.
+    setup({ income: 2500, toSavings: 50_000, fromSavings: 400, includeSavings: false });
+
+    expect(screen.queryByText("To savings")).not.toBeInTheDocument();
+    expect(screen.queryByText("From savings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Shortfall")).not.toBeInTheDocument();
+    // Income against spending alone: 2,500 − 1,618.
+    expect(screen.getByRole("img", { name: "Total, $2,500" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Left over, $882" })).toBeInTheDocument();
+  });
+
+  it("offers the savings switch when the period has savings, and reports a change", () => {
+    const onIncludeSavingsChange = vi.fn();
+    setup({ toSavings: 500, onIncludeSavingsChange });
+
+    const toggle = screen.getByRole("switch", { name: "Include savings" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+
+    expect(onIncludeSavingsChange).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps the savings switch while off, so it can be turned back on", () => {
+    setup({ includeSavings: false });
+
+    expect(screen.getByRole("switch", { name: "Include savings" })).not.toBeChecked();
+  });
+
+  it("shows no savings switch when it would change nothing", () => {
+    setup();
+
+    expect(screen.queryByRole("switch", { name: "Include savings" })).not.toBeInTheDocument();
   });
 
   it("treats a month funded only from savings as money in", () => {

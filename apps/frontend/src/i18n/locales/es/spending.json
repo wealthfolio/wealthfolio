@@ -201,6 +201,9 @@
     "spending": "Gastos",
     "saving": "Ahorro",
     "netSaved": "Ahorro neto",
+    "netBeforeSavings": "Neto antes del ahorro",
+    "includeSavings": "Incluir ahorro",
+    "includeSavingsHint": "Contar el dinero movido hacia y desde el ahorro en el neto y en estos gráficos.",
     "net": "Neto"
   },
   "insights": {
@@ -791,6 +794,7 @@
     "vsPrior": "vs anterior",
     "moreCount": "+{{count}} más",
     "netCashflow": "FLUJO DE CAJA NETO",
+    "netCashflowBeforeSavings": "FLUJO DE CAJA NETO · ANTES DEL AHORRO",
     "leftOver": "Sobrante {{pct}}",
     "overspentCapped": "Sobregastado en más del 100%",
     "overspentBy": "Sobregastado en {{pct}}",

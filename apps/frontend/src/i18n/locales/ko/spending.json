@@ -195,6 +195,9 @@
     "spending": "지출",
     "saving": "저축",
     "netSaved": "순저축",
+    "netBeforeSavings": "저축 전 순액",
+    "includeSavings": "저축 포함",
+    "includeSavingsHint": "저축으로 옮기거나 저축에서 가져온 돈을 순액과 이 차트에 포함합니다.",
     "net": "순액"
   },
   "insights": {
@@ -744,6 +747,7 @@
     "vsPrior": "이전 대비",
     "moreCount": "+{{count}} 더보기",
     "netCashflow": "순 현금 흐름",
+    "netCashflowBeforeSavings": "순 현금 흐름 · 저축 전",
     "leftOver": "남은 금액 {{pct}}",
     "overspentCapped": "100% 이상 초과 지출",
     "overspentBy": "{{pct}} 초과 지출",

@@ -195,6 +195,9 @@
     "spending": "支出",
     "saving": "储蓄",
     "netSaved": "净储蓄",
+    "netBeforeSavings": "储蓄前净额",
+    "includeSavings": "包含储蓄",
+    "includeSavingsHint": "在净额和这些图表中计入转入和转出储蓄的资金。",
     "net": "净额"
   },
   "insights": {
@@ -744,6 +747,7 @@
     "vsPrior": "对比上期",
     "moreCount": "+{{count}} 项",
     "netCashflow": "净现金流",
+    "netCashflowBeforeSavings": "净现金流 · 储蓄前",
     "leftOver": "剩余 {{pct}}",
     "overspentCapped": "超支 100% 以上",
     "overspentBy": "超支 {{pct}}",
