@@ -50,6 +50,7 @@ import {
   type RuleFormValues,
 } from "@/features/spending/components/rule-form";
 import { isSpendingAccountType } from "@/features/spending/lib/constants";
+import { PAYEES_TAXONOMY_ID } from "@/features/spending/lib/payee";
 import {
   useCategorizationRuleMutations,
   useCategorizationRules,
@@ -80,6 +81,7 @@ export default function SpendingRulesPage() {
   const spending = useTaxonomy(SPENDING_TAXONOMY);
   const income = useTaxonomy(INCOME_TAXONOMY);
   const savings = useTaxonomy(SAVINGS_TAXONOMY);
+  const payees = useTaxonomy(PAYEES_TAXONOMY_ID);
   const { create, update, remove, rerun } = useCategorizationRuleMutations();
 
   const [visibleModal, setVisibleModal] = useState(false);
@@ -123,6 +125,7 @@ export default function SpendingRulesPage() {
       ...buildOptions(SPENDING_TAXONOMY, spending.data?.categories ?? []),
       ...buildOptions(INCOME_TAXONOMY, income.data?.categories ?? []),
       ...buildOptions(SAVINGS_TAXONOMY, savings.data?.categories ?? []),
+      ...buildOptions(PAYEES_TAXONOMY_ID, payees.data?.categories ?? []),
     ];
     const meta: Record<string, RuleCategoryMeta> = {};
     opts.forEach((o) => {
@@ -135,7 +138,13 @@ export default function SpendingRulesPage() {
       meta[o.categoryId] ??= entry;
     });
     return { categoryOptions: opts, categoryMeta: meta };
-  }, [spending.data?.categories, income.data?.categories, savings.data?.categories, t]);
+  }, [
+    spending.data?.categories,
+    income.data?.categories,
+    savings.data?.categories,
+    payees.data?.categories,
+    t,
+  ]);
 
   const presetMeta = useMemo<Record<string, RulePresetMeta>>(() => {
     const meta: Record<string, RulePresetMeta> = {};
