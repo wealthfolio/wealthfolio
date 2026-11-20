@@ -95,7 +95,7 @@ Visit the website at
 - **🧩 Extensible** - Powerful addon system for custom functionality
 - **🌍 Multi-Currency** - Support for multiple currencies with exchange rate
   management
-- **🌐 11 Languages** - Including right-to-left Arabic, with regional number and
+- **🌐 12 Languages** - Including right-to-left Arabic, with regional number and
   currency formats
 - **📱 Cross-Platform** - Desktop (Windows, macOS, Linux), iOS, Android, and
   self-hosted Docker/web

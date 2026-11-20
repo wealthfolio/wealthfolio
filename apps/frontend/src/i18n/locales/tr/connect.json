@@ -1,0 +1,332 @@
+{
+  "opensInBrowser": "Tarayıcıda açılır",
+  "page": {
+    "title": "Senkronizasyon ve Bağlantılar",
+    "subtitle": "Tüm cihazlarınız tek bir yerde.",
+    "subtitleWithBrokers": "Tüm aracı kurumlarınız ve cihazlarınız tek bir yerde.",
+    "brokerages": "Aracı Kurumlar",
+    "devices": "Cihazlar",
+    "recentActivity": "Son Etkinlikler",
+    "manage": "Yönet",
+    "timeAgo": "{{time}} önce",
+    "noBrokeragesConnected": "Bağlı aracı kurum yok",
+    "noBrokeragesDescription": "Hesaplarınızı senkronize etmeye başlamak için bir aracı kurum bağlayın.",
+    "noDevicesSyncing": "Henüz senkronize edilen cihaz yok",
+    "noDevicesDescription": "Verilerinizi cihazlar arasında senkronize tutmak için ayarlardan cihaz senkronizasyonunu kurun.",
+    "noActivity": "Henüz etkinlik yok",
+    "noActivityDescription": "Verileriniz senkronize edilmeye başladığında güncellemeler burada görünecek.",
+    "showMore_one": "{{count}} tane daha göster",
+    "showMore_other": "{{count}} tane daha göster",
+    "showLess": "Daha az göster"
+  },
+  "emptyState": {
+    "optional": "İsteğe Bağlı",
+    "subtitle": "Verilerinizi gizli tutarken aracı kurumlarınızı otomatik olarak senkronize edin.",
+    "getStarted": "Connect ile Başlayın",
+    "loginToAccount": "Hesabınıza giriş yapın",
+    "learnMore": "Connect hakkında daha fazla bilgi",
+    "features": {
+      "brokerageSync": {
+        "title": "Aracı Kurum Senkronizasyonu",
+        "description": "Hesapları ve işlemleri her gün otomatik senkronize edin."
+      },
+      "deviceSync": {
+        "title": "Cihaz Senkronizasyonu",
+        "description": "Uçtan uca şifrelemeyle cihazlar arasında senkronize edin."
+      },
+      "householdView": {
+        "title": "Hane Görünümü",
+        "description": "Hesapları aile üyelerinizle paylaşın."
+      }
+    }
+  },
+  "flow": {
+    "aggregatorExample": "(ör. SnapTrade)",
+    "yourDevice": "Cihazınız",
+    "localDatabase": "Yerel veritabanı",
+    "dataStaysHere": "Veriler burada kalır",
+    "aggregators": "Toplayıcılar",
+    "brokerages": "Aracı Kurumlar",
+    "banks": "Bankalar",
+    "crypto": "Kripto"
+  },
+  "account": {
+    "userAvatar": "Kullanıcı avatarı",
+    "userFallback": "Kullanıcı",
+    "active": "Aktif",
+    "signOut": "Çıkış yap",
+    "signOutTitle": "Wealthfolio Connect oturumu kapatılsın mı?",
+    "signOutMessage": "Senkronize edilen aracı kurum hesaplarınıza erişmek için tekrar giriş yapmanız gerekecek. Yerel verileriniz etkilenmeyecek.",
+    "signOutConfirm": "Çıkış yap",
+    "signingOut": "Çıkış yapılıyor..."
+  },
+  "accounts": {
+    "title": "Hesaplar",
+    "manage": "Hesapları yönet",
+    "accountFallback": "Hesap",
+    "platformFallback": "Platform",
+    "brokerFallback": "Aracı Kurum",
+    "paper": "Sanal",
+    "shared": "Paylaşılan",
+    "sharedBy": "Paylaşan: {{name}}",
+    "syncEnabled": "Senkronizasyon açık",
+    "excludedFromSync": "Senkronizasyon dışı",
+    "noDataYet": "Henüz veri yok",
+    "dataAsOf": "{{date}} itibarıyla veriler",
+    "emptyTitle": "Henüz senkronize edilen hesap yok",
+    "emptyDescription": "Hesaplarınızı senkronize etmeye başlamak için bir aracı kurum bağlayın.",
+    "needsSetup": "Kurulum Gerekli"
+  },
+  "connections": {
+    "title": "Aracı kurum bağlantıları",
+    "manage": "Bağlantıları yönet",
+    "empty": "Henüz aracı kurum bağlantısı yok",
+    "connectBroker": "Aracı kurum bağla",
+    "unknownBroker": "Bilinmeyen aracı kurum",
+    "unknown": "Bilinmiyor",
+    "connected": "Bağlı",
+    "disconnected": "Bağlantı kesildi",
+    "reconnect": "Yeniden bağlan",
+    "noAccountsFound": "Hesap bulunamadı",
+    "allAccountsExcluded": "Tüm hesaplar hariç tutuldu",
+    "accountsSyncing_one": "{{count}} hesap senkronize ediliyor",
+    "accountsSyncing_other": "{{count}} hesap senkronize ediliyor",
+    "partialSyncing_one": "{{total}} hesaptan {{syncing}} tanesi senkronize ediliyor · {{excluded}} hesap hariç tutuldu",
+    "partialSyncing_other": "{{total}} hesaptan {{syncing}} tanesi senkronize ediliyor · {{excluded}} hesap hariç tutuldu",
+    "accountCount_one": "{{count}} hesap",
+    "accountCount_other": "{{count}} hesap",
+    "excludedCount_one": "{{count}} hariç tutuldu",
+    "excludedCount_other": "{{count}} hariç tutuldu"
+  },
+  "sync": {
+    "syncNow": "Şimdi senkronize et",
+    "sync": "Senkronize Et",
+    "syncAll": "Tümünü Senkronize Et",
+    "syncingShort": "Senkronize ediliyor...",
+    "statusTitle": "Senkronizasyon Durumu",
+    "syncingBrokerData": "Aracı kurum verileri senkronize ediliyor...",
+    "startFailed": "Senkronizasyon başlatılamadı: {{error}}",
+    "needAttention_one": "{{count}} hesap ilgi bekliyor",
+    "needAttention_other": "{{count}} hesap ilgi bekliyor"
+  },
+  "status": {
+    "upToDate": "Güncel",
+    "syncing": "Senkronize Ediliyor",
+    "syncingEllipsis": "Senkronize ediliyor...",
+    "needsReview": "İnceleme Gerekli",
+    "failed": "Başarısız",
+    "notConnected": "Bağlı Değil",
+    "lastSynced": "Son senkronizasyon: {{time}}",
+    "neverSynced": "Hiç senkronize edilmedi"
+  },
+  "runStatus": {
+    "running": "Çalışıyor",
+    "applied": "Uygulandı",
+    "needsReview": "İnceleme Gerekli",
+    "failed": "Başarısız",
+    "cancelled": "İptal Edildi"
+  },
+  "syncRuns": {
+    "title": "Son Senkronizasyonlar",
+    "empty": "Henüz senkronizasyon yapılmadı.",
+    "warningsCount_one": "{{count}} uyarı",
+    "warningsCount_other": "{{count}} uyarı",
+    "fetched": "Alınan",
+    "inserted": "Eklenen",
+    "updated": "Güncellenen",
+    "skipped": "Atlanan",
+    "warningsLabel": "Uyarılar:",
+    "andMore": "... ve {{count}} tane daha",
+    "reviewActivities": "İşlemleri incele",
+    "duration": "Süre:",
+    "inProgress": "Devam ediyor...",
+    "andMore_one": "... ve {{count}} tane daha",
+    "andMore_other": "... ve {{count}} tane daha"
+  },
+  "syncHistory": {
+    "title": "Senkronizasyon Geçmişi",
+    "success": "Başarılı",
+    "review": "İncele",
+    "emptyTitle": "Henüz senkronizasyon yapılmadı",
+    "emptyDescription": "Senkronizasyon geçmişiniz ilk senkronizasyondan sonra burada görünecek",
+    "runCount_one": "{{count}} çalıştırma",
+    "runCount_other": "{{count}} çalıştırma",
+    "loadMore": "Daha fazla yükle",
+    "lessThanOneSecond": "<1 sn",
+    "new": "yeni",
+    "updated": "güncellendi",
+    "skipped": "atlandı",
+    "warningsCount_one": "{{count}} uyarı",
+    "warningsCount_other": "{{count}} uyarı",
+    "andMore": "+{{count}} tane daha",
+    "andMore_one": "+{{count}} tane daha",
+    "andMore_other": "+{{count}} tane daha"
+  },
+  "activity": {
+    "syncingData": "Verileriniz senkronize ediliyor...",
+    "somethingWentWrong": "Bir şeyler ters gitti",
+    "upToDate": "Her şey güncel",
+    "itemsNeedReview_one": "{{count}} öğe incelemenizi bekliyor",
+    "itemsNeedReview_other": "{{count}} öğe incelemenizi bekliyor",
+    "newItems": {
+      "transaction_one": "{{count}} yeni işlem",
+      "transaction_other": "{{count}} yeni işlem",
+      "position_one": "{{count}} yeni pozisyon",
+      "position_other": "{{count}} yeni pozisyon"
+    },
+    "updatedItems": {
+      "transaction_one": "{{count}} işlem güncellendi",
+      "transaction_other": "{{count}} işlem güncellendi",
+      "position_one": "{{count}} pozisyon güncellendi",
+      "position_other": "{{count}} pozisyon güncellendi"
+    },
+    "removedItems": {
+      "transaction_one": "{{count}} işlem kaldırıldı",
+      "transaction_other": "{{count}} işlem kaldırıldı",
+      "position_one": "{{count}} pozisyon kaldırıldı",
+      "position_other": "{{count}} pozisyon kaldırıldı"
+    }
+  },
+  "attention": {
+    "title": "Aracı kurum senkronizasyonu ilgi bekliyor",
+    "description_one": "{{count}} hesap için yeniden deneme veya aracı kurum incelemesi gerekiyor.",
+    "description_other": "{{count}} hesap için yeniden deneme veya aracı kurum incelemesi gerekiyor.",
+    "heading": "Dikkat gerekiyor",
+    "connectionLost": "Bağlantı koptu",
+    "accountsNotSyncing_one": "{{count}} hesap senkronize edilmiyor",
+    "accountsNotSyncing_other": "{{count}} hesap senkronize edilmiyor",
+    "syncFailed": "Son senkronizasyon başarısız oldu"
+  },
+  "setup": {
+    "newAccountsTitle": "Yeni hesapların kurulması gerekiyor",
+    "newAccountsDescription_one": "Senkronizasyona başlayabilmemiz için {{count}} hesabın hızlıca kurulması gerekiyor.",
+    "newAccountsDescription_other": "Senkronizasyona başlayabilmemiz için {{count}} hesabın hızlıca kurulması gerekiyor.",
+    "reviewAccounts": "Hesapları incele",
+    "setUp": "Kur"
+  },
+  "devices": {
+    "thisDevice": "Bu cihaz",
+    "activeNow": "Şu an aktif",
+    "lastSeen": "Son görülme: {{time}}",
+    "online": "Çevrimiçi",
+    "never": "Hiç",
+    "showInactive_one": "{{count}} etkin olmayan cihazı göster",
+    "showInactive_other": "{{count}} etkin olmayan cihazı göster",
+    "hideInactive": "Etkin olmayan cihazları gizle",
+    "platforms": {
+      "server": "Sunucu",
+      "web": "Web"
+    }
+  },
+  "deviceStatus": {
+    "syncError": "Senkronizasyon hatası",
+    "syncPaused": "Senkronizasyon duraklatıldı",
+    "upToDate": "Güncel",
+    "syncing": "Senkronize ediliyor"
+  },
+  "serviceUnavailable": {
+    "title": "Hizmet geçici olarak kullanılamıyor",
+    "description": "Wealthfolio Connect'e bağlanırken sorun yaşıyoruz. Bu genellikle geçicidir ve kısa sürede düzelir.",
+    "retrying": "Yeniden deneniyor...",
+    "tryAgain": "Tekrar dene"
+  },
+  "upgrade": {
+    "title": "Aracı kurum hesaplarını senkronize etmek için yükseltin",
+    "description": "Otomatik portföy senkronizasyonu için aracı kurum hesaplarınızı bağlayın.",
+    "button": "Yükselt"
+  },
+  "privacy": {
+    "footnote": "Wealthfolio Connect, aracı kurum kimlik bilgilerinizi veya finansal verilerinizi saklamaz. Her şey bir toplayıcı aracılığıyla yerel veritabanınıza güvenli şekilde senkronize edilir. Cihaz senkronizasyonu uçtan uca şifreleme kullanır. <privacyLink>Daha fazla bilgi</privacyLink>"
+  },
+  "providers": {
+    "continueWithGoogle": "Google ile Devam Et",
+    "continueWithApple": "Apple ile Devam Et",
+    "continueWithEmail": "E-posta ile devam et",
+    "lastUsed": "Son kullanılan"
+  },
+  "subscription": {
+    "copySupportEmail": "Destek e-posta adresini kopyala",
+    "syncPausedTooltip": "Senkronizasyon duraklatıldı — aktif abonelik gerekli",
+    "syncPausedTitle": "Senkronizasyon duraklatıldı",
+    "syncPausedDescription": "Senkronizasyon için aktif bir abonelik gerekir. Yerel verileriniz ve bekleyen değişiklikleriniz korunur.",
+    "comingSoon": "Çok yakında",
+    "getStarted": "Başlayın",
+    "perMonthShort": "ay",
+    "perYearShort": "yıl",
+    "savings": "Aylığa göre %{{percent}} tasarruf",
+    "choosePlan": "Planınızı seçin",
+    "choosePlanDescription": "Aracı kurum senkronizasyonunu ve bulut özelliklerini açmak için abone olun.",
+    "monthly": "Aylık",
+    "yearly": "Yıllık",
+    "monthlyBilling": "Aylık faturalandırma",
+    "yearlyBilling": "Yıllık faturalandırma",
+    "alreadySubscribed": "Zaten abone misiniz?",
+    "connectionIssueTitle": "Bağlantı sorunu",
+    "connectionIssueDescription": "Hesabınıza bağlanırken sorun yaşıyoruz. Bu, oturumunuzun süresi dolduysa olabilir.",
+    "unableToLoadTitle": "Planlar yüklenemedi",
+    "unableToLoadDescription": "Abonelik planlarını şu anda alamadık. Bu genellikle geçici bir sorundur.",
+    "contactSupport": "Destekle iletişime geçin",
+    "emailCopied": "E-posta panoya kopyalandı",
+    "reconnecting": "Yeniden bağlanılıyor...",
+    "reconnect": "Yeniden Bağlan",
+    "refreshPage": "Sayfayı yenile"
+  },
+  "authCallback": {
+    "processing": "Kimlik doğrulama işleniyor...",
+    "completing": "Giriş tamamlanıyor..."
+  },
+  "authErrors": {
+    "noSessionReturned": "Giriş tamamlandıktan sonra oturum döndürülmedi.",
+    "completeSignInFailed": "Giriş tamamlanamadı",
+    "signInFailed": "Giriş başarısız",
+    "signUpFailed": "Kayıt başarısız",
+    "confirmEmail": "Hesabınızı onaylamak için lütfen e-postanızı kontrol edin.",
+    "oauthFailed": "OAuth ile giriş başarısız",
+    "magicLinkFailed": "Sihirli bağlantı gönderilemedi",
+    "invalidVerificationCode": "Geçersiz doğrulama kodu",
+    "signOutFailed": "Çıkış başarısız",
+    "fetchUserInfoFailed": "Kullanıcı bilgileri alınamadı"
+  },
+  "newAccounts": {
+    "title": "Yeni hesaplar bulundu",
+    "description": "Her hesabın nasıl takip edileceğini seçin. Bunu daha sonra değiştirebilirsiniz.",
+    "trackingInfo": "<strong>İşlemler</strong> modu, tam performans analizi için her alım satımı takip eder. <strong>Varlıklar</strong> modu yalnızca anlık görüntüleri sınırlı metriklerle içe aktarır. <docsLink>Daha fazla bilgi</docsLink>",
+    "accountName": "Hesap adı",
+    "group": "Grup (isteğe bağlı)",
+    "groupPlaceholder": "ör. Emeklilik",
+    "trackingMode": "Takip modu",
+    "transactions": "İşlemler",
+    "transactionsDescription": "Tam performans analizi",
+    "holdings": "Varlıklar",
+    "holdingsDescription": "Yalnızca anlık görüntüler",
+    "holdingsWarning": "İşlem geçmişi olmadan performans metrikleri sınırlı olacaktır.",
+    "notNow": "Şimdi değil",
+    "saving": "Kaydediliyor...",
+    "saveAndSync": "Kaydet ve senkronize et",
+    "configured": "Hesaplar yapılandırıldı",
+    "configuredDescription": "Seçtiğiniz ayarlarla senkronizasyon başlatılıyor...",
+    "saveFailed": "Hesaplar kaydedilemedi"
+  },
+  "errors": {
+    "unknown": "Bilinmeyen hata"
+  },
+  "session": {
+    "restoring": "Connect geri yükleniyor…",
+    "unavailable": "Connect geçici olarak kullanılamıyor",
+    "localAvailable": "Yerel portföyünüz kullanılabilir. Yeniden bağlanmak için tekrar deneyin."
+  },
+  "rebind": {
+    "title": "Bu profilin Connect bağlantısı değiştirilsin mi?",
+    "description": "Farklı bir hesap veya hane bağlıyorsunuz. Yerel portföy verileriniz kalacak, ancak mevcut aracı kurum bağlantıları ve cihaz senkronizasyonu kurulumu kaldırılacak. Yeni hesap bu profile aracı kurum verileri ekleyebilir. Hazır olduğunuzda cihaz senkronizasyonunu yeniden kurun. Verileri ayrı tutmak istiyorsanız yeni bir profil kullanın.",
+    "cancel": "İptal",
+    "confirm": "Bağlantıyı değiştir"
+  },
+  "syncMessages": {
+    "runFailed": "Bu senkronizasyon tamamlanamadı. Senkronizasyonu yeniden deneyin ya da aracı kurum bağlantınızı yönetin.",
+    "runNeedsReview": "Senkronizasyonun devam edebilmesi için bazı öğeleri incelemeniz gerekiyor.",
+    "accountFailed": "Bu aracı kurum hesabı senkronize edilemedi. Senkronizasyonu yeniden deneyin ya da aracı kurum bağlantınızı yönetin.",
+    "accountNeedsReview": "Bazı aracı kurum verilerinin incelenmesi gerekiyor. Senkronizasyonu yeniden deneyin ya da aracı kurum bağlantınızı yönetin.",
+    "holdingsSynced": "Varlıklar senkronize edildi ancak işlem senkronizasyonu ilgi bekliyor. Senkronizasyonu yeniden deneyin ya da aracı kurum bağlantınızı yönetin.",
+    "holdingsDeferred": "Varlık senkronizasyonu ilgi bekliyor. Senkronizasyonu yeniden deneyin ya da aracı kurum bağlantınızı yönetin."
+  }
+}

@@ -145,6 +145,13 @@ interpolations, embedded durations, and financial terminology.
   punctuation (`"..."`, never `«...»`). `_many` plural forms are required
   because Portuguese has a CLDR `many` category. Intended for continued
   community review.
+- **Turkish (`tr`)**: full coverage of all namespaces, using Turkish investment
+  terminology — `Varlıklar` (holdings), `Maliyet` (cost basis), `Getiri`, `Kâr`,
+  `İşlem` (activity), `Yeniden dengeleme`, `GYO` (REIT), `Belirteç` (token) —
+  and sentence case. Country names follow CLDR. Turkish has only `one` and
+  `other` plural categories. `turkish.test.ts` holds the glossary; case-folding
+  uses the `tr` locale so dotted and dotless i compare correctly. Intended for
+  continued community review.
 - **Traditional Chinese (`zh-Hant`)**: contributed in PR #1566, machine-seeded
   from the English source and reviewed for Taiwan financial terminology by a
   native speaker; intended for continued community review.

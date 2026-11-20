@@ -1,0 +1,304 @@
+{
+  "issues": {
+    "price_manual_valuation_missing": {
+      "title_one": "{{symbol}} için manuel değerleme eksik",
+      "title_other": "{{count}} varlık için manuel değerleme eksik",
+      "message": "Manuel/özel varlıkların, değerlenmiş performans pozisyonlarına dahil edilebilmesi için manuel bir değerlemeye ihtiyacı vardır."
+    },
+    "price_manual_valuation_stale": {
+      "title_one": "{{name}} için değerleme güncellenmedi",
+      "title_other": "{{count}} varlığın değerlemesi güncellenmedi",
+      "message": "Elle değerlenen bazı varlıklar {{days}} günden uzun süredir güncellenmedi; net değeriniz güncel olmayabilir."
+    },
+    "price_no_market_data": {
+      "title_one": "{{symbol}} için piyasa verisi yok",
+      "title_other": "{{count}} varlık için piyasa verisi yok",
+      "message": "Bazı varlıklar için piyasa verisi alınamadı. Bunun nedeni geçersiz semboller veya sağlayıcı sorunları olabilir. Portföy değeriniz hatalı olabilir."
+    },
+    "price_stale_outdated": {
+      "title_one": "{{count}} varlığın fiyatı güncel değil",
+      "title_other": "{{count}} varlığın fiyatı güncel değil",
+      "message": "Bazı varlıkların fiyatları 3 günden uzun süredir güncellenmedi. Portföy değeriniz hatalı olabilir."
+    },
+    "price_update_needed": {
+      "title_one": "{{count}} varlık için fiyat güncellemesi gerekiyor",
+      "title_other": "{{count}} varlık için fiyat güncellemesi gerekiyor",
+      "message": "Bazı varlıkların fiyatları son zamanlarda güncellenmedi. Fiyatları senkronize etmeyi düşünün."
+    },
+    "fx_missing": {
+      "title_one": "{{currency}} için döviz kuru eksik",
+      "title_other": "{{count}} para birimi için döviz kuru eksik",
+      "message": "Bazı varlıkları ana para biriminize dönüştüremiyoruz. Bu, toplam portföy değerinizi etkiler."
+    },
+    "fx_stale_error": {
+      "title_one": "Döviz kuru güncel değil",
+      "title_other": "{{count}} para biriminin döviz kuru güncel değil",
+      "message": "Bazı döviz kurları 3 günden uzun süredir güncellenmedi. Para birimi dönüşümleri hatalı olabilir."
+    },
+    "fx_stale_warning": {
+      "title_one": "Döviz kuru güncellemesi gerekiyor",
+      "title_other": "{{count}} para birimi için döviz kuru güncellemesi gerekiyor",
+      "message": "Bazı döviz kurları son zamanlarda güncellenmedi. Kurları yenilemeyi düşünün."
+    },
+    "classification_missing_category": {
+      "title_one": "{{count}} varlığın kategoriye ihtiyacı var",
+      "title_other": "{{count}} varlığın kategoriye ihtiyacı var",
+      "message": "Bazı varlıklara {{taxonomy}} atanmamış. Bu, dağılım grafiklerinizi ve analizlerinizi etkiler."
+    },
+    "classification_legacy_migration": {
+      "title_one": "{{count}} varlıkta eski sınıflandırma verisi var",
+      "title_other": "{{count}} varlıkta eski sınıflandırma verisi var",
+      "message": "Bazı varlıklarda eski formattan kalma sektör/ülke verisi var. Daha iyi dağılım takibi için yeni taksonomi sistemine geçirin."
+    },
+    "data_orphan_activity_account": {
+      "title_one": "İşlem, mevcut olmayan bir hesaba bağlı",
+      "title_other": "{{count}} işlem, mevcut olmayan hesaplara bağlı",
+      "message": "Bazı işlemler artık mevcut olmayan hesaplara işaret ediyor. Bu, hesaplama hatalarına neden olabilir."
+    },
+    "data_orphan_activity_asset": {
+      "title_one": "İşlem, mevcut olmayan bir varlığa bağlı",
+      "title_other": "{{count}} işlem, mevcut olmayan varlıklara bağlı",
+      "message": "Bazı işlemler artık mevcut olmayan varlıklara işaret ediyor. Bu, hesaplama hatalarına neden olabilir."
+    },
+    "data_negative_position": {
+      "title_one": "Varlığın miktarı negatif",
+      "title_other": "{{count}} varlığın miktarı negatif",
+      "message": "Bazı varlıklar negatif miktar gösteriyor; bu genellikle eksik veya hatalı işlemlere işaret eder."
+    },
+    "data_legacy_classification": {
+      "title_one": "{{count}} varlıkta eski sınıflandırma verisi var",
+      "title_other": "{{count}} varlıkta eski sınıflandırma verisi var",
+      "message": "Bazı varlıklarda yeni sınıflandırma sistemine taşınabilecek eski sektör/ülke verisi var."
+    },
+    "data_negative_account_balance": {
+      "title_one": "Hesabın portföy bakiyesi negatif",
+      "title_other": "{{count}} hesabın portföy bakiyesi negatif",
+      "message": "Bir veya daha fazla hesabın geçmişinde negatif toplam değer görünüyor. Bunun nedeni genellikle eksik alış işlemleridir. Düzeltmek için işlemlerinizi gözden geçirin."
+    },
+    "data_negative_cash_balance": {
+      "title_one": "Nakit hesabının bakiyesi negatife düştü",
+      "title_other": "{{count}} nakit hesabının bakiyesi negatife düştü",
+      "message": "Bir veya daha fazla nakit hesabının geçmişinde negatif bakiye görünüyor. Bu, normal bir banka kredili mevduatı veya eksik bir para yatırma kaydı olabilir."
+    },
+    "data_missing_lot_disposal_for_sell": {
+      "title_one": "Satış için maliyet eşleşmesi eksik",
+      "title_other": "{{count}} satış için maliyet eşleşmesi eksik",
+      "message": "Bir satış herhangi bir lotla eşleştirilemedi; bu nedenle gerçekleşmiş kâr/zarar ve performans atfı eksik olabilir."
+    },
+    "data_missing_generated_valuation": {
+      "title_one": "Oluşturulan değerleme geçmişi eksik",
+      "title_other": "{{count}} oluşturulan değerleme satırı eksik",
+      "message": "Bazı varlık anlık görüntü tarihlerinde oluşturulmuş değerleme satırı yok. Eksik fiyatları, elle değerlemeleri ya da döviz kurlarını düzelttikten sonra hesap geçmişini yeniden oluşturun."
+    },
+    "data_incomplete_valuation_value": {
+      "title_one": "Değerleme kapsamı eksik",
+      "title_other": "{{count}} değerleme satırının piyasa değeri eksik",
+      "message": "Oluşturulan bazı değerleme satırlarında piyasa değeri kapsamı eksik. Performans, doğruluğu korumak için etkilenen getirileri kullanılamaz veya düşük güvenilirlikli olarak işaretler; eksik fiyatları veya manuel değerlemeleri gözden geçirin."
+    },
+    "data_incomplete_valuation_basis": {
+      "title_one": "Maliyet esası kapsamı eksik",
+      "title_other": "{{count}} pozisyonun maliyet esası eksik",
+      "message": "Bazı pozisyonların edinim maliyet esası eksik veya kısmi. Piyasa değeri yine gösterilebilir, ancak ilgili işlemler düzeltilene kadar kâr/zarar ve maliyet esaslı getiriler kullanılamayabilir."
+    },
+    "data_unknown_performance_flow_source": {
+      "title_one": "Performans akışı sınırı bilinmiyor",
+      "title_other": "{{count}} değerleme satırının transfer sınıflandırması bilinmiyor",
+      "message": "Oluşturulan bazı değerleme satırları, portföy sınırı bilinmeyen bir transfer veya akış içeriyor. Etkilenen tarihlerdeki transfer işlemlerini gözden geçirin ve her transferi harici olarak işaretleyin ya da eşleşen hesabına bağlayın."
+    },
+    "account_unconfigured": {
+      "title_one": "{{count}} hesabın kurulması gerekiyor",
+      "title_other": "{{count}} hesabın kurulması gerekiyor",
+      "message_one": "Veri senkronizasyonuna başlamak için bir takip modu seçin.",
+      "message_other": "Veri senkronizasyonuna başlamak için takip modlarını seçin."
+    },
+    "account_timezone_missing": {
+      "title": "Saat dilimi yapılandırılmamış",
+      "message": "Tarihlerin yerel ayarlarınızla eşleşmesi için Genel ayarlardan saat diliminizi belirleyin."
+    },
+    "account_timezone_invalid": {
+      "title": "Yapılandırılan saat dilimi geçersiz",
+      "message": "Yapılandırılan \"{{timezone}}\" saat dilimi geçersiz. Genel ayarlardan güncelleyin."
+    },
+    "account_timezone_mismatch": {
+      "title": "Tarayıcı ve uygulama saat dilimleri farklı",
+      "message": "Yapılandırılan saat dilimi \"{{configured}}\", tarayıcı saat dilimi ise \"{{browser}}\". Tarihler yapılandırılan saat dilimini izler."
+    },
+    "quote_sync_error": {
+      "title_one": "{{symbol}} için fiyat senkronizasyonu başarısız oluyor",
+      "title_other": "{{count}} varlık için fiyat senkronizasyonu başarısız oluyor",
+      "message": "Bu varlıkların fiyat senkronizasyonu tekrar tekrar başarısız oldu. Sembolleri veya veri sağlayıcı ayarlarını kontrol edin."
+    },
+    "quote_sync_warning": {
+      "title_one": "{{symbol}} için senkronizasyon sorunları",
+      "title_other": "{{count}} varlık için senkronizasyon sorunları",
+      "message": "Bazı varlıkların fiyat senkronizasyonunda sorun yaşanıyor. Bu durum kendiliğinden düzelebilir."
+    },
+    "transfer_incomplete": {
+      "title_one": "Eksik transfer tespit edildi",
+      "title_other": "{{count}} eksik transfer tespit edildi",
+      "message": "Bir transfer eşleştirilmemiş veya karşı bacağı eksik; bu nedenle akışı harici olarak değerlendirildi ve getirileri çarpıtabilir. Eşleşen transferle eşleştirin veya bu bilinçliyse harici olarak işaretleyin."
+    },
+    "data_stale_projection": {
+      "title_one": "Hesap geçmişi güncel değil",
+      "title_other": "{{count}} hesap geçmişi güncel değil",
+      "message": "Bu hesap geçmişleri en son hesaplandıktan sonra işlemler, fiyatlar veya ayarlar değişti. Değerlerin ve getirilerin güncel verileri yansıtması için bunları yeniden oluşturun."
+    },
+    "data_rejected_activity": {
+      "title_one": "İşlem uygulanamadı",
+      "title_other": "{{count}} işlem uygulanamadı",
+      "message": "Bu işlemler kaydedildiği hâliyle uygulanamıyor (örneğin para birimlerinin döviz kuru yok ya da bu şekilde işaretlenmeden açığa satış pozisyonu açıp kapatacaklar), bu nedenle bakiyelerin, varlıkların ve getirilerin dışında bırakıldılar. Lütfen gözden geçirin."
+    },
+    "data_oversold_activity": {
+      "title_one": "İşlem, eldekinden fazla satıyor",
+      "title_other": "{{count}} işlem, eldekinden fazla satıyor",
+      "message": "Bu işlemler, hesabın o anda elinde bulundurduğundan daha fazla birim satıyor veya taşıyor. Yalnızca eldeki birimler düşüldü, geri kalanın maliyeti yok. Eksik bir alış veya gelen transfer olup olmadığını kontrol edin."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "İşlemin tutarı yok",
+      "title_other": "{{count}} işlemin tutarı yok",
+      "message": "Bu işlemlerin tutarı olmadığı için nakit bakiyesini değiştirmediler. Nakit hareketi olduysa tutarı ekleyin."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "{{from}} ve {{to}} döviz kurları uyuşmuyor",
+      "title_other": "{{count}} döviz çifti için kurlar uyuşmuyor",
+      "message": "Aynı günler için kurlar her iki yönde de kaydedilmiş ve birbiriyle eşleşmiyor. Her yön kaydedildiği gibi kullanıldığından, bir yönde dönüştürüp geri çevirmek farklı bir tutar verir. Hatalı kurları düzeltin veya kaldırın."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "Opsiyon vade sonu sözleşmesine bağlı değil",
+      "title_other": "{{count}} opsiyon vade sonu sözleşmesine bağlı değil",
+      "message": "Bu opsiyon vade sonları opsiyon sözleşmesi yerine dayanak hisseyi gösteriyor; bu yüzden sözleşme açık kalıyor ve kâr ya da zararı kaydedilmiyor. Her vade sonunu süresi dolan sözleşmeye bağlayın."
+    }
+  },
+  "page": {
+    "heading": "Veri Sağlığı",
+    "text": "Veri kalitesi sorunlarını tespit edin ve çözün"
+  },
+  "severity": {
+    "info": "Bilgi",
+    "warning": "Uyarı",
+    "error": "Hata",
+    "critical": "Kritik"
+  },
+  "category": {
+    "prices": "Fiyatlar",
+    "fxRates": "Döviz Kurları",
+    "categories": "Kategoriler",
+    "data": "Veri",
+    "accounts": "Hesaplar",
+    "settings": "Ayarlar"
+  },
+  "actions": {
+    "fix": "Düzelt",
+    "clear": "Temizle",
+    "sync_prices": "Fiyatları Senkronize Et",
+    "fetch_fx": "Döviz Kurlarını Getir",
+    "migrate_classifications": "Sınıflandırmaları Taşı",
+    "migrate_legacy_classifications": "Taşımayı Başlat",
+    "retry_sync": "Senkronizasyonu Yeniden Dene",
+    "to_holdings": "Varlıkları Görüntüle",
+    "to_activities": "İşlemleri Görüntüle",
+    "to_accounts": "Hesapları Görüntüle",
+    "to_taxonomies": "Sınıflandırmaları Görüntüle",
+    "to_market_data": "Piyasa Verisini Görüntüle",
+    "to_general_settings": "Genel Ayarları Aç",
+    "to_connect": "Hesapları Yapılandır",
+    "review_transfers": "Transferleri incele",
+    "rebuild_account_history": "Geçmişi yeniden oluştur",
+    "add_price": "Fiyat ekle",
+    "update_cost_basis": "Maliyeti güncelle",
+    "update_value": "Değeri Güncelle",
+    "review_transaction": "İşlemi incele",
+    "review_entry": "Kaydı incele",
+    "match_option_expiry_contracts": "Eşleşen sözleşmeleri kullan"
+  },
+  "updatedAt": "Güncellendi: {{time}}",
+  "healthy": {
+    "title": "Verileriniz Harika Görünüyor",
+    "description": "Sorun bulunamadı. Portföy verileriniz tutarlı ve güncel."
+  },
+  "loadError": {
+    "title": "Sağlık durumu yüklenemedi",
+    "retry": "Yeniden Dene"
+  },
+  "sheet": {
+    "groupedPriceMessage": "Wealthfolio bu tarihler için bir önceki günden taşınan fiyatları kullanıyor. Gerçek işlem günleri için fiyatları yeniden alın veya ekleyin; tarihler tatil ya da işlem yapılmayan günlerse sorunu yok sayın.",
+    "pricesByInvestment": "Yatırıma göre fiyatlar",
+    "pricesByInvestmentHint": "Fiyatları yeniden almak veya eklemek için bir yatırımı açın. Tarihler tatil ya da işlem yapılmayan günlerse sorunu yok sayın.",
+    "priceHistoryNeedsReview": "Fiyat geçmişinin incelenmesi gerekiyor",
+    "missingTradingDay_one": "1 eksik işlem günü: {{dates}}",
+    "missingTradingDay_other": "{{count}} eksik işlem günü: {{dates}}",
+    "dateRange": "{{from}} – {{to}}",
+    "priceIssueSummary": "{{assetCount}} {{assetWord}} genelinde {{diagnosticCount}} fiyat {{dateWord}}",
+    "priceDate_one": "tarihi",
+    "priceDate_other": "tarihi",
+    "investment_one": "yatırım",
+    "investment_other": "yatırım"
+  },
+  "detail": {
+    "categories": {
+      "priceStaleness": {
+        "label": "Fiyat Güncelliği",
+        "description": "Piyasa fiyatları güncel değil ve yenilenmesi gerekiyor. Bu, portföy değerlemenizin doğruluğunu etkileyebilir."
+      },
+      "fxIntegrity": {
+        "label": "Döviz Kurları",
+        "description": "Para birimi dönüşümü için döviz kurları eksik veya güncel değil. Bu, çok para birimli portföy hesaplamalarını etkileyebilir."
+      },
+      "classification": {
+        "label": "Sınıflandırma",
+        "description": "Varlıkların kategorileri veya sınıflandırmaları eksik. Bu, portföy dağılımlarını ve dağılım analizini etkiler."
+      },
+      "dataConsistency": {
+        "label": "Veri Tutarlılığı",
+        "description": "Portföy verilerinde tutarsızlıklar tespit edildi. Bu, hatalı raporlamaya veya hesaplamalara neden olabilir."
+      },
+      "accountConfiguration": {
+        "label": "Hesap Kurulumu",
+        "description": "Verilerin senkronize edilebilmesi için bazı hesapların yapılandırılması gerekiyor. Veri içe aktarmaya başlamak için takip modunu ayarlayın."
+      },
+      "settingsConfiguration": {
+        "label": "Ayarlar",
+        "description": "Verilerin doğru yorumlanması için bazı uygulama ayarlarının gözden geçirilmesi gerekiyor."
+      },
+      "timezoneMissing": {
+        "label": "Saat Dilimi Ayarları",
+        "description": "Uygulama saat diliminiz yapılandırılmamış. Siz ayarlayana kadar gösterilen tarihler yerel ayarlarınızla eşleşmeyebilir."
+      },
+      "timezoneInvalid": {
+        "label": "Saat Dilimi Ayarları",
+        "description": "Yapılandırılan saat diliminiz geçersiz. Tutarlı tarih işlemeyi yeniden sağlamak için Genel ayarlardan güncelleyin."
+      },
+      "timezoneMismatch": {
+        "label": "Saat Dilimi Ayarları",
+        "description": "Tarayıcınızın saat dilimi, yapılandırılan uygulama saat diliminden farklı. Portföy tarihleri yapılandırılan saat dilimini izler."
+      }
+    },
+    "affectedItems": "Etkilenen Öğeler ({{count}})",
+    "impact": "Etki",
+    "affectedItemsCount": "Etkilenen öğeler",
+    "portfolioImpact": "Portföy etkisi",
+    "details": "Ayrıntılar",
+    "aboutThisIssue": "Bu sorun hakkında",
+    "dismiss": "Yok Say",
+    "dismissConfirm": {
+      "title": "Bu sorun yok sayılsın mı?",
+      "message": "Bu işlem sorunu sağlık merkezinizden gizler. İlgili veriler değişirse sorun yeniden görünür.",
+      "pendingText": "Yok sayılıyor..."
+    },
+    "affectedItems_one": "Etkilenen Öğe ({{count}})",
+    "affectedItems_other": "Etkilenen Öğeler ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "İşlem: {{id}}",
+    "missing_fx_rate": "{{date}} için {{from}} → {{to}} döviz kuru yok.",
+    "close_buy_without_short_position": "Bu alış {{asset}} pozisyonunu kapatmak üzere işaretlenmiş, ancak kapatılacak açığa satış pozisyonu yok.",
+    "sell_short_intent_required": "Bu satış {{asset}} açığa satış pozisyonunu büyütür. Açığa satış olarak işaretleyin.",
+    "conversion_insufficient_holdings": "Bu dönüşüm {{requested}} adet {{asset}} gerektiriyor, ancak hesapta yalnız {{held}} adet var.",
+    "conversion_currency_mismatch": "{{fromAsset}} {{fromCurrency}}, {{toAsset}} ise {{toCurrency}} cinsinden tutuluyor. Dönüşümde para birimi aynı kalmalı.",
+    "return_of_capital_amount_required": "Bu sermaye iadesi için bir tutar girin.",
+    "sell_without_position": "Satılacak {{asset}} pozisyonu yok. Yalnız nakit etkisi uygulandı.",
+    "insufficient_quantity": "Bu işlem {{requested}} adet {{asset}} çıkarıyor, ancak yalnız {{held}} adet vardı. Kalan {{excess}} adedin maliyeti yok.",
+    "missing_final_cash": "Bu kayıtlı işlemin kesin nakit tutarı yok; bu yüzden nakit bakiyesini değiştirmedi.",
+    "option_expiry_not_option": "Bu opsiyon vade sonu opsiyon sözleşmesi olmayan {{asset}} varlığını gösteriyor; bu yüzden hiçbir şeyi değiştirmedi. Süresi dolan sözleşmeye bağlayın."
+  }
+}
