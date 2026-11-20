@@ -316,6 +316,46 @@ describe("linking a one-sided cash transfer", () => {
     showError.mockRestore();
   });
 
+  it("stays busy through a slow preview and converts nothing once closed", async () => {
+    let finishPreview: (effects: never[]) => void = () => undefined;
+    vi.mocked(reviewConvertToTransferSplitEffects).mockImplementation(
+      () => new Promise((resolve) => (finishPreview = resolve)),
+    );
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: {
+          ...activity,
+          id: "synthetic-deposit",
+          accountId: "candidate-account",
+          activityType: "DEPOSIT",
+        },
+        matchKind: "cash",
+        confidence: "high",
+        score: 100,
+        reasons: [],
+        warnings: [],
+      },
+    ]);
+    convertToTransferMutation.mutateAsync.mockClear();
+    const view = renderActivity();
+
+    fireEvent.click((await screen.findByText("Candidate account")).closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled());
+
+    view.rerender(
+      <TransferMatchDialog
+        open={false}
+        mode="link"
+        sourceActivity={activity}
+        accounts={[account, { ...account, id: "candidate-account", name: "Candidate account" }]}
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await act(async () => finishPreview([]));
+    expect(convertToTransferMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("makes a card's refund/credit its payment rather than a plain link (#2740)", async () => {
     const card: Account = { ...account, id: "card", accountType: "CREDIT_CARD" };
     renderActivity({ accountId: "card", activityType: "CREDIT" }, [card]);
