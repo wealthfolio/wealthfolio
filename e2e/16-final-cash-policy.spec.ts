@@ -91,7 +91,7 @@ test.describe("Final-cash import policy", () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(POLICY_CSV);
     await page.waitForTimeout(1000);
-    await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10000 });
 
     const continueBtn = page.getByRole("button", { name: /Configure Mapping/i });
     await expect(continueBtn).toBeEnabled({ timeout: 5000 });

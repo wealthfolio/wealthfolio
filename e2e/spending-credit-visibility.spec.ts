@@ -59,7 +59,7 @@ for (const direction of ["ltr", "rtl"]) {
           `date,activityType,amount,currency,comment\n${new Date().toISOString().slice(0, 10)},CREDIT,100,USD,${note}\n`,
         ),
       });
-      await expect(page.getByText("CSV Preview")).toBeVisible();
+      await expect(page.getByText("File Preview")).toBeVisible();
       for (const name of [
         /Configure Mapping/i,
         /Review Transactions/i,

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAccountImportMapping, listImportTemplates, parseCsv } from "@/adapters";
+import { BackendError } from "@/lib/backend-error";
 import type { Account, ImportTemplateData, ParseConfig } from "@/lib/types";
 import { ImportProvider, useImportContext } from "../context";
 import {
@@ -311,4 +312,20 @@ describe("UploadStep with an earlier parse that finishes last", () => {
       expect(screen.queryByText("Adjust settings to fix errors")).toBeNull();
     },
   );
+  it("shows why a file can't be read, until a readable file replaces it", async () => {
+    const drop = renderUploadStep();
+
+    drop(new File(["locked"], "statement.xlsx"));
+    await nextParse("statement.xlsx", 0);
+    await act(async () => pending[0].reject(new BackendError("SPREADSHEET_PASSWORD_PROTECTED")));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This spreadsheet is password-protected. Save a copy without a password and import that copy.",
+    );
+
+    drop(rightFile());
+    (await nextParse("right-export.csv", 1))();
+    await screen.findByText("1 row");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

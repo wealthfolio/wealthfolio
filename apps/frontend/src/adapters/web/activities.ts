@@ -1,10 +1,11 @@
 import { profileFetch } from "@/features/profiles/session";
+import { BackendError, backendError } from "@/lib/backend-error";
 // Web-specific activity commands
 import type { ParseConfig, ParsedCsvResult } from "@/lib/types";
 import { API_PREFIX, logger } from "./core";
 import { invokeTimeoutMs } from "../invoke-timeout";
 
-async function extractErrorMessage(response: Response): Promise<string | null> {
+async function extractErrorMessage(response: Response): Promise<BackendError | string | null> {
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
@@ -13,6 +14,9 @@ async function extractErrorMessage(response: Response): Promise<string | null> {
         message?: unknown;
         error?: unknown;
       };
+      // A known refusal, such as a password-protected spreadsheet, is shown in the user's language.
+      const known = backendError(payload);
+      if (known && known.errorCode !== "internal_error") return known;
       if (typeof payload.message === "string" && payload.message.trim()) {
         return payload.message.trim();
       }
@@ -51,6 +55,7 @@ export const parseCsv = async (file: File, config: ParseConfig): Promise<ParsedC
 
     if (!response.ok) {
       const details = await extractErrorMessage(response);
+      if (details instanceof BackendError) throw details;
       const fallback = `Request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`;
       throw new Error(
         details ? `Failed to parse CSV: ${details}` : `Failed to parse CSV: ${fallback}`,

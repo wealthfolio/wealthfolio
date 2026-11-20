@@ -80,7 +80,7 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     await fileInput.setInputFiles(MULTI_EXCHANGE_CSV);
     await page.waitForTimeout(1000);
 
-    await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10000 });
 
     await page.getByRole("button", { name: /Configure Mapping/i }).click();
     await page.waitForTimeout(1000);

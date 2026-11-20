@@ -726,6 +726,8 @@
     "quoteCurrencyRequired": "A moeda de cotação é obrigatória. Selecione o símbolo novamente nos resultados da busca.",
     "duplicateActivity": "Já existe uma atividade correspondente, por isso esta não foi salva.",
     "alternativeAssetNotInAccount": "Imóveis, veículos, colecionáveis, metais preciosos, passivos e outros ativos pessoais contam à parte no patrimônio líquido e não podem ser mantidos em uma conta. Para manter um ativo personalizado em uma conta, adicione-o como investimento.",
-    "rateLimited": "Muitas solicitações. Aguarde um minuto e tente novamente."
+    "rateLimited": "Muitas solicitações. Aguarde um minuto e tente novamente.",
+    "spreadsheetPasswordProtected": "Esta planilha está protegida por senha. Salve uma cópia sem senha e importe essa cópia.",
+    "spreadsheetUnreadable": "Não foi possível ler esta planilha. Salve-a como pasta de trabalho do Excel (.xlsx) ou como arquivo CSV e tente novamente."
   }
 }

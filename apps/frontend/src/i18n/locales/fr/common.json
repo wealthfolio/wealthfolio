@@ -726,6 +726,8 @@
     "quoteCurrencyRequired": "La devise de cotation est obligatoire. Sélectionnez à nouveau le symbole dans les résultats de recherche.",
     "duplicateActivity": "Une activité identique existe déjà, celle-ci n'a donc pas été enregistrée.",
     "alternativeAssetNotInAccount": "Les biens immobiliers, véhicules, objets de collection, métaux précieux, passifs et autres actifs personnels comptent à part dans la valeur nette et ne peuvent pas être détenus dans un compte. Pour détenir un actif personnalisé dans un compte, ajoutez-le comme investissement.",
-    "rateLimited": "Trop de requêtes. Patientez une minute, puis réessayez."
+    "rateLimited": "Trop de requêtes. Patientez une minute, puis réessayez.",
+    "spreadsheetPasswordProtected": "Ce classeur est protégé par un mot de passe. Enregistrez-en une copie sans mot de passe et importez cette copie.",
+    "spreadsheetUnreadable": "Ce classeur est illisible. Enregistrez-le au format Excel (.xlsx) ou CSV, puis réessayez."
   }
 }
