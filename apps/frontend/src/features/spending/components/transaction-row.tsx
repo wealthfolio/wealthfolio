@@ -32,6 +32,11 @@ interface TransactionRowProps {
   account: Account | undefined;
   event: { id: string; name: string; eventTypeId: string } | null;
   eventTypeColor: string | null;
+  /** Who the transaction was with, when a payee is set. Shown before the note. */
+  payeeName?: string | null;
+  payeeId?: string | null;
+  /** Narrows the list to a payee. With it, the payee's name is a button. */
+  onFilterPayee?: (payeeId: string) => void;
   appTimezone?: string;
   /** True when the loaded result set spans more than one account. */
   showAccount: boolean;
@@ -68,6 +73,9 @@ function TransactionRowImpl({
   account,
   event,
   eventTypeColor,
+  payeeName,
+  payeeId,
+  onFilterPayee,
   appTimezone,
   showAccount,
   showBalance = false,
@@ -131,10 +139,31 @@ function TransactionRowImpl({
       <TableCell className="max-w-0! px-3 py-2">
         <div className="flex items-center gap-2">
           {row.needsReview && <NeedsReviewIcon label={t("spending:transactions.review")} />}
+          {/* The payee is the name people gave; the note beside it is what the
+              bank wrote, kept visible because that is what rules match on. */}
+          {payeeName &&
+            (payeeId && onFilterPayee ? (
+              <button
+                type="button"
+                data-row-click-ignore
+                title={t("spending:transactions.filterByPayee", { name: payeeName })}
+                className="max-w-[12rem] shrink-0 truncate text-sm font-medium hover:underline"
+                onClick={() => onFilterPayee(payeeId)}
+              >
+                {payeeName}
+              </button>
+            ) : (
+              <span className="max-w-[12rem] shrink-0 truncate text-sm font-medium">
+                {payeeName}
+              </span>
+            ))}
           {a.notes?.trim() ? (
-            <TruncatedText text={a.notes} className="text-sm" />
+            <TruncatedText
+              text={a.notes}
+              className={payeeName ? "text-muted-foreground text-xs" : "text-sm"}
+            />
           ) : (
-            <span className="text-muted-foreground text-sm italic">—</span>
+            !payeeName && <span className="text-muted-foreground text-sm italic">—</span>
           )}
           {showAccount && (
             <span className="text-muted-foreground max-w-[8rem] shrink-0 truncate text-xs">

@@ -32,6 +32,11 @@ interface TransactionCardProps {
   account: Account | undefined;
   event: { id: string; name: string; eventTypeId: string } | null;
   eventTypeColor: string | null;
+  /** Who the transaction was with, when a payee is set. Shown before the note. */
+  payeeName?: string | null;
+  /** Passed with the row props it shares with the table row; the card has no payee button. */
+  payeeId?: string | null;
+  onFilterPayee?: (payeeId: string) => void;
   appTimezone?: string;
   /** True when the loaded result set spans more than one account. */
   showAccount: boolean;
@@ -66,6 +71,7 @@ function TransactionCardImpl({
   account,
   event,
   eventTypeColor,
+  payeeName,
   appTimezone,
   showAccount,
   selectionMode,
@@ -138,8 +144,16 @@ function TransactionCardImpl({
                 cannot separate the colours. */}
             {row.needsReview && <NeedsReviewMark label={t("spending:transactions.review")} />}
             <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
+              {/* The payee leads; what the bank wrote follows, quieter. */}
+              {payeeName && <span>{payeeName} </span>}
               {/* The form saves no notes as "", which must not leave a blank title. */}
-              {a.notes?.trim() ? a.notes : <span className="text-muted-foreground italic">—</span>}
+              {a.notes?.trim() ? (
+                <span className={cn(payeeName && "text-muted-foreground text-xs font-normal")}>
+                  {a.notes}
+                </span>
+              ) : (
+                !payeeName && <span className="text-muted-foreground italic">—</span>
+              )}
             </span>
             <span
               className={cn(
