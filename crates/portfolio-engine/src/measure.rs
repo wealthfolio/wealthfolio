@@ -1276,15 +1276,17 @@ impl Opening {
 }
 
 /// Index of the close a money-weighted period opens on: a period opening on
-/// a negative close (pre-funding history) starts from the first close with
-/// at least one base unit; opening with the contribution needs no rebase.
-/// `None` when no close qualifies.
+/// a negative close (pre-funding history) starts from the first valued close
+/// with at least one base unit; opening with the contribution needs no
+/// rebase. `None` when no close qualifies.
 fn opening_index(history: &[DailyValuation], opening: Opening) -> Option<usize> {
     match history.first() {
         Some(first) if opening == Opening::Close && first.total_value_base.is_sign_negative() => {
-            history
-                .iter()
-                .position(|d| d.total_value_base >= MIN_RETURN_BASE)
+            // An unvalued close carries a partial value: not one to open on.
+            history.iter().position(|d| {
+                d.total_value_base >= MIN_RETURN_BASE
+                    && !d.value_status.is_unavailable_for_returns()
+            })
         }
         Some(_) => Some(0),
         None => None,
@@ -4502,6 +4504,25 @@ mod tests {
         assert_eq!(opening_index(&history, Opening::Close), Some(1));
         assert_eq!(opening_index(&history, Opening::Contribution), Some(0));
         assert_eq!(opening_index(&history[..1], Opening::Close), None);
+    }
+
+    #[test]
+    fn a_period_opening_on_a_negative_close_skips_an_unvalued_one() {
+        // The second close carries a partial 100: the period opens on the
+        // valued 200 and returns 10 %, not 120 % from the partial value.
+        let z = Decimal::ZERO;
+        let mut history = vec![
+            dated("2026-01-01", dec!(-100), z, z),
+            dated("2026-01-02", dec!(100), z, z),
+            dated("2026-01-03", dec!(200), z, z),
+            dated("2026-01-04", dec!(220), z, z),
+        ];
+        history[1].value_status = ValueStatus::Unavailable;
+        assert_eq!(opening_index(&history, Opening::Close), Some(2));
+        let money_weighted = measured(&history, MeasureProfile::Full)
+            .returns
+            .money_weighted;
+        assert_eq!(money_weighted.period, Some(dec!(0.1)));
     }
 
     #[test]
