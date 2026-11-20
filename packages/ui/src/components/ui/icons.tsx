@@ -59,6 +59,7 @@ import {
   FileText,
   FileVideo,
   FileX,
+  Fingerprint,
   Folder,
   FolderOpen,
   Fullscreen,
@@ -303,6 +304,7 @@ const IconsInternal = {
   Import: Upload,
   FileText: FileText,
   FileX: FileX,
+  Fingerprint: Fingerprint,
   XCircle: XCircle,
   ListCollapse: ListCollapse,
   ArrowRightLeft: ArrowRightLeft,
@@ -920,6 +922,7 @@ export type IconName =
   | "Import"
   | "FileText"
   | "FileX"
+  | "Fingerprint"
   | "XCircle"
   | "ListCollapse"
   | "ArrowRightLeft"

@@ -16,6 +16,8 @@ use crate::secrets::SecretStore;
 
 pub const PROFILE_LOCK_KEY: &str = "profile_lock";
 pub const DATABASE_KEY_SECRET: &str = "database_encryption_key";
+/// Keychain key under which the biometric bypass token is stored (macOS only).
+pub const BIOMETRIC_BYPASS_KEY: &str = "biometric_bypass";
 pub const PROFILE_SCOPE_HEADER: &str = "x-wf-profile-scope";
 pub const PROFILE_ID_HEADER: &str = "x-wf-profile-id";
 pub const DEFAULT_PROFILE_AVATAR: &str = "default";
@@ -109,6 +111,9 @@ pub struct Profile {
     pub name: String,
     pub avatar_id: String,
     pub lock_enabled: bool,
+    /// Whether the profile can be unlocked using platform biometrics (Touch ID on macOS).
+    #[serde(default)]
+    pub biometric_enabled: bool,
     /// Only explicitly never-protected profiles can open without a secret store.
     /// Older registries default to consulting the authoritative lock record.
     #[serde(default)]
@@ -129,6 +134,7 @@ pub struct ProfileSummary {
     pub name: String,
     pub avatar_id: String,
     pub lock_enabled: bool,
+    pub biometric_enabled: bool,
     pub is_legacy: bool,
     pub has_connect_binding: bool,
 }
@@ -140,6 +146,7 @@ impl From<&Profile> for ProfileSummary {
             name: profile.name.clone(),
             avatar_id: profile.avatar_id.clone(),
             lock_enabled: profile.lock_enabled,
+            biometric_enabled: profile.biometric_enabled,
             is_legacy: profile.legacy_database.is_some(),
             has_connect_binding: profile.connect.is_some(),
         }
