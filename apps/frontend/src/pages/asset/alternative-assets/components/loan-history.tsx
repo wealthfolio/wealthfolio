@@ -19,6 +19,7 @@ import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
 import { cn } from "@/lib/utils";
 import { canRenewLoan, readActiveLoanProjection } from "../lib/loan-events";
+import { loanBalanceUserNote } from "../lib/loan-balance";
 import {
   buildLoanLedger,
   collapsePaymentRuns,
@@ -210,11 +211,14 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
                 : "asset:loanOverview.event_balance_correction",
           ),
           detail:
-            entry.adjustment != null && entry.adjustment !== 0
-              ? t("asset:loanInterest.adjustment", { amount: moneyText(entry.adjustment) })
-              : entry.quote.notes && !entry.quote.notes.startsWith("loan_")
-                ? entry.quote.notes
+            [
+              entry.adjustment != null && entry.adjustment !== 0
+                ? t("asset:loanInterest.adjustment", { amount: moneyText(entry.adjustment) })
                 : undefined,
+              loanBalanceUserNote(entry.quote.notes),
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined,
         };
       case "event": {
         const { event } = entry;
