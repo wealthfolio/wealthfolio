@@ -1,5 +1,8 @@
 {
   "valuation_incomplete": "Gesamtwert nicht verfügbar: Einige Kurse oder Wechselkurse fehlen.",
+  "valuation_incomplete_fx_one": "Gesamtwert nicht verfügbar: kein Wechselkurs für",
+  "valuation_incomplete_fx_other": "Gesamtwert nicht verfügbar: keine Wechselkurse für",
+  "view_in_health_center": "Im Gesundheitszentrum ansehen",
   "known_subtotal": "Bekannte Zwischensumme",
   "periodReturn": "Rendite {{period}}",
   "currentValue": "Aktueller Wert",

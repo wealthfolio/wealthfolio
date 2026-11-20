@@ -1,5 +1,7 @@
 {
   "valuation_incomplete": "部分价格或汇率缺失，合计暂不可用。",
+  "valuation_incomplete_fx_other": "缺少以下汇率，合计暂不可用：",
+  "view_in_health_center": "在健康中心查看",
   "known_subtotal": "已知小计",
   "periodReturn": "{{period}}回报",
   "currentValue": "当前价值",

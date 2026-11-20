@@ -266,6 +266,36 @@ describe("DashboardContent", () => {
   });
 
   it.each([
+    ["an incomplete period", "unavailable", 1],
+    ["no performance data", "complete", 0],
+  ] as const)("explains the N/A gain and return only for %s", (_label, dayStatus, notes) => {
+    mockCurrentValuation(125);
+    mockUseSettingsContext.mockReturnValue({
+      settings: { baseCurrency: "USD" },
+    } as unknown as ReturnType<typeof useSettingsContext>);
+    mockUseHoldings.mockReturnValue({
+      holdings: [],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useHoldings>);
+    mockUseValuationHistory.mockReturnValue({
+      valuationHistory: [
+        { valuationDate: "2026-05-31", totalValueBase: 0, valueStatus: dayStatus },
+        { valuationDate: "2026-06-01", totalValueBase: 125, valueStatus: "complete" },
+      ],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useValuationHistory>);
+    mockUseQuery.mockReturnValue({ isLoading: false, data: null } as unknown as ReturnType<
+      typeof useQuery
+    >);
+    render(<DashboardContent />);
+
+    expect(screen.getAllByText("N/A")).toHaveLength(2);
+    expect(screen.queryAllByRole("button", { name: "N/A" })).toHaveLength(2 * notes);
+  });
+
+  it.each([
     ["past custom range", "2026-06-01", true],
     ["range including today", "2026-06-02", false],
   ] as const)("uses period completeness for a %s", (_label, endDate, showsReturn) => {

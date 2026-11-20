@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { IncompleteValuationNote } from "@/components/incomplete-valuation-note";
+import type { FxConversionIssue } from "@/lib/types";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import NumberFlow from "@number-flow/react";
 import { useAmountFormatting } from "@wealthfolio/ui";
@@ -16,6 +18,8 @@ interface BalanceProps {
   compact?: boolean;
   isLoading?: boolean;
   isUnavailable?: boolean;
+  /** Set when unavailable because the valuation is incomplete, to say why. */
+  incompleteValuation?: { missingFx?: FxConversionIssue[] };
 }
 
 const Balance: React.FC<BalanceProps> = ({
@@ -26,6 +30,7 @@ const Balance: React.FC<BalanceProps> = ({
   compact = false,
   isLoading = false,
   isUnavailable = false,
+  incompleteValuation,
 }) => {
   const amountFormatting = useAmountFormatting();
   const { t } = useTranslation();
@@ -93,7 +98,13 @@ const Balance: React.FC<BalanceProps> = ({
         className="font-heading text-muted-foreground text-display font-normal"
         data-testid="portfolio-balance"
       >
-        {t("performance:not_available")}
+        {incompleteValuation ? (
+          <IncompleteValuationNote missingFx={incompleteValuation.missingFx}>
+            {t("performance:not_available")}
+          </IncompleteValuationNote>
+        ) : (
+          t("performance:not_available")
+        )}
       </h1>
     );
   }

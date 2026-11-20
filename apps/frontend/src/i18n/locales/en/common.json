@@ -1,5 +1,8 @@
 {
   "valuation_incomplete": "Total unavailable: some prices or exchange rates are missing.",
+  "valuation_incomplete_fx_one": "Total unavailable: no exchange rate for",
+  "valuation_incomplete_fx_other": "Total unavailable: no exchange rates for",
+  "view_in_health_center": "View in Health Center",
   "known_subtotal": "Known subtotal",
   "periodReturn": "{{period}} · Return",
   "currentValue": "Current value",

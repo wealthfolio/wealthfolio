@@ -1,5 +1,9 @@
 {
   "valuation_incomplete": "Total no disponible: faltan algunos precios o tipos de cambio.",
+  "valuation_incomplete_fx_one": "Total no disponible: no hay tipo de cambio para",
+  "valuation_incomplete_fx_many": "Total no disponible: no hay tipos de cambio para",
+  "valuation_incomplete_fx_other": "Total no disponible: no hay tipos de cambio para",
+  "view_in_health_center": "Ver en el Centro de estado",
   "known_subtotal": "Subtotal conocido",
   "periodReturn": "Rentabilidad {{period}}",
   "currentValue": "Valor actual",
