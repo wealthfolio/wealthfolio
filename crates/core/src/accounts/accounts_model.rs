@@ -450,6 +450,9 @@ pub struct NewAccount {
 impl NewAccount {
     /// Validates the new account data.
     pub fn validate(&self) -> Result<()> {
+        if self.account_type == account_types::CREDIT_CARD {
+            super::CreditCardBillingSettings::from_meta(self.meta.as_deref())?;
+        }
         if self.name.trim().is_empty() {
             return Err(Error::Validation(ValidationError::InvalidInput(
                 "Account name cannot be empty".to_string(),
@@ -504,6 +507,9 @@ pub fn deserialize_account_group<'de, D: serde::Deserializer<'de>>(
 impl AccountUpdate {
     /// Validates the account update data.
     pub fn validate(&self) -> Result<()> {
+        if self.account_type == account_types::CREDIT_CARD {
+            super::CreditCardBillingSettings::from_meta(self.meta.as_deref())?;
+        }
         if self.id.is_none() {
             return Err(Error::Validation(ValidationError::InvalidInput(
                 "Account ID is required for updates".to_string(),

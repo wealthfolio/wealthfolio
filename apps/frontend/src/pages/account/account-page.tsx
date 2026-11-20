@@ -1,5 +1,6 @@
 import { isValuationComplete } from "@/lib/valuation";
 import { parseLocalDate } from "@/lib/utils";
+import { CreditCardStatements } from "./credit-card-statements";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
@@ -171,6 +172,7 @@ async function getCashAuditActivities(
   return activities;
 }
 
+/** Shows the selected account's holdings, activity, and optional credit card statements. */
 const AccountPage = () => {
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
@@ -1059,6 +1061,9 @@ const AccountPage = () => {
         </div>
       </PageHeader>
       <PageContent>
+        {account?.accountType === AccountType.CREDIT_CARD && (
+          <CreditCardStatements account={account} />
+        )}
         {hasHoldings && !isHoldingsLoading ? (
           <>
             <div className="grid grid-cols-1 gap-4 pt-0 lg:grid-cols-3">

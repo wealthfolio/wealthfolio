@@ -179,6 +179,7 @@ fn get_app_data_dir(handle: &AppHandle) -> Result<String, Box<dyn std::error::Er
 // Application entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Initializes the native runtime and registers the shared services and frontend commands.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenv().ok();
@@ -291,6 +292,7 @@ pub fn run() {
             profiles::recover_profile_password,
             // Account commands
             commands::account::get_accounts,
+            commands::account::get_credit_card_statements,
             commands::account::create_account,
             commands::account::update_account,
             commands::account::delete_account,

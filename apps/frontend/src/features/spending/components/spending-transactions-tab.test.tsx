@@ -73,6 +73,9 @@ const mocks = vi.hoisted(() => {
   };
 
   return {
+    searchParams: "",
+    timezone: undefined as string | undefined,
+    searchRequest: vi.fn(),
     categories: [] as TaxonomyCategory[],
     translate: undefined as TFunction | undefined,
     filterProps: undefined as
@@ -122,7 +125,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("react-router-dom", () => ({
-  useSearchParams: () => [new URLSearchParams(), vi.fn()],
+  useSearchParams: () => [new URLSearchParams(mocks.searchParams), vi.fn()],
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -165,7 +168,7 @@ vi.mock("@/hooks/use-taxonomies", () => ({
   useTaxonomy: () => ({ data: { categories: mocks.categories } }),
 }));
 vi.mock("@/lib/settings-provider", () => ({
-  useSettingsContext: () => ({ settings: { timezone: undefined } }),
+  useSettingsContext: () => ({ settings: { timezone: mocks.timezone } }),
 }));
 
 vi.mock("../hooks/use-cash-activity-search", () => ({
@@ -181,21 +184,24 @@ vi.mock("../hooks/use-cash-activity-search", () => ({
     error: null,
     refetch: vi.fn(),
   }),
-  useCashActivitySearch: () => ({
-    items: [mocks.transferOut],
-    totalCount: 1,
-    net: [],
-    baseCurrency: "EUR",
-    isLoading: false,
-    isFetching: false,
-    isFetchingNextPage: false,
-    isFetchNextPageError: false,
-    isError: false,
-    error: null,
-    hasNextPage: false,
-    fetchNextPage: vi.fn(),
-    refetch: vi.fn(),
-  }),
+  useCashActivitySearch: (request: unknown) => {
+    mocks.searchRequest(request);
+    return {
+      items: [mocks.transferOut],
+      totalCount: 1,
+      net: [],
+      baseCurrency: "EUR",
+      isLoading: false,
+      isFetching: false,
+      isFetchingNextPage: false,
+      isFetchNextPageError: false,
+      isError: false,
+      error: null,
+      hasNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    };
+  },
 }));
 
 vi.mock("../hooks/use-cash-activities", () => ({
@@ -678,5 +684,36 @@ describe("SpendingTransactionsTab view switch", () => {
     // The mocked search has one page.
     act(() => mocks.gridProps?.onPageChange(3));
     await waitFor(() => expect(mocks.gridProps?.pageIndex).toBe(0));
+  });
+});
+
+describe("SpendingTransactionsTab statement date filters", () => {
+  const originalTimezone = process.env.TZ;
+
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.compactViewport = false;
+    mocks.searchParams = "from=2026-11-01&to=2026-11-01";
+    mocks.searchRequest.mockClear();
+    mocks.useMutation.mockReturnValue(mocks.mutation);
+  });
+
+  afterEach(() => {
+    mocks.searchParams = "";
+    mocks.timezone = undefined;
+    if (originalTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimezone;
+  });
+
+  it.each([
+    ["America/New_York", "UTC"],
+    ["UTC", "America/New_York"],
+  ])("keeps whole calendar dates for browser %s and app %s", (browserTimezone, appTimezone) => {
+    process.env.TZ = browserTimezone;
+    mocks.timezone = appTimezone;
+    render(<SpendingTransactionsTab />);
+    expect(mocks.searchRequest).toHaveBeenLastCalledWith(
+      expect.objectContaining({ startDate: "2026-11-01", endDate: "2026-11-01" }),
+    );
   });
 });

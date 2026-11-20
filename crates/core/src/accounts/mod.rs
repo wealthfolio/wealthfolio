@@ -4,6 +4,12 @@ mod accounts_constants;
 mod accounts_model;
 mod accounts_service;
 mod accounts_traits;
+mod credit_card_billing;
+
+pub use credit_card_billing::{
+    credit_card_statements, CreditCardBillingSettings, CreditCardStatement,
+    CreditCardStatementBalance,
+};
 
 // Re-export the public interface
 pub use accounts_constants::*;

@@ -136,10 +136,8 @@ const MOBILE_CARD_GAP = 8;
 const OVERSCAN = 8;
 
 /**
- * Parse a `YYYY-MM-DD` URL param as LOCAL midnight. `new Date("YYYY-MM-DD")`
- * interprets the string as UTC, which skews the day boundary in non-UTC
- * timezones and drops activities stored at local midnight. Mirrors how the
- * date picker (and `formatDateISO`) treat dates as local.
+ * Keep a URL calendar date in the date picker's local Date representation.
+ * Search sends its calendar fields back, so core applies the app timezone.
  */
 function parseLocalDate(value: string): Date | undefined {
   const [y, m, d] = value.split("-").map(Number);
@@ -199,6 +197,7 @@ export interface SpendingTransactionsTabHandle {
   openAddForm: () => void;
 }
 
+/** Lists spending activity with URL filters, including account-specific statement periods. */
 export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>(
   function SpendingTransactionsTab(_, ref) {
     const { t } = useTranslation();
@@ -470,14 +469,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         subcategoryIds: stableArr(selectedSubcategories),
         eventIds: stableArr(selectedEvents),
         status: statusFilter,
-        startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
-        endDate: dateRange?.to
-          ? (() => {
-              const end = new Date(dateRange.to);
-              end.setHours(23, 59, 59, 999);
-              return end.toISOString();
-            })()
-          : undefined,
+        startDate: dateRange?.from ? formatDateISO(dateRange.from) : undefined,
+        endDate: dateRange?.to ? formatDateISO(dateRange.to) : undefined,
         minAmount: amountRange.min ?? undefined,
         maxAmount: amountRange.max ?? undefined,
         sortBy: "date",

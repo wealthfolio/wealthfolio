@@ -19,6 +19,7 @@ import {
   isSplitActivity,
 } from "./activity-utils";
 import { invalidTypeError, requiredError } from "./zod-errors";
+import { creditCardBillingSchema } from "./credit-card-billing";
 
 /** An ISO 8601 UTC date-time string, with or without seconds. */
 export const isoDateTimeSchema = z.union([z.iso.datetime(), z.iso.datetime({ precision: -1 })]);
@@ -124,6 +125,18 @@ export const newAccountSchema = z
     trackingMode: trackingModeSchema.optional().default("NOT_SET"),
     meta: z.string().nullable().optional(),
   })
+  .refine(
+    (data) => {
+      if (data.accountType !== AccountType.CREDIT_CARD || !data.meta) return true;
+      try {
+        const billing = JSON.parse(data.meta)?.creditCardBilling;
+        return billing == null || creditCardBillingSchema.safeParse(billing).success;
+      } catch {
+        return true;
+      }
+    },
+    { message: "common:validation.creditCardBillingDays", path: ["meta"] },
+  )
   .refine(
     (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",
     {

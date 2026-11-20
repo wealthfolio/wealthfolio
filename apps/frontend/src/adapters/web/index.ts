@@ -91,7 +91,14 @@ export {
 } from "../shared/portfolios";
 
 // Account Commands
-export { createAccount, deleteAccount, getAccounts, updateAccount } from "../shared/accounts";
+export {
+  createAccount,
+  deleteAccount,
+  getAccounts,
+  updateAccount,
+  getCreditCardStatements,
+} from "../shared/accounts";
+export type { CreditCardStatement } from "../shared/accounts";
 
 // Activity Commands
 export {
