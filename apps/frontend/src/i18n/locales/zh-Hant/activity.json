@@ -1493,10 +1493,10 @@
     },
     "creditCard": {
       "charge": "消費",
-      "payment": "還款",
-      "transfer": "餘額轉移／預借現金",
-      "refund": "退款／入帳",
-      "interest": "利息費用"
+      "payment": "繳款",
+      "transfer": "預借現金 / 餘額代償",
+      "refund": "退款",
+      "interest": "利息"
     }
   },
   "validation": {

@@ -1473,11 +1473,11 @@
       "issuesTitle_other": "활동 항목 {{count}}건에 문제가 있습니다."
     },
     "creditCard": {
-      "charge": "청구",
-      "payment": "결제",
-      "transfer": "잔액 이체 / 현금서비스",
-      "refund": "환불 / 입금",
-      "interest": "이자 청구"
+      "charge": "구매",
+      "payment": "대금 납부",
+      "transfer": "현금서비스 / 잔액 이체",
+      "refund": "환불",
+      "interest": "이자"
     }
   },
   "validation": {

@@ -1492,11 +1492,11 @@
       "issuesTitle_other": "There are issues with {{count}} activity entries."
     },
     "creditCard": {
-      "charge": "Charge",
+      "charge": "Purchase",
       "payment": "Payment",
-      "transfer": "Balance Transfer / Cash Advance",
-      "refund": "Refund / Credit",
-      "interest": "Interest Charge"
+      "transfer": "Cash Advance / Balance Transfer",
+      "refund": "Refund",
+      "interest": "Interest"
     }
   },
   "validation": {

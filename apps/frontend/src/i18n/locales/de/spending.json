@@ -71,10 +71,10 @@
     "clearCategory": "Kategorie entfernen"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Saldoübertragung / Barauszahlung",
-    "charge": "Belastung",
-    "interestCharge": "Sollzinsen",
-    "refundCredit": "Erstattung / Gutschrift",
+    "balanceTransferCashAdvance": "Bargeldabhebung / Saldoübertragung",
+    "charge": "Einkauf",
+    "interestCharge": "Zinsen",
+    "refundCredit": "Erstattung",
     "reimbursementRefund": "Kostenerstattung / Rückerstattung"
   },
   "rules": {

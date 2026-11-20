@@ -72,10 +72,10 @@
     "clearCategory": "Rimuovi categoria"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Trasferimento del saldo / Anticipo di contante",
-    "charge": "Addebito",
-    "interestCharge": "Interessi passivi",
-    "refundCredit": "Rimborso / Accredito",
+    "balanceTransferCashAdvance": "Anticipo contante / Trasferimento saldo",
+    "charge": "Acquisto",
+    "interestCharge": "Interessi",
+    "refundCredit": "Rimborso",
     "reimbursementRefund": "Rimborso / restituzione"
   },
   "rules": {

@@ -53,13 +53,13 @@ describe("activity import profiles", () => {
     const cash = getActivityImportProfileForAccountType(AccountType.CASH);
 
     expect(getActivityTypeLabelForImportProfile(ActivityType.WITHDRAWAL, creditCard)).toBe(
-      "Charge",
+      "Purchase",
     );
     expect(getActivityTypeLabelForImportProfile(ActivityType.TRANSFER_IN, creditCard)).toBe(
       "Payment",
     );
     expect(getActivityTypeLabelForImportProfile(ActivityType.TRANSFER_OUT, creditCard)).toBe(
-      "Balance Transfer / Cash Advance",
+      "Cash Advance / Balance Transfer",
     );
     expect(getActivityTypeLabelForImportProfile(ActivityType.WITHDRAWAL, cash)).toBe("Withdrawal");
   });

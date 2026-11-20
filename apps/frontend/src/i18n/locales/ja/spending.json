@@ -71,10 +71,10 @@
     "clearCategory": "カテゴリをクリア"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "残高移行 / キャッシング",
-    "charge": "カード利用",
-    "interestCharge": "支払利息",
-    "refundCredit": "返金 / クレジット",
+    "balanceTransferCashAdvance": "キャッシング / 残高移行",
+    "charge": "ショッピング",
+    "interestCharge": "利息",
+    "refundCredit": "返金",
     "reimbursementRefund": "払い戻し / 返金"
   },
   "rules": {

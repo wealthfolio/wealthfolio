@@ -780,7 +780,7 @@ describe("CashActivityForm direct entry", () => {
       <CashActivityForm open onOpenChange={vi.fn()} intent="income" activity={foreignCharge} />,
       { wrapper },
     );
-    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Charge");
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Purchase");
     expect(screen.getByRole("combobox", { name: "Account" })).toHaveTextContent("WS Visa Infinite");
   });
 });

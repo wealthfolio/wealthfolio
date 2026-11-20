@@ -1475,9 +1475,9 @@
     "creditCard": {
       "charge": "消费",
       "payment": "还款",
-      "transfer": "余额转移 / 现金预借",
-      "refund": "退款 / 入账",
-      "interest": "利息费用"
+      "transfer": "预借现金 / 余额转移",
+      "refund": "退款",
+      "interest": "利息"
     }
   },
   "validation": {

@@ -38,7 +38,7 @@ describe("financial display translation paths", () => {
     expect(profile).toEqual(before);
     await i18n.changeLanguage("en");
     expect(getActivityTypeLabelForImportProfile(ActivityType.WITHDRAWAL, profile, i18n.t)).toBe(
-      "Charge",
+      "Purchase",
     );
   });
 

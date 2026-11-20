@@ -71,10 +71,10 @@
     "clearCategory": "Clear category"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Balance Transfer / Cash Advance",
-    "charge": "Charge",
-    "interestCharge": "Interest Charge",
-    "refundCredit": "Refund / Credit",
+    "balanceTransferCashAdvance": "Cash Advance / Balance Transfer",
+    "charge": "Purchase",
+    "interestCharge": "Interest",
+    "refundCredit": "Refund",
     "reimbursementRefund": "Reimbursement / refund"
   },
   "rules": {

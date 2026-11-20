@@ -1553,11 +1553,11 @@
       "issuesTitle_many": "Hay problemas con {{count}} entradas de actividad."
     },
     "creditCard": {
-      "charge": "Cargo",
+      "charge": "Compra",
       "payment": "Pago",
-      "transfer": "Transferencia de saldo / Anticipo de efectivo",
-      "refund": "Reembolso / Abono",
-      "interest": "Cargo por intereses"
+      "transfer": "Adelanto de efectivo / Transferencia de saldo",
+      "refund": "Devolución",
+      "interest": "Intereses"
     }
   },
   "validation": {

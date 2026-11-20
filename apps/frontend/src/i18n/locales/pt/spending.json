@@ -72,10 +72,10 @@
     "clearCategory": "Remover categoria"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Transferência de saldo / Saque",
-    "charge": "Cobrança",
-    "interestCharge": "Juros cobrados",
-    "refundCredit": "Estorno / Crédito",
+    "balanceTransferCashAdvance": "Saque / Transferência de saldo",
+    "charge": "Compra",
+    "interestCharge": "Juros",
+    "refundCredit": "Estorno",
     "reimbursementRefund": "Reembolso / devolução"
   },
   "rules": {

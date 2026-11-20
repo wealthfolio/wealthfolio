@@ -1231,10 +1231,10 @@
     },
     "creditCard": {
       "charge": "شراء",
-      "payment": "دفعة",
-      "transfer": "تحويل رصيد / سلفة نقدية",
-      "refund": "استرداد / إضافة رصيد",
-      "interest": "فوائد مستحقة"
+      "payment": "سداد",
+      "transfer": "سلفة نقدية / تحويل رصيد",
+      "refund": "استرداد",
+      "interest": "فوائد"
     }
   },
   "import_activities": "استيراد الأنشطة",
