@@ -198,6 +198,7 @@ async fn optional_defaults_stay_deleted_across_reads_reviewed_writes_and_restart
                 compare_end_date: None,
                 account_ids: None,
                 compare: None,
+                filter: None,
             },
             "USD",
             "UTC",

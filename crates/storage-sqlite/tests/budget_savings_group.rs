@@ -228,6 +228,7 @@ impl Fixture {
                     compare_end_date: None,
                     account_ids: None,
                     compare: None,
+                    filter: None,
                 },
                 currency,
                 timezone,

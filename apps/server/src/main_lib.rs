@@ -849,7 +849,7 @@ async fn initialize_profile_state(
     );
     let events_service = Arc::new(wealthfolio_spending::events::EventsService::new(
         event_types_repo,
-        events_repo,
+        events_repo.clone(),
         activity_repository.clone(),
         activity_events_repo.clone(),
     ));
@@ -940,16 +940,19 @@ async fn initialize_profile_state(
                 writer.clone(),
             ),
         );
-    let spending_insight_service = Arc::new(wealthfolio_spending::insight::InsightService::new(
-        spending_insight_repo,
-        activity_repository.clone(),
-        account_repo.clone(),
-        analytics_assignment_repo,
-        activity_splits_repo.clone(),
-        spending_settings_service.clone(),
-        taxonomy_service.clone(),
-        fx_service.clone(),
-    ));
+    let spending_insight_service = Arc::new(
+        wealthfolio_spending::insight::InsightService::new(
+            spending_insight_repo,
+            activity_repository.clone(),
+            account_repo.clone(),
+            analytics_assignment_repo,
+            activity_splits_repo.clone(),
+            spending_settings_service.clone(),
+            taxonomy_service.clone(),
+            fx_service.clone(),
+        )
+        .with_event_labels(activity_events_repo.clone(), events_repo.clone()),
+    );
 
 
     // Alternative asset service (delegates to core service)

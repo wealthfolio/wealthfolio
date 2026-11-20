@@ -11,9 +11,11 @@
 //! Σ groups[i].categories.budget` — are asserted in tests and as
 //! `debug_assert!` calls inside `InsightService::compute`.
 
+pub mod label_filter;
 pub mod model;
 pub mod service;
 
+pub use label_filter::{ActivityLabel, ActivityLabelFilter};
 pub use model::{
     AmountBlock, AmountSource, CategoryInsight, CompareMode, DayBucket, DayCategoryBucket,
     GroupInsight, Headline, HealthStatus, MonthBucket, MonthlyAmount, PaceState, PeriodMeta,
