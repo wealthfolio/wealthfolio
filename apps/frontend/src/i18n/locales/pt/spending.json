@@ -948,7 +948,7 @@
       "cardPayment": "Conta como um pagamento: reduz o que você deve e não é um gasto.",
       "cardAdvance": "Conta como um saque ou uma transferência de saldo: aumenta o que você deve e não é um gasto.",
       "spending": "Conta como gasto nos seus relatórios.",
-      "refund": "Conta como reembolso, o que reduz seus gastos.",
+      "refund": "Conta como estorno, o que reduz seus gastos.",
       "income": "Conta como receita nos seus relatórios.",
       "none": "Não conta mais como gasto nem como receita.",
       "reversesBalance": "O saldo também se move no sentido oposto.",

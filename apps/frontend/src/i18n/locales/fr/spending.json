@@ -959,10 +959,10 @@
       "paidFrom": "Payé depuis",
       "receivedFrom": "Reçu de",
       "sentTo": "Envoyé à",
-      "untracked": "Un compte que je ne suis pas",
+      "untracked": "Un compte non suivi",
       "suggested": "Suggestion : {{account}} · {{date}} · {{amount}}",
       "link": "Lier",
-      "hint": "Choisissez l'autre compte pour lier les deux côtés, ou laissez tel quel.",
+      "hint": "Choisissez l'autre compte pour lier les deux côtés, ou laissez-le tel quel.",
       "savesFirst": "Choisir un compte enregistre d'abord cette modification, puis lie les deux côtés."
     }
   },

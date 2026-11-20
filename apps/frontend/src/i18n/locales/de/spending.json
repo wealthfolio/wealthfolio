@@ -900,8 +900,8 @@
     "updateTransaction": "Transaktion aktualisieren",
     "createTransaction": "Transaktion erstellen",
     "typeChange": {
-      "transferOut": "Zählt als ausgehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie als Ausgabe.",
-      "transferIn": "Zählt als eingehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie als Einnahme.",
+      "transferOut": "Zählt als ausgehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie weiterhin als Ausgabe.",
+      "transferIn": "Zählt als eingehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie weiterhin als Einnahme.",
       "cardPayment": "Zählt als Zahlung: senkt Ihren offenen Betrag und ist keine Ausgabe.",
       "cardAdvance": "Zählt als Bargeldabhebung oder Saldoübertragung: erhöht Ihren offenen Betrag, ist aber keine Ausgabe.",
       "spending": "Zählt in Ihren Berichten als Ausgabe.",
@@ -915,7 +915,7 @@
     "linkRow": {
       "paidFrom": "Bezahlt von",
       "receivedFrom": "Erhalten von",
-      "sentTo": "Gesendet an",
+      "sentTo": "Überwiesen an",
       "untracked": "Ein Konto, das ich nicht erfasse",
       "suggested": "Vorschlag: {{account}} · {{date}} · {{amount}}",
       "link": "Verknüpfen",
