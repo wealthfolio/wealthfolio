@@ -8,7 +8,7 @@ use chrono::{Duration, NaiveDate, Utc};
 use log::{debug, info, warn};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::portfolio::coordinator::{blocking, ProjectionFreshnessTrait};
@@ -32,7 +32,7 @@ use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait, IncompleteHo
 use crate::portfolio::net_worth::{NetWorthServiceTrait, StaleAssetInfo};
 use crate::portfolio::snapshot::{
     max_snapshot_read_date, min_supported_snapshot_date, validate_snapshot_read_date,
-    AccountStateSnapshot, HoldingsTimeline, Position, SnapshotServiceTrait,
+    AccountStateSnapshot, HoldingsTimeline, SnapshotServiceTrait,
 };
 use crate::portfolio::valuation::{DailyAccountValuation, ValuationServiceTrait};
 use crate::quotes::QuoteServiceTrait;
@@ -2250,9 +2250,9 @@ struct BasisSourceIssue {
     /// The acquiring activity to fix (transactions-tracked only).
     activity_id: Option<String>,
     /// Date the incomplete basis is observed. For a holdings snapshot position,
-    /// the first holdings entry that lacks it.
+    /// the first holdings entry of the latest stretch that lacks it.
     observed_date: NaiveDate,
-    /// The last holdings entry that lacks it, when more than one does.
+    /// The last holdings entry of that stretch, when it has more than one.
     last_observed_date: Option<NaiveDate>,
     reason: ValuationIssueReason,
 }
@@ -2309,9 +2309,15 @@ async fn valuation_basis_issues_from_snapshots<S: SnapshotHistoryView>(
 /// exact acquiring activity that lacks a price.
 ///
 /// One issue per holding (account and asset), not one per holdings entry: a
-/// holding with no cost in fifty entries is one thing to fix, and the issue
-/// carries the first and last entry that lack it. An entry in the past still
-/// counts after later ones were given a cost.
+/// holding with no cost in fifty entries is one thing to fix. The issue covers
+/// the holding's latest stretch of entries that lack a cost and carries that
+/// stretch's first and last entry.
+///
+/// The first entry of the stretch is the issue's identity. Adding another entry
+/// to the same stretch keeps it, so a dismissal holds. Losing the cost again
+/// after an entry that had one starts a new stretch, a new identity, and an
+/// issue the earlier dismissal does not cover. An old stretch still counts
+/// after later entries were given a cost.
 fn basis_source_issues_from_snapshots<S: SnapshotHistoryView>(
     snapshots_by_account: &HashMap<String, S>,
     account_name_map: &HashMap<String, String>,
@@ -2333,12 +2339,11 @@ fn basis_source_issues_from_snapshots<S: SnapshotHistoryView>(
             .get(account_id)
             .cloned()
             .unwrap_or_else(|| account_id.clone());
-        // Asset -> first and last holdings entry whose position lacks a cost.
-        let mut affected_entries: std::collections::BTreeMap<String, (NaiveDate, NaiveDate)> =
-            std::collections::BTreeMap::new();
+        // Each holdings entry with the assets whose position lacks a cost in it.
+        let mut entries: Vec<(NaiveDate, BTreeSet<String>)> = Vec::new();
         snapshots_by_account[account_id].for_each_source_snapshot(
             &mut |snapshot_date, snapshot| {
-                let positions: Vec<&Position> = snapshot
+                let lacking_cost = snapshot
                     .positions
                     .values()
                     .filter(|position| !position.is_alternative && !position.quantity.is_zero())
@@ -2348,21 +2353,32 @@ fn basis_source_issues_from_snapshots<S: SnapshotHistoryView>(
                             BasisStatus::Unknown | BasisStatus::PartialUnknown
                         )
                     })
+                    .map(|position| position.asset_id.clone())
                     .collect();
-
-                for position in positions {
-                    affected_entries
-                        .entry(position.asset_id.clone())
-                        .and_modify(|(first, last)| {
-                            *first = (*first).min(snapshot_date);
-                            *last = (*last).max(snapshot_date);
-                        })
-                        .or_insert((snapshot_date, snapshot_date));
-                }
+                entries.push((snapshot_date, lacking_cost));
             },
         );
+        entries.sort_by_key(|(snapshot_date, _)| *snapshot_date);
 
-        for (asset_id, (first, last)) in affected_entries {
+        // Asset -> first and last entry of its latest stretch. A stretch ends at
+        // an entry where the holding has a cost or is not held, so the next
+        // entry that lacks one starts a new stretch.
+        let mut latest_stretches: BTreeMap<String, (NaiveDate, NaiveDate)> = BTreeMap::new();
+        let mut previous_lacking_cost: Option<&BTreeSet<String>> = None;
+        for (snapshot_date, lacking_cost) in &entries {
+            for asset_id in lacking_cost {
+                let continues = previous_lacking_cost.is_some_and(|prev| prev.contains(asset_id));
+                match latest_stretches.get_mut(asset_id) {
+                    Some((_, last)) if continues => *last = *snapshot_date,
+                    _ => {
+                        latest_stretches.insert(asset_id.clone(), (*snapshot_date, *snapshot_date));
+                    }
+                }
+            }
+            previous_lacking_cost = Some(lacking_cost);
+        }
+
+        for (asset_id, (first, last)) in latest_stretches {
             raws.push(BasisSourceIssue {
                 account_id: account_id.clone(),
                 account_name: account_name.clone(),
@@ -3576,7 +3592,7 @@ mod tests {
         assert_eq!(raws[1].last_observed_date, None);
 
         // The range reaches the issue, and so its diagnostic; the record id
-        // keeps the first entry's date, so it stays put as entries are added.
+        // keeps the stretch's first entry, so it stays put as entries are added.
         let issues: Vec<_> = raws
             .into_iter()
             .map(|raw| basis_source_consistency_issue(raw, &HashMap::new()))
@@ -3585,6 +3601,79 @@ mod tests {
         assert_eq!(issues[0].activity_date, Some(day(1)));
         assert_eq!(issues[0].end_date, Some(day(15)));
         assert_eq!(issues[1].end_date, None);
+    }
+
+    #[test]
+    fn incomplete_basis_holdings_reopens_when_cost_goes_missing_again() {
+        let day = |d| NaiveDate::from_ymd_opt(2026, 6, d).unwrap();
+        let entry = |d, has_cost: bool| {
+            snapshot_with_positions(
+                "acc_hold",
+                day(d),
+                HashMap::from([(
+                    "asset_xyz".to_string(),
+                    position_with_basis_status("acc_hold", "asset_xyz", has_cost),
+                )]),
+            )
+        };
+        // The Health issue a set of holdings entries produces, as dismissals see it.
+        let health_issue = |entries: Vec<AccountStateSnapshot>| {
+            let raws = basis_source_issues_from_snapshots(
+                &HashMap::from([("acc_hold".to_string(), entries)]),
+                &HashMap::from([("acc_hold".to_string(), "Manual".to_string())]),
+                &HashMap::from([("acc_hold".to_string(), TrackingMode::Holdings)]),
+            );
+            assert_eq!(raws.len(), 1, "one issue per holding");
+            let issue =
+                basis_source_consistency_issue(raws.into_iter().next().unwrap(), &HashMap::new());
+            let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+            DataConsistencyCheck::new()
+                .analyze(&[issue], &ctx)
+                .remove(0)
+        };
+        let identity = |issue: &HealthIssue| (issue.id.clone(), issue.data_hash.clone());
+        let range = |issue: &HealthIssue| {
+            let diagnostic = &issue.diagnostics.as_ref().expect("diagnostics")[0];
+            (diagnostic.date.clone(), diagnostic.date_range.clone())
+        };
+
+        // An old entry lacks a cost; a later one has it. This is what gets dismissed.
+        let dismissed = health_issue(vec![entry(1, false), entry(8, true)]);
+        assert_eq!(range(&dismissed), (Some("2026-06-01".to_string()), None));
+
+        // A newer entry lacks a cost again: a new stretch, so the dismissal no
+        // longer covers it and the issue points at the entry that started it.
+        let recurred = health_issue(vec![entry(1, false), entry(8, true), entry(15, false)]);
+        assert_ne!(identity(&recurred), identity(&dismissed));
+        assert_eq!(range(&recurred), (Some("2026-06-15".to_string()), None));
+
+        // The same stretch growing by an entry is still the same issue.
+        let grown = health_issue(vec![
+            entry(1, false),
+            entry(8, true),
+            entry(15, false),
+            entry(22, false),
+        ]);
+        assert_eq!(identity(&grown), identity(&recurred));
+        assert_eq!(
+            range(&grown),
+            (
+                Some("2026-06-15".to_string()),
+                Some(crate::health::HealthDateRange::new(
+                    "2026-06-15",
+                    "2026-06-22"
+                ))
+            )
+        );
+
+        // Once the newer entries are given a cost, the old stretch is what is
+        // left, under the identity that was dismissed.
+        let old_only = health_issue(vec![entry(1, false), entry(8, true), entry(15, true)]);
+        assert_eq!(identity(&old_only), identity(&dismissed));
+
+        // The entries are read in date order whatever order they arrive in.
+        let shuffled = health_issue(vec![entry(15, false), entry(1, false), entry(8, true)]);
+        assert_eq!(identity(&shuffled), identity(&recurred));
     }
 
     #[test]
