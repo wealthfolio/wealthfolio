@@ -569,6 +569,12 @@ async fn get_spending_context(
     Ok(Json(state.cash_activity_service.context().await?))
 }
 
+async fn get_payee_usage(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<std::collections::HashMap<String, usize>>> {
+    Ok(Json(state.cash_activity_service.payee_usage().await?))
+}
+
 async fn upsert_budget_target(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(query): Query<BudgetQuery>,
@@ -882,6 +888,7 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/spending/categories/merge", post(merge_category))
         .route("/spending/budget/snapshot", get(get_budget_readonly))
         .route("/spending/context", get(get_spending_context))
+        .route("/spending/payees/usage", get(get_payee_usage))
         .route("/spending/budget/targets", post(upsert_budget_target))
         .route(
             "/spending/budget/targets/{id}",

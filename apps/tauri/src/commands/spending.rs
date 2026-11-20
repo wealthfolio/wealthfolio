@@ -644,6 +644,19 @@ pub async fn get_spending_context(
         .map_err(|_| "Failed to load Spending context".into())
 }
 
+/// How many activities are filed under each payee, by payee id.
+#[tauri::command]
+pub async fn get_payee_usage(
+    state: ProfileAccess,
+) -> Result<std::collections::HashMap<String, usize>, String> {
+    state
+        .context()?
+        .cash_activity_service()
+        .payee_usage()
+        .await
+        .map_err(|_| "Failed to count payee usage".into())
+}
+
 #[tauri::command]
 pub async fn upsert_budget_target(
     target: NewBudgetTarget,
