@@ -908,7 +908,7 @@
       "paidFrom": "출금 계좌",
       "receivedFrom": "보낸 계좌",
       "sentTo": "받는 계좌",
-      "untracked": "추적하지 않는 계좌",
+      "untracked": "관리하지 않는 계좌",
       "suggested": "추천: {{account}} · {{date}} · {{amount}}",
       "link": "연결",
       "hint": "상대 계좌를 골라 양쪽을 연결하거나 그대로 두세요.",
