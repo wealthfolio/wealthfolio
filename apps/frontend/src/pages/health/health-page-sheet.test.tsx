@@ -201,4 +201,32 @@ describe("HealthPage issue sheet", () => {
     expect(screen.getByText(issue.title)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
+
+  it("stays on the open issues when one is dismissed after the Dismissed view emptied", async () => {
+    const user = userEvent.setup();
+    const other: HealthIssue = {
+      ...issue,
+      id: "manual_valuation:stale:def",
+      title: "Valuation not updated for New Shed",
+      dataHash: "def",
+    };
+    adapters.getHealthStatus
+      .mockResolvedValueOnce(status([other], [issue]))
+      .mockResolvedValueOnce(status([issue, other]))
+      .mockResolvedValue(status([other], [issue]));
+    adapters.restoreHealthIssue.mockResolvedValue(undefined);
+    adapters.dismissHealthIssue.mockResolvedValue(undefined);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /1\s*Dismissed/ }));
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Dismissed/ })).not.toBeInTheDocument(),
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "Dismiss" })[0]);
+    expect(await screen.findByRole("button", { name: /1\s*Dismissed/ })).toBeInTheDocument();
+    expect(screen.getByText(other.title)).toBeInTheDocument();
+    expect(screen.queryByText(issue.title)).not.toBeInTheDocument();
+  });
 });

@@ -286,7 +286,7 @@ function StatusSummary({
         >
           <Icons.EyeOff className="h-3 w-3" />
           <span>{dismissedCount}</span>
-          <span className="hidden sm:inline">{t("health:dismissed.filter")}</span>
+          <span className="sr-only sm:not-sr-only">{t("health:dismissed.filter")}</span>
         </button>
       )}
       {selectedFilter && (
@@ -364,7 +364,9 @@ export default function HealthPage() {
   };
 
   const dismissedIssues = status?.dismissedIssues ?? [];
-  // Restoring the last dismissed issue ends the Dismissed view.
+  // Restoring the last dismissed issue ends the Dismissed view, and a later
+  // dismissal does not bring it back.
+  if (filter === "DISMISSED" && status && dismissedIssues.length === 0) setFilter(null);
   const activeFilter = filter === "DISMISSED" && dismissedIssues.length === 0 ? null : filter;
   const showingDismissed = activeFilter === "DISMISSED";
   const filteredIssues = showingDismissed
