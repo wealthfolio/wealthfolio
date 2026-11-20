@@ -420,6 +420,11 @@ pub struct PerformanceAmountsPart {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformanceAmounts {
+    /// The close the amounts open on, when it is later than the period's
+    /// start: an account that earned income before any money was put in is
+    /// measured from the close before its first deposit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<NaiveDate>,
     pub start_value: Option<Decimal>,
     /// Deposits and transfers in; purchases in an account that does not track cash.
     pub money_in: Option<Decimal>,
@@ -544,6 +549,7 @@ mod tests {
             is_holdings_mode: false,
             is_mixed_tracking_mode: true,
             amounts: PerformanceAmounts {
+                start_date: NaiveDate::from_ymd_opt(2026, 3, 15),
                 money_in: Some(Decimal::new(500, 0)),
                 gain: Some(Decimal::new(1234, 2)),
                 capital: Some(Decimal::new(1000, 0)),
@@ -580,6 +586,7 @@ mod tests {
         );
         assert_eq!(value["basisStatus"], json!("partialUnknown"));
         assert_eq!(value["isMixedTrackingMode"], json!(true));
+        assert_eq!(value["amounts"]["startDate"], json!("2026-03-15"));
         assert_eq!(value["amounts"]["moneyIn"], json!(500.0));
         assert_eq!(value["amounts"]["startValue"], json!(null));
         assert_eq!(value["amounts"]["flows"], json!("inferred"));

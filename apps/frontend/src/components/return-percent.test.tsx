@@ -208,6 +208,32 @@ describe("ReturnPercent", () => {
     expect(within(popover).queryByText("Capital invested")).toBeNull();
   });
 
+  it("dates the amounts from where they open when that is later than the period", async () => {
+    // An account that earned interest before any money was put in is measured
+    // from the close before its first deposit.
+    render(
+      <ReturnPercent
+        result={result(bothMethods.returns, {
+          amounts: {
+            startDate: "2026-03-15",
+            startValue: 508.5,
+            moneyIn: 20000,
+            moneyOut: 0,
+            gain: 700,
+            endValue: 21208.5,
+            flows: "confirmed",
+          },
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Time-weighted / }));
+    const popover = await screen.findByRole("dialog");
+
+    expect(within(popover).getByText("From Mar 15, 2026 to Jun 30, 2026")).toBeVisible();
+    expect(within(popover).queryByText("From Jan 1, 2026 to Jun 30, 2026")).toBeNull();
+    expect(within(popover).getByText("Start value").parentElement).toHaveTextContent("$508.50");
+  });
+
   it("says when the money in and out are estimated", async () => {
     render(
       <ReturnPercent

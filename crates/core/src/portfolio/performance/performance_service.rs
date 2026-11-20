@@ -669,6 +669,7 @@ fn summary_status(status: engine::model::SummaryStatus) -> PerformanceSummarySta
 
 fn amounts(amounts: engine::model::Amounts) -> PerformanceAmounts {
     PerformanceAmounts {
+        start_date: amounts.start_date,
         start_value: amounts.start_value,
         money_in: amounts.money_in,
         money_out: amounts.money_out,

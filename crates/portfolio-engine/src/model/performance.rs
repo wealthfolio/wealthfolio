@@ -152,6 +152,11 @@ impl FlowKnowledge {
 /// to the scope, or cannot be known, is absent.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Amounts {
+    /// The close the amounts open on, when it is later than the period's
+    /// start: an account that earned income before any money was put in is
+    /// measured from the close before its first deposit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<NaiveDate>,
     /// Value at the opening close; zero when the period opens at inception.
     #[serde(default, with = "crate::model::decimal_serde::option")]
     pub start_value: Option<Decimal>,

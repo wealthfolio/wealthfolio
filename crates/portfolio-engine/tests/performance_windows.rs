@@ -496,6 +496,7 @@ fn the_amounts_behind_a_return_add_up_for_each_kind_of_scope() {
     assert_eq!(
         account(&p, "acc", window(None)).amounts,
         Amounts {
+            start_date: None,
             start_value: Some(dec!(0)),
             money_in: Some(dec!(1000)),
             money_out: Some(dec!(0)),
@@ -510,6 +511,7 @@ fn the_amounts_behind_a_return_add_up_for_each_kind_of_scope() {
     assert_eq!(
         account(&p, "acc", window(Some("2026-02-01"))).amounts,
         Amounts {
+            start_date: None,
             start_value: Some(dec!(1095.45)),
             money_in: Some(dec!(0)),
             money_out: Some(dec!(0)),
@@ -536,6 +538,7 @@ fn the_amounts_behind_a_return_add_up_for_each_kind_of_scope() {
     assert_eq!(
         account(&p, "holdings", window(Some("2026-02-01"))).amounts,
         Amounts {
+            start_date: None,
             start_value: Some(dec!(200)),
             money_in: Some(dec!(0)),
             money_out: Some(dec!(0)),
@@ -560,6 +563,7 @@ fn a_mixed_scope_shows_the_gain_and_capital_of_its_two_halves() {
     assert_eq!(
         within.amounts,
         Amounts {
+            start_date: None,
             start_value: Some(dec!(1295.45)),
             money_in: Some(dec!(0)),
             money_out: Some(dec!(0)),
@@ -650,6 +654,93 @@ observed_snapshots:
         assert!(roi.period.is_some());
         assert_eq!(roi.series.last().map(|point| point.value), roi.period);
     }
+}
+
+#[test]
+fn income_before_the_first_deposit_is_not_a_gain_on_it() {
+    // A savings account is credited interest for months before any money is
+    // put in. Neither method has capital to measure on until the deposit:
+    // over the full history both open on the close before it, on the 508.50
+    // the account holds then, exactly as a period dated from that close.
+    let p = pipeline(
+        r#"
+id: PERFORMANCE-INCOME-BEFORE-FUNDING
+policy: { base_currency: USD, timezone: UTC, as_of: 2026-11-20 }
+accounts:
+  - { id: savings, currency: USD }
+activities:
+  - { id: int-1, account: savings, type: INTEREST, date: 2023-06-30T10:00:00Z, amount: 85.50 }
+  - { id: int-2, account: savings, type: INTEREST, date: 2024-06-30T10:00:00Z, amount: 423 }
+  - { id: dep, account: savings, type: DEPOSIT, date: 2025-02-04T10:00:00Z, amount: 20000 }
+  - { id: int-3, account: savings, type: INTEREST, date: 2026-02-04T10:00:00Z, amount: 700 }
+"#,
+    );
+    let window = |start: Option<&str>| Window {
+        start: start.map(|date| date.parse().unwrap()),
+        end: Some("2026-11-20".parse().unwrap()),
+    };
+    let funded = "2025-02-03".parse::<chrono::NaiveDate>().unwrap();
+    let all = account(&p, "savings", window(None));
+    let dated = account(&p, "savings", window(Some("2025-02-03")));
+
+    // 700 earned on 20,508.50: about 3.4 %, by either method.
+    let earned = (dec!(700) / dec!(20508.50)).round_dp(8);
+    assert_eq!(all.returns.twr.period, Some(earned));
+    assert_eq!(all.returns.money_weighted.period, Some(earned));
+    assert_eq!(
+        all.returns.money_weighted.period,
+        dated.returns.money_weighted.period
+    );
+    assert_eq!(
+        all.returns.money_weighted.annualized,
+        dated.returns.money_weighted.annualized
+    );
+    // No point of the curve leaves that range: before the deposit it is 0.
+    assert!(all
+        .returns
+        .money_weighted
+        .series
+        .iter()
+        .all(|point| point.value >= dec!(0) && point.value <= earned));
+    // The amounts open on the same close, and add up to the end value.
+    assert_eq!(
+        all.amounts,
+        Amounts {
+            start_date: Some(funded),
+            start_value: Some(dec!(508.50)),
+            money_in: Some(dec!(20000)),
+            money_out: Some(dec!(0)),
+            gain: Some(dec!(700)),
+            end_value: Some(dec!(21208.50)),
+            capital: None,
+            flows: FlowKnowledge::Confirmed,
+            parts: vec![],
+        }
+    );
+    assert_eq!(
+        dated.amounts,
+        Amounts {
+            start_date: None,
+            ..all.amounts.clone()
+        }
+    );
+    // The period, and the gain shown for it, still cover the whole history.
+    assert_eq!(all.period_start, Some("2023-06-30".parse().unwrap()));
+    assert_gain(&all, dec!(1208.50));
+
+    // A benchmark replays the same money from the same close.
+    let lots = p.lots();
+    let inputs = p.measure_inputs(&lots);
+    let ids = [AccountId::new("savings")];
+    let replay = scope_cash_flows(&inputs, &ids, window(None))
+        .unwrap()
+        .unwrap();
+    assert_eq!(replay.opening_date, funded);
+    assert_eq!(replay.opening_capital, dec!(508.50));
+    assert_eq!(
+        replay.flows,
+        vec![("2025-02-04".parse().unwrap(), dec!(20000), dec!(0))]
+    );
 }
 
 #[test]

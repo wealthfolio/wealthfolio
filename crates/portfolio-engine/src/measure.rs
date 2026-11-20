@@ -763,14 +763,7 @@ fn performance_core(
         false,
     );
     result.coverage_unavailable = coverage_unavailable;
-    result.amounts = period_amounts(
-        start_point,
-        end_point,
-        &flows,
-        holdings,
-        start_opt.is_none(),
-        baseline,
-    );
+    result.amounts = period_amounts(history, &flows, holdings, start_opt.is_none(), baseline);
     if holdings {
         result.basis_status = end_point.basis_status;
         result.holdings_flows_unavailable = holdings_flows_unavailable;
@@ -840,6 +833,28 @@ fn flow_quality_warnings(flows: &[PeriodFlow]) -> Vec<QualityNote> {
     warnings
 }
 
+/// Money has come in by this close: a contribution, in either currency (a
+/// conversion can round the base amount away).
+fn contributed(day: &DailyValuation) -> bool {
+    day.net_contribution_base > Decimal::ZERO || day.net_contribution > Decimal::ZERO
+}
+
+/// The close a history measured from inception is funded on: the first one
+/// with money contributed, or the close before the first money comes in
+/// (a deposit, or any inflow such as a transfer from another account).
+/// Income earned before it has no capital behind it, so both return methods
+/// start here. `None` when no money ever comes in.
+fn funded_index(history: &[DailyValuation], flows: &[PeriodFlow]) -> Option<usize> {
+    (0..history.len()).find(|&index| {
+        let day = &history[index];
+        contributed(day)
+            || (index == 0 && day.flow.inflow_base > Decimal::ZERO)
+            || flows
+                .get(index)
+                .is_some_and(|flow| flow.inflow > Decimal::ZERO)
+    })
+}
+
 /// `from_inception`: the period starts when the scope does, so the chain
 /// waits for money to come in; a later period starts already funded.
 fn time_weighted_returns(
@@ -853,16 +868,13 @@ fn time_weighted_returns(
     let mut reasons = Vec::new();
     let mut chain_started = false;
     let mut warned_partial = false;
-    // Money has come in: a contribution (in either currency: a conversion can
-    // round the base amount away), or any inflow such as a transfer from
-    // another account, from the first close on.
-    let contributed = |day: &DailyValuation| {
-        day.net_contribution_base > Decimal::ZERO || day.net_contribution > Decimal::ZERO
+    // From inception the chain waits for money to come in; a later period
+    // starts already funded.
+    let funded_from = if from_inception {
+        funded_index(history, flows)
+    } else {
+        Some(0)
     };
-    let mut funded = !from_inception
-        || history
-            .first()
-            .is_some_and(|first| contributed(first) || first.flow.inflow_base > Decimal::ZERO);
 
     let excluded = |factor: Decimal| ReturnSample {
         twr: Decimal::ZERO,
@@ -870,7 +882,7 @@ fn time_weighted_returns(
         excluded: true,
     };
 
-    for (pair, flow) in history.windows(2).zip(flows) {
+    for (index, (pair, flow)) in history.windows(2).zip(flows).enumerate() {
         let (prev, curr) = (&pair[0], &pair[1]);
         let prev_value = prev.total_value_base;
         let curr_value = curr.total_value_base;
@@ -913,7 +925,7 @@ fn time_weighted_returns(
         // The chain starts once money has come in: closes funded only by
         // income before the first deposit are too small a base to compound
         // (a few dollars of dividends would multiply into thousands of percent).
-        funded |= contributed(prev) || flow.inflow > Decimal::ZERO;
+        let funded = funded_from.is_some_and(|from| index >= from);
         if !chain_started && (prev_value <= Decimal::ZERO || benign_low_base || !funded) {
             samples.push((
                 curr.date,
@@ -1275,22 +1287,46 @@ impl Opening {
     }
 }
 
-/// Index of the close a money-weighted period opens on: a period opening on
-/// a negative close (pre-funding history) starts from the first valued close
-/// with at least one base unit; opening with the contribution needs no
-/// rebase. `None` when no close qualifies.
-fn opening_index(history: &[DailyValuation], opening: Opening) -> Option<usize> {
-    match history.first() {
-        Some(first) if opening == Opening::Close && first.total_value_base.is_sign_negative() => {
-            // An unvalued close carries a partial value: not one to open on.
-            history.iter().position(|d| {
+/// Where a period measured from inception opens, and with what. A history
+/// whose first close has money contributed opens there with that money. One
+/// that starts with income and nothing put in has no capital to earn on yet:
+/// it opens on the close [`funded_index`] gives, with what the scope holds
+/// then, as the time-weighted chain does. A history no money ever comes
+/// into keeps its inception opening: there is nothing later to open on.
+fn funded_opening(
+    history: &[DailyValuation],
+    flows: &[PeriodFlow],
+    opening: Opening,
+) -> (usize, Opening) {
+    let unfunded = opening == Opening::Contribution && !history.first().is_some_and(contributed);
+    match funded_index(history, flows) {
+        Some(index) if unfunded => (index, Opening::Close),
+        _ => (0, opening),
+    }
+}
+
+/// The close a money-weighted period opens on, and with what: the funded
+/// opening, moved on from a negative close (pre-funding history) to the
+/// first valued close with at least one base unit; opening with the
+/// contribution needs no such rebase. `None` when no close qualifies.
+fn opening_index(
+    history: &[DailyValuation],
+    flows: &[PeriodFlow],
+    opening: Opening,
+) -> Option<(usize, Opening)> {
+    let (start, opening) = funded_opening(history, flows, opening);
+    let first = history.get(start)?;
+    if opening == Opening::Close && first.total_value_base.is_sign_negative() {
+        // An unvalued close carries a partial value: not one to open on.
+        return history[start..]
+            .iter()
+            .position(|d| {
                 d.total_value_base >= MIN_RETURN_BASE
                     && !d.value_status.is_unavailable_for_returns()
             })
-        }
-        Some(_) => Some(0),
-        None => None,
+            .map(|index| (start + index, opening));
     }
+    Some((start, opening))
 }
 
 /// Gain and average capital at each close (the first one only when the
@@ -1309,7 +1345,8 @@ fn dietz_points(
     if !known_only && flows.iter().any(|f| f.source.is_unavailable_for_returns()) {
         return Err(QualityNote::MoneyWeightedUnknownFlow);
     }
-    let start_index = opening_index(history, opening).ok_or(QualityNote::MoneyWeightedNoCapital)?;
+    let (start_index, opening) =
+        opening_index(history, flows, opening).ok_or(QualityNote::MoneyWeightedNoCapital)?;
     let scoped = &history[start_index..];
     let scoped_flows = &flows[start_index..];
     let first = &scoped[0];
@@ -1382,7 +1419,7 @@ fn money_weighted_return(
     if points.is_empty() {
         return MoneyWeighted::unavailable(QualityNote::TwoValuationPointsRequired);
     }
-    let Some(start_index) = opening_index(history, opening) else {
+    let Some((start_index, opening)) = opening_index(history, flows, opening) else {
         return MoneyWeighted::unavailable(QualityNote::MoneyWeightedNoCapital);
     };
     let scoped = &history[start_index..];
@@ -1710,13 +1747,15 @@ fn holdings_return(
 /// percentages use: what the scope opened with, what went in and out, what
 /// it closed with, and the gain left once the flows are taken out.
 fn period_amounts(
-    start: &DailyValuation,
-    end: &DailyValuation,
+    history: &[DailyValuation],
     flows: &[PeriodFlow],
     holdings: bool,
     is_all_time: bool,
     baseline: Baseline,
 ) -> Amounts {
+    let (Some(first), Some(end)) = (history.first(), history.last()) else {
+        return Amounts::default();
+    };
     let valued = |day: &DailyValuation| !day.value_status.is_unavailable_for_returns();
     let stored = |value: Decimal| value.round_dp(STORED_PRECISION);
     let end_value = valued(end).then_some(end.total_value_base);
@@ -1735,8 +1774,12 @@ fn period_amounts(
             ..Amounts::default()
         };
     }
-    let opens_at_inception = Opening::for_baseline(holdings, baseline) == Opening::Contribution;
-    let start_value = if opens_at_inception {
+    // The amounts open where the returns do: a history that starts with
+    // income and no money put in opens on its funded close.
+    let (start_index, opening) =
+        funded_opening(history, flows, Opening::for_baseline(holdings, baseline));
+    let start = &history[start_index];
+    let start_value = if opening == Opening::Contribution {
         Some(Decimal::ZERO)
     } else {
         valued(start).then_some(start.total_value_base)
@@ -1748,13 +1791,15 @@ fn period_amounts(
     } else {
         FlowKnowledge::Confirmed
     };
+    let measured_flows = flows.get(start_index..).unwrap_or_default();
     let (money_in, money_out) = if knowledge == FlowKnowledge::Missing {
         (None, None)
-    } else if holdings {
-        let (money_in, money_out) = total_flows(flows);
+    } else if opening == Opening::Contribution {
+        let (money_in, money_out) =
+            flows_for_attribution(measured_flows, first, Baseline::Inception);
         (Some(money_in), Some(money_out))
     } else {
-        let (money_in, money_out) = flows_for_attribution(flows, start, baseline);
+        let (money_in, money_out) = total_flows(measured_flows);
         (Some(money_in), Some(money_out))
     };
     let gain = match (start_value, money_in, money_out, end_value) {
@@ -1764,6 +1809,7 @@ fn period_amounts(
         _ => None,
     };
     Amounts {
+        start_date: (start_index > 0).then_some(start.date),
         start_value: start_value.map(stored),
         money_in: money_in.map(stored),
         money_out: money_out.map(stored),
@@ -3093,14 +3139,7 @@ fn mixed_scope_performance(
             gain,
             capital,
             holdings,
-            amounts: period_amounts(
-                start_point,
-                end_point,
-                &flows,
-                holdings,
-                is_all_time,
-                baseline,
-            ),
+            amounts: period_amounts(history, &flows, holdings, is_all_time, baseline),
             contributes_to_scope,
             basis_status,
             attribution,
@@ -3529,7 +3568,9 @@ pub struct ScopeCashFlows {
 
 /// The scope's opening capital and dated flows over `window`, on the same
 /// terms as its money-weighted return: from inception the capital is the
-/// money contributed by the first close, otherwise the first close. Flows
+/// money contributed by the first close (or, for a history that starts with
+/// income only, what it holds on its funded close), otherwise the first
+/// close. Flows
 /// without a known amount are left out, as holdings snapshots do. `None`
 /// when the scope has fewer than two closes in the window, or an unvalued
 /// first or last close.
@@ -3564,9 +3605,13 @@ pub fn scope_cash_flows(
         .iter()
         .any(|a| inputs.tracking(a) == TrackingMode::Holdings);
     let baseline = inputs.attribution_baseline(has_holdings, window.start, &started);
-    let opening = Opening::for_baseline(has_holdings, baseline);
+    let all_flows = period_flows(&history);
     // The replay opens where the scope's own money-weighted return does.
-    let Some(start_index) = opening_index(&history, opening) else {
+    let Some((start_index, opening)) = opening_index(
+        &history,
+        &all_flows,
+        Opening::for_baseline(has_holdings, baseline),
+    ) else {
         return Ok(None);
     };
     let first = &history[start_index];
@@ -3574,7 +3619,6 @@ pub fn scope_cash_flows(
         Opening::Contribution => first.net_contribution_base,
         Opening::Close => first.total_value_base,
     };
-    let all_flows = period_flows(&history);
     // A flow without a known amount leaves the scope's own money-weighted
     // return unavailable: replaying the rest would compare different money.
     if all_flows
@@ -4501,9 +4545,16 @@ mod tests {
             dated("2026-01-01", dec!(-5), z, z),
             dated("2026-01-02", dec!(995), dec!(1000), z),
         ];
-        assert_eq!(opening_index(&history, Opening::Close), Some(1));
-        assert_eq!(opening_index(&history, Opening::Contribution), Some(0));
-        assert_eq!(opening_index(&history[..1], Opening::Close), None);
+        let flows = period_flows(&history);
+        assert_eq!(
+            opening_index(&history, &flows, Opening::Close),
+            Some((1, Opening::Close))
+        );
+        assert_eq!(
+            opening_index(&history, &flows, Opening::Contribution),
+            Some((0, Opening::Contribution))
+        );
+        assert_eq!(opening_index(&history[..1], &[], Opening::Close), None);
     }
 
     #[test]
@@ -4518,7 +4569,10 @@ mod tests {
             dated("2026-01-04", dec!(220), z, z),
         ];
         history[1].value_status = ValueStatus::Unavailable;
-        assert_eq!(opening_index(&history, Opening::Close), Some(2));
+        assert_eq!(
+            opening_index(&history, &period_flows(&history), Opening::Close),
+            Some((2, Opening::Close))
+        );
         let money_weighted = measured(&history, MeasureProfile::Full)
             .returns
             .money_weighted;

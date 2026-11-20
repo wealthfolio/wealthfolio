@@ -286,7 +286,7 @@ function UnclassifiedTransfers({ transfers }: { transfers: PerformanceUnclassifi
 }
 
 const AMOUNT_ROWS: {
-  field: Exclude<keyof PerformanceAmounts, "flows" | "parts">;
+  field: Exclude<keyof PerformanceAmounts, "startDate" | "flows" | "parts">;
   label: string;
 }[] = [
   { field: "startValue", label: "performance:return_view.amounts.start_value" },
@@ -317,7 +317,10 @@ function ReturnAmounts({ result }: { result: PerformanceResult }) {
     ({ field }) =>
       amounts?.[field] != null || (flowsMissing && (field === "moneyIn" || field === "moneyOut")),
   );
-  const hasPeriod = Boolean(period.startDate && period.endDate);
+  // The amounts open later than the period for an account that earned
+  // income before any money was put in.
+  const startDate = amounts?.startDate ?? period.startDate;
+  const hasPeriod = Boolean(startDate && period.endDate);
   if (!hasPeriod && rows.length === 0) return null;
   const estimated =
     amounts?.flows === "inferred" && (amounts.moneyIn != null || amounts.moneyOut != null);
@@ -327,7 +330,7 @@ function ReturnAmounts({ result }: { result: PerformanceResult }) {
       {hasPeriod && (
         <p className="text-muted-foreground">
           {t("account:from_to", {
-            start: formatDate(period.startDate, dateFormatting),
+            start: formatDate(startDate, dateFormatting),
             end: formatDate(period.endDate, dateFormatting),
           })}
         </p>

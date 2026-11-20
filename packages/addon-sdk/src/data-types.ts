@@ -1301,6 +1301,12 @@ export interface PerformanceAmountsPart {
  * amount that does not apply to the scope, or cannot be known, is missing.
  */
 export interface PerformanceAmounts {
+  /**
+   * The day the amounts open on, when it is later than the period's start: an
+   * account that earned income before any money was put in is measured from
+   * the close before its first deposit.
+   */
+  startDate?: string | null;
   startValue?: number | null;
   /** Deposits and transfers in; purchases in an account that does not track cash. */
   moneyIn?: number | null;
