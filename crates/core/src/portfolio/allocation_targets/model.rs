@@ -33,6 +33,39 @@ impl TryFrom<&str> for ScopeType {
     }
 }
 
+/// A category target stores weights against taxonomy categories. An asset
+/// target stores one weight per security and uses [`INDIVIDUAL_SECURITIES_TAXONOMY_ID`]
+/// as its taxonomy so no taxonomy service is consulted.
+pub const INDIVIDUAL_SECURITIES_TAXONOMY_ID: &str = "__individual_securities__";
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TargetType {
+    #[default]
+    Category,
+    Asset,
+}
+
+impl TargetType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Category => "category",
+            Self::Asset => "asset",
+        }
+    }
+}
+
+impl TryFrom<&str> for TargetType {
+    type Error = String;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "category" => Ok(Self::Category),
+            "asset" => Ok(Self::Asset),
+            _ => Err(format!("unknown target type: {s}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TriggerType {
@@ -140,6 +173,8 @@ pub struct AllocationTarget {
     pub scope_type: ScopeType,
     pub scope_id: Option<String>,
     pub taxonomy_id: String,
+    #[serde(default)]
+    pub target_type: TargetType,
     pub trigger_type: TriggerType,
     pub drift_band_bps: i32,
     pub band_type: BandType,
@@ -161,6 +196,8 @@ pub struct NewAllocationTarget {
     pub scope_type: ScopeType,
     pub scope_id: Option<String>,
     pub taxonomy_id: String,
+    #[serde(default)]
+    pub target_type: Option<TargetType>,
     pub trigger_type: TriggerType,
     pub drift_band_bps: i32,
     pub band_type: Option<BandType>,
@@ -195,11 +232,35 @@ pub struct NewAllocationTargetWeight {
     pub is_required: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllocationTargetAssetWeight {
+    pub id: String,
+    pub target_id: String,
+    pub asset_id: String,
+    pub target_bps: i32,
+    pub is_locked: bool,
+    pub is_required: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewAllocationTargetAssetWeight {
+    pub asset_id: String,
+    pub target_bps: i32,
+    pub is_locked: bool,
+    pub is_required: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveAllocationTargetResult {
     pub target: AllocationTarget,
     pub weights: Vec<AllocationTargetWeight>,
+    #[serde(default)]
+    pub asset_weights: Vec<AllocationTargetAssetWeight>,
 }
 
 // ── Drift types ──────────────────────────────────────────────────────────────

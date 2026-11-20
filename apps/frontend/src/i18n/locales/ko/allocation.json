@@ -80,7 +80,8 @@
     "buildFromScratch": "처음부터 구성",
     "exampleWeights": "예시 비중",
     "exampleDescription": "정량적 출발점으로 사용한 뒤 비중을 검토하고 수정하세요.",
-    "disclosure": "예시 비중일 뿐입니다. 추천이 아니며, Wealthfolio는 이 비중이 사용자에게 적합한지 평가하지 않았습니다."
+    "disclosure": "예시 비중일 뿐입니다. 추천이 아니며, Wealthfolio는 이 비중이 사용자에게 적합한지 평가하지 않았습니다.",
+    "equalWeight": "균등 비중"
   },
   "mode": {
     "enableSellsTip": "리밸런싱을 사용하려면 이 목표의 설정에서 감액을 허용하세요."
@@ -162,7 +163,12 @@
     "suggestedTargetName": "{{name}} 목표",
     "customFallback": "커스텀",
     "deleteDialogTitle": "목표를 삭제할까요?",
-    "deleteDialogDescription": "\"{{name}}\" 및 관련된 모든 목표 비중이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+    "deleteDialogDescription": "\"{{name}}\" 및 관련된 모든 목표 비중이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "individualSecurities": "개별 종목",
+    "individualSecuritiesNote": "종목별로 비중을 하나씩 설정합니다. 현금과 대체 자산은 포함되지 않습니다.",
+    "security": "종목",
+    "targetTypeFixed": "목표를 만든 후에는 배분 유형을 변경할 수 없습니다. 다른 유형을 사용하려면 새 목표를 만드세요.",
+    "noSecuritiesFound": "이 범위에서 종목을 찾을 수 없습니다. 개별 종목 목표를 만들기 전에 보유 자산을 추가하세요."
   },
   "scope": {
     "allAccounts": "모든 계좌",
@@ -505,6 +511,8 @@
     "region_other": "지역",
     "category_other": "카테고리",
     "assetClass_other": "자산 클래스",
-    "industry_other": "산업"
+    "industry_other": "산업",
+    "security": "종목",
+    "security_other": "종목"
   }
 }

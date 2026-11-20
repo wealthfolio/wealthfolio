@@ -87,7 +87,8 @@
     "buildFromScratch": "Criar do zero",
     "exampleWeights": "Pesos de exemplo",
     "exampleDescription": "Use como ponto de partida quantitativo e depois revise e edite os pesos.",
-    "disclosure": "Apenas pesos de exemplo. Não são recomendações, e o Wealthfolio não avaliou se são adequados para você."
+    "disclosure": "Apenas pesos de exemplo. Não são recomendações, e o Wealthfolio não avaliou se são adequados para você.",
+    "equalWeight": "Peso igual"
   },
   "mode": {
     "enableSellsTip": "Permita reduções nas configurações desta meta para usar “Rebalancear”."
@@ -170,7 +171,12 @@
     "suggestedTargetName": "Meta {{name}}",
     "customFallback": "Personalizado",
     "deleteDialogTitle": "Excluir meta?",
-    "deleteDialogDescription": "Isso excluirá permanentemente “{{name}}” e todos os seus pesos alvo. Esta ação não pode ser desfeita."
+    "deleteDialogDescription": "Isso excluirá permanentemente “{{name}}” e todos os seus pesos alvo. Esta ação não pode ser desfeita.",
+    "individualSecurities": "Títulos individuais",
+    "individualSecuritiesNote": "Um peso por título. Dinheiro e ativos alternativos não estão incluídos.",
+    "security": "Título",
+    "targetTypeFixed": "O tipo de alocação não pode ser alterado depois que a meta é criada. Crie uma nova meta para usar outro tipo.",
+    "noSecuritiesFound": "Nenhum título encontrado neste escopo. Adicione posições antes de criar uma meta de títulos individuais."
   },
   "scope": {
     "allAccounts": "Todas as contas",
@@ -541,6 +547,10 @@
     "industry_many": "indústrias",
     "category_one": "categoria",
     "region_many": "regiões",
-    "category_many": "categorias"
+    "category_many": "categorias",
+    "security": "títulos",
+    "security_one": "título",
+    "security_many": "títulos",
+    "security_other": "títulos"
   }
 }

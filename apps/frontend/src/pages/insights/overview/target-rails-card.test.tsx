@@ -6,7 +6,10 @@ import { DirectionProvider } from "@wealthfolio/ui";
 
 import { TargetRailsCard } from "./target-rails-card";
 
-vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: () => ({ data: undefined }) }));
+const { useTaxonomyMock } = vi.hoisted(() => ({
+  useTaxonomyMock: vi.fn((_id: string | null) => ({ data: undefined })),
+}));
+vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: useTaxonomyMock }));
 vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
 }));
@@ -59,6 +62,51 @@ const report: DriftReport = {
 };
 
 describe("TargetRailsCard", () => {
+  it("names each security from the drift rows without loading a taxonomy for an asset target", () => {
+    useTaxonomyMock.mockClear();
+    const assetTarget = {
+      ...target,
+      id: "target-2",
+      name: "Stocks",
+      taxonomyId: "__individual_securities__",
+      targetType: "asset",
+    } as AllocationTarget;
+    render(
+      <TargetRailsCard
+        targets={[assetTarget]}
+        selectedTargetId="target-2"
+        onTargetChange={vi.fn()}
+        driftReport={{
+          ...report,
+          targetId: "target-2",
+          rows: [
+            row("asset-vti", "VTI", "overweight", 7200, 6000),
+            row("asset-aapl", "AAPL", "underweight", 2800, 4000),
+          ],
+        }}
+      />,
+    );
+
+    const section = screen.getByText("Differences from target").parentElement!;
+    expect(within(section).getByText("VTI")).toBeInTheDocument();
+    expect(within(section).getByText("AAPL")).toBeInTheDocument();
+    expect(useTaxonomyMock).not.toHaveBeenCalledWith("__individual_securities__");
+    expect(useTaxonomyMock).toHaveBeenCalledWith(null);
+  });
+
+  it("still loads the taxonomy of a category target", () => {
+    useTaxonomyMock.mockClear();
+    render(
+      <TargetRailsCard
+        targets={[{ ...target, targetType: "category" }]}
+        selectedTargetId="target-1"
+        onTargetChange={vi.fn()}
+        driftReport={report}
+      />,
+    );
+    expect(useTaxonomyMock).toHaveBeenCalledWith("asset_classes");
+  });
+
   it("states how far each category sits from its target, without telling the user what to do", () => {
     render(
       <TargetRailsCard

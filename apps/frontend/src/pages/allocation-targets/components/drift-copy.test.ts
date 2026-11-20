@@ -1,6 +1,6 @@
 import { createInstance } from "i18next";
 import { expect, it } from "vitest";
-import { categoryNoun } from "./drift-copy";
+import { categoryNoun, taxonomyLabel } from "./drift-copy";
 
 const catalogs = import.meta.glob<Record<string, unknown>>("@/i18n/locales/*/allocation.json", {
   eager: true,
@@ -53,4 +53,12 @@ it("distinguishes Arabic dual forms from an unnumbered plural", async () => {
   expect(categoryNoun(t, "regions", "Regions", 3)).toBe("مناطق");
   expect(categoryNoun(t, "regions", "Regions", 11)).toBe("منطقة");
   expect(categoryNoun(t, "regions", "Regions")).toBe("المناطق");
+});
+
+it("calls the categories of an individual securities target securities, without a taxonomy name", async () => {
+  const t = await translate("en");
+  const sentinel = "__individual_securities__";
+  expect(categoryNoun(t, sentinel, undefined, 1)).toBe("security");
+  expect(categoryNoun(t, sentinel, undefined, 3)).toBe("securities");
+  expect(taxonomyLabel(t, sentinel, undefined)).toBe("Individual securities");
 });

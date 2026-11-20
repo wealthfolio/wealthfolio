@@ -90,6 +90,7 @@ fn sync_entity_name(entity: &SyncEntity) -> &'static str {
         SyncEntity::PortfolioAccount => "portfolio_account",
         SyncEntity::AllocationTarget => "allocation_target",
         SyncEntity::AllocationTargetWeight => "allocation_target_weight",
+        SyncEntity::AllocationTargetAssetWeight => "allocation_target_asset_weight",
         SyncEntity::AllocationTargetConstraint => "allocation_target_constraint",
         SyncEntity::SpendingSetting => "spending_setting",
         SyncEntity::AppPreference => "app_preference",
