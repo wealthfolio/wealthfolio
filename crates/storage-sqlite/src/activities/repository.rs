@@ -26,6 +26,7 @@ use wealthfolio_core::activities::{
 use wealthfolio_core::assets::{contract_multiplier_from_asset_metadata, InstrumentType};
 use wealthfolio_core::limits::ContributionActivity;
 use wealthfolio_core::{Error, Result};
+use wealthfolio_spending::activity_assignments::is_category_taxonomy;
 
 use super::model::{
     ActivityDB, ActivityDetailsDB, CashLedgerActivityDB, ImportAccountTemplateDB, ImportTemplateDB,
@@ -411,7 +412,12 @@ fn split_effect(
         .load::<ActivityTaxonomyAssignmentDB>(conn)
         .map_err(StorageError::from)?;
     let invalidates = activity_update_invalidates_spending_splits(before, after);
-    let hidden = invalidates && !splits.is_empty() && !assignments.is_empty();
+    // Only a category can sit hidden behind the splits. A payee was never
+    // behind them, and stays as it is when they go.
+    let has_category = assignments
+        .iter()
+        .any(|assignment| is_category_taxonomy(&assignment.taxonomy_id));
+    let hidden = invalidates && !splits.is_empty() && has_category;
     let state = serde_json::to_vec(&(before, &splits, &assignments))
         .map_err(|_| ActivityError::InvalidData("Unable to review split effects".into()))?;
     Ok(ActivitySplitEffect {
@@ -5609,6 +5615,33 @@ mod tests {
         assert_eq!(needs_review, 1);
         assert_eq!(metadata.as_deref(), Some("\"opaque\""));
         assert_eq!(sync_outbox_count(&mut conn), 0);
+    }
+
+    #[tokio::test]
+    async fn split_review_does_not_count_a_payee_as_a_retained_category() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account(&mut conn, "payee-account");
+            insert_activity_with_subtype(
+                &mut conn,
+                "payee-activity",
+                "payee-account",
+                "WITHDRAWAL",
+                None,
+                None,
+            );
+            insert_spending_split(&mut conn, "payee-split", "payee-activity");
+            diesel::sql_query("INSERT INTO taxonomy_categories (id,taxonomy_id,name,key,color,sort_order,created_at,updated_at) VALUES ('payee_bakery','payees','Corner Bakery','payee_bakery','#5B7C99',0,'2026-01-01','2026-01-01')").execute(&mut conn).expect("payee");
+            diesel::sql_query("INSERT INTO activity_taxonomy_assignments (id,activity_id,taxonomy_id,category_id,weight,source,created_at,updated_at) VALUES ('payee-row','payee-activity','payees','payee_bakery',10000,'manual','2026-01-01','2026-01-01')").execute(&mut conn).expect("payee assignment");
+        }
+        let update: ActivityUpdate = serde_json::from_value(serde_json::json!({"id":"payee-activity","accountId":"payee-account","activityType":"WITHDRAWAL","activityDate":"2024-01-15T00:00:00Z","currency":"USD","amount":"125"})).expect("update");
+
+        let effect = repo.preview_split_effect(&update).expect("pure preview");
+
+        assert_eq!(effect.removed_splits, 1);
+        assert!(!effect.has_retained_category_assignment);
     }
 
     #[tokio::test]

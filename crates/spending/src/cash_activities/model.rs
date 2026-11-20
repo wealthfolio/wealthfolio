@@ -48,6 +48,10 @@ pub enum SortDirection {
     Desc,
 }
 
+/// Stands for "no payee" in [`CashActivitySearchRequest::payee_ids`]. Payee
+/// ids are generated, so no payee can have this one.
+pub const NO_PAYEE_ID: &str = "__none__";
+
 /// Search request for cash activities. Powers the spending Transactions page.
 /// All filters optional. Server-side: filters → sort → paginate → join assignments.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -68,6 +72,9 @@ pub struct CashActivitySearchRequest {
     pub subcategory_ids: Option<Vec<String>>,
     /// Filter to activities tagged with these events (uses Activity.event_id).
     pub event_ids: Option<Vec<String>>,
+    /// Filter to activities filed under any of these payees. [`NO_PAYEE_ID`]
+    /// among them also keeps the activities that have no payee.
+    pub payee_ids: Option<Vec<String>>,
     /// Status: All / NeedsReview / Uncategorized / Categorized.
     #[serde(default)]
     pub status: CashActivityStatusFilter,

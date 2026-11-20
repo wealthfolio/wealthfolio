@@ -19,7 +19,7 @@ use crate::spending::activity_sync::should_sync_activity_local_id_outbox;
 use crate::spending::deterministic_ids::activity_taxonomy_assignment_id;
 use wealthfolio_core::sync::SyncEntity;
 use wealthfolio_spending::activity_assignments::{
-    ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentRepositoryTrait,
+    is_category_taxonomy, ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentRepositoryTrait,
     CategoryAssignmentConflicts, NewActivityTaxonomyAssignment, SplitAssignmentConflict,
     SplitAssignmentConflictReason,
 };
@@ -155,12 +155,16 @@ fn rule_decision(
     item: &NewActivityTaxonomyAssignment,
     only_uncategorized: bool,
 ) -> wealthfolio_core::Result<RuleDecision> {
-    if diesel::select(diesel::dsl::exists(
-        spending_activity_splits::table
-            .filter(spending_activity_splits::activity_id.eq(&item.activity_id)),
-    ))
-    .get_result::<bool>(conn)
-    .map_err(StorageError::from)?
+    // Splits stand in for the category, so a rule must not write one beside
+    // them. A payee is not part of the split and can still be set.
+    let replaces_splits = is_category_taxonomy(&item.taxonomy_id);
+    if replaces_splits
+        && diesel::select(diesel::dsl::exists(
+            spending_activity_splits::table
+                .filter(spending_activity_splits::activity_id.eq(&item.activity_id)),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(StorageError::from)?
     {
         return Ok(RuleDecision::Split);
     }
@@ -784,6 +788,50 @@ mod tests {
                 1
             );
         }
+    }
+
+    #[tokio::test]
+    async fn a_payee_rule_reaches_a_split_activity_and_leaves_its_splits() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+            diesel::sql_query(
+                "INSERT INTO taxonomy_categories \
+                 (id, taxonomy_id, name, key, color, sort_order, created_at, updated_at) \
+                 VALUES ('payee_bakery', 'payees', 'Corner Bakery', 'payee_bakery', '#5B7C99', 0, \
+                         '2026-01-01', '2026-01-01')",
+            )
+            .execute(&mut conn)
+            .expect("insert payee");
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+
+        let applied = repo
+            .assign_rule_many_single_select(
+                vec![NewActivityTaxonomyAssignment {
+                    id: None,
+                    activity_id: "split-activity".to_string(),
+                    taxonomy_id: "payees".to_string(),
+                    category_id: "payee_bakery".to_string(),
+                    weight: 10_000,
+                    source: "rule".to_string(),
+                }],
+                true,
+            )
+            .await
+            .expect("rerun rules");
+
+        assert_eq!(applied.len(), 1, "the payee is not part of the split");
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            1
+        );
     }
 
     #[tokio::test]

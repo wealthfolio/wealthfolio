@@ -133,6 +133,8 @@ pub struct ExportDatasetSummary {
 pub struct ActivitySpendingColumns {
     pub category: Option<String>,
     pub category_id: Option<String>,
+    /// Who the activity was with, when a payee is set.
+    pub payee: Option<String>,
     pub event: Option<String>,
     /// The splits as `[{category, amount, note}]`, when the activity is split.
     pub splits: Option<Value>,

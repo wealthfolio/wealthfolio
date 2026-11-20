@@ -16,11 +16,17 @@ const CUSTOM_GROUPS_ID: &str = "custom_groups";
 const SPENDING_CATEGORIES_ID: &str = "spending_categories";
 const INCOME_SOURCES_ID: &str = "income_sources";
 const SAVINGS_CATEGORIES_ID: &str = "savings_categories";
+/// Payees are all user-created: the taxonomy is seeded empty.
+const PAYEES_ID: &str = "payees";
 
 fn is_syncable_system_taxonomy_id(taxonomy_id: &str) -> bool {
     matches!(
         taxonomy_id,
-        CUSTOM_GROUPS_ID | SPENDING_CATEGORIES_ID | INCOME_SOURCES_ID | SAVINGS_CATEGORIES_ID
+        CUSTOM_GROUPS_ID
+            | SPENDING_CATEGORIES_ID
+            | INCOME_SOURCES_ID
+            | SAVINGS_CATEGORIES_ID
+            | PAYEES_ID
     )
 }
 

@@ -1886,7 +1886,11 @@ fn validate_spending_decimal_field(
 fn is_syncable_system_taxonomy_id(taxonomy_id: &str) -> bool {
     matches!(
         taxonomy_id,
-        "custom_groups" | "spending_categories" | "income_sources" | "savings_categories"
+        "custom_groups"
+            | "spending_categories"
+            | "income_sources"
+            | "savings_categories"
+            | "payees"
     )
 }
 

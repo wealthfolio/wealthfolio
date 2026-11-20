@@ -1546,3 +1546,160 @@ async fn deleted_activity_stays_deleted_against_newer_writes() {
         "the activity stays deleted on B"
     );
 }
+
+// ----------------------------- payees -----------------------------
+
+const PAYEES: &str = "payees";
+
+/// (taxonomy_id, category_id) of every label on the activity.
+fn labels(d: &Device, activity_id: &str) -> Vec<(String, String)> {
+    activity_taxonomy_assignments::table
+        .filter(activity_taxonomy_assignments::activity_id.eq(activity_id))
+        .select((
+            activity_taxonomy_assignments::taxonomy_id,
+            activity_taxonomy_assignments::category_id,
+        ))
+        .order(activity_taxonomy_assignments::taxonomy_id.asc())
+        .load(&mut d.conn())
+        .expect("load the activity's labels")
+}
+
+/// (id, name) of every payee.
+fn payees(d: &Device) -> Vec<(String, String)> {
+    use wealthfolio_storage_sqlite::schema::taxonomy_categories;
+    taxonomy_categories::table
+        .filter(taxonomy_categories::taxonomy_id.eq(PAYEES))
+        .select((taxonomy_categories::id, taxonomy_categories::name))
+        .order(taxonomy_categories::id.asc())
+        .load(&mut d.conn())
+        .expect("load payees")
+}
+
+/// (pattern, payee id) of every rule that sets a payee.
+fn payee_rules(d: &Device) -> Vec<(String, Option<String>)> {
+    spending_categorization_rules::table
+        .filter(spending_categorization_rules::taxonomy_id.eq(PAYEES))
+        .select((
+            spending_categorization_rules::pattern,
+            spending_categorization_rules::category_id,
+        ))
+        .order(spending_categorization_rules::id.asc())
+        .load(&mut d.conn())
+        .expect("load payee rules")
+}
+
+/// A payee is a category of a seeded taxonomy, filed on an activity beside
+/// its spending category. The peer needs the payee itself, not only the rows
+/// that point at it.
+#[tokio::test]
+async fn payee_created_filed_renamed_and_deleted_reaches_peer() {
+    use wealthfolio_core::taxonomies::{Category, NewCategory, TaxonomyRepositoryTrait};
+    use wealthfolio_storage_sqlite::taxonomies::TaxonomyRepository;
+
+    let (a, b) = (Device::new(), Device::new());
+    seed_both(&a, &b, &cash_activity_seed());
+    let taxonomy = TaxonomyRepository::new(a.pool.clone(), a.writer.clone());
+    let assignments = ActivityTaxonomyAssignmentRepository::new(a.pool.clone(), a.writer.clone());
+    let rules = CategorizationRulesRepository::new(a.pool.clone(), a.writer.clone());
+    let mut seq = 0;
+
+    assign_category(&assignments, &a, GROCERY_RUN, "cat_groceries").await;
+    let payee = taxonomy
+        .create_category(NewCategory {
+            taxonomy_id: PAYEES.to_string(),
+            name: "Corner Bakery".to_string(),
+            key: "payee_corner_bakery".to_string(),
+            color: "#5B7C99".to_string(),
+            ..Default::default()
+        })
+        .await
+        .expect("create the payee on A");
+    assignments
+        .assign_many_single_select(vec![NewActivityTaxonomyAssignment {
+            id: None,
+            activity_id: GROCERY_RUN.to_string(),
+            taxonomy_id: PAYEES.to_string(),
+            category_id: payee.id.clone(),
+            weight: 10_000,
+            source: "manual".to_string(),
+        }])
+        .await
+        .expect("file the payee on A");
+    let rule = rules
+        .create(NewCategorizationRule {
+            id: None,
+            name: "Bakery".to_string(),
+            pattern: "BAKERY".to_string(),
+            match_type: RuleMatchType::Contains,
+            taxonomy_id: Some(PAYEES.to_string()),
+            category_id: Some(payee.id.clone()),
+            activity_type: None,
+            amount_op: None,
+            amount_value: None,
+            amount_value2: None,
+            priority: 0,
+            is_global: true,
+            account_id: None,
+            preset_id: None,
+            preset_rule_key: None,
+            preset_version: None,
+        })
+        .await
+        .expect("create the payee rule on A");
+
+    let filed = sync_cycle(&a, &b, &mut seq).await;
+    filed.assert_pushed(SyncEntity::CustomTaxonomy, PAYEES, SyncOperation::Update);
+    filed.assert_all_applied();
+    assert_eq!(
+        payees(&b),
+        vec![(payee.id.clone(), "Corner Bakery".to_string())],
+        "B must have the payee itself"
+    );
+    assert_eq!(
+        labels(&a, GROCERY_RUN),
+        vec![
+            (PAYEES.to_string(), payee.id.clone()),
+            (SPENDING.to_string(), "cat_groceries".to_string()),
+        ]
+    );
+    assert_eq!(labels(&b, GROCERY_RUN), labels(&a, GROCERY_RUN));
+    assert_eq!(
+        payee_rules(&b),
+        vec![("BAKERY".to_string(), Some(payee.id.clone()))]
+    );
+
+    taxonomy
+        .update_category(Category {
+            name: "Corner Bakery & Cafe".to_string(),
+            ..payee.clone()
+        })
+        .await
+        .expect("rename the payee on A");
+    let renamed = sync_cycle(&a, &b, &mut seq).await;
+    renamed.assert_all_applied();
+    assert_eq!(
+        payees(&b),
+        vec![(payee.id.clone(), "Corner Bakery & Cafe".to_string())],
+        "B must show the new name"
+    );
+
+    // What deleting a payee takes: nothing may point at it any more.
+    assignments
+        .clear_for_taxonomy(GROCERY_RUN, PAYEES)
+        .await
+        .expect("clear the payee on A");
+    rules.delete(&rule.id).await.expect("delete the rule on A");
+    taxonomy
+        .delete_category(PAYEES, &payee.id)
+        .await
+        .expect("delete the payee on A");
+    let deleted = sync_cycle(&a, &b, &mut seq).await;
+    deleted.assert_all_applied();
+    assert!(payees(&b).is_empty(), "B deletes the payee too");
+    assert!(payee_rules(&b).is_empty());
+    assert_eq!(
+        labels(&b, GROCERY_RUN),
+        vec![(SPENDING.to_string(), "cat_groceries".to_string())],
+        "the category stays when the payee goes"
+    );
+}
