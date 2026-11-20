@@ -33,7 +33,9 @@ vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: testSettings.hidden }),
 }));
 vi.mock("@/hooks/use-accounts", () => ({ useAccounts: () => ({ accounts: [] }) }));
-vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: () => ({ data: taxonomyData }) }));
+vi.mock("@/hooks/use-taxonomies", () => ({
+  useTaxonomy: (id: string) => ({ data: id === "payees" ? null : taxonomyData }),
+}));
 vi.mock("../hooks/use-spending-settings", () => ({
   useSpendingSettings: () => ({ isEnabled: true, isLoading: false }),
 }));
@@ -49,6 +51,8 @@ vi.mock("../hooks/use-spending-insight", () => ({
   },
 }));
 vi.mock("../hooks/use-spending-events", () => ({
+  useEventTypes: () => ({ data: [] }),
+  useSpendingEvents: () => ({ data: [] }),
   useEventSpendingSummaries: (request: unknown) => {
     eventsQuery(request);
     return { data: [] };

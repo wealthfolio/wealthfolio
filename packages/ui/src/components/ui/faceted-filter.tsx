@@ -24,9 +24,14 @@ export interface FacetedFilterProps {
     value: string;
     count?: number;
     icon?: React.ComponentType<{ className?: string }>;
+    /** Listed only while the search box has text, or once picked. For a long
+     *  tail of options that would bury the short list. */
+    searchOnly?: boolean;
   }[];
   selectedValues: Set<string>;
   onFilterChange: (values: Set<string>) => void;
+  /** Placeholder of the search box. Defaults to the title. */
+  searchPlaceholder?: string;
 }
 
 export function FacetedFilter({
@@ -35,8 +40,14 @@ export function FacetedFilter({
   options,
   selectedValues,
   onFilterChange,
+  searchPlaceholder,
 }: FacetedFilterProps) {
   const { t } = useTranslation();
+  const [search, setSearch] = React.useState("");
+  const isSearching = search.trim() !== "";
+  const listedOptions = options.filter(
+    (option) => !option.searchOnly || isSearching || selectedValues.has(option.value),
+  );
   return (
     <Popover>
       <PopoverTrigger
@@ -83,11 +94,11 @@ export function FacetedFilter({
       </PopoverTrigger>
       <PopoverContent className={cn("w-50 p-0", contentClassName)} align="start">
         <Command>
-          <CommandInput placeholder={title} />
+          <CommandInput placeholder={searchPlaceholder ?? title} value={search} onValueChange={setSearch} />
           <CommandList>
             <CommandEmpty>{t("ui:faceted.noResults", "No results found.")}</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => {
+              {listedOptions.map((option) => {
                 const isSelected = selectedValues.has(option.value);
                 return (
                   <CommandItem

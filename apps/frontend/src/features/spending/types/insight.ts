@@ -10,6 +10,23 @@ export interface SpendingInsightRequest {
   compareEndDate?: string; // RFC3339, inclusive
   accountIds?: string[];
   compare?: CompareMode;
+  /** Narrows the report, and its comparison window, by label. */
+  filter?: ActivityLabelFilter;
+}
+
+/** Something an activity is filed under: a category of an activity taxonomy
+ *  (a payee, or a spending, income or savings category), a spending event, or
+ *  every event of one type. */
+export type ActivityLabel =
+  | { kind: "category"; taxonomyId: string; categoryId: string }
+  | { kind: "event"; eventId: string }
+  | { kind: "eventType"; eventTypeId: string };
+
+export interface ActivityLabelFilter {
+  /** Keep only activities carrying at least one of these. Empty keeps all. */
+  include?: ActivityLabel[];
+  /** Then drop activities carrying any of these. */
+  exclude?: ActivityLabel[];
 }
 
 export interface PeriodMeta {
@@ -155,6 +172,11 @@ export interface SpendingInsight {
   uncategorized: UncategorizedBucket;
   incomeBreakdown: CategoryBreakdownRow[];
   savingsBreakdown: CategoryBreakdownRow[];
+  /**
+   * Spending by payee, largest first. The row with the uncategorized id is
+   * the spending that has no payee.
+   */
+  payeeBreakdown?: CategoryBreakdownRow[];
   byDay: DayBucket[];
   byDayByCategory: DayCategoryBucket[];
   byMonth: MonthBucket[];
