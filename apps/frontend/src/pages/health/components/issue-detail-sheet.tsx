@@ -880,21 +880,21 @@ export function IssueDetailSheet({
               </Button>
             </>
           ) : (
-          <ActionConfirm
-            confirmTitle={t("health:detail.dismissConfirm.title")}
-            confirmMessage={t("health:detail.dismissConfirm.message")}
-            confirmButtonText={t("health:detail.dismiss")}
-            confirmButtonVariant="default"
-            handleConfirm={onDismiss}
-            isPending={isDismissing}
-            pendingText={t("health:detail.dismissConfirm.pendingText")}
-            button={
-              <Button variant="ghost" className="text-muted-foreground w-full">
-                <Icons.EyeOff className="me-2 h-4 w-4" />
-                {t("health:detail.dismiss")}
-              </Button>
-            }
-          />
+            <ActionConfirm
+              confirmTitle={t("health:detail.dismissConfirm.title")}
+              confirmMessage={t("health:detail.dismissConfirm.message")}
+              confirmButtonText={t("health:detail.dismiss")}
+              confirmButtonVariant="default"
+              handleConfirm={onDismiss}
+              isPending={isDismissing}
+              pendingText={t("health:detail.dismissConfirm.pendingText")}
+              button={
+                <Button variant="ghost" className="text-muted-foreground w-full">
+                  <Icons.EyeOff className="me-2 h-4 w-4" />
+                  {t("health:detail.dismiss")}
+                </Button>
+              }
+            />
           )}
         </div>
       </SheetContent>
