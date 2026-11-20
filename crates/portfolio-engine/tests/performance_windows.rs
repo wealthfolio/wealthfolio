@@ -577,6 +577,61 @@ fn a_mixed_scope_shows_the_gain_and_capital_of_its_two_halves() {
 }
 
 #[test]
+fn a_mixed_scope_curve_ends_on_its_headline() {
+    // The transactions account doubles and is emptied a day into the window,
+    // so its average capital is negative (100 − 200 × 9/10 = −80). The curve
+    // counts it as the headline does: 100 over 1,000 − 80.
+    let p = pipeline(
+        r#"
+id: PERFORMANCE-MIXED-CURVE
+policy: { base_currency: USD, timezone: UTC, as_of: 2026-02-11 }
+accounts:
+  - { id: acc, currency: USD }
+  - { id: holdings, currency: USD, tracking_mode: HOLDINGS }
+assets:
+  - { id: vt, quote_ccy: USD }
+  - { id: held, quote_ccy: USD }
+activities:
+  - { id: dep, account: acc, type: DEPOSIT, date: 2026-01-20T07:00:00Z, amount: 100 }
+  - { id: buy, account: acc, type: BUY, date: 2026-01-20T08:00:00Z, asset: vt, quantity: 1, unit_price: 100, amount: 100 }
+  - { id: sell, account: acc, type: SELL, date: 2026-02-02T08:00:00Z, asset: vt, quantity: 1, unit_price: 200, amount: 200 }
+  - { id: wd, account: acc, type: WITHDRAWAL, date: 2026-02-02T09:00:00Z, amount: 200 }
+quotes:
+  - { asset: vt, day: 2026-01-20, close: 100 }
+  - { asset: vt, day: 2026-02-01, close: 100 }
+  - { asset: vt, day: 2026-02-02, close: 200 }
+  - { asset: held, day: 2026-01-01, close: 1000 }
+  - { asset: held, day: 2026-02-11, close: 1000 }
+observed_snapshots:
+  - { account: holdings, date: 2026-01-01, positions: [{ asset: held, quantity: 1, average_cost: 1000 }], cash: {} }
+"#,
+    );
+    let emptied = scope(
+        &p,
+        &["acc", "holdings"],
+        Window {
+            start: Some("2026-02-01".parse().unwrap()),
+            end: Some("2026-02-11".parse().unwrap()),
+        },
+    );
+    assert_eq!(emptied.amounts.capital, Some(dec!(920)));
+    assert_eq!(
+        emptied.returns.return_on_cost.period,
+        Some((dec!(100) / dec!(920)).round_dp(8))
+    );
+    let steady = scope(
+        &pipeline(MIXED),
+        &["acc", "holdings"],
+        window(Some("2026-02-01")),
+    );
+    for result in [emptied, steady] {
+        let roi = &result.returns.return_on_cost;
+        assert!(roi.period.is_some());
+        assert_eq!(roi.series.last().map(|point| point.value), roi.period);
+    }
+}
+
+#[test]
 fn a_transfer_with_no_known_boundary_is_named_where_it_withholds_a_return() {
     let p = pipeline(
         r#"

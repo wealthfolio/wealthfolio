@@ -758,7 +758,7 @@ fx_rates:
         assert_eq!(result.attribution.unrealized_pnl_change, dec!(10));
         assert_eq!(result.attribution.pnl(), dec!(-90));
         assert!(result.returns.twr.period.is_none());
-        assert!(result.returns.money_weighted.annualized.is_none());
+        assert!(result.returns.money_weighted.period.is_none());
     }
 }
 

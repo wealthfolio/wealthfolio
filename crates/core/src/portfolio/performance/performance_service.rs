@@ -797,10 +797,22 @@ impl PerformanceServiceTrait for PerformanceService {
             Ok(prices) => prices,
             Err(unavailable) => return Ok(unavailable),
         };
-        Ok(from_kernel(match cash {
-            Some(cash) => engine::measure_price_series_replayed(symbol, &currency, &points, &cash),
-            None => engine::measure_price_series(symbol, &currency, &points),
-        }))
+        match cash {
+            // The replay solves a rate at every close, so it grows with the
+            // history: off the async workers, like the scope's own measure.
+            Some(cash) => {
+                let symbol = symbol.to_string();
+                blocking(move || {
+                    Ok(from_kernel(engine::measure_price_series_replayed(
+                        &symbol, &currency, &points, &cash,
+                    )))
+                })
+                .await
+            }
+            None => Ok(from_kernel(engine::measure_price_series(
+                symbol, &currency, &points,
+            ))),
+        }
     }
 
     async fn calculate_performance_history(

@@ -722,11 +722,11 @@ describe("PerformancePage shared scope", () => {
         data: [
           {
             ...resultWithWarning,
-            // A mixed portfolio has no TWR; its money-weighted return stands in, labelled.
+            // A mixed portfolio has neither method; its ROI stands in, labelled.
             returns: {
               twr: { unavailableReason: reasons[0] },
-              moneyWeighted: { period: 0 },
-              returnOnCost: {},
+              moneyWeighted: { unavailableReason: reasons[1] },
+              returnOnCost: { period: 0 },
             },
             isMixedTrackingMode: true,
             dataQuality: {
@@ -767,7 +767,7 @@ describe("PerformancePage shared scope", () => {
       await userEvent.click(within(dialog).getByRole("button", { name: "Close attribution" }));
       await userEvent.click(
         screen.getByRole("button", {
-          name: /calculation notes? for money-weighted(?: return)?$/i,
+          name: /calculation notes? for (?:ROI|return on investment \(ROI\))$/i,
         }),
       );
       expect(await screen.findByText(seriesWarning)).toBeVisible();

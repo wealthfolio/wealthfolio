@@ -84,7 +84,7 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
   // its ROI (summed gains over summed capital) stands in.
   expect(history.returns.twr.period ?? null).toBeNull();
   expect(history.returns.moneyWeighted.period ?? null).toBeNull();
-  expect(history.returns.returnOnCost.period).not.toBeUndefined();
+  expect(history.returns.returnOnCost.period).toEqual(expect.any(Number));
   expect(history.isMixedTrackingMode).toBe(true);
   expect(history.summary?.amountStatus).toBe("complete");
   expect(["complete", "notApplicable"]).toContain(history.summary?.basisStatus);

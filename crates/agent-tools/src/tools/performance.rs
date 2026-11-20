@@ -80,8 +80,8 @@ pub struct PerformanceReturnViewOutput {
 pub struct PerformanceReturnsOutput {
     /// Time-weighted: deposits and withdrawals do not move it.
     pub twr: PerformanceReturnViewOutput,
-    /// Money-weighted: gain over the average invested capital; `annualized`
-    /// compounds it to a yearly rate.
+    /// Money-weighted: the period's internal rate of return, which counts
+    /// when money went in and out; `annualized` is the same rate over a year.
     pub money_weighted: PerformanceReturnViewOutput,
     /// Gain over book cost, for holdings accounts over their full history.
     pub return_on_cost: PerformanceReturnViewOutput,
@@ -191,7 +191,7 @@ impl AgentTool for GetPerformance {
     }
 
     fn description(&self) -> &'static str {
-        "Get portfolio performance: time-weighted return (twr), money-weighted return (gain over average invested capital; annualized compounds it to a yearly rate), ROI (returnOnCost: gain over book cost) for holdings accounts over their full history, attribution, volatility, and max drawdown. A return missing for the scope carries an unavailableReason. Omit accountId for aggregate performance across all accounts."
+        "Get portfolio performance: time-weighted return (twr), money-weighted return (the period's internal rate of return, which counts when money went in and out; annualized is the same rate over a year), ROI (returnOnCost: gain over book cost) for holdings accounts over their full history, attribution, volatility, and max drawdown. A return missing for the scope carries an unavailableReason. Omit accountId for aggregate performance across all accounts."
     }
 
     fn input_schema(&self) -> serde_json::Value {

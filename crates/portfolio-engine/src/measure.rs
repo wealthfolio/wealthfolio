@@ -2881,12 +2881,6 @@ struct ComponentMetrics {
     reasons: Vec<QualityNote>,
 }
 
-struct MixedSeriesPoint {
-    date: NaiveDate,
-    amount: Decimal,
-    denominator: Option<Decimal>,
-}
-
 /// A component's gain and the capital it was earned on, for the scope's
 /// ROI: the average capital invested over the period (Modified Dietz), or
 /// the book cost for a holdings account over its full history. The capital
@@ -3311,7 +3305,9 @@ fn add_attribution(target: &mut Attribution, source: &Attribution) {
     target.taxes += source.taxes;
 }
 
-fn mixed_component_series(component: &MixedComponent) -> Vec<MixedSeriesPoint> {
+/// A component's gain and capital at each close, signed as the headline
+/// counts them: the scope adds them up before judging the capital.
+fn mixed_component_series(component: &MixedComponent) -> Vec<DietzPoint> {
     let history = &component.history;
     if history.len() < 2
         || history
@@ -3327,22 +3323,14 @@ fn mixed_component_series(component: &MixedComponent) -> Vec<MixedSeriesPoint> {
     }
     // The bounded series only exists when no component starts at its
     // inception, so every component opens on its first close.
-    dietz_points(history, &flows, holdings, Opening::Close)
-        .unwrap_or_default()
-        .into_iter()
-        .map(|point| MixedSeriesPoint {
-            date: point.date,
-            amount: point.gain,
-            denominator: (point.capital >= MIN_RETURN_BASE).then_some(point.capital),
-        })
-        .collect()
+    dietz_points(history, &flows, holdings, Opening::Close).unwrap_or_default()
 }
 
 fn mixed_bounded_series(
     components: &[MixedComponent],
     actual_start: NaiveDate,
 ) -> Vec<SeriesPoint> {
-    let component_series: Vec<Vec<MixedSeriesPoint>> =
+    let component_series: Vec<Vec<DietzPoint>> =
         components.iter().map(mixed_component_series).collect();
     let mut dates: Vec<NaiveDate> = component_series
         .iter()
@@ -3363,8 +3351,8 @@ fn mixed_bounded_series(
             });
             continue;
         }
-        let mut amount = Decimal::ZERO;
-        let mut denominator = Decimal::ZERO;
+        let mut gain = Decimal::ZERO;
+        let mut capital = Decimal::ZERO;
         for (index, points) in component_series.iter().enumerate() {
             let mut next = cursors[index].map_or(0, |i| i + 1);
             while next < points.len() && points[next].date <= date {
@@ -3372,14 +3360,12 @@ fn mixed_bounded_series(
                 next += 1;
             }
             if let Some(point) = cursors[index].map(|i| &points[i]) {
-                amount += point.amount;
-                if let Some(value) = point.denominator {
-                    denominator += value;
-                }
+                gain += point.gain;
+                capital += point.capital;
             }
         }
-        if let Some(value) = (denominator > Decimal::ZERO)
-            .then(|| arith::div(amount, denominator))
+        if let Some(value) = (capital >= MIN_RETURN_BASE)
+            .then(|| arith::div(gain, capital))
             .flatten()
         {
             series.push(SeriesPoint {
