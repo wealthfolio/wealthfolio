@@ -747,6 +747,8 @@ export interface CashActivitySearchRequest {
   categoryIds?: string[];
   subcategoryIds?: string[];
   eventIds?: string[];
+  /** Keep transactions filed under any of these payees. */
+  payeeIds?: string[];
   status?: CashActivityStatusFilter;
   /** Inclusive RFC3339 timestamp. */
   startDate?: string;

@@ -54,6 +54,7 @@ export interface CashActivitySearchRequest {
   categoryIds?: string[];
   subcategoryIds?: string[];
   eventIds?: string[];
+  payeeIds?: string[];
   status?: CashActivityStatusFilter;
   startDate?: string;
   endDate?: string;

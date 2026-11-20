@@ -68,6 +68,9 @@ import {
   setActivityEvent,
   unassignActivityCategory,
 } from "../adapters/cash-activities";
+import { useActivityPayee } from "../hooks/use-activity-payee";
+import { PAYEES_TAXONOMY_ID, setActivityPayee } from "../lib/payee";
+import { PayeeField } from "./payee-field";
 import {
   getActivityTypesForAccount,
   getCashActivityLabel,
@@ -277,6 +280,13 @@ export function CashActivityForm({
   // Event id stored separately (not part of the form schema since it's persisted
   // via setActivityEvent rather than the activity create/update payload).
   const [eventId, setEventId] = useState<string | null>(activity?.eventId ?? null);
+  // The payee is kept beside the form for the same reason: it is saved as an
+  // assignment, after the activity. `savedPayeeName` is what is on file.
+  const { payees, payeeName: savedPayeeName } = useActivityPayee(activity?.id ?? null);
+  const [payeeName, setPayeeName] = useState(savedPayeeName);
+  useEffect(() => {
+    if (open) setPayeeName(savedPayeeName);
+  }, [open, savedPayeeName]);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   // The amount starts at 0 in the form, but shows as an empty field with a grey "0"
   // hint until something is typed, and again once it is cleared.
@@ -492,10 +502,17 @@ export function CashActivityForm({
         await setActivityEvent(saved.id, eventId);
       }
 
+      // Sync the payee if changed
+      if (payeeName.trim() !== savedPayeeName) {
+        await setActivityPayee(saved.id, payeeName, payees);
+      }
+
       return saved;
     },
     onSuccess: () => {
       invalidateSpendingCaches(qc);
+      // A new name becomes a new payee, which the suggestions and filters list.
+      qc.invalidateQueries({ queryKey: QueryKeys.taxonomy(PAYEES_TAXONOMY_ID) });
       qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
       qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
       toast.success(
@@ -540,7 +557,8 @@ export function CashActivityForm({
     // entry is not input; changing an existing one's type, or its event, is.
     const hasUnsavedInput =
       Object.keys(dirtyFields).some((field) => isEditing || field !== "activityType") ||
-      eventId !== (activity?.eventId ?? null);
+      eventId !== (activity?.eventId ?? null) ||
+      payeeName.trim() !== savedPayeeName;
     if (!next && hasUnsavedInput) {
       setConfirmDiscard(true);
       return;
@@ -962,6 +980,10 @@ export function CashActivityForm({
     </FormItem>
   );
 
+  const payeeField = (
+    <PayeeField value={payeeName} onChange={setPayeeName} payees={payees} isMobile={isMobile} />
+  );
+
   const notesField = (
     <FormField
       control={form.control}
@@ -1084,6 +1106,7 @@ export function CashActivityForm({
           {!isQuickEntry && amountField}
           {categoryField}
           {eventField}
+          {payeeField}
           {notesField}
           {/* Collapsed by default, so the everyday case — a charge in
     the account's own currency — never sees it. Open, it
@@ -1130,6 +1153,7 @@ export function CashActivityForm({
       {showChoiceFields && !isQuickEntry && !isMobileCreate && convertToTransferField}
       {showDetailsFields && (
         <>
+          <FormRowGroup>{payeeField}</FormRowGroup>
           <FormRowGroup>{notesField}</FormRowGroup>
           <FormRowGroup>
             <button

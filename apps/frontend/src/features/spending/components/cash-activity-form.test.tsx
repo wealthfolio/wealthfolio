@@ -34,6 +34,10 @@ async function chooseAccount(user: ReturnType<typeof userEvent.setup>, name: Reg
   await user.click(await screen.findByRole("option", { name }));
 }
 
+// The form reads the payee on file; these tests are not about it.
+vi.mock("../hooks/use-activity-payee", () => ({
+  useActivityPayee: () => ({ payees: [], payeeName: "" }),
+}));
 vi.mock("@/adapters", () => ({
   createActivity: vi.fn(),
   updateActivity: vi.fn((payload: unknown) => Promise.resolve(payload)),

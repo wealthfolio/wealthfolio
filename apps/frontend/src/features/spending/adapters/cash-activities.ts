@@ -134,3 +134,13 @@ export const setActivityEvent = async (
     throw error;
   }
 };
+
+/** How many transactions are filed under each payee, by payee id. */
+export const getPayeeUsage = async (): Promise<Record<string, number>> => {
+  try {
+    return await invoke<Record<string, number>>("get_payee_usage");
+  } catch (error) {
+    logger.error("Error counting payee usage.");
+    throw error;
+  }
+};

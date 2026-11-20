@@ -218,6 +218,7 @@ export const COMMANDS: CommandMap = {
   get_budget: { method: "GET", path: "/spending/budget" },
   get_budget_readonly: { method: "GET", path: "/spending/budget/snapshot" },
   get_spending_context: { method: "GET", path: "/spending/context" },
+  get_payee_usage: { method: "GET", path: "/spending/payees/usage" },
   upsert_budget_target: { method: "POST", path: "/spending/budget/targets" },
   delete_budget_target: { method: "DELETE", path: "/spending/budget/targets" },
   upsert_budget_rollover_setting: { method: "POST", path: "/spending/budget/rollovers" },
@@ -1436,6 +1437,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     }
     // Spending settings
     case "get_spending_context":
+    case "get_payee_usage":
     case "get_spending_settings":
       break;
     case "update_spending_settings": {
