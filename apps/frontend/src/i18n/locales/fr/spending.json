@@ -826,6 +826,7 @@
   "moneyFlow": {
     "title": "Flux d'argent",
     "subtitle": "D'où vient votre argent et où il est allé pour {{period}}.",
+    "onlySavings": "Cette période ne contient que de l'argent versé vers l'épargne ou repris de celle-ci. Activez « Inclure l'épargne » pour le voir.",
     "focusSubtitle": "Toutes les catégories pour {{period}}.",
     "focusSubcategoriesSubtitle": "Toutes les sous-catégories pour {{period}}.",
     "back": "Tous les flux",

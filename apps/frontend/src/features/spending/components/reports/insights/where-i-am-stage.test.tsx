@@ -317,6 +317,15 @@ describe("Net cashflow with money brought back from savings", () => {
           net: 1000 - 1500 - saved + fromSavings,
           count: 4,
         },
+        // The money flow draws savings from this breakdown, not from the summary.
+        savingsBreakdown: [
+          {
+            taxonomyId: "savings_categories",
+            categoryId: "cat_savings_brokerage",
+            amount: saved,
+            count: 1,
+          },
+        ],
       },
       isLoading: false,
     };
@@ -361,6 +370,7 @@ describe("Net cashflow with money brought back from savings", () => {
   it("nets income against spending alone once savings are switched off, and keeps net saved", () => {
     const card = renderMonth(900, 200, { savingsInChart: true });
     expect(card).toHaveTextContent(/−\$1,200/);
+    expect(screen.getByText("To savings")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch", { name: "Include savings" }));
 

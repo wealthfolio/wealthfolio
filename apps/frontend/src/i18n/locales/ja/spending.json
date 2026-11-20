@@ -775,6 +775,7 @@
   "moneyFlow": {
     "title": "お金の流れ",
     "subtitle": "{{period}}のお金の出どころと行き先。",
+    "onlySavings": "この期間は貯蓄への入金または貯蓄からの出金のみです。表示するには「貯蓄を含める」をオンにしてください。",
     "focusSubtitle": "{{period}}のすべてのカテゴリ。",
     "focusSubcategoriesSubtitle": "{{period}}のすべてのサブカテゴリ。",
     "back": "すべての流れ",

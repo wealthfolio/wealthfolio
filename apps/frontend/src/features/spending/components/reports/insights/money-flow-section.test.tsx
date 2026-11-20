@@ -486,6 +486,26 @@ describe("MoneyFlowSection", () => {
     expect(screen.queryByRole("switch", { name: "Include savings" })).not.toBeInTheDocument();
   });
 
+  it("keeps the switch when leaving savings out empties the chart", () => {
+    const empty = { computed: { groupRows: [] } } as unknown as BudgetSnapshot;
+    setup({ income: 0, groups: empty, toSavings: 500, includeSavings: false });
+
+    expect(screen.getByRole("heading", { name: "Money flow" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Include savings" })).not.toBeChecked();
+    expect(
+      screen.getByText(
+        "This period only has money moved to or from savings. Turn on Include savings to see it.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("stays hidden with savings off when the period has none to bring back", () => {
+    const empty = { computed: { groupRows: [] } } as unknown as BudgetSnapshot;
+    setup({ income: 0, groups: empty, includeSavings: false });
+
+    expect(screen.queryByRole("heading", { name: "Money flow" })).not.toBeInTheDocument();
+  });
+
   it("treats a month funded only from savings as money in", () => {
     setup({ income: 0, fromSavings: 2000 });
 

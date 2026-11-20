@@ -826,6 +826,7 @@
   "moneyFlow": {
     "title": "Flusso di denaro",
     "subtitle": "Da dove sono arrivati i tuoi soldi e dove sono andati per {{period}}.",
+    "onlySavings": "In questo periodo c'è solo denaro spostato verso o dal risparmio. Attiva «Includi risparmio» per vederlo.",
     "focusSubtitle": "Tutte le categorie per {{period}}.",
     "focusSubcategoriesSubtitle": "Tutte le sottocategorie per {{period}}.",
     "back": "Tutti i flussi",

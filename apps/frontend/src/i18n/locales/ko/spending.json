@@ -775,6 +775,7 @@
   "moneyFlow": {
     "title": "돈의 흐름",
     "subtitle": "{{period}} 동안 돈이 어디서 들어와 어디로 나갔는지 보여줍니다.",
+    "onlySavings": "이 기간에는 저축으로 옮기거나 저축에서 가져온 돈만 있습니다. 보려면 '저축 포함'을 켜세요.",
     "focusSubtitle": "{{period}}의 모든 카테고리입니다.",
     "focusSubcategoriesSubtitle": "{{period}}의 모든 하위 카테고리입니다.",
     "back": "전체 흐름",

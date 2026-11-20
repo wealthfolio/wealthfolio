@@ -122,7 +122,10 @@ export function MoneyFlowSection({
   }, [input, unfolded, focusId]);
 
   const isEmpty = !graph || graph.nodes.length === 0;
-  if (!isLoading && isEmpty) return null;
+  // Leaving savings out can empty the chart: the section stays, with the
+  // switch, so they can be brought back.
+  const onlySavings = !isLoading && isEmpty && !includeSavings && periodHasSavings;
+  if (!isLoading && isEmpty && !onlySavings) return null;
 
   const focusedNode = focusedGraph?.nodes.find((node) => node.id === focusedGraph.rootId);
   // Two zooms deep, the way back names the view it returns to.
@@ -210,7 +213,11 @@ export function MoneyFlowSection({
             )}
           </div>
         )}
-        {isLoading || !shownGraph ? (
+        {onlySavings ? (
+          <p className="text-muted-foreground px-2 py-6 text-center text-sm">
+            {t("spending:moneyFlow.onlySavings")}
+          </p>
+        ) : isLoading || !shownGraph ? (
           <MoneyFlowSkeleton />
         ) : (
           <MoneyFlowChart

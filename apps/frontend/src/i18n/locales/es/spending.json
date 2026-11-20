@@ -826,6 +826,7 @@
   "moneyFlow": {
     "title": "Flujo de dinero",
     "subtitle": "De dónde vino tu dinero y a dónde fue para {{period}}.",
+    "onlySavings": "En este periodo solo hay dinero movido hacia o desde el ahorro. Activa «Incluir ahorro» para verlo.",
     "focusSubtitle": "Todas las categorías para {{period}}.",
     "focusSubcategoriesSubtitle": "Todas las subcategorías para {{period}}.",
     "back": "Todos los flujos",

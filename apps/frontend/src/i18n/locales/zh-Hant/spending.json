@@ -783,6 +783,7 @@
   "moneyFlow": {
     "title": "資金流向",
     "subtitle": "{{period}} 的資金來源與去向。",
+    "onlySavings": "此期間只有轉入或轉出儲蓄的資金。開啟「包含儲蓄」即可查看。",
     "focusSubtitle": "{{period}} 的所有類別。",
     "focusSubcategoriesSubtitle": "{{period}} 的所有子類別。",
     "back": "全部流向",

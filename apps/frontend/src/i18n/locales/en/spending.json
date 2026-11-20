@@ -783,6 +783,7 @@
   "moneyFlow": {
     "title": "Money flow",
     "subtitle": "Where your money came from and where it went for {{period}}.",
+    "onlySavings": "This period only has money moved to or from savings. Turn on Include savings to see it.",
     "focusSubtitle": "Every category for {{period}}.",
     "focusSubcategoriesSubtitle": "Every subcategory for {{period}}.",
     "back": "All flows",

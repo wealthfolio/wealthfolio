@@ -783,6 +783,7 @@
   "moneyFlow": {
     "title": "Geldfluss",
     "subtitle": "Woher Ihr Geld kam und wohin es ging für {{period}}.",
+    "onlySavings": "In diesem Zeitraum wurde nur Geld zum oder vom Sparen bewegt. Aktiviere „Sparen einbeziehen“, um es zu sehen.",
     "focusSubtitle": "Alle Kategorien für {{period}}.",
     "focusSubcategoriesSubtitle": "Alle Unterkategorien für {{period}}.",
     "back": "Alle Flüsse",
