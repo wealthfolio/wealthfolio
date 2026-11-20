@@ -983,18 +983,30 @@ impl ActivityService {
         }
 
         let type_change = (existing.effective_type(), activity.activity_type.as_str());
+        let is_card = |account_id: &str| -> Result<bool> {
+            Ok(is_liability_account_type(
+                &self.account_service.get_account(account_id)?.account_type,
+            ))
+        };
         // A credit card's payment, which it cannot hold as a deposit. Elsewhere
-        // a credit is income or a refund whose subtype the edit sets.
-        let card_payment_change = matches!(
+        // a credit is income or a refund whose subtype the edit sets, so a
+        // payment moved to a bank as a refund keeps that subtype. Its transfer
+        // flags are still cleared.
+        let (card_payment_change, lands_on_card) = if matches!(
             type_change,
             (ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_TRANSFER_IN)
                 | (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_CREDIT)
-        ) && is_liability_account_type(
-            &self
-                .account_service
-                .get_account(&existing.account_id)?
-                .account_type,
-        );
+        ) {
+            let lands_on_card = is_card(&activity.account_id)?;
+            let left_card = if activity.account_id == existing.account_id {
+                lands_on_card
+            } else {
+                is_card(&existing.account_id)?
+            };
+            (left_card || lands_on_card, lands_on_card)
+        } else {
+            (false, false)
+        };
         let cash_reclassification = card_payment_change
             || matches!(
                 type_change,
@@ -1073,7 +1085,12 @@ impl ActivityService {
                 }
             }
             activity.metadata = Some(metadata.to_string());
-            activity.subtype = Some(String::new());
+            let bank_credit = card_payment_change
+                && !lands_on_card
+                && activity.activity_type == ACTIVITY_TYPE_CREDIT;
+            if !bank_credit {
+                activity.subtype = Some(String::new());
+            }
         }
 
         if activity
@@ -2682,8 +2699,10 @@ impl ActivityService {
         // certain, since a real refund can match a withdrawal by chance. Only a
         // withdrawal: a one-sided transfer has its own row, so offering it here
         // too would show one leg twice.
+        // Any open card, active or not, so no card's charge is offered as the
+        // bank side. Only an active card's credits are listed.
         let card_account_ids: HashSet<String> = account_service
-            .get_active_non_archived_accounts()?
+            .get_non_archived_accounts()?
             .into_iter()
             .filter(|account| is_liability_account_type(&account.account_type))
             .map(|account| account.id)
@@ -2691,6 +2710,7 @@ impl ActivityService {
         let card_credits = scan.every_activity.iter().filter(|activity| {
             activity.is_posted()
                 && card_account_ids.contains(&activity.account_id)
+                && scan.active_account_ids.contains(&activity.account_id)
                 && activity.effective_type() == ACTIVITY_TYPE_CREDIT
                 && Self::non_cash_transfer_asset_key(activity).is_none()
         });
@@ -7574,10 +7594,17 @@ impl ActivityServiceTrait for ActivityService {
             return Ok(Vec::new());
         }
 
+        // Only a cash deposit or withdrawal can be converted.
+        let convertible = all_activities.iter().filter(|candidate| {
+            !matches!(
+                candidate.effective_type(),
+                ACTIVITY_TYPE_DEPOSIT | ACTIVITY_TYPE_WITHDRAWAL
+            ) || Self::cash_flow_transfer_type(candidate).is_some()
+        });
         Ok(Self::transfer_match_candidates(
             &source,
             counterpart_types,
-            &TransferCandidatePool::new(&all_activities, &transfer_resolution),
+            &TransferCandidatePool::new(convertible, &transfer_resolution),
             request.window_days.unwrap_or(7).clamp(0, 90),
             request.limit.unwrap_or(25).clamp(1, 100),
         ))

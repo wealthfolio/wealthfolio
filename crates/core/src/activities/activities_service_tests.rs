@@ -107,11 +107,25 @@ pub(crate) mod tests {
         }
 
         fn get_non_archived_accounts(&self) -> Result<Vec<Account>> {
-            Ok(self.accounts.lock().unwrap().clone())
+            Ok(self
+                .accounts
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|account| !account.is_archived)
+                .cloned()
+                .collect())
         }
 
         fn get_active_non_archived_accounts(&self) -> Result<Vec<Account>> {
-            Ok(self.accounts.lock().unwrap().clone())
+            Ok(self
+                .accounts
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|account| account.is_active && !account.is_archived)
+                .cloned()
+                .collect())
         }
 
         fn get_base_currency(&self) -> Option<String> {
@@ -6796,6 +6810,51 @@ pub(crate) mod tests {
             .expect("a card payment becomes a refund again");
         assert_eq!(refund.activity_type, "CREDIT");
         assert_eq!(refund.amount, Some(dec!(100)));
+        assert!(refund
+            .metadata
+            .as_ref()
+            .and_then(|m| m.pointer("/flow/is_external"))
+            .is_none());
+    }
+
+    /// A card's payment moved to a bank as a refund is the bank's refund: it
+    /// keeps the subtype the edit sends, and loses its transfer flags.
+    #[tokio::test]
+    async fn card_payment_moved_to_a_bank_as_a_refund_keeps_its_subtype() {
+        let account_service = Arc::new(MockAccountService::new());
+        let mut card = create_test_account("card-1", "USD");
+        card.account_type = "CREDIT_CARD".to_string();
+        account_service.add_account(card);
+        account_service.add_account(create_test_account("bank-1", "USD"));
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        activity_service
+            .create_activity(NewActivity {
+                metadata: Some(json!({"flow": {"is_external": true}}).to_string()),
+                ..create_test_cash_create("card-payment", "card-1", "TRANSFER_IN", "USD")
+            })
+            .await
+            .expect("cards accept a payment");
+
+        let mut update = create_test_activity_update("card-payment", "bank-1", None, "USD");
+        update.activity_type = "CREDIT".to_string();
+        update.subtype = Some("REIMBURSEMENT".to_string());
+        update.quantity = None;
+        update.unit_price = None;
+        update.fee = None;
+        update.amount = None;
+        let refund = activity_service
+            .update_activity(update)
+            .await
+            .expect("the payment becomes the bank's refund");
+        assert_eq!(refund.account_id, "bank-1");
+        assert_eq!(refund.activity_type, "CREDIT");
+        assert_eq!(refund.subtype.as_deref(), Some("REIMBURSEMENT"));
         assert!(refund
             .metadata
             .as_ref()
@@ -15278,6 +15337,9 @@ pub(crate) mod tests {
     async fn review_suggests_a_card_credit_matching_a_bank_withdrawal() {
         let mut second_card = create_test_account("card-2", "USD");
         second_card.account_type = crate::accounts::account_types::CREDIT_CARD.to_string();
+        let mut inactive_card = create_test_account("card-3", "USD");
+        inactive_card.account_type = crate::accounts::account_types::CREDIT_CARD.to_string();
+        inactive_card.is_active = false;
         let mut card = create_test_account("card", "USD");
         card.account_type = crate::accounts::account_types::CREDIT_CARD.to_string();
         let (service, _) = convert_test_service_with_accounts(
@@ -15304,6 +15366,14 @@ pub(crate) mod tests {
                     "2024-03-01T12:00:00Z",
                     dec!(450),
                 ),
+                // So is an inactive card's.
+                review_leg(
+                    "card-3-charge",
+                    "card-3",
+                    "WITHDRAWAL",
+                    "2024-03-01T12:00:00Z",
+                    dec!(450),
+                ),
                 // A refund with nothing matching stays a refund.
                 review_leg(
                     "lone-refund",
@@ -15321,7 +15391,12 @@ pub(crate) mod tests {
                     dec!(450),
                 ),
             ],
-            vec![card, second_card, create_test_account("bank", "USD")],
+            vec![
+                card,
+                second_card,
+                inactive_card,
+                create_test_account("bank", "USD"),
+            ],
         );
 
         let review = service.review_transfer_matches().await.expect("review");
@@ -16462,6 +16537,18 @@ pub(crate) mod tests {
                     dec!(450),
                     "CAD",
                 ),
+                // A withdrawal carrying a security cannot be converted.
+                Activity {
+                    asset_id: Some("AAPL".to_string()),
+                    ..create_cash_transfer_activity(
+                        "bank-share-withdrawal",
+                        "bank",
+                        ACTIVITY_TYPE_WITHDRAWAL,
+                        "2026-11-01T00:00:00Z",
+                        dec!(450),
+                        "CAD",
+                    )
+                },
             ],
             card_and_bank_accounts(),
         );

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   convertToInternalTransfer,
@@ -280,6 +281,39 @@ describe("linking a one-sided cash transfer", () => {
     expect(findTransferMatchCandidates).toHaveBeenCalledWith(
       expect.objectContaining({ activityId: "synthetic-transfer", includeCashFlows: true }),
     );
+  });
+
+  it("reports a conversion preview that fails", async () => {
+    const showError = vi.spyOn(toast, "error");
+    vi.mocked(reviewConvertToTransferSplitEffects).mockRejectedValue(new Error("offline"));
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: {
+          ...activity,
+          id: "synthetic-deposit",
+          accountId: "candidate-account",
+          activityType: "DEPOSIT",
+        },
+        matchKind: "cash",
+        confidence: "high",
+        score: 100,
+        reasons: [],
+        warnings: [],
+      },
+    ]);
+    convertToTransferMutation.mutateAsync.mockClear();
+    renderActivity();
+
+    fireEvent.click((await screen.findByText("Candidate account")).closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+
+    await waitFor(() =>
+      expect(showError).toHaveBeenCalledWith("Failed to convert into a transfer", {
+        description: "offline",
+      }),
+    );
+    expect(convertToTransferMutation.mutateAsync).not.toHaveBeenCalled();
+    showError.mockRestore();
   });
 
   it("makes a card's refund/credit its payment rather than a plain link (#2740)", async () => {
