@@ -1421,8 +1421,8 @@ fn money_weighted_return(
     push(&mut terms, 0.0, opening_capital);
 
     // One point per close, so the curve lines up with the time-weighted
-    // one. A close before any capital is invested holds the last value; a
-    // close the solve cannot answer has no point.
+    // one. A close before any capital is invested, or without a value,
+    // holds the last value; a close the solve cannot answer has no point.
     let mut series = Vec::new();
     let mut current = Decimal::ZERO;
     let mut plot =
@@ -1457,7 +1457,15 @@ fn money_weighted_return(
         push(&mut terms, day_of(prev.date), flow.inflow);
         push(&mut terms, day_of(curr.date), -flow.outflow);
         let is_last = curr.date == scoped[scoped.len() - 1].date;
-        if include_series || is_last {
+        if !is_last && curr.value_status.is_unavailable_for_returns() {
+            // An unvalued close carries a partial value, not one to solve
+            // on: its point holds the last one.
+            plot(
+                &mut series,
+                curr.date,
+                &Err(QualityNote::MoneyWeightedNoCapital),
+            );
+        } else if include_series || is_last {
             last = solve_at(&terms, curr);
             plot(&mut series, curr.date, &last);
         }
@@ -1639,14 +1647,17 @@ fn holdings_all_time_unavailable_reason(
 }
 
 /// Gain over book cost at each close, for a holdings account over its full
-/// history; a close without a complete book cost holds the previous value.
-/// The last point is the period's return on cost.
+/// history; a close without a value or a complete book cost holds the
+/// previous value. The last point is the period's return on cost.
 fn return_on_cost_series(history: &[DailyValuation]) -> Vec<SeriesPoint> {
     let mut current = Decimal::ZERO;
     history
         .iter()
         .map(|day| {
-            if holdings_basis_is_complete(day) && day.book_basis_base >= MIN_RETURN_BASE {
+            if !day.value_status.is_unavailable_for_returns()
+                && holdings_basis_is_complete(day)
+                && day.book_basis_base >= MIN_RETURN_BASE
+            {
                 if let Some(value) = arith::div(
                     day.total_value_base - day.book_basis_base,
                     day.book_basis_base,
@@ -4528,6 +4539,36 @@ mod tests {
             roi.series.iter().map(|p| p.value).collect::<Vec<_>>(),
             vec![dec!(0), dec!(0.1), dec!(0.2)]
         );
+    }
+
+    #[test]
+    fn an_unvalued_close_in_the_middle_puts_no_dip_in_a_curve() {
+        let z = Decimal::ZERO;
+        // An unvalued close carries no value (here zero): its point holds the
+        // last one, and the return between the valued endpoints stands.
+        let mut history = vec![
+            dated("2026-01-01", dec!(1000), z, z),
+            dated("2026-01-02", dec!(1050), z, z),
+            dated("2026-01-03", z, z, z),
+            dated("2026-01-04", dec!(1100), z, z),
+        ];
+        history[2].value_status = ValueStatus::Unavailable;
+        let values = |series: &[SeriesPoint]| series.iter().map(|p| p.value).collect::<Vec<_>>();
+        let held = vec![dec!(0), dec!(0.05), dec!(0.05), dec!(0.1)];
+
+        let money_weighted = measured(&history, MeasureProfile::Full)
+            .returns
+            .money_weighted;
+        assert_eq!(money_weighted.period, Some(dec!(0.1)));
+        assert_eq!(values(&money_weighted.series), held);
+
+        for day in &mut history {
+            day.book_basis_base = dec!(1000);
+            day.basis_status = BasisStatus::Complete;
+        }
+        let roi = holdings_measured(&history, None).returns.return_on_cost;
+        assert_eq!(roi.period, Some(dec!(0.1)));
+        assert_eq!(values(&roi.series), held);
     }
 
     #[test]
