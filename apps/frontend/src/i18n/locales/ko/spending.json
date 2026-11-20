@@ -905,9 +905,9 @@
       "owesLess": "이제 갚을 금액이 줄어듭니다."
     },
     "linkRow": {
-      "paidFrom": "결제 계좌",
-      "receivedFrom": "입금 계좌",
-      "sentTo": "보낸 계좌",
+      "paidFrom": "출금 계좌",
+      "receivedFrom": "보낸 계좌",
+      "sentTo": "받는 계좌",
       "untracked": "추적하지 않는 계좌",
       "suggested": "추천: {{account}} · {{date}} · {{amount}}",
       "link": "연결",

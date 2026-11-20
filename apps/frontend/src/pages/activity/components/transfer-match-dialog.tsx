@@ -22,6 +22,7 @@ import {
   type Account,
   type Activity,
   type ActivityDetails,
+  type ConvertToTransferRequest,
   type TransferMatchCandidate,
 } from "@/lib/types";
 import { cn, formatDateISO, formatDateTime } from "@/lib/utils";
@@ -1688,14 +1689,25 @@ function TransferLinkDialog({
     if (!sourceActivity?.id || !selected?.activity.id) return;
     if (canConvertToTransfer(selected.activity)) {
       // The other side is a deposit or withdrawal: converting retypes it and links both.
+      let request: ConvertToTransferRequest;
       try {
-        const request = await reviewConversion({
+        request = await reviewConversion({
           activityId: sourceActivity.id,
           counterpartActivityId: selected.activity.id,
         });
+      } catch (error) {
+        // A declined split review says nothing; a failed preview is reported.
+        if (!isActivityEditCancelled(error)) {
+          toast.error(t("activity:transfer_match.convert_error"), {
+            description: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      }
+      try {
         await convertToTransferMutation.mutateAsync(request);
       } catch {
-        // A declined split review, or a failure the mutation has reported.
+        // The mutation has reported it.
         return;
       }
     } else {
@@ -1714,6 +1726,7 @@ function TransferLinkDialog({
     reviewConversion,
     selected?.activity,
     sourceActivity?.id,
+    t,
   ]);
 
   const canClearInvalidLink =
