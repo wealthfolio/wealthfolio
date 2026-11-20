@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import type { DateRange } from "react-day-picker";
 
 import { createActivity, deleteActivity, saveActivities, updateActivity } from "@/adapters";
+import { chargeLinesForCopy } from "@/lib/activity-charges";
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { generateId } from "@/lib/id";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -652,6 +653,11 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           supportsBoundary && typeof flow?.is_external === "boolean"
             ? { flow: { is_external: flow.is_external } }
             : undefined;
+        const flowMetadata =
+          activityType === ActivityType.CREDIT
+            ? cashActivityFlowMetadata(activityType, a.subtype, boundaryMetadata)
+            : boundaryMetadata;
+        const chargeLines = chargeLinesForCopy(a);
         return createActivity({
           idempotencyKey: generateId("manual-duplicate"),
           accountId: a.accountId,
@@ -660,12 +666,11 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           currency: a.currency,
           fxRate: a.fxRate ?? undefined,
           amount: a.amount,
+          fee: a.fee,
+          tax: a.tax,
           activityDate: new Date().toISOString(),
           comment: a.notes,
-          metadata:
-            activityType === ActivityType.CREDIT
-              ? cashActivityFlowMetadata(activityType, a.subtype, boundaryMetadata)
-              : boundaryMetadata,
+          metadata: flowMetadata || chargeLines ? { ...flowMetadata, ...chargeLines } : undefined,
         });
       },
       onSuccess: () => {

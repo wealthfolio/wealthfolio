@@ -112,6 +112,33 @@ describe("useActivityMutations", () => {
     },
   );
 
+  it("keeps the fee and tax lines of a duplicated trade (#2747)", async () => {
+    const charges = [
+      { category: "fee", label: "Brokerage", amount: "5" },
+      { category: "tax", label: "Stamp duty", amount: "1.25" },
+    ];
+    const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });
+    await act(async () => {
+      await result.current.duplicateActivityMutation.mutateAsync({
+        id: "buy-1",
+        accountId: "acc-1",
+        activityType: ActivityType.BUY,
+        assetId: "AAPL",
+        assetSymbol: "AAPL",
+        quantity: "10",
+        unitPrice: "100",
+        amount: "1000",
+        fee: "5",
+        tax: "1.25",
+        currency: "USD",
+        metadata: { charges, mapping_reasons: ["x"] },
+      } as unknown as ActivityDetails);
+    });
+    expect(adapterMocks.createActivity).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ fee: "5", tax: "1.25", metadata: { charges } }),
+    );
+  });
+
   it("duplicates a single leg, without its group, when the group resolves to no pair", async () => {
     adapterMocks.getTransferPairForActivity.mockResolvedValue(null);
     const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chargeLineDefaults,
+  chargeLinesForCopy,
   chargeLinesMetadata,
   getActivityChargeLines,
   sumChargeLines,
@@ -205,6 +206,21 @@ describe("chargeLinesMetadata", () => {
         feeLines: [{ label: "Commission", amount: 1 }],
         chargeLinesLocked: true,
       }),
+    ).toBeUndefined();
+  });
+});
+
+describe("chargeLinesForCopy", () => {
+  it("copies lines that add up to the totals", () => {
+    expect(chargeLinesForCopy({ fee: "9.99", tax: "1.5", metadata: { charges: lines } })).toEqual({
+      charges: lines,
+    });
+  });
+
+  it("copies nothing when there are no lines or they no longer add up", () => {
+    expect(chargeLinesForCopy({ fee: "9.99", tax: "1.5" })).toBeUndefined();
+    expect(
+      chargeLinesForCopy({ fee: "12", tax: "1.5", metadata: { charges: lines } }),
     ).toBeUndefined();
   });
 });

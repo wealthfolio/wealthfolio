@@ -387,6 +387,21 @@ describe("duplicateSpendingRow", () => {
     expect(copy.id).not.toBe(source.id);
   });
 
+  it("keeps the tax total and the fee and tax lines (#2747)", () => {
+    const charges = [{ category: "tax", label: "TDS", amount: "100" }];
+    const source = row({
+      activityType: "INTEREST",
+      amount: "900",
+      tax: "100",
+      metadata: { charges, mapping_reasons: ["x"] },
+    });
+    expect(duplicateSpendingRow(source, "CASH")).toMatchObject({
+      amount: "900",
+      tax: "100",
+      metadata: { charges },
+    });
+  });
+
   it("drops a category from another taxonomy than the copy's", () => {
     const saving = row({
       cashFlowBucket: "saving",

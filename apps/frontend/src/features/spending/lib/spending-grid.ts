@@ -1,4 +1,5 @@
 import { ActivityType } from "@/lib/constants";
+import { chargeLinesForCopy } from "@/lib/activity-charges";
 import { generateId } from "@/lib/id";
 import type { Account, ActivityDetails } from "@/lib/types";
 import {
@@ -54,6 +55,7 @@ export function toActivityDetails(activity: CashActivity, account?: Account): Ac
     unitPrice: activity.unitPrice ?? null,
     amount: activity.amount ?? null,
     fee: activity.fee ?? null,
+    tax: activity.tax ?? null,
     currency: activity.currency,
     needsReview: activity.needsReview,
     comment: activity.notes ?? undefined,
@@ -382,8 +384,9 @@ export function createSpendingDraft(account: Account | undefined, fallbackCurren
 
 /**
  * A copy of a saved row as a new, unsaved one dated now, as the Investments
- * grid duplicates. Only the explicit external-flow marker is carried over, and
- * the category only when the copy's taxonomy is the same.
+ * grid duplicates. Only the explicit external-flow marker and the fee and tax
+ * lines are carried over, and the category only when the copy's taxonomy is
+ * the same.
  */
 export function duplicateSpendingRow(
   source: SpendingGridRow,
@@ -405,7 +408,7 @@ export function duplicateSpendingRow(
     importRunId: undefined,
     isUserModified: undefined,
     status: undefined,
-    metadata: undefined,
+    metadata: chargeLinesForCopy(source),
     _amountEdited: true,
     _originalCategoryId: "",
     cashFlowBucket: undefined,
