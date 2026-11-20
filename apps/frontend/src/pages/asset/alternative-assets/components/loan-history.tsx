@@ -211,9 +211,14 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
                 : "asset:loanOverview.event_balance_correction",
           ),
           detail:
-            entry.adjustment != null && entry.adjustment !== 0
-              ? t("asset:loanInterest.adjustment", { amount: moneyText(entry.adjustment) })
-              : loanBalanceUserNote(entry.quote.notes) || undefined,
+            [
+              entry.adjustment != null && entry.adjustment !== 0
+                ? t("asset:loanInterest.adjustment", { amount: moneyText(entry.adjustment) })
+                : undefined,
+              loanBalanceUserNote(entry.quote.notes),
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined,
         };
       case "event": {
         const { event } = entry;
