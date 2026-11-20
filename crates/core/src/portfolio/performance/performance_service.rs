@@ -783,8 +783,9 @@ impl PerformanceServiceTrait for PerformanceService {
                 .await
             {
                 Ok(cash) => cash,
-                Err(error) => {
-                    warn!("Benchmark '{}': deposits not replayed: {}", symbol, error);
+                // The error text can carry account data: it stays out of the log.
+                Err(_) => {
+                    warn!("Benchmark '{}': deposits not replayed", symbol);
                     None
                 }
             }

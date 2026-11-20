@@ -727,8 +727,9 @@ pub async fn calculate_performance_history(
                 ))
             }) {
                 Ok(account_ids) => account_ids,
-                Err(error) => {
-                    warn!("Benchmark scope not resolved; deposits not replayed: {error}");
+                // The error text can carry account data: it stays out of the log.
+                Err(_) => {
+                    warn!("Benchmark scope not resolved; deposits not replayed");
                     Vec::new()
                 }
             };
