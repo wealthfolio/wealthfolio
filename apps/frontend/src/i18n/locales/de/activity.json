@@ -1492,11 +1492,11 @@
       "issuesTitle_other": "Es gibt Probleme mit {{count}} Aktivitätseinträgen."
     },
     "creditCard": {
-      "charge": "Belastung",
+      "charge": "Einkauf",
       "payment": "Zahlung",
-      "transfer": "Saldoübertragung / Bargeldvorschuss",
-      "refund": "Erstattung / Gutschrift",
-      "interest": "Zinsbelastung"
+      "transfer": "Bargeldabhebung / Saldoübertragung",
+      "refund": "Erstattung",
+      "interest": "Zinsen"
     }
   },
   "validation": {

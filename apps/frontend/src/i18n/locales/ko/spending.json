@@ -71,10 +71,10 @@
     "clearCategory": "카테고리 지우기"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "잔액 이체 / 현금 서비스",
-    "charge": "카드 사용",
-    "interestCharge": "이자 비용",
-    "refundCredit": "환급 / 크레딧",
+    "balanceTransferCashAdvance": "현금서비스 / 잔액 이체",
+    "charge": "구매",
+    "interestCharge": "이자",
+    "refundCredit": "환불",
     "reimbursementRefund": "환급 / 환불"
   },
   "rules": {
@@ -879,7 +879,7 @@
     "addDescription": "추적 중인 지출 계좌에 새 거래를 추가합니다.",
     "selectAccount": "계좌 선택",
     "selectType": "거래 유형 선택",
-    "payment": "결제",
+    "payment": "대금 납부",
     "transfer": "이체",
     "payCardDesc": "다른 계좌에서 이 카드로 결제",
     "neutralTransfer": "중립 이체",

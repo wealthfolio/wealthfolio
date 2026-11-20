@@ -1553,11 +1553,11 @@
       "issuesTitle_other": "Sono presenti problemi con {{count}} voci di movimento."
     },
     "creditCard": {
-      "charge": "Addebito",
+      "charge": "Acquisto",
       "payment": "Pagamento",
-      "transfer": "Trasferimento saldo / Anticipo contante",
-      "refund": "Rimborso / Accredito",
-      "interest": "Addebito interessi"
+      "transfer": "Anticipo contante / Trasferimento saldo",
+      "refund": "Rimborso",
+      "interest": "Interessi"
     }
   },
   "validation": {

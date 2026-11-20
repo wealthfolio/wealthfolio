@@ -20,11 +20,11 @@ export type CashActivityType = (typeof CASH_ACTIVITY_TYPES)[number];
 
 export const CREDIT_CARD_ACTIVITY_TYPES: CashActivityType[] = [
   "WITHDRAWAL",
+  "CREDIT",
+  "TRANSFER_IN",
   "FEE",
   "INTEREST",
-  "TRANSFER_IN",
   "TRANSFER_OUT",
-  "CREDIT",
 ];
 
 /** Card wording for the types that read differently on a credit card. */

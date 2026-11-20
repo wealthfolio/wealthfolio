@@ -1473,11 +1473,11 @@
       "issuesTitle_other": "{{count}}件の取引エントリに問題があります。"
     },
     "creditCard": {
-      "charge": "利用",
-      "payment": "支払",
-      "transfer": "残高移行／キャッシング",
-      "refund": "返金／入金",
-      "interest": "利息請求"
+      "charge": "ショッピング",
+      "payment": "支払い",
+      "transfer": "キャッシング / 残高移行",
+      "refund": "返金",
+      "interest": "利息"
     }
   },
   "validation": {

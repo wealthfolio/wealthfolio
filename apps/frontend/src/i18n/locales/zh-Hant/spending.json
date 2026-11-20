@@ -71,10 +71,10 @@
     "clearCategory": "清除類別"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "餘額轉移／預借現金",
+    "balanceTransferCashAdvance": "預借現金 / 餘額代償",
     "charge": "消費",
-    "interestCharge": "利息費用",
-    "refundCredit": "退款／回饋",
+    "interestCharge": "利息",
+    "refundCredit": "退款",
     "reimbursementRefund": "費用補償／退款"
   },
   "rules": {
@@ -887,7 +887,7 @@
     "addDescription": "在已追蹤支出的帳戶新增交易。",
     "selectAccount": "選取一個帳戶",
     "selectType": "選取交易類型",
-    "payment": "付款",
+    "payment": "繳款",
     "transfer": "轉帳",
     "payCardDesc": "從另一個帳戶償還此卡",
     "neutralTransfer": "中性轉帳",

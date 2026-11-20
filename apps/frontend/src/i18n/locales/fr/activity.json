@@ -1555,9 +1555,9 @@
     "creditCard": {
       "charge": "Achat",
       "payment": "Paiement",
-      "transfer": "Transfert de solde / Avance de fonds",
-      "refund": "Remboursement / Crédit",
-      "interest": "Intérêts facturés"
+      "transfer": "Avance de fonds / Transfert de solde",
+      "refund": "Remboursement",
+      "interest": "Intérêts"
     }
   },
   "validation": {

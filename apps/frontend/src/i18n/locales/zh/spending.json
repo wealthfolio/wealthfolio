@@ -71,10 +71,10 @@
     "clearCategory": "清除类别"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "余额转移 / 预借现金",
+    "balanceTransferCashAdvance": "预借现金 / 余额转移",
     "charge": "消费",
-    "interestCharge": "利息费用",
-    "refundCredit": "退款 / 入账",
+    "interestCharge": "利息",
+    "refundCredit": "退款",
     "reimbursementRefund": "补偿 / 退款"
   },
   "rules": {
@@ -879,7 +879,7 @@
     "addDescription": "在受追踪的支出账户上添加新交易。",
     "selectAccount": "选择一个账户",
     "selectType": "选择交易类型",
-    "payment": "付款",
+    "payment": "还款",
     "transfer": "转账",
     "payCardDesc": "从另一个账户偿还此卡",
     "neutralTransfer": "中性转账",

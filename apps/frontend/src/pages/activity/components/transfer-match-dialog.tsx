@@ -129,7 +129,7 @@ const ANY = "any";
 const SAME_ASSET = "same";
 const CASH_ASSET = "cash";
 
-/** A credit card's own name for a type ("Charge", "Payment"), or none elsewhere. */
+/** A credit card's own name for a type ("Purchase", "Payment"), or none elsewhere. */
 function cardTypeLabel(
   t: TFunction,
   activityType: string,

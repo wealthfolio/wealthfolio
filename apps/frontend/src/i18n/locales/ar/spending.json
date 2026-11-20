@@ -17,10 +17,10 @@
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "أخرى"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "تحويل الرصيد / سلفة نقدية",
-    "charge": "قيد مدين",
-    "interestCharge": "رسوم الفائدة",
-    "refundCredit": "استرداد / إضافة رصيد",
+    "balanceTransferCashAdvance": "سلفة نقدية / تحويل رصيد",
+    "charge": "شراء",
+    "interestCharge": "فوائد",
+    "refundCredit": "استرداد",
     "reimbursementRefund": "تعويض / استرداد"
   },
   "budgetChart": {
@@ -229,7 +229,7 @@
     "notesPayee": "ملاحظات / المستفيد",
     "notesPlaceholder": "مثال: AMAZON*MARKETPLACE، STARBUCKS COFFEE",
     "payCardDesc": "سدد مبلغ هذه البطاقة من حساب آخر",
-    "payment": "دفعة",
+    "payment": "سداد",
     "pickCategory": "اختر فئة",
     "pickCategoryOptional": "اختر فئة (اختياري)",
     "pickDate": "اختر تاريخًا",
