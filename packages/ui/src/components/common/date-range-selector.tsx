@@ -1,6 +1,10 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { isSameDay, startOfYear, subDays, subMonths, subYears } from "date-fns";
+import { isSameDay } from "date-fns/isSameDay";
+import { startOfYear } from "date-fns/startOfYear";
+import { subDays } from "date-fns/subDays";
+import { subMonths } from "date-fns/subMonths";
+import { subYears } from "date-fns/subYears";
 import { DateRange as DayPickerDateRange } from "react-day-picker";
 import { useDateFormatting } from "../formatting-provider";
 import { useIsMobile } from "../../hooks/use-mobile";

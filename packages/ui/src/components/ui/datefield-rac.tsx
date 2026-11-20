@@ -1,5 +1,6 @@
+// Per-component entry points: the react-aria-components index loads every component.
+import { composeRenderProps } from "react-aria-components/composeRenderProps";
 import {
-  composeRenderProps,
   DateFieldProps,
   DateField as DateFieldRac,
   DateInputProps as DateInputPropsRac,
@@ -7,11 +8,9 @@ import {
   DateSegmentProps,
   DateSegment as DateSegmentRac,
   DateValue as DateValueRac,
-  TimeFieldProps,
-  TimeField as TimeFieldRac,
-  TimeValue as TimeValueRac,
-  useLocale,
-} from "react-aria-components";
+} from "react-aria-components/DateField";
+import { useLocale } from "react-aria-components/I18nProvider";
+import { TimeFieldProps, TimeField as TimeFieldRac, TimeValue as TimeValueRac } from "react-aria-components/TimeField";
 
 import { cn } from "../../lib/utils";
 

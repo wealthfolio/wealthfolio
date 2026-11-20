@@ -2,20 +2,21 @@ import { ComponentProps } from "react";
 import { getLocalTimeZone, today } from "@internationalized/date";
 import { useTranslation } from "react-i18next";
 import { Icons } from "./icons";
+// Per-component entry points: the react-aria-components index loads every component.
+import { Button } from "react-aria-components/Button";
 import {
-  Button,
   CalendarCell as CalendarCellRac,
   CalendarGridBody as CalendarGridBodyRac,
   CalendarGridHeader as CalendarGridHeaderRac,
   CalendarGrid as CalendarGridRac,
   CalendarHeaderCell as CalendarHeaderCellRac,
   Calendar as CalendarRac,
-  composeRenderProps,
-  Heading as HeadingRac,
-  RangeCalendar as RangeCalendarRac,
   type CalendarProps as CalendarRacProps,
   type DateValue,
-} from "react-aria-components";
+} from "react-aria-components/Calendar";
+import { composeRenderProps } from "react-aria-components/composeRenderProps";
+import { Heading as HeadingRac } from "react-aria-components/Heading";
+import { RangeCalendar as RangeCalendarRac } from "react-aria-components/RangeCalendar";
 
 import { cn } from "../../lib/utils";
 

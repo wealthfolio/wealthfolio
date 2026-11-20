@@ -14,8 +14,8 @@ import {
   parseLocalizedNumber,
   resolveFormattingLocale,
 } from "@wealthfolio/ui";
-import { format } from "date-fns";
-import { zhTW } from "date-fns/locale";
+import { format } from "date-fns/format";
+import { zhTW } from "date-fns/locale/zh-TW";
 import { describe, expect, it, vi } from "vitest";
 import { formatOptionSubtitle } from "./occ-symbol";
 

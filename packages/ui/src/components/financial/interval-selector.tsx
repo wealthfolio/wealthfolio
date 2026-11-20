@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { usePersistentState } from "../../hooks/use-persistent-state";
 import { cn } from "../../lib/utils";
-import { startOfYear, subDays, subMonths, subWeeks, subYears } from "date-fns";
+import { startOfYear } from "date-fns/startOfYear";
+import { subDays } from "date-fns/subDays";
+import { subMonths } from "date-fns/subMonths";
+import { subWeeks } from "date-fns/subWeeks";
+import { subYears } from "date-fns/subYears";
 import React, { useCallback, useState } from "react";
 
 export type TimePeriod = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "ALL";
