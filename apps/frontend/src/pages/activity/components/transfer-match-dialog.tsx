@@ -1635,9 +1635,14 @@ function TransferLinkDialog({
   const [counterpart, setCounterpart] = useState<TransferDialogActivity | null>(null);
   const [counterpartError, setCounterpartError] = useState<string | null>(null);
   const [counterpartLoading, setCounterpartLoading] = useState(false);
+  // Each load supersedes the last: a late answer for an earlier activity is
+  // dropped, so its deposit or withdrawal can't be converted for this one.
+  const loadRef = useRef(0);
 
   useEffectOnChange(() => {
     if (!open) return;
+    const load = ++loadRef.current;
+    const isCurrent = () => load === loadRef.current;
     setSelectedCandidate(null);
     setSuggestions([]);
     setSuggestionsFailed(false);
@@ -1654,13 +1659,14 @@ function TransferLinkDialog({
         limit: 25,
         includeCashFlows: true,
       })
-        .then(setSuggestions)
-        .catch(() => setSuggestionsFailed(true))
-        .finally(() => setSuggestionsLoading(false));
+        .then((found) => isCurrent() && setSuggestions(found))
+        .catch(() => isCurrent() && setSuggestionsFailed(true))
+        .finally(() => isCurrent() && setSuggestionsLoading(false));
     } else {
       setCounterpartLoading(true);
       getTransferPairForActivity(sourceActivity.id)
         .then((pair) => {
+          if (!isCurrent()) return;
           if (!pair) {
             setCounterpartError(t("activity:transfer_match.error_load_pair"));
             return;
@@ -1669,12 +1675,14 @@ function TransferLinkDialog({
             sourceActivity.id === pair.transferIn.id ? pair.transferOut : pair.transferIn,
           );
         })
-        .catch((error) =>
-          setCounterpartError(
-            error instanceof Error ? error.message : t("activity:transfer_match.error_load_pair"),
-          ),
+        .catch(
+          (error) =>
+            isCurrent() &&
+            setCounterpartError(
+              error instanceof Error ? error.message : t("activity:transfer_match.error_load_pair"),
+            ),
         )
-        .finally(() => setCounterpartLoading(false));
+        .finally(() => isCurrent() && setCounterpartLoading(false));
     }
   }, [mode, open, sourceActivity, counterpartId, attempt, t]);
 
