@@ -38,7 +38,9 @@ import {
   formatChangePercent,
   investmentAllocation,
   isPlainPercent,
+  incompleteDates,
   parseHistory,
+  parseRangeHistory,
   themeColorTint,
   toneClass,
   type ParsedNetWorth,
@@ -144,8 +146,11 @@ export function NetWorthContent() {
     };
   }, [netWorthData, t]);
 
-  const parsedHistory = useMemo(() => parseHistory(historyData), [historyData]);
+  // A change reads the ends of its range: incomplete days between them are
+  // skipped, an incomplete end withholds the change.
+  const parsedHistory = useMemo(() => parseRangeHistory(historyData), [historyData]);
   const longHistory = useMemo(() => parseHistory(longHistoryData), [longHistoryData]);
+  const longHistoryGaps = useMemo(() => incompleteDates(longHistoryData), [longHistoryData]);
   const hasIncompleteValuation =
     !isValuationComplete(netWorthData?.valueStatus) ||
     (historyData?.some((point) => !isValuationComplete(point.valueStatus)) ?? false);
@@ -161,14 +166,16 @@ export function NetWorthContent() {
   const trailingYearMonthly = useMemo(() => {
     if (periodCode === "ALL" || !velocity) return undefined;
     const cutoff = formatDateISO(new Date(currentDate.getTime() - 366 * MS_PER_DAY));
-    const trailing = computeVelocity(longHistory.filter((point) => point.date >= cutoff));
+    const trailing = computeVelocity(
+      parseRangeHistory(longHistoryData?.filter((point) => point.date >= cutoff)),
+    );
     const yearAgo = formatDateISO(new Date(currentDate.getTime() - 365 * MS_PER_DAY));
     // Do not label a partial history as a 12-month average.
     if (!trailing || trailing.startDate > yearAgo) return undefined;
     // A range spanning (nearly) the whole trailing year always compares at ~1×.
     if (trailing.months - velocity.months < 1) return undefined;
     return trailing.perMonth;
-  }, [longHistory, periodCode, currentDate, velocity]);
+  }, [longHistoryData, periodCode, currentDate, velocity]);
   const momentum = useMemo(() => {
     if (!historyDates || periodCode === "ALL") return null;
     return computeMomentum(
@@ -176,8 +183,9 @@ export function NetWorthContent() {
       historyDates.startDate,
       historyDates.endDate,
       period.customYear,
+      longHistoryGaps,
     );
-  }, [longHistory, historyDates, periodCode, period.customYear]);
+  }, [longHistory, longHistoryGaps, historyDates, periodCode, period.customYear]);
 
   // Net worth change over the selected range, on the same baseline rules as the
   // breakdown rows so the header and the table agree.

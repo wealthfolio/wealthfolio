@@ -30,8 +30,8 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
 
   // Split the chart height around a zero axis: positives rise above it,
   // negatives drop below. Zones are sized by the largest swing on each side.
-  const maxPos = Math.max(0, ...bars.map((b) => b.value));
-  const maxNeg = Math.max(0, ...bars.map((b) => -b.value));
+  const maxPos = Math.max(0, ...bars.map((b) => b.value ?? 0));
+  const maxNeg = Math.max(0, ...bars.map((b) => -(b.value ?? 0)));
   const totalSwing = maxPos + maxNeg || 1;
   const posZone = (maxPos / totalSwing) * 100;
   const negZone = (maxNeg / totalSwing) * 100;
@@ -74,29 +74,35 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
             )}
             <div className="flex h-full items-stretch gap-1">
               {bars.map((bar) => {
-                const title = `${monthLabel(bar.month, dateFormatting)}: ${bar.value >= 0 ? "+" : ""}${amountFormatting.formatDecimalAmount(bar.value, currency, { maximumFractionDigits: 0 })}`;
+                // A month without a known change keeps its slot, left empty.
+                const value = bar.value ?? 0;
+                const title = `${monthLabel(bar.month, dateFormatting)}: ${
+                  bar.value === null
+                    ? t("performance:not_available")
+                    : `${bar.value >= 0 ? "+" : ""}${amountFormatting.formatDecimalAmount(bar.value, currency, { maximumFractionDigits: 0 })}`
+                }`;
                 return (
                   <div key={bar.month} className="flex flex-1 flex-col" title={title}>
                     {/* above-zero zone */}
                     <div className="flex items-end" style={{ height: `${posZone}%` }}>
-                      {bar.value > 0 && maxPos > 0 && (
+                      {value > 0 && maxPos > 0 && (
                         <div
                           className="w-full rounded-t-sm"
                           style={{
-                            height: `${Math.max(8, (bar.value / maxPos) * 100)}%`,
-                            backgroundColor: barColor(bar.value, bar.current),
+                            height: `${Math.max(8, (value / maxPos) * 100)}%`,
+                            backgroundColor: barColor(value, bar.current),
                           }}
                         />
                       )}
                     </div>
                     {/* below-zero zone */}
                     <div className="flex items-start" style={{ height: `${negZone}%` }}>
-                      {bar.value < 0 && maxNeg > 0 && (
+                      {value < 0 && maxNeg > 0 && (
                         <div
                           className="w-full rounded-b-sm"
                           style={{
-                            height: `${Math.max(8, (-bar.value / maxNeg) * 100)}%`,
-                            backgroundColor: barColor(bar.value, bar.current),
+                            height: `${Math.max(8, (-value / maxNeg) * 100)}%`,
+                            backgroundColor: barColor(value, bar.current),
                           }}
                         />
                       )}

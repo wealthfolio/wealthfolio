@@ -1,4 +1,5 @@
 import type { CategoryAllocation, NetWorthHistoryPoint, TaxonomyAllocation } from "@/lib/types";
+import { isValuationComplete } from "@/lib/valuation";
 import type { FormattingApi } from "@wealthfolio/ui";
 
 // The net-worth line: the theme's --net-worth colour (Classic's is gold), at 3:1
@@ -119,26 +120,55 @@ export interface ParsedHistoryPoint {
 const num = (value: number | undefined | null): number =>
   value != null && Number.isFinite(value) ? value : 0;
 
-/** Parse the raw history response, treating missing or non-finite values as zero. */
+/**
+ * Parse the raw history response, treating missing or non-finite values as zero.
+ * Days whose value is incomplete are dropped: their totals are known subtotals,
+ * not net worth.
+ */
 export function parseHistory(history: NetWorthHistoryPoint[] | undefined): ParsedHistoryPoint[] {
-  if (!history || history.some((point) => point.valueStatus && point.valueStatus !== "complete"))
+  if (!history) return [];
+  return history
+    .filter((point) => isValuationComplete(point.valueStatus))
+    .map((point) => {
+      const breakdown: Record<string, number> = {};
+      for (const [key, value] of Object.entries(point.breakdown ?? {})) {
+        breakdown[key] = num(value);
+      }
+      return {
+        date: point.date,
+        netWorth: num(point.netWorth),
+        totalAssets: num(point.totalAssets),
+        totalLiabilities: num(point.totalLiabilities),
+        portfolioValue: num(point.portfolioValue),
+        alternativeAssetsValue: num(point.alternativeAssetsValue),
+        netContribution: num(point.netContribution),
+        breakdown,
+      };
+    });
+}
+
+/**
+ * History for a change across a range. A change reads only the range's ends, so
+ * incomplete days between them are dropped, but an incomplete end leaves no
+ * change to report.
+ */
+export function parseRangeHistory(
+  history: NetWorthHistoryPoint[] | undefined,
+): ParsedHistoryPoint[] {
+  if (
+    !history?.length ||
+    !isValuationComplete(history[0].valueStatus) ||
+    !isValuationComplete(history[history.length - 1].valueStatus)
+  )
     return [];
-  return history.map((point) => {
-    const breakdown: Record<string, number> = {};
-    for (const [key, value] of Object.entries(point.breakdown ?? {})) {
-      breakdown[key] = num(value);
-    }
-    return {
-      date: point.date,
-      netWorth: num(point.netWorth),
-      totalAssets: num(point.totalAssets),
-      totalLiabilities: num(point.totalLiabilities),
-      portfolioValue: num(point.portfolioValue),
-      alternativeAssetsValue: num(point.alternativeAssetsValue),
-      netContribution: num(point.netContribution),
-      breakdown,
-    };
-  });
+  return parseHistory(history);
+}
+
+/** Dates of the days whose value is incomplete. */
+export function incompleteDates(history: NetWorthHistoryPoint[] | undefined): string[] {
+  return (history ?? [])
+    .filter((point) => !isValuationComplete(point.valueStatus))
+    .map((point) => point.date);
 }
 
 /** Series of values for a breakdown key across the history (forward-filled by the backend). */
@@ -235,14 +265,24 @@ function daysBetween(fromISO: string, toISO: string): number {
   return Math.max(0, (new Date(toISO).getTime() - new Date(fromISO).getTime()) / MS_PER_DAY);
 }
 
-/** Net worth as-of a date: last point on/before it, else the earliest point. */
-function netWorthAsOf(history: ParsedHistoryPoint[], iso: string): number {
-  let result: number | null = null;
-  for (const point of history) {
-    if (point.date <= iso) result = point.netWorth;
+/** A day on the timeline: `netWorth` is null when that day's value is incomplete. */
+interface TimelinePoint {
+  date: string;
+  netWorth: number | null;
+}
+
+/**
+ * Net worth as-of a date: last point on/before it, else the earliest point; null
+ * when that point is an incomplete day rather than a value carried over from an
+ * earlier one.
+ */
+function netWorthAsOf(timeline: TimelinePoint[], iso: string): number | null {
+  let result: TimelinePoint | undefined;
+  for (const point of timeline) {
+    if (point.date <= iso) result = point;
     else break;
   }
-  return result ?? history[0]?.netWorth ?? 0;
+  return (result ?? timeline[0])?.netWorth ?? null;
 }
 
 export interface Velocity {
@@ -294,20 +334,29 @@ export interface Momentum {
   currentChange: number;
   priorChange: number | null;
   beatBy: number | null;
-  bars: { month: string; value: number; current: boolean }[];
+  /** `value` is null for a month whose end, or the previous month's end, is incomplete. */
+  bars: { month: string; value: number | null; current: boolean }[];
 }
 
 /**
  * Compare the current range's net worth change to the equal-length prior window.
  * `longHistory` must extend back at least one range-length before `rangeStartISO`.
+ * `incomplete` lists the days dropped from `longHistory` because their value is
+ * incomplete: a change that starts or ends on one of them is withheld.
  */
 export function computeMomentum(
   longHistory: ParsedHistoryPoint[],
   rangeStartISO: string,
   rangeEndISO: string,
   calendarYear?: number | null,
+  incomplete: readonly string[] = [],
 ): Momentum | null {
   if (longHistory.length < 2) return null;
+
+  const timeline: TimelinePoint[] = [
+    ...longHistory.map(({ date, netWorth }) => ({ date, netWorth })),
+    ...incomplete.map((date) => ({ date, netWorth: null })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
 
   const rangeDays = daysBetween(rangeStartISO, rangeEndISO) || 1;
   const priorStartISO =
@@ -317,30 +366,33 @@ export function computeMomentum(
           .toISOString()
           .slice(0, 10);
 
-  const nwEnd = netWorthAsOf(longHistory, rangeEndISO);
-  const nwStart = netWorthAsOf(longHistory, rangeStartISO);
+  const nwEnd = netWorthAsOf(timeline, rangeEndISO);
+  const nwStart = netWorthAsOf(timeline, rangeStartISO);
+  if (nwEnd === null || nwStart === null) return null;
   const currentChange = nwEnd - nwStart;
 
-  const earliest = longHistory[0].date;
+  const earliest = timeline[0].date;
   const hasPrior = earliest <= priorStartISO;
-  const nwPriorStart = netWorthAsOf(longHistory, priorStartISO);
+  const nwPriorStart = netWorthAsOf(timeline, priorStartISO);
   const nwPriorEnd =
-    calendarYear != null ? netWorthAsOf(longHistory, `${calendarYear - 1}-12-31`) : nwStart;
-  const priorChange = hasPrior ? nwPriorEnd - nwPriorStart : null;
+    calendarYear != null ? netWorthAsOf(timeline, `${calendarYear - 1}-12-31`) : nwStart;
+  const priorChange =
+    hasPrior && nwPriorStart !== null && nwPriorEnd !== null ? nwPriorEnd - nwPriorStart : null;
   const beatBy = priorChange != null ? currentChange - priorChange : null;
 
   // Monthly net worth change bars across the prior + current windows.
-  const monthEnd = new Map<string, number>();
-  for (const point of longHistory) {
+  const monthEnd = new Map<string, number | null>();
+  for (const point of timeline) {
     if (point.date < priorStartISO) continue;
     monthEnd.set(point.date.slice(0, 7), point.netWorth);
   }
   const months = [...monthEnd.keys()].sort();
   const currentMonth = rangeStartISO.slice(0, 7);
-  let prev: number | null = null;
+  // undefined before the first month; null after a month that ended incomplete.
+  let prev: number | null | undefined;
   const bars = months.map((month) => {
-    const end = monthEnd.get(month)!;
-    const value = prev == null ? 0 : end - prev;
+    const end = monthEnd.get(month) ?? null;
+    const value = end === null || prev === null ? null : prev === undefined ? 0 : end - prev;
     prev = end;
     return { month, value, current: month >= currentMonth };
   });

@@ -9,8 +9,10 @@ import {
   formatChangePercent,
   hadBalanceBefore,
   investmentAllocation,
+  incompleteDates,
   isPlainPercent,
   parseHistory,
+  parseRangeHistory,
   type ParsedHistoryPoint,
 } from "./utils";
 
@@ -44,14 +46,52 @@ function point(overrides: Partial<ParsedHistoryPoint>): ParsedHistoryPoint {
 }
 
 describe("net worth utils", () => {
-  it("does not derive growth by bridging incomplete history", () => {
+  it("drops incomplete days and keeps the rest of the history", () => {
     expect(
       parseHistory([
         rawPoint({ netWorth: 100 }),
         rawPoint({ date: "2024-01-02", valueStatus: "unavailable", netWorth: 100000 }),
-        rawPoint({ date: "2024-01-03", netWorth: 120 }),
+        rawPoint({ date: "2024-01-03", valueStatus: "partialUnpriced", netWorth: 50 }),
+        rawPoint({ date: "2024-01-04", valueStatus: "complete", netWorth: 120 }),
+      ]).map(({ date, netWorth }) => ({ date, netWorth })),
+    ).toEqual([
+      { date: "2024-01-01", netWorth: 100 },
+      { date: "2024-01-04", netWorth: 120 },
+    ]);
+  });
+
+  it("measures a range across incomplete days between its complete ends", () => {
+    const history = parseRangeHistory([
+      rawPoint({ netWorth: 100 }),
+      rawPoint({ date: "2024-01-02", valueStatus: "unavailable", netWorth: 100000 }),
+      rawPoint({ date: "2024-01-03", netWorth: 120 }),
+    ]);
+    expect(history.map((entry) => entry.netWorth)).toEqual([100, 120]);
+    expect(computeVelocity(history)).toMatchObject({ netChange: 20 });
+  });
+
+  it.each([
+    { label: "first", statuses: ["partialUnpriced", "complete", "complete"] },
+    { label: "last", statuses: ["complete", "complete", "unavailable"] },
+  ] as const)("does not measure a range whose $label day is incomplete", ({ statuses }) => {
+    const history = parseRangeHistory(
+      statuses.map((valueStatus, index) =>
+        rawPoint({ date: `2024-01-0${index + 1}`, valueStatus, netWorth: 100 + index }),
+      ),
+    );
+    expect(history).toEqual([]);
+    expect(computeVelocity(history)).toBeNull();
+  });
+
+  it("lists the dates of incomplete days", () => {
+    expect(
+      incompleteDates([
+        rawPoint({}),
+        rawPoint({ date: "2024-01-02", valueStatus: "unavailable" }),
+        rawPoint({ date: "2024-01-03", valueStatus: "partialUnpriced" }),
       ]),
-    ).toEqual([]);
+    ).toEqual(["2024-01-02", "2024-01-03"]);
+    expect(incompleteDates(undefined)).toEqual([]);
   });
 
   it("parses history and breakdown values into finite numbers", () => {
@@ -262,6 +302,79 @@ describe("net worth utils", () => {
     expect(momentum?.bars).toEqual([
       { month: "2024-02", value: 0, current: false },
       { month: "2024-03", value: 20, current: true },
+      { month: "2024-04", value: 60, current: true },
+    ]);
+  });
+
+  it("keeps momentum when incomplete days fall between the values it reads", () => {
+    const momentum = computeMomentum(
+      [
+        point({ date: "2024-01-01", netWorth: 100 }),
+        point({ date: "2024-02-01", netWorth: 130 }),
+        point({ date: "2024-02-20", netWorth: 140 }),
+        point({ date: "2024-03-01", netWorth: 150 }),
+        point({ date: "2024-04-01", netWorth: 210 }),
+      ],
+      "2024-03-01",
+      "2024-04-01",
+      null,
+      ["2024-02-05", "2024-02-10"],
+    );
+    expect(momentum).toMatchObject({ currentChange: 60, priorChange: 50, beatBy: 10 });
+    expect(momentum?.bars).toEqual([
+      { month: "2024-02", value: 0, current: false },
+      { month: "2024-03", value: 10, current: true },
+      { month: "2024-04", value: 60, current: true },
+    ]);
+  });
+
+  it.each([
+    { label: "start", start: "2024-03-01", incomplete: ["2024-03-01"] },
+    { label: "end", start: "2024-03-01", incomplete: ["2024-04-01"] },
+    // The value as of 03-05 is the one recorded on 03-01.
+    { label: "start, as of an earlier day", start: "2024-03-05", incomplete: ["2024-03-01"] },
+  ])("withholds momentum when the range $label is incomplete", ({ start, incomplete }) => {
+    const history = [
+      point({ date: "2024-01-01", netWorth: 100 }),
+      point({ date: "2024-02-01", netWorth: 130 }),
+      point({ date: "2024-03-01", netWorth: 150 }),
+      point({ date: "2024-04-01", netWorth: 210 }),
+    ].filter((entry) => !incomplete.includes(entry.date));
+    expect(computeMomentum(history, start, "2024-04-01", null, incomplete)).toBeNull();
+  });
+
+  it("withholds only the prior comparison when the prior window's start is incomplete", () => {
+    const momentum = computeMomentum(
+      [
+        point({ date: "2024-01-01", netWorth: 100 }),
+        point({ date: "2024-02-01", netWorth: 130 }),
+        point({ date: "2024-03-01", netWorth: 150 }),
+        point({ date: "2024-04-01", netWorth: 210 }),
+      ],
+      "2024-03-01",
+      "2024-04-01",
+      null,
+      ["2024-01-20"],
+    );
+    expect(momentum).toMatchObject({ currentChange: 60, priorChange: null, beatBy: null });
+  });
+
+  it("leaves a monthly bar empty when its month end or the previous one is incomplete", () => {
+    const momentum = computeMomentum(
+      [
+        point({ date: "2024-01-01", netWorth: 100 }),
+        point({ date: "2024-02-01", netWorth: 130 }),
+        point({ date: "2024-03-01", netWorth: 150 }),
+        point({ date: "2024-04-01", netWorth: 210 }),
+      ],
+      "2024-03-01",
+      "2024-04-01",
+      null,
+      ["2024-02-29"],
+    );
+    expect(momentum?.bars).toEqual([
+      { month: "2024-02", value: null, current: false },
+      { month: "2024-03", value: null, current: true },
       { month: "2024-04", value: 60, current: true },
     ]);
   });
