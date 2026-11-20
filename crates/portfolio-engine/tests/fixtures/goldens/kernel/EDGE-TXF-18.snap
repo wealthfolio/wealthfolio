@@ -363,16 +363,16 @@ baseline:
           returns:
             money_weighted:
               annualized: ~
-              period: "0.0140625"
+              period: "0.01428813"
               series:
                 - date: 2025-01-01
                   value: "0"
                 - date: 2025-01-02
                   value: "0.12"
                 - date: 2025-01-03
-                  value: "0.01428571"
+                  value: "0.01451838"
                 - date: 2025-01-04
-                  value: "0.0140625"
+                  value: "0.01428813"
               unavailable_reason: ~
             return_on_cost:
               annualized: ~

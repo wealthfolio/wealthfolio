@@ -19,7 +19,10 @@ use crate::model::*;
 use crate::value::{aggregate_scope, has_started, Window};
 
 const DAYS_PER_YEAR: Decimal = dec!(365.25);
-const MIN_ANNUALIZATION_DAYS: i64 = 30;
+/// A yearly rate needs a year of measured history: a shorter period
+/// compounded to a year overstates what was earned (3% in a month reads as
+/// 43% a year).
+const MIN_ANNUALIZATION_DAYS: i64 = 365;
 const MIN_RETURN_BASE: Decimal = Decimal::ONE;
 const RESIDUAL_TOLERANCE_RATE: Decimal = dec!(0.002);
 
@@ -612,22 +615,18 @@ fn performance_core(
         ),
         _ => (None, Some(QualityNote::ReturnOnCostNotApplicable)),
     };
-    let money_weighted = if coverage_unavailable {
+    // A holdings scope has no recorded deposits or withdrawals to weigh: the
+    // flows between its snapshots are inferred, in amount and in date.
+    let money_weighted = if holdings {
+        MoneyWeighted::unavailable(QualityNote::HoldingsMoneyWeightedNotApplicable)
+    } else if coverage_unavailable {
         MoneyWeighted::unavailable(QualityNote::CoverageUnavailable {
             metric: Metric::MoneyWeighted,
-        })
-    } else if holdings && start_opt.is_none() {
-        MoneyWeighted::unavailable(QualityNote::HoldingsMoneyWeightedNotApplicable)
-    } else if holdings_flows_unavailable {
-        MoneyWeighted::unavailable(QualityNote::FlowsNotInferred {
-            metric: Metric::MoneyWeighted,
-            subject: Subject::HoldingsScope,
         })
     } else {
         money_weighted_return(
             history,
             &flows,
-            holdings,
             include_series,
             Opening::for_baseline(holdings, baseline),
         )
@@ -727,11 +726,14 @@ fn performance_core(
             },
             money_weighted: ReturnView {
                 period: money_weighted.period.map(|v| v.round_dp(STORED_PRECISION)),
-                // A yearly rate needs a month of history, as for the TWR.
-                // The period value compounded to a year, so the two never
-                // disagree; a month of history at least, as for the TWR.
+                // The same rate over a year, counted from the day the
+                // measurement opens, so the two never disagree.
                 annualized: if full {
-                    annualize(actual_start, actual_end, money_weighted.period)
+                    annualize(
+                        money_weighted.start.unwrap_or(actual_start),
+                        actual_end,
+                        money_weighted.period,
+                    )
                 } else {
                     None
                 },
@@ -740,11 +742,8 @@ fn performance_core(
             },
             return_on_cost: ReturnView {
                 period: return_on_cost.map(|v| v.round_dp(STORED_PRECISION)),
-                annualized: if full {
-                    annualize(actual_start, actual_end, return_on_cost)
-                } else {
-                    None
-                },
+                // How long the positions were held is not known: no yearly rate.
+                annualized: None,
                 series: if include_series && return_on_cost.is_some() {
                     return_on_cost_series(history)
                 } else {
@@ -1092,19 +1091,24 @@ fn risk_from_samples(samples: &[RiskSample], opening_date: Option<NaiveDate>) ->
     risk
 }
 
-/// Money-weighted return over a history, by the Modified Dietz method: the
-/// gain over the average capital invested. A deposit counts from the
+/// Money-weighted return over a history: the internal rate of return, the
+/// one rate at which the opening capital and every deposit, less every
+/// withdrawal, grow to the closing value. It is reported for the period; the
+/// yearly rate is the same rate over a year. A deposit counts from the
 /// previous close, as the time-weighted step does (`prev + inflow` is its
 /// base); a withdrawal counts until the close of the day it leaves.
 struct MoneyWeighted {
-    /// Gain and average capital at the last close; the mixed scope sums
-    /// them across accounts.
-    totals: Option<DietzPoint>,
+    /// The day the measurement opens, after any rebase: the yearly rate
+    /// counts from it.
+    start: Option<NaiveDate>,
     period: Option<Decimal>,
     reason: Option<QualityNote>,
     series: Vec<SeriesPoint>,
 }
 
+/// Gain and average capital invested at a close (Modified Dietz). A mixed
+/// scope sums them across its accounts for its ROI, and the money-weighted
+/// solve starts from their ratio.
 #[derive(Debug, Clone, Copy)]
 struct DietzPoint {
     date: NaiveDate,
@@ -1115,12 +1119,125 @@ struct DietzPoint {
 impl MoneyWeighted {
     fn unavailable(reason: QualityNote) -> Self {
         Self {
-            totals: None,
+            start: None,
             period: None,
             reason: Some(reason),
             series: Vec::new(),
         }
     }
+}
+
+/// One dated amount of the money-weighted equation: the days since the
+/// period opened, and the money put in (positive) or taken out (negative).
+#[derive(Debug, Clone, Copy)]
+struct CashTerm {
+    day: f64,
+    amount: f64,
+}
+
+/// The largest growth the solve considers, as `ln(1 + return)`: beyond it
+/// the terms no longer fit a float.
+const MAX_LOG_GROWTH: f64 = 600.0;
+
+/// The return over a period of `period_days` at which `terms` grow to
+/// `end_value`: each amount compounds for the share of the period it was
+/// invested. Solved in `ln(1 + return)`, where every real number is a valid
+/// return, by Newton's method from `seed`, and by bisection when a step
+/// cannot be taken. The same inputs always give the same return.
+fn solve_period_return(
+    terms: &[CashTerm],
+    period_days: f64,
+    end_value: f64,
+    seed: f64,
+) -> Result<f64, QualityNote> {
+    if !terms.iter().any(|term| term.amount > 0.0) {
+        return Err(QualityNote::MoneyWeightedNoCapital);
+    }
+    if period_days <= 0.0 {
+        return Ok(0.0);
+    }
+    // Nothing is left and nothing was taken out: all of it was lost.
+    if end_value <= 0.0 && terms.iter().all(|term| term.amount >= 0.0) {
+        return if end_value == 0.0 {
+            Ok(-1.0)
+        } else {
+            Err(QualityNote::MoneyWeightedNoSolution)
+        };
+    }
+    let scale = terms
+        .iter()
+        .map(|term| term.amount.abs())
+        .sum::<f64>()
+        .max(end_value.abs());
+    // What the terms have grown to, less the end value, and how fast that
+    // changes with the growth: one pass over the terms for both.
+    let evaluate = |log_growth: f64| -> (f64, f64) {
+        let (mut value, mut slope) = (-end_value, 0.0);
+        for term in terms {
+            let share = ((period_days - term.day) / period_days).clamp(0.0, 1.0);
+            let grown = term.amount * (log_growth * share).exp();
+            value += grown;
+            slope += grown * share;
+        }
+        (value, slope)
+    };
+    let solved = |log_growth: f64| -> Result<f64, QualityNote> {
+        let period_return = log_growth.exp_m1();
+        if period_return.is_finite() {
+            Ok(period_return)
+        } else {
+            Err(QualityNote::MoneyWeightedOutOfRange)
+        }
+    };
+
+    let mut log_growth = if seed > -1.0 && seed.is_finite() {
+        seed.ln_1p().clamp(-MAX_LOG_GROWTH, MAX_LOG_GROWTH)
+    } else {
+        0.0
+    };
+    let (mut value, mut slope) = evaluate(log_growth);
+    for _ in 0..64 {
+        if !value.is_finite() || !slope.is_finite() || slope <= 0.0 {
+            break;
+        }
+        let step = value / slope;
+        let next = log_growth - step;
+        if !next.is_finite() || next.abs() > MAX_LOG_GROWTH {
+            break;
+        }
+        log_growth = next;
+        (value, slope) = evaluate(log_growth);
+        if step.abs() <= 1e-13 * log_growth.abs().max(1.0) {
+            if value.abs() <= 1e-9 * scale {
+                return solved(log_growth);
+            }
+            break;
+        }
+    }
+
+    // Newton could not finish (a flat or falling stretch, or a jump out of
+    // range): bracket a crossing from below to above and halve it.
+    let residual = |log_growth: f64| evaluate(log_growth).0;
+    let (mut low, mut high) = (-1.0_f64, 1.0_f64);
+    while residual(high) < 0.0 && high < MAX_LOG_GROWTH {
+        high = (high * 2.0).min(MAX_LOG_GROWTH);
+    }
+    while residual(low) > 0.0 && low > -MAX_LOG_GROWTH {
+        low = (low * 2.0).max(-MAX_LOG_GROWTH);
+    }
+    let (at_low, at_high) = (residual(low), residual(high));
+    if !at_low.is_finite() || !at_high.is_finite() || at_low > 0.0 || at_high < 0.0 {
+        return Err(QualityNote::MoneyWeightedNoSolution);
+    }
+    for _ in 0..200 {
+        let middle = (low + high) / 2.0;
+        if residual(middle) < 0.0 {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+    solved((low + high) / 2.0)
 }
 
 /// What the first close of a money-weighted period opens with.
@@ -1239,44 +1356,110 @@ fn dietz_return(point: &DietzPoint) -> Result<Decimal, QualityNote> {
 fn money_weighted_return(
     history: &[DailyValuation],
     flows: &[PeriodFlow],
-    known_only: bool,
     include_series: bool,
     opening: Opening,
 ) -> MoneyWeighted {
-    let points = match dietz_points(history, flows, known_only, opening) {
+    // The Dietz points carry the checks on the flows and the opening, and
+    // each one's gain over capital is where its close's solve starts.
+    let points = match dietz_points(history, flows, false, opening) {
         Ok(points) => points,
         Err(reason) => return MoneyWeighted::unavailable(reason),
     };
-    let Some(last) = points.last().copied() else {
+    if points.is_empty() {
         return MoneyWeighted::unavailable(QualityNote::TwoValuationPointsRequired);
+    }
+    let Some(start_index) = opening_index(history, opening) else {
+        return MoneyWeighted::unavailable(QualityNote::MoneyWeightedNoCapital);
     };
-    let (period, reason) = match dietz_return(&last) {
+    let scoped = &history[start_index..];
+    let scoped_flows = &flows[start_index..];
+    let first = &scoped[0];
+    // Money contributed on the first day was invested for that day, as a
+    // later deposit is from the close before it: the period opens a day
+    // before the first close. A period opening on a close starts there.
+    let (origin, opening_capital) = match opening {
+        Opening::Close => (first.date, first.total_value_base),
+        Opening::Contribution => (
+            first.date.pred_opt().unwrap_or(first.date),
+            first.net_contribution_base,
+        ),
+    };
+    let day_of = |date: NaiveDate| (date - origin).num_days() as f64;
+    let seeds: HashMap<NaiveDate, f64> = points
+        .iter()
+        .filter_map(|point| Some((point.date, dietz_return(point).ok()?.to_f64()?)))
+        .collect();
+    let seed_at = |date: NaiveDate| seeds.get(&date).copied().unwrap_or(0.0);
+    let solve_at = |terms: &[CashTerm], close: &DailyValuation| -> Result<Decimal, QualityNote> {
+        let end_value = close
+            .total_value_base
+            .to_f64()
+            .ok_or(QualityNote::MoneyWeightedOutOfRange)?;
+        let period_return =
+            solve_period_return(terms, day_of(close.date), end_value, seed_at(close.date))?;
+        Decimal::from_f64(period_return).ok_or(QualityNote::MoneyWeightedOutOfRange)
+    };
+
+    let mut terms = Vec::with_capacity(scoped.len());
+    let push = |terms: &mut Vec<CashTerm>, day: f64, amount: Decimal| {
+        if let Some(amount) = amount.to_f64().filter(|amount| *amount != 0.0) {
+            terms.push(CashTerm { day, amount });
+        }
+    };
+    push(&mut terms, 0.0, opening_capital);
+
+    // One point per close, so the curve lines up with the time-weighted
+    // one. A close before any capital is invested holds the last value; a
+    // close the solve cannot answer has no point.
+    let mut series = Vec::new();
+    let mut current = Decimal::ZERO;
+    let mut plot =
+        |series: &mut Vec<SeriesPoint>, date: NaiveDate, solved: &Result<Decimal, QualityNote>| {
+            if !include_series {
+                return;
+            }
+            match solved {
+                Ok(value) => current = value.round_dp(STORED_PRECISION),
+                Err(QualityNote::MoneyWeightedNoCapital) => {}
+                Err(_) => return,
+            }
+            series.push(SeriesPoint {
+                date,
+                value: current,
+            });
+        };
+    for day in &history[..start_index] {
+        plot(
+            &mut series,
+            day.date,
+            &Err(QualityNote::MoneyWeightedNoCapital),
+        );
+    }
+    let mut last = match opening {
+        Opening::Close => Ok(Decimal::ZERO),
+        Opening::Contribution => solve_at(&terms, first),
+    };
+    plot(&mut series, first.date, &last);
+    for (pair, flow) in scoped.windows(2).zip(scoped_flows) {
+        let (prev, curr) = (&pair[0], &pair[1]);
+        push(&mut terms, day_of(prev.date), flow.inflow);
+        push(&mut terms, day_of(curr.date), -flow.outflow);
+        let is_last = curr.date == scoped[scoped.len() - 1].date;
+        if include_series || is_last {
+            last = solve_at(&terms, curr);
+            plot(&mut series, curr.date, &last);
+        }
+    }
+
+    let (period, reason) = match last {
         Ok(value) => (Some(value), None),
         Err(reason) => (None, Some(reason)),
     };
-    let mut series = Vec::new();
-    if include_series && period.is_some() {
-        // One point per close, so the curve lines up with the time-weighted
-        // one; a close before any capital is invested holds the last value.
-        let mut current = Decimal::ZERO;
-        let mut points = points.iter().peekable();
-        for day in history {
-            if let Some(point) = points.next_if(|p| p.date == day.date) {
-                if let Ok(value) = dietz_return(point) {
-                    current = value.round_dp(STORED_PRECISION);
-                }
-            }
-            series.push(SeriesPoint {
-                date: day.date,
-                value: current,
-            });
-        }
-    }
     MoneyWeighted {
-        totals: Some(last),
+        start: Some(origin),
         period,
         reason,
-        series,
+        series: if period.is_some() { series } else { Vec::new() },
     }
 }
 
@@ -2568,8 +2751,9 @@ struct ComponentMetrics {
     start_date: NaiveDate,
     end_date: NaiveDate,
     amount: Option<Decimal>,
-    /// Money-weighted gain and average capital; a holdings account over its
-    /// full history counts at cost (value less book cost, over book cost).
+    /// Gain and the capital it was earned on, for the scope's ROI; a
+    /// holdings account over its full history counts at cost (value less
+    /// book cost, over book cost).
     gain: Option<Decimal>,
     capital: Option<Decimal>,
     contributes_to_scope: bool,
@@ -2585,9 +2769,12 @@ struct MixedSeriesPoint {
     denominator: Option<Decimal>,
 }
 
-/// A component's money-weighted gain and average capital, when it has
-/// capital to measure against.
-fn component_money_weighted(
+/// A component's gain and the capital it was earned on, for the scope's
+/// ROI: the average capital invested over the period (Modified Dietz), or
+/// the book cost for a holdings account over its full history. The capital
+/// is tested on the scope's total, so an account at zero, or one that took
+/// out more than it held on average, still adds up.
+fn component_gain_and_capital(
     history: &[DailyValuation],
     flows: &[PeriodFlow],
     tracking: TrackingMode,
@@ -2595,8 +2782,8 @@ fn component_money_weighted(
     baseline: Baseline,
     amount: Option<Decimal>,
 ) -> (Option<Decimal>, Option<Decimal>) {
-    // Like a single account's, a component's money-weighted return needs both
-    // endpoints valued.
+    // Like a single account's return, a component's gain needs both endpoints
+    // valued.
     let unvalued = |day: Option<&DailyValuation>| {
         day.is_none_or(|d| d.value_status.is_unavailable_for_returns())
     };
@@ -2613,9 +2800,12 @@ fn component_money_weighted(
     }
     let holdings = tracking == TrackingMode::Holdings;
     let opening = Opening::for_baseline(holdings, baseline);
-    match money_weighted_return(history, flows, holdings, false, opening).totals {
-        Some(point) if point.capital >= MIN_RETURN_BASE => (Some(point.gain), Some(point.capital)),
-        _ => (None, None),
+    match dietz_points(history, flows, holdings, opening)
+        .ok()
+        .and_then(|points| points.last().copied())
+    {
+        Some(point) => (Some(point.gain), Some(point.capital)),
+        None => (None, None),
     }
 }
 
@@ -2751,7 +2941,7 @@ fn mixed_scope_performance(
 
         let (gain, capital) = if amount.is_some() {
             let holdings = component.tracking == TrackingMode::Holdings;
-            component_money_weighted(
+            component_gain_and_capital(
                 history,
                 &period_flows(history),
                 component.tracking,
@@ -2806,7 +2996,10 @@ fn build_mixed_result(
     let mut capital = Decimal::ZERO;
     let mut warnings = vec![QualityNote::MixedScope];
     warnings.extend(skipped);
-    let mut reasons = vec![QualityNote::MixedTwrNotApplicable];
+    let mut reasons = vec![
+        QualityNote::MixedTwrNotApplicable,
+        QualityNote::MixedMoneyWeightedNotApplicable,
+    ];
     let mut coverage_complete = true;
 
     if metrics.is_empty() {
@@ -2864,7 +3057,7 @@ fn build_mixed_result(
     let value_return = if !coverage_complete {
         reasons.push(QualityNote::MixedCoverageDiffers);
         None
-    } else if capital > Decimal::ZERO {
+    } else if capital >= MIN_RETURN_BASE {
         let value_return = arith::div(gain, capital);
         if value_return.is_none() {
             reasons.push(QualityNote::MixedReturnOutOfRange);
@@ -2899,18 +3092,21 @@ fn build_mixed_result(
         ReturnMethod::ValueReturn,
         Returns {
             twr: ReturnView::unavailable(QualityNote::MixedTwrNotApplicable),
-            money_weighted: ReturnView {
+            // A holdings account has no recorded deposits or withdrawals, so
+            // the scope has no dated cash flows to solve a rate on.
+            money_weighted: ReturnView::unavailable(QualityNote::MixedMoneyWeightedNotApplicable),
+            // The scope's one figure: its accounts' gains over the capital
+            // they were earned on. How long that capital was held is not
+            // known for a holdings account, so it has no yearly rate.
+            return_on_cost: ReturnView {
                 period: value_return.map(|v| v.round_dp(STORED_PRECISION)),
-                // No dated cash flows across components to solve an IRR on: the
-                // yearly rate compounds the period value.
-                annualized: annualize(actual_start, actual_end, value_return),
+                annualized: None,
                 series,
                 unavailable_reason: value_return
                     .is_none()
                     .then(|| reasons.last().cloned())
                     .flatten(),
             },
-            return_on_cost: ReturnView::unavailable(QualityNote::ReturnOnCostNotApplicable),
         },
         attribution,
         Risk::default(),
@@ -3257,7 +3453,7 @@ pub fn measure_price_series_replayed(
     result.returns.money_weighted = match replay_history(points, cash) {
         Ok(history) => {
             let flows = period_flows(&history);
-            let replayed = money_weighted_return(&history, &flows, false, true, Opening::Close);
+            let replayed = money_weighted_return(&history, &flows, true, Opening::Close);
             let annualized = history
                 .first()
                 .zip(history.last())
@@ -3526,9 +3722,10 @@ mod tests {
         )
     }
 
-    /// Money-weighted returns worked by hand (Modified Dietz: gain over the
-    /// average capital; a deposit counts from the previous close, a
-    /// withdrawal until the close it leaves on).
+    /// Money-weighted returns worked by hand: the period return R at which
+    /// the opening capital and each flow grow to the closing value, each for
+    /// the share of the period it was invested (a deposit counts from the
+    /// previous close, a withdrawal until the close it leaves on).
     #[test]
     fn money_weighted_matches_hand_worked_cases() {
         let z = Decimal::ZERO;
@@ -3545,7 +3742,7 @@ mod tests {
             ),
             (
                 // 100 deposited after the Jan 2 close, 3 of 4 days invested:
-                // capital 100 + 100 * 3/4 = 175; gain 220 - 100 - 100 = 20.
+                // 100 (1+R) + 100 (1+R)^(3/4) = 220.
                 "deposit mid-period",
                 vec![
                     dated("2026-01-01", dec!(100), z, z),
@@ -3553,11 +3750,11 @@ mod tests {
                     dated("2026-01-03", dec!(210), dec!(100), z),
                     dated("2026-01-05", dec!(220), z, z),
                 ],
-                dec!(0.11428571),
+                dec!(0.11496185),
             ),
             (
-                // 600 withdrawn on Jan 3, invested 2 of 3 days:
-                // capital 1000 - 600 * 1/3 = 800; gain 530 - 1000 + 600 = 130.
+                // 600 withdrawn on Jan 3, a third of the period before the end:
+                // 1000 (1+R) - 600 (1+R)^(1/3) = 530.
                 "withdrawal larger than the gain",
                 vec![
                     dated("2026-01-01", dec!(1000), z, z),
@@ -3565,11 +3762,11 @@ mod tests {
                     dated("2026-01-03", dec!(520), z, dec!(600)),
                     dated("2026-01-04", dec!(530), z, z),
                 ],
-                dec!(0.1625),
+                dec!(0.16052578),
             ),
             (
                 // 99% lost, then refunded with 1000 that gains 10%: the TWR
-                // stays near -100%; the money lost 889 on 1666.67 of capital.
+                // stays near -100%; 1000 (1+R) + 1000 (1+R)^(2/3) = 1111.
                 "wiped out and refunded",
                 vec![
                     dated("2026-01-01", dec!(1000), z, z),
@@ -3577,7 +3774,7 @@ mod tests {
                     dated("2026-01-03", dec!(1010), dec!(1000), z),
                     dated("2026-01-04", dec!(1111), z, z),
                 ],
-                dec!(-0.5334),
+                dec!(-0.51028867),
             ),
             (
                 // A pre-funding negative close is skipped: measured from 995.
@@ -3645,6 +3842,279 @@ mod tests {
         );
     }
 
+    /// A close `day` days after `base`, with that day's deposits and
+    /// withdrawals.
+    fn on_day(
+        base: &str,
+        day: i64,
+        total: Decimal,
+        inflow: Decimal,
+        outflow: Decimal,
+    ) -> DailyValuation {
+        let base: NaiveDate = base.parse().unwrap();
+        let date = base + chrono::Duration::days(day);
+        dated(&date.to_string(), total, inflow, outflow)
+    }
+
+    /// Published worked examples. A deposit is the row after the close it
+    /// counts from; a withdrawal is the row it leaves on. Values between the
+    /// flows do not enter a money-weighted return.
+    #[test]
+    fn money_weighted_matches_published_examples() {
+        let z = Decimal::ZERO;
+        // TD Wealth, "Personal (Money-Weighted) Rate of Return" (2016),
+        // calendar 2015.
+        let td = "2014-12-31";
+        // Portfolio Performance manual, money-weighted examples 4 and 6
+        // (demo-portfolio-03): remaining days 730/514/255 and
+        // 1095/878/514/179/61, yearly rates on a 365-day year.
+        let pp4 = "2021-06-12";
+        let pp6 = "2020-06-12";
+        let cases: Vec<(&str, Vec<DailyValuation>, Decimal, Decimal)> = vec![
+            (
+                // 550,000, +30,000 on 1 Aug, 667,980: TD prints 15.7%.
+                "TD, a deposit",
+                vec![
+                    on_day(td, 0, dec!(550000), z, z),
+                    on_day(td, 212, dec!(600000), z, z),
+                    on_day(td, 213, dec!(630000), dec!(30000), z),
+                    on_day(td, 365, dec!(667980), z, z),
+                ],
+                dec!(0.157),
+                dec!(0.001),
+            ),
+            (
+                // 12,000, +5,000 on 1 Apr, 15,000: TD prints -12.7%.
+                "TD, a deposit before a fall",
+                vec![
+                    on_day(td, 0, dec!(12000), z, z),
+                    on_day(td, 90, dec!(11000), z, z),
+                    on_day(td, 91, dec!(16000), dec!(5000), z),
+                    on_day(td, 365, dec!(15000), z, z),
+                ],
+                dec!(-0.127),
+                dec!(0.001),
+            ),
+            (
+                // 1,500,000, -600,000 on 19 Feb, 1,050,000: TD prints 15.19%.
+                "TD, a withdrawal",
+                vec![
+                    on_day(td, 0, dec!(1500000), z, z),
+                    on_day(td, 50, dec!(950000), z, dec!(600000)),
+                    on_day(td, 365, dec!(1050000), z, z),
+                ],
+                dec!(0.1519),
+                dec!(0.001),
+            ),
+            (
+                // 177.94, +84, +67, 426.82 over 730 days: 17.63% a year, so
+                // 1.1763^2 - 1 for the period.
+                "Portfolio Performance, example 4",
+                vec![
+                    on_day(pp4, 0, dec!(177.94), z, z),
+                    on_day(pp4, 216, dec!(160.26), z, z),
+                    on_day(pp4, 217, dec!(244.26), dec!(84), z),
+                    on_day(pp4, 475, dec!(264.57), z, z),
+                    on_day(pp4, 476, dec!(331.57), dec!(67), z),
+                    on_day(pp4, 730, dec!(426.82), z, z),
+                ],
+                dec!(0.38368),
+                dec!(0.0002),
+            ),
+            (
+                // From nothing: +153, +83, -30, -107, 190.06 over 1095 days:
+                // 18.00% a year, so 1.18^3 - 1 for the period.
+                "Portfolio Performance, example 6",
+                vec![
+                    on_day(pp6, 0, z, z, z),
+                    on_day(pp6, 217, z, z, z),
+                    on_day(pp6, 218, dec!(153), dec!(153), z),
+                    on_day(pp6, 581, dec!(160), z, z),
+                    on_day(pp6, 582, dec!(243), dec!(83), z),
+                    on_day(pp6, 916, dec!(310), z, dec!(30)),
+                    on_day(pp6, 1034, dec!(232), z, dec!(107)),
+                    on_day(pp6, 1095, dec!(190.06), z, z),
+                ],
+                dec!(0.643032),
+                dec!(0.0005),
+            ),
+        ];
+        for (name, history, published, tolerance) in cases {
+            let result = measured(&history, MeasureProfile::Full);
+            let period = result
+                .returns
+                .money_weighted
+                .period
+                .unwrap_or_else(|| panic!("{name}: no money-weighted return"));
+            assert!(
+                (period - published).abs() <= tolerance,
+                "{name}: {period} against the published {published}"
+            );
+        }
+        // The same Portfolio Performance example prints a 25.58% cumulative
+        // time-weighted return.
+        let history = vec![
+            on_day(pp4, 0, dec!(177.94), z, z),
+            on_day(pp4, 216, dec!(160.26), z, z),
+            on_day(pp4, 217, dec!(244.26), dec!(84), z),
+            on_day(pp4, 475, dec!(264.57), z, z),
+            on_day(pp4, 476, dec!(331.57), dec!(67), z),
+            on_day(pp4, 730, dec!(426.82), z, z),
+        ];
+        let twr = measured(&history, MeasureProfile::Full)
+            .returns
+            .twr
+            .period
+            .unwrap();
+        assert!((twr - dec!(0.2558)).abs() <= dec!(0.0001), "{twr}");
+    }
+
+    #[test]
+    fn the_two_methods_can_disagree_on_the_sign() {
+        // Wealthsimple's help-centre example: 100 falls to 50, another 100
+        // goes in, and it ends at 250. The investment lost a sixth; the money
+        // gained, because most of it arrived after the fall:
+        // 100 (1+R) + 100 (1+R)^(2/3) = 250.
+        let z = Decimal::ZERO;
+        let history = vec![
+            dated("2026-01-01", dec!(100), z, z),
+            dated("2026-01-02", dec!(50), z, z),
+            dated("2026-01-03", dec!(150), dec!(100), z),
+            dated("2026-01-04", dec!(250), z, z),
+        ];
+        let result = measured(&history, MeasureProfile::Full);
+        assert_eq!(result.returns.twr.period, Some(dec!(-0.16666667)));
+        assert_eq!(result.returns.money_weighted.period, Some(dec!(0.30550268)));
+    }
+
+    #[test]
+    fn a_long_history_of_deposits_returns_the_rate_it_grew_at() {
+        // 10,000 a year for twenty years into something that grows 8% a
+        // year: the yearly money-weighted rate is 8%, however many deposits.
+        let base = "2006-01-01";
+        let daily = 1.08_f64.powf(1.0 / 365.25);
+        let cents = |value: f64| Decimal::from_f64(value).unwrap().round_dp(2);
+        let mut value = 10_000.0_f64;
+        let mut day = 0_i64;
+        let mut history = vec![on_day(
+            base,
+            day,
+            cents(value),
+            Decimal::ZERO,
+            Decimal::ZERO,
+        )];
+        for year in 1..20 {
+            // Grow to the close the deposit counts from, then a day with it.
+            value *= daily.powi((365 * year - day) as i32);
+            day = 365 * year;
+            history.push(on_day(
+                base,
+                day,
+                cents(value),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ));
+            value = (value + 10_000.0) * daily;
+            day += 1;
+            history.push(on_day(base, day, cents(value), dec!(10000), Decimal::ZERO));
+        }
+        value *= daily.powi((7300 - day) as i32);
+        history.push(on_day(
+            base,
+            7300,
+            cents(value),
+            Decimal::ZERO,
+            Decimal::ZERO,
+        ));
+        let view = measured(&history, MeasureProfile::Full)
+            .returns
+            .money_weighted;
+        let yearly = view.annualized.expect("twenty years have a yearly rate");
+        assert!((yearly - dec!(0.08)).abs() < dec!(0.000001), "{yearly}");
+        // 1.08^(7300/365.25) - 1.
+        let period = view.period.unwrap();
+        assert!((period - dec!(3.65604923)).abs() < dec!(0.0001), "{period}");
+    }
+
+    /// Histories the solve must answer the same way every time, or decline.
+    #[test]
+    fn money_weighted_answers_awkward_histories() {
+        let z = Decimal::ZERO;
+        let base = "2026-01-01";
+        let measure =
+            |history: &[DailyValuation], profile| measured(history, profile).returns.money_weighted;
+
+        // Everything lost, nothing taken out.
+        let lost = vec![
+            on_day(base, 0, dec!(1000), z, z),
+            on_day(base, 1, dec!(500), z, z),
+            on_day(base, 2, z, z, z),
+        ];
+        assert_eq!(measure(&lost, MeasureProfile::Full).period, Some(dec!(-1)));
+
+        // Nearly everything lost after a second deposit halfway:
+        // 100 (1+R) + 100 (1+R)^(1/2) = 1.
+        let nearly = vec![
+            on_day(base, 0, dec!(100), z, z),
+            on_day(base, 5, dec!(50), z, z),
+            on_day(base, 6, dec!(150), dec!(100), z),
+            on_day(base, 10, dec!(1), z, z),
+        ];
+        assert_eq!(
+            measure(&nearly, MeasureProfile::Full).period,
+            Some(dec!(-0.99990195))
+        );
+
+        // Sold out at a gain, empty for a while, bought back and nearly
+        // lost: 100 (1+R) - 150 (1+R)^(2/3) + 66 (1+R)^(1/3) = 8 holds at
+        // -99.2%, -87.5% and -48.8%. The solve gives one of them, the same
+        // one for the headline alone and as the end of the curve.
+        let back = |end: Decimal| {
+            vec![
+                on_day(base, 0, dec!(100), z, z),
+                on_day(base, 3, z, z, dec!(150)),
+                on_day(base, 6, z, z, z),
+                on_day(base, 7, dec!(66), dec!(66), z),
+                on_day(base, 9, end, z, z),
+            ]
+        };
+        let history = back(dec!(8));
+        let full = measure(&history, MeasureProfile::Full);
+        let period = full.period.expect("one of the three rates");
+        assert!(
+            [dec!(-0.992), dec!(-0.875), dec!(-0.488)]
+                .iter()
+                .any(|rate| (period - rate).abs() < dec!(0.000001)),
+            "{period}"
+        );
+        assert_eq!(
+            measure(&history, MeasureProfile::Dashboard).period,
+            full.period
+        );
+        assert_eq!(measure(&history, MeasureProfile::Full).period, full.period);
+        assert_eq!(full.series.last().map(|p| p.value), full.period);
+        assert_eq!(
+            full.series.iter().map(|p| p.date).collect::<Vec<_>>(),
+            history.iter().map(|d| d.date).collect::<Vec<_>>(),
+            "a point for every close, the empty ones included"
+        );
+        // The time-weighted return carries on across the empty stretch:
+        // +50%, then 66 down to 8.
+        assert_eq!(
+            measured(&history, MeasureProfile::Full).returns.twr.period,
+            Some(dec!(-0.81818182))
+        );
+
+        // The same history ending at nothing: no rate fits it.
+        let none = measure(&back(z), MeasureProfile::Full);
+        assert_eq!(none.period, None);
+        assert_eq!(
+            none.unavailable_reason,
+            Some(QualityNote::MoneyWeightedNoSolution)
+        );
+        assert!(none.series.is_empty());
+    }
+
     fn quotes(points: &[(&str, Decimal)]) -> Vec<(NaiveDate, Decimal)> {
         points
             .iter()
@@ -3682,17 +4152,17 @@ mod tests {
             ),
             (
                 // 1000 more bought at the Jan 2 close (100) before the rally:
-                // 20 units worth 4000; gain 2000 over 1000 + 1000 * 1/2.
+                // 20 units worth 4000; 1000 (1+R) + 1000 (1+R)^(1/2) = 4000.
                 "deposit before the rally",
                 cash("2026-01-01", dec!(1000), &[("2026-01-03", dec!(1000), z)]),
-                Some(dec!(1.33333333)),
+                Some(dec!(1.43844719)),
             ),
             (
                 // 500 sold at the Jan 2 close (100): 5 units left, worth 1000;
-                // gain 500 over 1000 - 500 * 1/2.
+                // 1000 (1+R) - 500 (1+R)^(1/2) = 1000.
                 "withdrawal before the rally",
                 cash("2026-01-01", dec!(1000), &[("2026-01-02", z, dec!(500))]),
-                Some(dec!(0.66666667)),
+                Some(dec!(0.6403882)),
             ),
             (
                 // A deposit dated before the first quote joins the opening
@@ -3757,42 +4227,54 @@ mod tests {
             true,
             &currency,
         );
-        for view in [&result.returns.twr, &result.returns.money_weighted] {
-            assert_eq!(view.period, None);
-            assert!(view.series.is_empty());
-            assert!(matches!(
-                view.unavailable_reason,
-                Some(QualityNote::CoverageUnavailable { .. })
-            ));
-        }
+        let twr = &result.returns.twr;
+        assert_eq!(twr.period, None);
+        assert!(twr.series.is_empty());
+        assert!(matches!(
+            twr.unavailable_reason,
+            Some(QualityNote::CoverageUnavailable { .. })
+        ));
+        // A holdings scope has no money-weighted return, valued or not.
+        let money_weighted = &result.returns.money_weighted;
+        assert_eq!(money_weighted.period, None);
+        assert!(money_weighted.series.is_empty());
     }
 
     #[test]
-    fn the_yearly_money_weighted_rate_compounds_the_period_value() {
-        // From inception the period opens on the 1000 contributed, not the
-        // 1095.45 first close; the yearly rate is that period value compounded.
+    fn the_yearly_money_weighted_rate_is_the_period_rate_over_a_year() {
+        // From inception the period opens a day before the first close, on the
+        // 1000 contributed: 400 days to the last close, at +10%.
         let z = Decimal::ZERO;
         let mut history = vec![
-            dated("2026-01-30", dec!(1095.45), z, z),
-            dated("2026-10-30", dec!(1107.97), z, z),
+            dated("2025-01-02", dec!(1050), z, z),
+            dated("2026-02-05", dec!(1100), z, z),
         ];
         for day in &mut history {
             day.net_contribution_base = dec!(1000);
         }
         let result = measured_from(&history, MeasureProfile::Full, Baseline::Inception);
         let view = &result.returns.money_weighted;
-        assert!(view.annualized.is_some());
-        assert_eq!(
-            view.annualized,
-            annualize(history[0].date, history[1].date, view.period)
-        );
-        // Under a month there is no yearly rate.
+        assert_eq!(view.period, Some(dec!(0.1)));
+        // 1.1^(365.25/400) - 1: the yearly rate counts from the opening day,
+        // not from the first close.
+        assert_eq!(view.annualized, Some(dec!(0.09092952)));
+        // Under a year there is no yearly rate, for either method.
         let short = vec![
             dated("2026-01-01", dec!(1000), z, z),
-            dated("2026-01-15", dec!(1010), z, z),
+            dated("2026-12-30", dec!(1010), z, z),
         ];
         let result = measured(&short, MeasureProfile::Full);
+        assert_eq!(result.returns.money_weighted.period, Some(dec!(0.01)));
         assert_eq!(result.returns.money_weighted.annualized, None);
+        assert_eq!(result.returns.twr.annualized, None);
+        // From a year on there is one.
+        let year = vec![
+            dated("2026-01-01", dec!(1000), z, z),
+            dated("2027-01-01", dec!(1010), z, z),
+        ];
+        let result = measured(&year, MeasureProfile::Full);
+        assert!(result.returns.money_weighted.annualized.is_some());
+        assert!(result.returns.twr.annualized.is_some());
     }
 
     #[test]
@@ -3812,11 +4294,9 @@ mod tests {
         );
         let result = measure_price_series_replayed("SPY", &currency, &prices, &flows);
         assert_eq!(result.returns.twr.period, Some(Decimal::ZERO));
-        // Gain -500 (1000 in, 500 out, nothing left) over 1000 - 500 * 1/2.
-        assert_eq!(
-            result.returns.money_weighted.period,
-            Some(dec!(-0.66666667))
-        );
+        // 1000 in, 500 out halfway, nothing left: 1000 (1+R) = 500 (1+R)^(1/2),
+        // so (1+R)^(1/2) = 1/2. A zero close after a withdrawal still solves.
+        assert_eq!(result.returns.money_weighted.period, Some(dec!(-0.75)));
         let history = replay_history(&prices, &flows).unwrap();
         assert!(history
             .iter()
@@ -3845,7 +4325,7 @@ mod tests {
         history[1].value_status = ValueStatus::Unavailable;
         let flows = period_flows(&history);
         assert_eq!(
-            component_money_weighted(
+            component_gain_and_capital(
                 &history,
                 &flows,
                 TrackingMode::Transactions,
@@ -3893,7 +4373,10 @@ mod tests {
     }
 
     #[test]
-    fn a_dated_holdings_window_has_a_yearly_money_weighted_rate() {
+    fn a_holdings_window_has_no_money_weighted_return() {
+        // Its flows are inferred between snapshots, in amount and in date: a
+        // dated window has the chained time-weighted return and nothing to
+        // weigh by money.
         let z = Decimal::ZERO;
         let history = vec![
             dated("2025-01-01", dec!(1000), z, z),
@@ -3901,17 +4384,15 @@ mod tests {
             dated("2026-01-01", dec!(1100), z, z),
         ];
         let result = holdings_measured(&history, Some("2025-01-01"));
-        assert_eq!(result.returns.money_weighted.period, Some(dec!(0.1)));
-        // The yearly rate is the period value compounded over the window.
+        assert_eq!(result.returns.twr.period, Some(dec!(0.1)));
+        assert!(result.returns.twr.annualized.is_some());
+        let money_weighted = &result.returns.money_weighted;
+        assert_eq!(money_weighted.period, None);
+        assert_eq!(money_weighted.annualized, None);
         assert_eq!(
-            result.returns.money_weighted.annualized,
-            annualize(
-                history[0].date,
-                history[2].date,
-                result.returns.money_weighted.period
-            )
+            money_weighted.unavailable_reason,
+            Some(QualityNote::HoldingsMoneyWeightedNotApplicable)
         );
-        assert!(result.returns.money_weighted.annualized.is_some());
     }
 
     #[test]

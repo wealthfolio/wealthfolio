@@ -690,14 +690,14 @@ baseline:
       returns:
         money_weighted:
           annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: MIXED_MONEY_WEIGHTED_NOT_APPLICABLE
+        return_on_cost:
+          annualized: ~
           period: "0.07703281"
           series: []
           unavailable_reason: ~
-        return_on_cost:
-          annualized: ~
-          period: ~
-          series: []
-          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
         twr:
           annualized: ~
           period: ~

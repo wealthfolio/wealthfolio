@@ -97,26 +97,26 @@ baseline:
           returns:
             money_weighted:
               annualized: ~
-              period: "0.02380952"
+              period: "0.02393751"
               series:
                 - date: 2025-01-02
                   value: "0"
                 - date: 2025-01-03
                   value: "0"
                 - date: 2025-01-04
-                  value: "0.00952381"
+                  value: "0.00967792"
                 - date: 2025-01-05
-                  value: "0.01428571"
+                  value: "0.01445877"
                 - date: 2025-01-06
-                  value: "0.02095238"
+                  value: "0.02115555"
                 - date: 2025-01-07
-                  value: "0.02380952"
+                  value: "0.0240019"
                 - date: 2025-01-08
-                  value: "0.02380952"
+                  value: "0.02397427"
                 - date: 2025-01-09
-                  value: "0.02380952"
+                  value: "0.02395359"
                 - date: 2025-01-10
-                  value: "0.02380952"
+                  value: "0.02393751"
               unavailable_reason: ~
             return_on_cost:
               annualized: ~
@@ -364,26 +364,26 @@ baseline:
       returns:
         money_weighted:
           annualized: ~
-          period: "0.02380952"
+          period: "0.02393751"
           series:
             - date: 2025-01-02
               value: "0"
             - date: 2025-01-03
               value: "0"
             - date: 2025-01-04
-              value: "0.00952381"
+              value: "0.00967792"
             - date: 2025-01-05
-              value: "0.01428571"
+              value: "0.01445877"
             - date: 2025-01-06
-              value: "0.02095238"
+              value: "0.02115555"
             - date: 2025-01-07
-              value: "0.02380952"
+              value: "0.0240019"
             - date: 2025-01-08
-              value: "0.02380952"
+              value: "0.02397427"
             - date: 2025-01-09
-              value: "0.02380952"
+              value: "0.02395359"
             - date: 2025-01-10
-              value: "0.02380952"
+              value: "0.02393751"
           unavailable_reason: ~
         return_on_cost:
           annualized: ~

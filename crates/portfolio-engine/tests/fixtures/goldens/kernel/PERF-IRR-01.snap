@@ -84,7 +84,7 @@ baseline:
           quality: ok
           returns:
             money_weighted:
-              annualized: "1.70372325"
+              annualized: ~
               period: "0.1"
               series:
                 - date: 2025-01-02
@@ -166,7 +166,7 @@ baseline:
               series: []
               unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
             twr:
-              annualized: "1.70372325"
+              annualized: ~
               period: "0.1"
               series:
                 - date: 2025-01-02
@@ -1038,8 +1038,8 @@ baseline:
           quality: ok
           returns:
             money_weighted:
-              annualized: "-1"
-              period: "-1.07142857"
+              annualized: ~
+              period: "-1"
               series:
                 - date: 2025-01-02
                   value: "0"
@@ -1078,41 +1078,41 @@ baseline:
                 - date: 2025-01-19
                   value: "0"
                 - date: 2025-01-20
-                  value: "-1.14893617"
+                  value: "-1"
                 - date: 2025-01-21
-                  value: "-1.14"
+                  value: "-1"
                 - date: 2025-01-22
-                  value: "-1.13207547"
+                  value: "-1"
                 - date: 2025-01-23
-                  value: "-1.125"
+                  value: "-1"
                 - date: 2025-01-24
-                  value: "-1.11864407"
+                  value: "-1"
                 - date: 2025-01-25
-                  value: "-1.11290323"
+                  value: "-1"
                 - date: 2025-01-26
-                  value: "-1.10769231"
+                  value: "-1"
                 - date: 2025-01-27
-                  value: "-1.10294118"
+                  value: "-1"
                 - date: 2025-01-28
-                  value: "-1.09859155"
+                  value: "-1"
                 - date: 2025-01-29
-                  value: "-1.09459459"
+                  value: "-1"
                 - date: 2025-01-30
-                  value: "-1.09090909"
+                  value: "-1"
                 - date: 2025-01-31
-                  value: "-1.0875"
+                  value: "-1"
                 - date: 2025-02-01
-                  value: "-1.08433735"
+                  value: "-1"
                 - date: 2025-02-02
-                  value: "-1.08139535"
+                  value: "-1"
                 - date: 2025-02-03
-                  value: "-1.07865169"
+                  value: "-1"
                 - date: 2025-02-04
-                  value: "-1.07608696"
+                  value: "-1"
                 - date: 2025-02-05
-                  value: "-1.07368421"
+                  value: "-1"
                 - date: 2025-02-06
-                  value: "-1.07142857"
+                  value: "-1"
               unavailable_reason: ~
             return_on_cost:
               annualized: ~
@@ -1120,7 +1120,7 @@ baseline:
               series: []
               unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
             twr:
-              annualized: "-1"
+              annualized: ~
               period: "-1"
               series:
                 - date: 2025-01-02
@@ -2040,8 +2040,8 @@ baseline:
       quality: ok
       returns:
         money_weighted:
-          annualized: "-0.99987856"
-          period: "-0.5785124"
+          annualized: ~
+          period: "-0.57124628"
           series:
             - date: 2025-01-02
               value: "0"
@@ -2080,41 +2080,41 @@ baseline:
             - date: 2025-01-19
               value: "0"
             - date: 2025-01-20
-              value: "-0.65060241"
+              value: "-0.63867188"
             - date: 2025-01-21
-              value: "-0.64772727"
+              value: "-0.63627185"
             - date: 2025-01-22
-              value: "-0.64516129"
+              value: "-0.63415331"
             - date: 2025-01-23
-              value: "-0.64285714"
+              value: "-0.63226929"
             - date: 2025-01-24
-              value: "-0.6407767"
+              value: "-0.63058279"
             - date: 2025-01-25
-              value: "-0.63888889"
+              value: "-0.62906421"
             - date: 2025-01-26
-              value: "-0.63716814"
+              value: "-0.6276896"
             - date: 2025-01-27
-              value: "-0.63559322"
+              value: "-0.62643937"
             - date: 2025-01-28
-              value: "-0.63414634"
+              value: "-0.62529733"
             - date: 2025-01-29
-              value: "-0.6328125"
+              value: "-0.62425001"
             - date: 2025-01-30
-              value: "-0.63157895"
+              value: "-0.62328606"
             - date: 2025-01-31
-              value: "-0.63043478"
+              value: "-0.62239591"
             - date: 2025-02-01
-              value: "-0.62937063"
+              value: "-0.62157138"
             - date: 2025-02-02
-              value: "-0.58648649"
+              value: "-0.58034864"
             - date: 2025-02-03
-              value: "-0.58562092"
+              value: "-0.57965589"
             - date: 2025-02-04
-              value: "-0.58481013"
+              value: "-0.57900881"
             - date: 2025-02-05
-              value: "-0.58404908"
+              value: "-0.57840301"
             - date: 2025-02-06
-              value: "-0.5785124"
+              value: "-0.57124628"
           unavailable_reason: ~
         return_on_cost:
           annualized: ~
@@ -2122,7 +2122,7 @@ baseline:
           series: []
           unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
         twr:
-          annualized: "-0.99980982"
+          annualized: ~
           period: "-0.56"
           series:
             - date: 2025-01-02

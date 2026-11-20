@@ -122,7 +122,7 @@ baseline:
           returns:
             money_weighted:
               annualized: ~
-              period: "0.02848101"
+              period: "0.02775203"
               series:
                 - date: 2025-01-02
                   value: "0"
@@ -139,13 +139,13 @@ baseline:
                 - date: 2025-01-08
                   value: "0.0225"
                 - date: 2025-01-09
-                  value: "0.02432432"
+                  value: "0.02406274"
                 - date: 2025-01-10
-                  value: "0.02589928"
+                  value: "0.02543895"
                 - date: 2025-01-11
-                  value: "0.02727273"
+                  value: "0.02666042"
                 - date: 2025-01-12
-                  value: "0.02848101"
+                  value: "0.02775203"
               unavailable_reason: ~
             return_on_cost:
               annualized: ~
@@ -554,7 +554,7 @@ baseline:
           returns:
             money_weighted:
               annualized: ~
-              period: "-0.00079208"
+              period: "-0.00080731"
               series:
                 - date: 2025-01-02
                   value: "0"
@@ -569,15 +569,15 @@ baseline:
                 - date: 2025-01-07
                   value: "0"
                 - date: 2025-01-08
-                  value: "-0.0091954"
+                  value: "-0.00929972"
                 - date: 2025-01-09
-                  value: "-0.00869565"
+                  value: "-0.00883636"
                 - date: 2025-01-10
-                  value: "-0.00835509"
+                  value: "-0.00850703"
                 - date: 2025-01-11
-                  value: "-0.00810811"
+                  value: "-0.00826089"
                 - date: 2025-01-12
-                  value: "-0.00079208"
+                  value: "-0.00080731"
               unavailable_reason: ~
             return_on_cost:
               annualized: ~

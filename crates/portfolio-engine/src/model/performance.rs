@@ -78,10 +78,14 @@ pub struct Returns {
     /// Time-weighted: compounded sub-period returns, so deposits and
     /// withdrawals do not move it.
     pub twr: ReturnView,
-    /// Money-weighted: gain over the average invested capital (Modified
-    /// Dietz) for the period; the yearly rate compounds it.
+    /// Money-weighted: the internal rate of return on the dated deposits
+    /// and withdrawals, for the period; the yearly rate is the same rate
+    /// over a year. Only for scopes whose accounts all record them.
     pub money_weighted: ReturnView,
-    /// Gain over book cost, for holdings accounts over their full history.
+    /// ROI, the gain over the capital put in: book cost for a holdings
+    /// account over its full history, and for a scope mixing holdings and
+    /// transactions accounts the sum of their gains over the sum of their
+    /// capital. It has no yearly rate.
     pub return_on_cost: ReturnView,
 }
 
@@ -232,6 +236,7 @@ pub enum QualityNote {
     ReturnOnCostNotApplicable,
     MoneyWeightedUnknownFlow,
     MoneyWeightedNoCapital,
+    MoneyWeightedNoSolution,
     MoneyWeightedOutOfRange,
     CoverageUnavailable {
         metric: Metric,
@@ -286,6 +291,7 @@ pub enum QualityNote {
     },
     MixedScope,
     MixedTwrNotApplicable,
+    MixedMoneyWeightedNotApplicable,
     MixedSkippedTwoPoints {
         account: String,
     },
@@ -339,10 +345,11 @@ impl fmt::Display for QualityNote {
             IncompleteBookBasis { metric, subject } => write!(f, "{metric} unavailable for {subject} because book basis is incomplete."),
             PnlUnavailable { subject } => write!(f, "P&L unavailable for {subject}."),
             HoldingsFlowsEstimated => f.write_str("External cash flows for this holdings-tracked scope are estimated from position and cash changes between snapshots; cash income received between snapshots may not be captured in period gains."),
-            HoldingsMoneyWeightedNotApplicable => f.write_str("Money-weighted return unavailable over the full history of a holdings account because deposits and withdrawals are not tracked."),
+            HoldingsMoneyWeightedNotApplicable => f.write_str("Money-weighted return unavailable for a holdings account because its deposits and withdrawals are not recorded."),
             ReturnOnCostNotApplicable => f.write_str("ROI (gain over what was paid) applies to holdings accounts over their full history."),
             MoneyWeightedUnknownFlow => f.write_str("Money-weighted return unavailable because a deposit or withdrawal in the period has no known amount."),
             MoneyWeightedNoCapital => f.write_str("Money-weighted return unavailable because no capital was invested on average over the period."),
+            MoneyWeightedNoSolution => f.write_str("Money-weighted return unavailable because no rate of return fits the deposits, withdrawals and values in the period."),
             MoneyWeightedOutOfRange => f.write_str("Money-weighted return unavailable because it is outside the supported range."),
             CoverageUnavailable { metric } => write!(f, "{metric} unavailable because valuation coverage is unavailable at the period start or end; review missing prices or manual valuations."),
             NetContributionFlows => f.write_str("External cash flows were inferred from net contribution deltas for part of this period because gross daily flow data was unavailable; same-day deposits and withdrawals may be netted."),
@@ -362,8 +369,9 @@ impl fmt::Display for QualityNote {
             ScopedFxSkippedRange { account } => write!(f, "Scoped FX attribution skipped for account {account} because its converted movement is outside the supported range."),
             CashFxUnavailable { account, date } => write!(f, "Cash FX attribution is incomplete for account {account} on {date} because its exposure or valuation rate is unavailable."),
             ExternalMarkerIgnored { group } => write!(f, "Transfer group {group} ignored external transfer metadata because the valid pair is internal to the selected scope."),
-            MixedScope => f.write_str("This scope mixes transaction-mode and holdings-mode accounts, so TWR is unavailable. The money-weighted return adds up each account's gain and invested capital."),
+            MixedScope => f.write_str("This scope mixes transaction-mode and holdings-mode accounts, so time-weighted and money-weighted returns are unavailable. ROI adds up each account's gain and invested capital."),
             MixedTwrNotApplicable => f.write_str("TWR unavailable for mixed transaction and holdings scopes."),
+            MixedMoneyWeightedNotApplicable => f.write_str("Money-weighted return unavailable for mixed transaction and holdings scopes because holdings accounts have no recorded deposits and withdrawals."),
             MixedSkippedTwoPoints { account } => write!(f, "Mixed performance skipped account {account} because at least two valuation points are required."),
             MixedSkippedNegative { account } => write!(f, "Mixed performance skipped account {account} because it has negative portfolio value in its history. Please review the underlying transactions and holdings."),
             MixedHoldingsFlowsEstimated { account } => write!(f, "External cash flows for holdings account {account} are estimated from position and cash changes between snapshots."),
@@ -371,9 +379,9 @@ impl fmt::Display for QualityNote {
             MixedExcludedBasis { account } => write!(f, "Mixed performance excluded account {account} from all-time gain/loss because its holdings basis is incomplete or unavailable."),
             MixedPercentExcluded { account } => write!(f, "Mixed performance percentage excluded account {account} because its summary amount is unavailable."),
             MixedPercentNoDenominator { account } => write!(f, "Mixed performance percentage unavailable because account {account} contributes to the summary amount but has no valid return denominator."),
-            MixedCoverageDiffers => f.write_str("Money-weighted return unavailable for mixed scope because some accounts have no gain or invested capital to add up."),
-            MixedReturnOutOfRange => f.write_str("Money-weighted return unavailable for mixed scope because it is outside the supported range."),
-            MixedNonPositiveDenominators => f.write_str("Money-weighted return unavailable for mixed scope because no capital was invested on average."),
+            MixedCoverageDiffers => f.write_str("ROI unavailable for mixed scope because some accounts have no gain or invested capital to add up."),
+            MixedReturnOutOfRange => f.write_str("ROI unavailable for mixed scope because it is outside the supported range."),
+            MixedNonPositiveDenominators => f.write_str("ROI unavailable for mixed scope because no capital was invested on average."),
             MixedSeriesUnavailable => f.write_str("Return series unavailable for mixed scopes because transaction and holdings components use different baselines."),
             MixedAttributionUnreconciled { delta } => write!(f, "Mixed performance attribution did not reconcile to the summary amount; unreconciled delta is {delta}."),
         }

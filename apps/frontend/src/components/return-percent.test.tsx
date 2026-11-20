@@ -102,6 +102,67 @@ describe("ReturnPercent", () => {
     ).toBeVisible();
   });
 
+  it("shows time-weighted for a holdings account's dated period when money-weighted is chosen", async () => {
+    mocks.metric = "irr";
+    render(
+      <ReturnPercent
+        result={result({
+          twr: { period: 0.05 },
+          moneyWeighted: {
+            unavailableReason: "Money-weighted return unavailable for a holdings account.",
+            unavailableReasonCode: "HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE",
+          },
+          returnOnCost: {
+            unavailableReason: "ROI applies over the full history.",
+            unavailableReasonCode: "RETURN_ON_COST_NOT_APPLICABLE",
+          },
+        })}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /^Time-weighted / });
+    expect(trigger).toHaveTextContent("+5.00%");
+    expect(trigger).toHaveTextContent("TWR");
+    await userEvent.click(trigger);
+
+    const popover = await screen.findByRole("dialog");
+    expect(
+      within(popover).getByText(
+        "Money-weighted isn't available here. Not available for an account tracked by holdings, because its deposits and withdrawals aren't recorded.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("shows ROI for a mixed portfolio, whichever method is chosen", async () => {
+    render(
+      <ReturnPercent
+        result={result({
+          twr: {
+            unavailableReason: "TWR unavailable for mixed scopes.",
+            unavailableReasonCode: "MIXED_TWR_NOT_APPLICABLE",
+          },
+          moneyWeighted: {
+            unavailableReason: "Money-weighted return unavailable for mixed scopes.",
+            unavailableReasonCode: "MIXED_MONEY_WEIGHTED_NOT_APPLICABLE",
+          },
+          returnOnCost: { period: 0.0882 },
+        })}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /^Return on investment \(ROI\) / });
+    expect(trigger).toHaveTextContent("+8.82%");
+    expect(trigger).toHaveTextContent("ROI");
+    await userEvent.click(trigger);
+
+    const popover = await screen.findByRole("dialog");
+    expect(
+      within(popover).getByText(
+        "Time-weighted isn't available here. Not available for portfolios that mix accounts tracked by holdings and by transactions.",
+      ),
+    ).toBeVisible();
+  });
+
   it("saves the method picked in the popover", async () => {
     render(<ReturnPercent result={bothMethods} />);
 

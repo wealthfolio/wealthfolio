@@ -64,8 +64,9 @@ pub struct PerformanceReturnView {
 pub struct PerformanceReturns {
     /// Time-weighted return: deposits and withdrawals do not move it.
     pub twr: PerformanceReturnView,
-    /// Money-weighted return: gain over the average invested capital; the
-    /// yearly rate compounds it.
+    /// Money-weighted return: the internal rate of return on the dated
+    /// deposits and withdrawals; the yearly rate is the same rate over a
+    /// year.
     pub money_weighted: PerformanceReturnView,
     /// Gain over book cost, for holdings accounts over their full history.
     pub return_on_cost: PerformanceReturnView,

@@ -130,33 +130,9 @@ baseline:
           returns:
             money_weighted:
               annualized: ~
-              period: "0.04829857"
-              series:
-                - date: 2025-01-05
-                  value: "0"
-                - date: 2025-01-06
-                  value: "0"
-                - date: 2025-01-07
-                  value: "0"
-                - date: 2025-01-08
-                  value: "0.01973684"
-                - date: 2025-01-09
-                  value: "0.01973684"
-                - date: 2025-01-10
-                  value: "0.01973684"
-                - date: 2025-01-11
-                  value: "0.01973684"
-                - date: 2025-01-12
-                  value: "0.03839122"
-                - date: 2025-01-13
-                  value: "0.03761755"
-                - date: 2025-01-14
-                  value: "0.03703704"
-                - date: 2025-01-15
-                  value: "0.03658537"
-                - date: 2025-01-16
-                  value: "0.04829857"
-              unavailable_reason: ~
+              period: ~
+              series: []
+              unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
             return_on_cost:
               annualized: ~
               period: ~
@@ -606,33 +582,9 @@ baseline:
       returns:
         money_weighted:
           annualized: ~
-          period: "0.04829857"
-          series:
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0.01973684"
-            - date: 2025-01-09
-              value: "0.01973684"
-            - date: 2025-01-10
-              value: "0.01973684"
-            - date: 2025-01-11
-              value: "0.01973684"
-            - date: 2025-01-12
-              value: "0.03839122"
-            - date: 2025-01-13
-              value: "0.03761755"
-            - date: 2025-01-14
-              value: "0.03703704"
-            - date: 2025-01-15
-              value: "0.03658537"
-            - date: 2025-01-16
-              value: "0.04829857"
-          unavailable_reason: ~
+          period: ~
+          series: []
+          unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
         return_on_cost:
           annualized: ~
           period: ~

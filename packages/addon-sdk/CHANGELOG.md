@@ -10,10 +10,14 @@ and this project adheres to
 
 - `PerformanceResult.returns` holds one view per return method, each with its
   own meaning for every kind of account: `twr` (time-weighted), `moneyWeighted`
-  (gain over the average invested capital; `annualized` compounds it to a yearly
-  rate) and `returnOnCost` (gain over book cost, for holdings accounts over
-  their full history). Each view has `period`, `annualized`, `series` and an
-  `unavailableReason` when `period` is missing. The flat `twr`, `annualizedTwr`,
+  (the internal rate of return on the dated deposits and withdrawals, for the
+  period) and `returnOnCost` (ROI, gain over the capital put in: book cost for a
+  holdings account over its full history, and the summed gains over the summed
+  capital for a scope that mixes holdings and transactions accounts). Each view
+  has `period`, `annualized`, `series` and an `unavailableReason` when `period`
+  is missing. `annualized` is the same return over a year and is present from
+  one year of history; ROI has none. A holdings account, and a scope that
+  includes one, has no `moneyWeighted` return. The flat `twr`, `annualizedTwr`,
   `irr`, `annualizedIrr`, `valueReturn` and `annualizedValueReturn` fields are
   removed; `valueReturn` meant something different for holdings, transaction and
   mixed scopes.

@@ -830,10 +830,13 @@ Calculate portfolio and account performance metrics with historical analysis.
 missing:
 
 - `returns.twr`: time-weighted return; deposits and withdrawals do not move it.
-- `returns.moneyWeighted`: gain over the average invested capital; `annualized`
-  compounds it to a yearly rate.
-- `returns.returnOnCost`: gain over book cost, for holdings accounts over their
-  full history.
+- `returns.moneyWeighted`: the internal rate of return on the dated deposits and
+  withdrawals, for the period; `annualized` is the same rate over a year, from
+  one year of history. Unavailable for a holdings account and for a scope that
+  includes one.
+- `returns.returnOnCost`: ROI. Gain over book cost for holdings accounts over
+  their full history; for a scope that mixes holdings and transactions accounts,
+  their summed gains over their summed capital. It has no yearly rate.
 
 `Settings.defaultReturnMetric` (`'twr'` or `'irr'`) is the method the person
 chose to see.

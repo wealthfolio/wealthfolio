@@ -330,7 +330,7 @@ baseline:
           quality: ok
           returns:
             money_weighted:
-              annualized: "0.44385564"
+              annualized: ~
               period: "0.04"
               series:
                 - date: 2025-01-02
@@ -420,7 +420,7 @@ baseline:
               series: []
               unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
             twr:
-              annualized: "0.44385564"
+              annualized: ~
               period: "0.04"
               series:
                 - date: 2025-01-02
@@ -1343,7 +1343,7 @@ baseline:
       quality: ok
       returns:
         money_weighted:
-          annualized: "0.44385564"
+          annualized: ~
           period: "0.04"
           series:
             - date: 2025-01-02
@@ -1433,7 +1433,7 @@ baseline:
           series: []
           unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
         twr:
-          annualized: "0.44385564"
+          annualized: ~
           period: "0.04"
           series:
             - date: 2025-01-02

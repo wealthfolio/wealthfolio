@@ -33,12 +33,14 @@ const VIEW_EXPLAINER_KEYS: Record<PerformanceReturnViewKey, string> = {
 /** Engine reason codes a person can meet, in plain words; others stay unshown. */
 const REASON_KEYS: Record<string, string> = {
   MIXED_TWR_NOT_APPLICABLE: "performance:return_view.reason.mixed_twr",
+  MIXED_MONEY_WEIGHTED_NOT_APPLICABLE: "performance:return_view.reason.mixed_twr",
   HOLDINGS_TWR_NOT_APPLICABLE: "performance:return_view.reason.holdings_full_history",
-  HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE: "performance:return_view.reason.holdings_full_history",
+  HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE: "performance:return_view.reason.holdings_money_weighted",
   RETURN_ON_COST_NOT_APPLICABLE: "performance:return_view.reason.roi_holdings_only",
   MONEY_WEIGHTED_UNKNOWN_FLOW: "performance:return_view.reason.unknown_flow",
   TWR_UNKNOWN_FLOW: "performance:return_view.reason.unknown_flow",
   MONEY_WEIGHTED_NO_CAPITAL: "performance:return_view.reason.no_capital",
+  MONEY_WEIGHTED_NO_SOLUTION: "performance:return_view.reason.no_solution",
   MIXED_NON_POSITIVE_DENOMINATORS: "performance:return_view.reason.no_capital",
   COVERAGE_UNAVAILABLE: "performance:return_view.reason.coverage",
   TWO_VALUATION_POINTS_REQUIRED: "performance:return_view.reason.not_enough_history",
@@ -209,7 +211,7 @@ function ReturnPopoverBody({
           );
         })}
       </dl>
-      <ReturnMethodToggle size="compact" className="w-full" />
+      <ReturnMethodToggle size="compact" className="w-full [&>button]:flex-1" />
     </>
   );
 }

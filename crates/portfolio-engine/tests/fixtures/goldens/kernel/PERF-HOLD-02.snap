@@ -127,7 +127,7 @@ baseline:
               annualized: ~
               period: ~
               series: []
-              unavailable_reason: FLOWS_NOT_INFERRED
+              unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
             return_on_cost:
               annualized: ~
               period: ~
@@ -468,7 +468,7 @@ baseline:
           annualized: ~
           period: ~
           series: []
-          unavailable_reason: FLOWS_NOT_INFERRED
+          unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
         return_on_cost:
           annualized: ~
           period: ~

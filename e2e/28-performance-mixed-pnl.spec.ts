@@ -80,9 +80,11 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
     )
     .toBe(0);
   if (!history) throw new Error("Performance history was not returned");
-  // A mixed scope has no time-weighted return; its money-weighted one stands in.
+  // A mixed scope has neither a time-weighted nor a money-weighted return;
+  // its ROI (summed gains over summed capital) stands in.
   expect(history.returns.twr.period ?? null).toBeNull();
-  expect(history.returns.moneyWeighted.period).not.toBeUndefined();
+  expect(history.returns.moneyWeighted.period ?? null).toBeNull();
+  expect(history.returns.returnOnCost.period).not.toBeUndefined();
   expect(history.isMixedTrackingMode).toBe(true);
   expect(history.summary?.amountStatus).toBe("complete");
   expect(["complete", "notApplicable"]).toContain(history.summary?.basisStatus);
@@ -96,7 +98,7 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
   expect(boundedResponse.ok(), await boundedResponse.text()).toBeTruthy();
   const bounded: PerformanceResult = await boundedResponse.json();
   expect(bounded.summary?.amount).toBe(0);
-  expect(bounded.returns.moneyWeighted.series ?? []).toHaveLength(0);
+  expect(bounded.returns.returnOnCost.series ?? []).toHaveLength(0);
   expect(bounded.dataQuality.warnings).toContain(SERIES_WARNING);
   const summaryResponse = await page.request.post(`${BASE_URL}/api/v1/performance/summary`, {
     headers,
@@ -106,7 +108,9 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
   const summary = await summaryResponse.json();
   expect(summary.summary.amount).toBe(history.summary?.amount);
   expect(summary.dataQuality.warnings).toHaveLength(1);
-  expect(summary.dataQuality.warnings[0]).toMatch(/TWR and IRR are unavailable/);
+  expect(summary.dataQuality.warnings[0]).toMatch(
+    /time-weighted and money-weighted returns are unavailable/,
+  );
   await page.goto(BASE_URL);
   await expect(page.locator(".app-shell").first()).toBeVisible({ timeout: 30_000 });
   await page.evaluate(

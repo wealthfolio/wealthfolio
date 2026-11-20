@@ -262,16 +262,20 @@ observed_snapshots:
         let bounded = scope(&p, &["acc", "holdings"], window(Some(start)));
         assert_gain(&bounded, dec!(127.97)); // 107.97 + 20 period gain.
         assert_eq!(bounded.attribution.contributions, dec!(1000));
+        // A holdings account has no recorded deposits or withdrawals, so the
+        // scope has neither a time-weighted nor a money-weighted return.
         assert_eq!(bounded.returns.twr.period, None);
-        // No IRR across components: the yearly rate compounds the period value.
-        assert!(bounded.returns.money_weighted.annualized.is_some());
-        // Money-weighted: (107.97 + 20) gain over (1000 contributed + 200
-        // holdings opening value) of capital.
+        assert_eq!(bounded.returns.money_weighted.period, None);
         assert_eq!(
-            bounded.returns.money_weighted.period,
-            Some(dec!(0.10664167))
+            bounded.returns.money_weighted.unavailable_reason,
+            Some(QualityNote::MixedMoneyWeightedNotApplicable)
         );
-        assert!(bounded.returns.money_weighted.series.is_empty());
+        // Its one figure is ROI: (107.97 + 20) gain over (1000 contributed +
+        // 200 holdings opening value) of capital, with no yearly rate.
+        let roi = &bounded.returns.return_on_cost;
+        assert_eq!(roi.period, Some(dec!(0.10664167)));
+        assert_eq!(roi.annualized, None);
+        assert!(roi.series.is_empty());
         assert!(bounded
             .data_quality
             .warnings
@@ -282,11 +286,11 @@ observed_snapshots:
     assert_eq!(
         within
             .returns
-            .money_weighted
+            .return_on_cost
             .series
             .last()
             .map(|point| point.value),
-        within.returns.money_weighted.period
+        within.returns.return_on_cost.period
     );
     assert!(!within
         .data_quality
@@ -313,7 +317,7 @@ observed_snapshots:
         )
         .unwrap();
         assert_gain(&result, dec!(127.97));
-        assert!(result.returns.money_weighted.series.is_empty());
+        assert!(result.returns.return_on_cost.series.is_empty());
         assert_eq!(
             result
                 .data_quality

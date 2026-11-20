@@ -1314,7 +1314,7 @@ export interface PerformanceSummary {
 /** One way of measuring return; `period` is missing when the scope cannot support it. */
 export interface PerformanceReturnView {
   period?: number | null;
-  /** Yearly rate: the period value compounded to a year (from 30 days of history). */
+  /** Yearly rate: the same return over a year, from one year of history. ROI has none. */
   annualized?: number | null;
   /** Cumulative curve, filled by `calculateHistory` only. */
   series?: ReturnData[];
@@ -1327,9 +1327,9 @@ export interface PerformanceReturnView {
 export interface PerformanceReturns {
   /** Time-weighted: deposits and withdrawals do not move it. */
   twr: PerformanceReturnView;
-  /** Money-weighted: gain over the average invested capital. */
+  /** Money-weighted: the internal rate of return on the dated deposits and withdrawals. */
   moneyWeighted: PerformanceReturnView;
-  /** Gain over book cost, for holdings accounts over their full history. */
+  /** ROI, gain over the capital put in: holdings accounts over their full history, and mixed scopes. */
   returnOnCost: PerformanceReturnView;
 }
 
