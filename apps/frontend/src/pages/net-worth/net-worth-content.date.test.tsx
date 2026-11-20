@@ -184,6 +184,100 @@ describe("NetWorthContent current-date queries", () => {
     },
   );
 
+  it("shows the period change when only days between its ends are incomplete", () => {
+    queryMocks.useNetWorthHistory.mockReturnValue({
+      data: [
+        { date: "2026-09-10", netWorth: 100 },
+        { date: "2026-09-11", netWorth: 5000, valueStatus: "partialUnpriced" },
+        { date: "2026-09-12", netWorth: 150 },
+      ],
+      isLoading: false,
+    });
+    render(<NetWorthContent />);
+    expect(screen.getByTestId("change-amount")).toHaveTextContent("50");
+    expect(screen.queryByText("performance:not_available")).not.toBeInTheDocument();
+    expect(screen.getByTestId("valuation-attention")).toHaveTextContent("true");
+  });
+
+  it("withholds the period change when an end of the period is incomplete", () => {
+    queryMocks.useNetWorthHistory.mockReturnValue({
+      data: [
+        { date: "2026-09-10", netWorth: 100 },
+        { date: "2026-09-11", netWorth: 150, valueStatus: "unavailable" },
+      ],
+      isLoading: false,
+    });
+    render(<NetWorthContent />);
+    expect(screen.getByText("performance:not_available")).toBeInTheDocument();
+    expect(screen.queryByTestId("change-amount")).not.toBeInTheDocument();
+  });
+
+  describe("insight cards across an incomplete stretch of the trailing year", () => {
+    // 1M on 2026-09-15: the period starts 2026-08-15, its equal prior window
+    // starts 2026-07-15, and the trailing year starts 2025-09-14.
+    const longHistory = (incomplete: string[]) =>
+      [
+        { date: "2025-09-14", netWorth: 80 },
+        { date: "2026-02-09", netWorth: 90 },
+        { date: "2026-03-01", netWorth: 90 },
+        { date: "2026-05-12", netWorth: 90 },
+        { date: "2026-07-15", netWorth: 95 },
+        { date: "2026-08-15", netWorth: 100 },
+        { date: "2026-09-15", netWorth: 110 },
+      ].map((point) =>
+        incomplete.includes(point.date)
+          ? { ...point, valueStatus: "partialUnpriced" as const }
+          : point,
+      );
+
+    function renderMonth(incomplete: string[]) {
+      intervalMocks.period = "1M";
+      const history = longHistory(incomplete);
+      queryMocks.useNetWorthHistory.mockImplementation(({ startDate }) => ({
+        data: history.filter((point) => point.date >= startDate!),
+        isLoading: false,
+      }));
+      render(<NetWorthContent />);
+    }
+
+    it("keeps Velocity, its 12-month comparison and Momentum when the gap is outside their ends", () => {
+      renderMonth(["2026-02-09", "2026-03-01", "2026-05-12"]);
+      expect(screen.getByTestId("trailing-average")).not.toHaveTextContent("none");
+      expect(JSON.parse(screen.getByTestId("momentum").textContent!)).toMatchObject({
+        currentChange: 10,
+        priorChange: 5,
+        beatBy: 5,
+      });
+      expect(screen.getByTestId("change-amount")).toHaveTextContent("10");
+    });
+
+    it.each(["2026-08-15", "2026-09-15"])(
+      "withholds Velocity and Momentum when the period end %s is incomplete",
+      (date) => {
+        renderMonth([date]);
+        expect(screen.queryByTestId("trailing-average")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("momentum")).not.toBeInTheDocument();
+        expect(screen.getByText("performance:not_available")).toBeInTheDocument();
+      },
+    );
+
+    it("withholds only the 12-month comparison when the trailing year's start is incomplete", () => {
+      renderMonth(["2025-09-14"]);
+      expect(screen.getByTestId("trailing-average")).toHaveTextContent("none");
+      expect(screen.getByTestId("momentum")).toBeInTheDocument();
+    });
+
+    it("withholds only the prior-period comparison when the prior window's start is incomplete", () => {
+      renderMonth(["2026-07-15"]);
+      expect(screen.getByTestId("trailing-average")).not.toHaveTextContent("none");
+      expect(JSON.parse(screen.getByTestId("momentum").textContent!)).toMatchObject({
+        currentChange: 10,
+        priorChange: null,
+        beatBy: null,
+      });
+    });
+  });
+
   it("keeps a calendar year's momentum separate from the extended prior-year history fetch", () => {
     localStorage.setItem("dashboard-period", JSON.stringify({ kind: "year", year: 2025 }));
     const history = [
