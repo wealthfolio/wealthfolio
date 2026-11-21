@@ -114,8 +114,11 @@ async fn a_new_asset_labelled_as_a_mutual_fund_is_classified_as_one() {
 async fn a_new_asset_without_a_label_is_classified_by_its_instrument_type() {
     let (instrument_types, asset_classes) = create_and_classify(bond_fund(None)).await;
 
-    assert_eq!(instrument_types, ["STOCK_COMMON"]);
-    assert_eq!(asset_classes, ["EQUITY"]);
+    // A coarse `EQUITY` supports no narrower node in either taxonomy: it could be
+    // a common or preferred share, a depositary receipt, or (as here) a fund, so
+    // nothing is assumed until a label or a profile says which.
+    assert!(instrument_types.is_empty(), "{instrument_types:?}");
+    assert!(asset_classes.is_empty(), "{asset_classes:?}");
 }
 
 #[tokio::test]
@@ -125,7 +128,8 @@ async fn a_label_that_contradicts_the_instrument_type_is_ignored() {
 
     let (instrument_types, asset_classes) = create_and_classify(payload).await;
 
-    assert_eq!(instrument_types, ["CRYPTO_NATIVE"]);
+    // Classified by the instrument type, at the narrowest node it supports.
+    assert_eq!(instrument_types, ["DIGITAL_ASSET"]);
     assert_eq!(asset_classes, ["DIGITAL_ASSETS"]);
 }
 
