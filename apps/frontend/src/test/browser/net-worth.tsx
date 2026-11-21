@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { NetWorthAttentionCard } from "@/pages/net-worth/components/net-worth-attention";
 import { useState } from "react";
@@ -52,6 +53,8 @@ const history: ParsedHistoryPoint[] = [
   },
 ];
 
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function Fixture() {
   const params = new URLSearchParams(location.search);
   const [width, setWidth] = useState(params.get("width") ?? "auto");
@@ -83,6 +86,31 @@ function Fixture() {
     current.netWorth = current.assets.total - current.liabilities.total;
     points[1].netWorth = current.netWorth;
     points[1].breakdown.mortgage = 30_000_000;
+  } else if (scenario === "itemized") {
+    // Enough itemized holdings to exercise the flow diagram's leaf, bucket and
+    // remainder nodes.
+    const properties = Array.from({ length: 6 }, (_, index) => ({
+      category: "properties",
+      name: `Property ${String.fromCharCode(65 + index)} (Rental) - 12/31/2025`,
+      value: 120_000 - index * 15_000,
+      assetId: `property-${index}`,
+    }));
+    const vehicles = [
+      { category: "vehicles", name: "Vehicle A", value: 30_000, assetId: "vehicle-a" },
+      { category: "vehicles", name: "Vehicle B", value: 15_000, assetId: "vehicle-b" },
+    ];
+    current.assets.breakdown[1] = {
+      category: "properties",
+      name: "Real Estate",
+      value: properties.reduce((sum, item) => sum + item.value, 0),
+      children: properties,
+    };
+    current.assets.breakdown.push(
+      { category: "vehicles", name: "Vehicles", value: 50_000, children: vehicles },
+      { category: "cash", name: "Cash", value: 25_000 },
+    );
+    current.assets.total = current.assets.breakdown.reduce((sum, item) => sum + item.value, 0);
+    current.netWorth = current.assets.total - current.liabilities.total;
   } else if (scenario === "assets-only") {
     current.liabilities = { total: 0, breakdown: [] };
     current.netWorth = current.assets.total;
@@ -132,11 +160,18 @@ function Fixture() {
               value={scenario}
               onChange={(e) => setScenario(e.target.value)}
             >
-              {["growth", "loss", "zero", "new", "negative", "assets-only", "extreme"].map(
-                (value) => (
-                  <option key={value}>{value}</option>
-                ),
-              )}
+              {[
+                "growth",
+                "loss",
+                "zero",
+                "new",
+                "negative",
+                "assets-only",
+                "extreme",
+                "itemized",
+              ].map((value) => (
+                <option key={value}>{value}</option>
+              ))}
             </select>
           </label>
           <label>
@@ -197,13 +232,17 @@ function Fixture() {
           aria-label="Net worth card"
           style={{ padding: 16, width: width === "auto" ? undefined : Number(width) + 32 }}
         >
-          <BreakdownTable
-            data={current}
-            history={points}
-            currency="EUR"
-            periodLabel="ALL"
-            onSelect={() => undefined}
-          />
+          {/* The flow diagram reads accounts through React Query; with no backend
+              here those reads fail and it shows the flat Investments node. */}
+          <QueryClientProvider client={queryClient}>
+            <BreakdownTable
+              data={current}
+              history={points}
+              currency="EUR"
+              periodLabel="ALL"
+              onSelect={() => undefined}
+            />
+          </QueryClientProvider>
         </main>
         {params.has("attention") && (
           <MemoryRouter>
