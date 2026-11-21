@@ -29,7 +29,7 @@ use crate::activity_classification::{
     neutral_transfer_groups,
 };
 use crate::activity_events::ActivityEventsRepositoryTrait;
-use crate::activity_splits::ActivitySplitRepositoryTrait;
+use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait};
 use crate::budget::service::{
     category_meta, group_assignment_map, resolve_group_for_category, top_category_id,
     top_level_categories, TargetIndex,
@@ -118,9 +118,11 @@ impl InsightService {
         filter: &ActivityLabelFilter,
         activity_ids: &[String],
         assignments: &[ActivityTaxonomyAssignment],
+        splits: &[ActivitySplit],
     ) -> Result<ActivityLabels> {
         let mut labels = ActivityLabels::default();
         labels.add_assignments(assignments);
+        labels.add_splits(splits);
         if filter.uses_events() {
             let Some(sources) = &self.event_labels else {
                 return Err(SpendingError::InvalidInput {
@@ -301,16 +303,16 @@ impl InsightService {
         // aggregates `current_acts` and `prior_acts`, so the headline, groups,
         // daily and monthly series and the comparison all follow the filter.
         let (mut current_acts, mut prior_acts) = (current_acts, prior_acts);
+        let splits = self.split_repo.list_for_activities(&activity_ids).await?;
         if let Some(filter) = req.filter.as_ref().filter(|f| !f.is_empty()) {
             let labels = self
-                .activity_labels(filter, &activity_ids, &assignments)
+                .activity_labels(filter, &activity_ids, &assignments, &splits)
                 .await?;
             current_acts.retain(|a| filter.keeps(&a.id, &labels));
             prior_acts.retain(|a| filter.keeps(&a.id, &labels));
         }
         let assignments_by_activity = group_activity_assignments(assignments);
-        let splits_by_activity =
-            group_splits(self.split_repo.list_for_activities(&activity_ids).await?);
+        let splits_by_activity = group_splits(splits);
 
         // ── 5. Aggregate spend (current + prior) ──────────────────────────────
         // FX is applied inline: each activity's spending/income amount is

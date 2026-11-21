@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::activity_assignments::ActivityTaxonomyAssignment;
+use crate::activity_splits::ActivitySplit;
 
 /// One thing an activity can be filed under.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -77,6 +78,29 @@ impl ActivityLabels {
                 ActivityLabel::Category {
                     taxonomy_id: assignment.taxonomy_id.clone(),
                     category_id: assignment.category_id.clone(),
+                },
+            );
+        }
+    }
+
+    /// A split activity's categories are its splits', which replace the
+    /// assignment it has in the same taxonomy, as they do in the report's
+    /// breakdowns. Call after [`Self::add_assignments`].
+    pub fn add_splits(&mut self, splits: &[ActivitySplit]) {
+        for split in splits {
+            if let Some(labels) = self.by_activity.get_mut(&split.activity_id) {
+                labels.retain(|label| {
+                    !matches!(label, ActivityLabel::Category { taxonomy_id, .. }
+                        if *taxonomy_id == split.taxonomy_id)
+                });
+            }
+        }
+        for split in splits {
+            self.add(
+                &split.activity_id,
+                ActivityLabel::Category {
+                    taxonomy_id: split.taxonomy_id.clone(),
+                    category_id: split.category_id.clone(),
                 },
             );
         }
@@ -230,6 +254,41 @@ mod tests {
         };
         assert!(!filter.uses_events());
         assert_eq!(kept(&filter), ["shoes", "fuel"]);
+    }
+
+    fn split(activity_id: &str, taxonomy_id: &str, category_id: &str) -> ActivitySplit {
+        ActivitySplit {
+            id: format!("{activity_id}:{category_id}"),
+            activity_id: activity_id.to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            amount: rust_decimal::Decimal::ONE,
+            note: None,
+            sort_order: 0,
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+        }
+    }
+
+    #[test]
+    fn a_split_activity_carries_its_splits_categories_and_keeps_its_payee() {
+        // `shoes` is split between clothing and gifts; the category it was
+        // assigned before the split no longer describes it.
+        let mut labels = ActivityLabels::default();
+        labels.add_assignments(&[
+            assignment("shoes", "spending_categories", "household"),
+            assignment("shoes", "payees", "bigshop"),
+        ]);
+        labels.add_splits(&[
+            split("shoes", "spending_categories", "clothing"),
+            split("shoes", "spending_categories", "gifts"),
+        ]);
+
+        for carried in ["clothing", "gifts"] {
+            assert!(labels.carries("shoes", &category("spending_categories", carried)));
+        }
+        assert!(!labels.carries("shoes", &category("spending_categories", "household")));
+        assert!(labels.carries("shoes", &category("payees", "bigshop")));
     }
 
     #[test]
