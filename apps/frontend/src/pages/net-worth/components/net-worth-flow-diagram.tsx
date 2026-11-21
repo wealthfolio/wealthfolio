@@ -366,6 +366,9 @@ export function NetWorthFlowDiagram({
           nodeWidth={NODE_WIDTH}
           nodePadding={rowPitch}
           linkCurvature={0.55}
+          // Keep nodes in the graph's own order (each category's holdings next to
+          // it) so ribbons from different categories do not cross.
+          sort={false}
           iterations={32}
           // bottom reserves a full label box: labels hang BELOW their node's top
           // edge, so the last row is clipped without it.

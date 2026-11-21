@@ -320,6 +320,11 @@ describe("shortenLeafName", () => {
     expect(shortenLeafName("Example Fund LP ($50K Basis) - 12/31/2024")).toBe("Example Fund LP");
   });
 
+  it("keeps parentheses that are part of the name", () => {
+    expect(shortenLeafName("401(k)")).toBe("401(k)");
+    expect(shortenLeafName("Solo 401(k) (Rollover)")).toBe("Solo 401(k)");
+  });
+
   it("leaves an ordinary name untouched", () => {
     expect(shortenLeafName("Roth IRA")).toBe("Roth IRA");
   });

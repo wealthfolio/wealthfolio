@@ -98,7 +98,8 @@ function categorySelection(category: BreakdownEntry): SelectedCategory {
  * for the tooltip/aria-label so no information is actually lost.
  */
 export function shortenLeafName(name: string): string {
-  const withoutParens = name.replace(/\s*\([^()]*\)\s*/g, " ").trim();
+  // Only a parenthetical set off by a space is a suffix: "401(k)" is the name.
+  const withoutParens = name.replace(/\s+\([^()]*\)/g, "").trim();
   const withoutTrailingDetail = withoutParens.replace(/\s*[-–]\s*[\d/.:]+\s*$/, "").trim();
   return withoutTrailingDetail || name;
 }
