@@ -261,11 +261,14 @@ const AttachmentRemove: FC<AttachmentRemoveProps> = ({ variant = "tile" }) => {
     <AttachmentPrimitive.Remove asChild>
       <TooltipIconButton
         tooltip={t("ai:attachment.removeFile")}
+        size="icon-xs"
+        // Desktop size on touch too, so it doesn't cover the attachment; the variant's
+        // ::after gives it a tap area of up to 44px.
         className={cn(
           "aui-attachment-tile-remove text-muted-foreground hover:[&_svg]:text-destructive hover:bg-white! absolute rounded-full bg-white opacity-100 shadow-sm [&_svg]:text-black",
           variant === "chip"
-            ? "end-1.5 top-1/2 size-5 -translate-y-1/2"
-            : "end-1.5 top-1.5 size-3.5",
+            ? "inset-y-0 end-1.5 my-auto size-5 max-lg:size-5 max-lg:after:-inset-3 pointer-coarse:size-5 pointer-coarse:after:-inset-3"
+            : "end-1.5 top-1.5 size-3.5 max-lg:size-3.5 max-lg:after:-inset-[0.9375rem] pointer-coarse:size-3.5 pointer-coarse:after:-inset-[0.9375rem]",
         )}
         side="top"
       >

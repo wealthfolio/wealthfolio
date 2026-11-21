@@ -946,6 +946,11 @@ pub struct TransferMatchCandidateRequest {
     pub window_days: Option<i64>,
     #[serde(default)]
     pub limit: Option<usize>,
+    /// For an unlinked cash transfer, also suggest the opposite deposit or
+    /// withdrawal, which `convert_to_internal_transfer` would make its other
+    /// side. Off by default: linking pairs two transfers only.
+    #[serde(default)]
+    pub include_cash_flows: bool,
 }
 
 /// Turns a cash deposit or withdrawal (or an unlinked cash transfer) into one
@@ -1122,7 +1127,10 @@ pub struct TransferMatchReview {
     /// The rest, each with its best candidates (possibly none). Candidates
     /// include deposits and withdrawals that would become the other side,
     /// never a leg of a certain pair. Two transfers that are each other's
-    /// best candidate share one row.
+    /// best candidate share one row. Also lists a credit card's refund or
+    /// credit whose amount left another account as a withdrawal, as a sync
+    /// saves the card's side of a payment; linking converts it into the
+    /// card's payment.
     pub needs_review: Vec<UnlinkedTransfer>,
 }
 

@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "In {{type}} ändern",
-    "description": "Der gespeicherte Transaktionstyp wird geändert, sein Untertyp gelöscht und die Transfermetadaten werden aktualisiert. Geldbewegung, Konto, Betrag, Datum, Währung, Notizen und Kategorie bleiben erhalten; Cashflow- und Performanceberichte können sich ändern. Ungespeicherte Änderungen werden nicht übernommen.",
+    "description": "Nur der Typ ändert sich. Betrag, Datum, Konto, Notizen und Kategorie bleiben gleich, Berichte können sie aber anders zählen. Nicht gespeicherte Änderungen sind nicht enthalten.",
     "external": "Der Transfer wird als extern markiert. Verknüpfen Sie ihn über Transfer verknüpfen mit einem anderen Konto.",
     "linked": "Diese Transaktion gehört zu einer Transfergruppe. Heben Sie zuerst die Verknüpfung auf und öffnen Sie Bearbeiten erneut. Beide Transaktionen bleiben erhalten."
   },
@@ -443,7 +443,10 @@
     "marked_external": "Als extern markiert",
     "load_error": "Abzugleichende Übertragungen konnten nicht geladen werden.",
     "empty_title": "Alle Übertragungen sind abgeglichen",
-    "empty_desc": "Keiner Übertragung fehlt ihre Gegenseite."
+    "empty_desc": "Keiner Übertragung fehlt ihre Gegenseite.",
+    "section_card_credit": "Kartenerstattungen, die Zahlungen sein könnten",
+    "section_card_credit_hint": "Derselbe Betrag ging von einem anderen Konto ab. Wenn damit die Karte bezahlt wurde, verknüpfen Sie beide; bei einer echten Erstattung überspringen Sie sie.",
+    "card_credit_hint": "Als Erstattung auf der Karte gespeichert. Durch Verknüpfen wird es zur Zahlung auf die Karte."
   },
   "form": {
     "section_conversion": "Fondsumtausch",
@@ -1489,11 +1492,11 @@
       "issuesTitle_other": "Es gibt Probleme mit {{count}} Aktivitätseinträgen."
     },
     "creditCard": {
-      "charge": "Belastung",
+      "charge": "Einkauf",
       "payment": "Zahlung",
-      "transfer": "Saldoübertragung / Bargeldvorschuss",
-      "refund": "Erstattung / Gutschrift",
-      "interest": "Zinsbelastung"
+      "transfer": "Bargeldabhebung / Saldoübertragung",
+      "refund": "Erstattung",
+      "interest": "Zinsen"
     }
   },
   "validation": {

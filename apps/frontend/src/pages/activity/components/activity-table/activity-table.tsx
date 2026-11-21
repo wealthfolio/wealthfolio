@@ -135,6 +135,8 @@ interface ActivityTableProps {
   handleDelete: (activity: ActivityDetails) => void;
   onLinkTransfer?: (activity: ActivityDetails) => void;
   onUnlinkTransfer?: (activity: ActivityDetails) => void;
+  /** Each account's type by id, for the row menu's card actions. */
+  accountTypeById?: ReadonlyMap<string, string>;
   filtersActive?: boolean;
   onAdd?: () => void;
   /** Show a "Connect Account" button next to the add button when there are no activities. */
@@ -157,6 +159,7 @@ export const ActivityTable = ({
   handleDelete,
   onLinkTransfer,
   onUnlinkTransfer,
+  accountTypeById,
   filtersActive = false,
   onAdd,
   showConnectAccountLink = false,
@@ -801,6 +804,7 @@ export const ActivityTable = ({
               onDuplicate={handleDuplicate}
               onLinkTransfer={onLinkTransfer}
               onUnlinkTransfer={onUnlinkTransfer}
+              accountType={accountTypeById?.get(row.original.accountId)}
               hoverReveal
             />
           );
@@ -818,6 +822,7 @@ export const ActivityTable = ({
       handleDuplicate,
       onLinkTransfer,
       onUnlinkTransfer,
+      accountTypeById,
       amountFormatting,
       showsCashBalance,
       symbolExchangeCountMap,

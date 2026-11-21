@@ -71,10 +71,10 @@
     "clearCategory": "清除類別"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "餘額轉移／預借現金",
+    "balanceTransferCashAdvance": "預借現金 / 餘額代償",
     "charge": "消費",
-    "interestCharge": "利息費用",
-    "refundCredit": "退款／回饋",
+    "interestCharge": "利息",
+    "refundCredit": "退款",
     "reimbursementRefund": "費用補償／退款"
   },
   "rules": {
@@ -887,7 +887,7 @@
     "addDescription": "在已追蹤支出的帳戶新增交易。",
     "selectAccount": "選取一個帳戶",
     "selectType": "選取交易類型",
-    "payment": "付款",
+    "payment": "繳款",
     "transfer": "轉帳",
     "payCardDesc": "從另一個帳戶償還此卡",
     "neutralTransfer": "中性轉帳",
@@ -898,7 +898,30 @@
     "notesPayee": "備註／收款方",
     "notesPlaceholder": "例如：AMAZON*MARKETPLACE、STARBUCKS COFFEE",
     "updateTransaction": "更新交易",
-    "createTransaction": "建立交易"
+    "createTransaction": "建立交易",
+    "typeChange": {
+      "transferOut": "計為轉出。在與另一個帳戶連結之前，報告仍將其計為支出。",
+      "transferIn": "計為轉入。在與另一個帳戶連結之前，報告仍將其計為收入。",
+      "cardPayment": "計為繳款：減少你的欠款，不算支出。",
+      "cardAdvance": "計為預借現金或餘額代償：增加你的欠款，但不算支出。",
+      "spending": "在報告中計為支出。",
+      "refund": "計為退款，會減少你的支出。",
+      "income": "在報告中計為收入。",
+      "none": "不再計入支出或收入。",
+      "reversesBalance": "餘額也會朝相反方向變動。",
+      "owesMore": "現在會增加你的欠款。",
+      "owesLess": "現在會減少你的欠款。"
+    },
+    "linkRow": {
+      "paidFrom": "付款帳戶",
+      "receivedFrom": "來源帳戶",
+      "sentTo": "轉入帳戶",
+      "untracked": "我未記錄的帳戶",
+      "suggested": "建議：{{account}} · {{date}} · {{amount}}",
+      "link": "連結",
+      "hint": "選擇另一個帳戶以連結兩邊，或保持不變。",
+      "savesFirst": "選擇帳戶會先儲存此變更，然後連結兩邊。"
+    }
   },
   "txTab": {
     "duplicatedComment": "已複製",
