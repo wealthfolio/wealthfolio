@@ -6,6 +6,7 @@ import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-s
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
 import { useHapticFeedback } from "@/hooks/use-haptic-feedback";
 import { usePlatform } from "@/hooks/use-platform";
+import { CONNECT_ENABLED } from "@/lib/connect-config";
 import { cn } from "@/lib/utils";
 import { Icons, Sheet, SheetContent, SheetTitle } from "@wealthfolio/ui";
 import { motion } from "motion/react";
@@ -172,11 +173,15 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const standardMenuItems: NavLink[] = [
     ...primaryItems.slice(visiblePrimaryCount),
     ...secondaryItems,
-    {
-      title: t("common:connect"),
-      href: "/connect",
-      icon: <SyncStatusIcon status={syncStatus} className="size-6" />,
-    },
+    ...(CONNECT_ENABLED
+      ? [
+          {
+            title: t("common:connect"),
+            href: "/connect",
+            icon: <SyncStatusIcon status={syncStatus} className="size-6" />,
+          },
+        ]
+      : []),
   ];
   const moreItems = [...standardMenuItems, ...addonItems];
   const hasMenu = moreItems.length > 0;
