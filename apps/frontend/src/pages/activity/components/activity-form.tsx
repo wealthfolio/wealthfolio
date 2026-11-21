@@ -152,6 +152,9 @@ export function ActivityForm({
         <div className="flex-1 space-y-6 overflow-y-auto py-4">
           <CashActivityReclassification
             activity={activity}
+            accountType={
+              accounts.find((account) => account.value === activity?.accountId)?.accountType
+            }
             onSuccess={onClose}
             disabled={isLoading}
           />

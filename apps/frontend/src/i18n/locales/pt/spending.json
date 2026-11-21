@@ -72,10 +72,10 @@
     "clearCategory": "Remover categoria"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Transferência de saldo / Saque",
-    "charge": "Cobrança",
-    "interestCharge": "Juros cobrados",
-    "refundCredit": "Estorno / Crédito",
+    "balanceTransferCashAdvance": "Saque / Transferência de saldo",
+    "charge": "Compra",
+    "interestCharge": "Juros",
+    "refundCredit": "Estorno",
     "reimbursementRefund": "Reembolso / devolução"
   },
   "rules": {
@@ -941,7 +941,30 @@
     "notesPayee": "Notas / Beneficiário",
     "notesPlaceholder": "ex., AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Atualizar transação",
-    "createTransaction": "Criar transação"
+    "createTransaction": "Criar transação",
+    "typeChange": {
+      "transferOut": "Conta como transferência enviada. Até ser vinculada à outra conta, os relatórios a contam como gasto.",
+      "transferIn": "Conta como transferência recebida. Até ser vinculada à outra conta, os relatórios a contam como receita.",
+      "cardPayment": "Conta como um pagamento: reduz o que você deve e não é um gasto.",
+      "cardAdvance": "Conta como um saque ou uma transferência de saldo: aumenta o que você deve e não é um gasto.",
+      "spending": "Conta como gasto nos seus relatórios.",
+      "refund": "Conta como estorno, o que reduz seus gastos.",
+      "income": "Conta como receita nos seus relatórios.",
+      "none": "Não conta mais como gasto nem como receita.",
+      "reversesBalance": "O saldo também se move no sentido oposto.",
+      "owesMore": "Agora aumenta o que você deve.",
+      "owesLess": "Agora reduz o que você deve."
+    },
+    "linkRow": {
+      "paidFrom": "Pago com",
+      "receivedFrom": "Recebido de",
+      "sentTo": "Enviado para",
+      "untracked": "Uma conta que não acompanho",
+      "suggested": "Sugestão: {{account}} · {{date}} · {{amount}}",
+      "link": "Vincular",
+      "hint": "Escolha a outra conta para vincular os dois lados, ou deixe como está.",
+      "savesFirst": "Ao escolher uma conta, esta alteração é salva primeiro e depois os dois lados são vinculados."
+    }
   },
   "txTab": {
     "duplicatedComment": "Duplicada",

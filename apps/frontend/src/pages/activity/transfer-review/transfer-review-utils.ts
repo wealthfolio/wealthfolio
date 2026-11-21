@@ -70,14 +70,29 @@ export function pairInFlowOrder(source: Activity, counterpart: Activity): [Activ
   return isOutflow(source) ? [source, counterpart] : [counterpart, source];
 }
 
+/**
+ * A credit card's refund or credit listed as a possible payment: the review
+ * lists one only when the same amount left another account.
+ */
+export function isCardCredit(activity: Activity): boolean {
+  return getEffectiveType(activity) === ActivityType.CREDIT;
+}
+
 /** Why a transfer needs a look, which decides its section. */
-export type ReviewReason = "more_than_one" | "dates_differ" | "cash_flow" | "no_match" | "other";
+export type ReviewReason =
+  | "more_than_one"
+  | "dates_differ"
+  | "cash_flow"
+  | "card_credit"
+  | "no_match"
+  | "other";
 
 /** Sections in the order they show: likely links first, no other side last. */
 export const REVIEW_SECTIONS: readonly ReviewReason[] = [
   "dates_differ",
   "more_than_one",
   "cash_flow",
+  "card_credit",
   "other",
   "no_match",
 ];
@@ -87,8 +102,12 @@ export const REVIEW_SECTIONS: readonly ReviewReason[] = [
  * withdrawal comes first because linking converts it, and the core never
  * flags one as another match.
  */
-export function reviewReason(candidate: TransferMatchCandidate | undefined): ReviewReason {
+export function reviewReason(
+  candidate: TransferMatchCandidate | undefined,
+  source?: Activity,
+): ReviewReason {
   if (!candidate) return "no_match";
+  if (source && isCardCredit(source)) return "card_credit";
   if (needsConversion(candidate)) return "cash_flow";
   const warnings = candidate.warningCodes ?? [];
   if (warnings.some((warning) => warning.code === "another_match")) return "more_than_one";
@@ -129,7 +148,7 @@ export function reviewPairs(rows: UnlinkedTransfer[]): ReviewPair[] {
       seen.add(key);
       pairs.push({
         key,
-        reason: reviewReason(candidate),
+        reason: reviewReason(candidate, row.activity),
         row,
         candidate,
         rivals: [],

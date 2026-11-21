@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createActivity, updateActivity } from "@/adapters";
+import { createActivity, findTransferMatchCandidates, updateActivity } from "@/adapters";
 import type { Activity } from "@/lib/types";
 import { CashActivityForm } from "./cash-activity-form";
 
@@ -36,6 +36,7 @@ async function chooseAccount(user: ReturnType<typeof userEvent.setup>, name: Reg
 
 vi.mock("@/adapters", () => ({
   createActivity: vi.fn(),
+  findTransferMatchCandidates: vi.fn(() => Promise.resolve([])),
   updateActivity: vi.fn((payload: unknown) => Promise.resolve(payload)),
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -287,6 +288,301 @@ describe("CashActivityForm currency", () => {
       currency: "CAD",
       fxRate: null,
     });
+  });
+});
+
+describe("CashActivityForm type change", () => {
+  const typeChange = enSpending.cashForm.typeChange;
+  const untracked = enSpending.cashForm.linkRow.untracked;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([]);
+  });
+
+  async function chooseType(user: ReturnType<typeof userEvent.setup>, name: string) {
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await user.click(await screen.findByRole("option", { name }));
+  }
+
+  const cardCredit = {
+    ...foreignCharge,
+    activityType: "CREDIT",
+    subtype: "REFUND",
+    currency: "CAD",
+    fxRate: null,
+  } as unknown as Activity;
+
+  it("lets a card's refund/credit become its payment, saying how it will count (#2740)", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        onLinkTransfer={vi.fn()}
+        activity={cardCredit}
+      />,
+      { wrapper },
+    );
+    expect(screen.queryByRole("button", { name: /^Change to/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    expect(screen.queryByRole("option", { name: "Deposit" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: "Payment" }));
+
+    expect(screen.getByText(typeChange.cardPayment)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: new RegExp(untracked) })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(updateActivity).toHaveBeenCalled());
+    const update = vi.mocked(updateActivity).mock.lastCall?.[0];
+    expect(update).toMatchObject({ id: "act-1", activityType: "TRANSFER_IN", subtype: null });
+    // Its other side is not tracked until it is linked.
+    expect(update?.metadata).toEqual({ flow: { is_external: true } });
+  });
+
+  it("edits a synced row as the type it shows, not its source type", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          { ...cardCredit, subtype: undefined, activityTypeOverride: "TRANSFER_IN" } as Activity
+        }
+      />,
+      { wrapper },
+    );
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Payment");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: /notes/i }), " paid");
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(updateActivity).toHaveBeenCalled());
+    expect(vi.mocked(updateActivity).mock.lastCall?.[0].activityType).toBe("TRANSFER_IN");
+  });
+
+  it("says a bank's one-sided transfer still counts as spending until linked", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          {
+            ...foreignCharge,
+            accountId: "chequing",
+            currency: "CAD",
+            fxRate: null,
+          } as unknown as Activity
+        }
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Transfer Out");
+    expect(screen.getByText(typeChange.transferOut)).toBeInTheDocument();
+    // Its category still counts, so it stays visible and editable.
+    expect(screen.getByRole("button", { name: /category/i })).toBeInTheDocument();
+  });
+
+  it("links a card payment with the suggested side from the Paid from row", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: {
+          id: "bank-withdrawal",
+          accountId: "chequing",
+          activityType: "WITHDRAWAL",
+          activityDate: "2026-07-13T12:00:00.000Z",
+          amount: "450",
+          currency: "CAD",
+        } as Activity,
+        matchKind: "cash",
+        confidence: "high",
+        score: 100,
+        reasons: [],
+        warnings: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onLinkTransfer = vi.fn();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={onOpenChange}
+        onLinkTransfer={onLinkTransfer}
+        activity={{ ...cardCredit, activityType: "TRANSFER_IN", subtype: undefined } as Activity}
+      />,
+      { wrapper },
+    );
+    expect(await screen.findByText(/Suggested: WS Chequing/)).toBeInTheDocument();
+    expect(findTransferMatchCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ activityId: "act-1", includeCashFlows: true }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Link" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onLinkTransfer).toHaveBeenCalledWith("bank-withdrawal");
+  });
+
+  it("drops the suggestion once the chosen transfer needs saving first", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: {
+          id: "bank-withdrawal",
+          accountId: "chequing",
+          activityType: "WITHDRAWAL",
+          activityDate: "2026-07-13T12:00:00.000Z",
+          amount: "450",
+          currency: "CAD",
+        } as Activity,
+        matchKind: "cash",
+        confidence: "high",
+        score: 100,
+        reasons: [],
+        warnings: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        onLinkTransfer={vi.fn()}
+        activity={cardCredit}
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Payment");
+    expect(await screen.findByText(/Suggested: WS Chequing/)).toBeInTheDocument();
+
+    await chooseType(user, "Cash Advance / Balance Transfer");
+    expect(screen.getByText(enSpending.cashForm.linkRow.savesFirst)).toBeInTheDocument();
+    expect(screen.queryByText(/Suggested:/)).not.toBeInTheDocument();
+  });
+
+  it("asks before leaving typed edits for the link sheet", async () => {
+    const user = userEvent.setup();
+    const onLinkTransfer = vi.fn();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        onLinkTransfer={onLinkTransfer}
+        activity={{ ...cardCredit, activityType: "TRANSFER_IN", subtype: undefined } as Activity}
+      />,
+      { wrapper },
+    );
+    await user.type(screen.getByRole("textbox", { name: /notes/i }), " paid");
+    await user.click(screen.getByRole("button", { name: new RegExp(untracked) }));
+
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onLinkTransfer).not.toHaveBeenCalled();
+  });
+
+  it("saves a charge made a payment before linking where it was paid from", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onLinkTransfer = vi.fn();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={onOpenChange}
+        onLinkTransfer={onLinkTransfer}
+        activity={{ ...foreignCharge, currency: "CAD", fxRate: null } as unknown as Activity}
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Payment");
+
+    // The payment note already says the balance now goes down.
+    expect(screen.getByText(typeChange.cardPayment)).toBeInTheDocument();
+    expect(screen.getByText(enSpending.cashForm.linkRow.savesFirst)).toBeInTheDocument();
+    // The saved charge would link as an outflow, so no suggestion is fetched for it.
+    expect(findTransferMatchCandidates).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: new RegExp(untracked) }));
+    await waitFor(() => expect(onLinkTransfer).toHaveBeenCalled());
+    expect(vi.mocked(updateActivity).mock.lastCall?.[0]).toMatchObject({
+      id: "act-1",
+      activityType: "TRANSFER_IN",
+    });
+    expect(onLinkTransfer).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ id: "act-1", activityType: "TRANSFER_IN" }),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says a card's payment made a purchase adds to what is owed", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={{ ...cardCredit, activityType: "TRANSFER_IN", subtype: undefined } as Activity}
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Purchase");
+
+    expect(screen.getByText(`${typeChange.spending} ${typeChange.owesMore}`)).toBeInTheDocument();
+  });
+
+  it("lets a one-sided bank transfer become a withdrawal again", async () => {
+    const user = userEvent.setup();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          {
+            ...foreignCharge,
+            accountId: "chequing",
+            activityType: "TRANSFER_OUT",
+            currency: "CAD",
+            fxRate: null,
+          } as unknown as Activity
+        }
+      />,
+      { wrapper },
+    );
+    await chooseType(user, "Withdrawal");
+    expect(screen.getByText(typeChange.spending)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() =>
+      expect(updateActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ activityType: "WITHDRAWAL" }),
+      ),
+    );
+  });
+
+  it("keeps a saved transfer's external flag on an ordinary edit", async () => {
+    const user = userEvent.setup();
+    const metadata = { flow: { is_external: true }, transfer: { source: "wealthfolio" } };
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          {
+            ...foreignCharge,
+            accountId: "chequing",
+            activityType: "TRANSFER_OUT",
+            currency: "CAD",
+            fxRate: null,
+            metadata,
+          } as unknown as Activity
+        }
+      />,
+      { wrapper },
+    );
+    await user.type(screen.getByRole("textbox", { name: /notes/i }), " rent");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(updateActivity).toHaveBeenCalled());
+    expect(vi.mocked(updateActivity).mock.lastCall?.[0].metadata).toEqual(metadata);
   });
 });
 
@@ -549,7 +845,7 @@ describe("CashActivityForm direct entry", () => {
       <CashActivityForm open onOpenChange={vi.fn()} intent="income" activity={foreignCharge} />,
       { wrapper },
     );
-    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Charge");
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Purchase");
     expect(screen.getByRole("combobox", { name: "Account" })).toHaveTextContent("WS Visa Infinite");
   });
 });

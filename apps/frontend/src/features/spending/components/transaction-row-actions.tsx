@@ -114,7 +114,7 @@ export function TransactionRowActions({
             </DropdownMenuItem>
           ) : null
         ) : null}
-        {onLinkTransfer && canConvertToTransfer(a) ? (
+        {onLinkTransfer && canConvertToTransfer(a, account?.accountType) ? (
           <DropdownMenuItem onClick={() => onLinkTransfer(row)}>
             <Icons.ArrowLeftRight className="me-2 h-4 w-4" aria-hidden="true" />
             {t("spending:transactions.convertToTransfer")}

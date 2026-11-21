@@ -71,10 +71,10 @@
     "clearCategory": "カテゴリをクリア"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "残高移行 / キャッシング",
-    "charge": "カード利用",
-    "interestCharge": "支払利息",
-    "refundCredit": "返金 / クレジット",
+    "balanceTransferCashAdvance": "キャッシング / 残高移行",
+    "charge": "ショッピング",
+    "interestCharge": "利息",
+    "refundCredit": "返金",
     "reimbursementRefund": "払い戻し / 返金"
   },
   "rules": {
@@ -890,7 +890,30 @@
     "notesPayee": "メモ / 支払先",
     "notesPlaceholder": "例: AMAZON*MARKETPLACE、STARBUCKS COFFEE",
     "updateTransaction": "取引を更新",
-    "createTransaction": "取引を作成"
+    "createTransaction": "取引を作成",
+    "typeChange": {
+      "transferOut": "振替出金として扱われます。相手の口座とリンクするまでは、レポートで支出として集計されます。",
+      "transferIn": "振替入金として扱われます。相手の口座とリンクするまでは、レポートで収入として集計されます。",
+      "cardPayment": "支払いとして扱われます。利用残高が減り、支出には含まれません。",
+      "cardAdvance": "キャッシングまたは残高移行として扱われます。利用残高が増えますが、支出には含まれません。",
+      "spending": "レポートで支出として扱われます。",
+      "refund": "返金として扱われ、支出が減ります。",
+      "income": "レポートで収入として扱われます。",
+      "none": "支出にも収入にも含まれなくなります。",
+      "reversesBalance": "残高も逆方向に動きます。",
+      "owesMore": "利用残高を増やす取引になります。",
+      "owesLess": "利用残高を減らす取引になります。"
+    },
+    "linkRow": {
+      "paidFrom": "支払元",
+      "receivedFrom": "入金元",
+      "sentTo": "送金先",
+      "untracked": "管理していない口座",
+      "suggested": "候補: {{account}} · {{date}} · {{amount}}",
+      "link": "リンク",
+      "hint": "相手の口座を選んで両方の取引をリンクするか、このままにしてください。",
+      "savesFirst": "口座を選ぶと、まずこの変更を保存してから両方の取引をリンクします。"
+    }
   },
   "txTab": {
     "duplicatedComment": "複製",
