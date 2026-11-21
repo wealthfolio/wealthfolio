@@ -220,7 +220,14 @@ export function useAddonActions() {
           } catch (cleanupError) {
             console.error("Failed to clear staging after installation failure:", cleanupError);
           }
-          throw error;
+          toast({
+            title: i18n.t("common:notifications.installation_failed"),
+            description:
+              error instanceof Error
+                ? error.message
+                : i18n.t("common:notifications.installation_failed"),
+            variant: "destructive",
+          });
         }
       },
       onCancel: async () => {
@@ -252,7 +259,14 @@ export function useAddonActions() {
       });
     } catch (error) {
       console.error("Error installing ZIP addon:", error);
-      throw error;
+      toast({
+        title: i18n.t("common:notifications.installation_failed"),
+        description:
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.installation_failed"),
+        variant: "destructive",
+      });
     }
   };
 

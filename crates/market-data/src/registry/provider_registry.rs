@@ -27,7 +27,13 @@ use crate::provider::{MarketDataProvider, DATA_SOURCE_CUSTOM_SCRAPER};
 use crate::resolver::{check_profile, ResolutionSource, SymbolResolver};
 
 // Supplementary venue searches must not hold healthy general results for the HTTP timeout.
-const EXCHANGE_SEARCH_TIMEOUT: Duration = Duration::from_secs(2);
+fn exchange_search_timeout() -> Duration {
+    Duration::from_millis(
+        wealthfolio_http::timeouts::policy()
+            .provider
+            .exchange_search_ms,
+    )
+}
 
 // Search budgets are deliberately shorter than quote HTTP timeouts. Reuse the
 // existing breaker under an operation key so search backoff cannot disable prices.
@@ -879,7 +885,7 @@ impl ProviderRegistry {
                 search_started = true;
                 provider.search(query).await
             };
-            let response = tokio::time::timeout(EXCHANGE_SEARCH_TIMEOUT, request).await;
+            let response = tokio::time::timeout(exchange_search_timeout(), request).await;
             let result = match response {
                 Ok(result) => result,
                 Err(_) => {
@@ -3160,7 +3166,7 @@ mod tests {
     async fn slow_scoped_search_backs_off_without_penalizing_quote_sync() {
         let yahoo = Arc::new(SearchProvider::new("YAHOO", 1, false, &["AAPL"]));
         let mut moex = moex_search_provider(&[]);
-        moex.delay = EXCHANGE_SEARCH_TIMEOUT * 10;
+        moex.delay = exchange_search_timeout() * 10;
         let moex = Arc::new(moex);
         let mut registry = ProviderRegistry::new(vec![yahoo, moex.clone()], Arc::new(MockResolver));
         registry.circuit_breaker =
@@ -3176,7 +3182,7 @@ mod tests {
             },
         );
         let results = tokio::time::timeout(
-            EXCHANGE_SEARCH_TIMEOUT + Duration::from_secs(1),
+            exchange_search_timeout() + Duration::from_secs(1),
             registry.search("AAPL"),
         )
         .await
@@ -3244,7 +3250,7 @@ mod tests {
     #[tokio::test]
     async fn scoped_search_token_wait_and_request_share_one_timeout_budget() {
         let mut moex = moex_search_provider(&[]);
-        moex.delay = EXCHANGE_SEARCH_TIMEOUT * 10;
+        moex.delay = exchange_search_timeout() * 10;
         let moex = Arc::new(moex);
         let mut registry = ProviderRegistry::new(vec![moex.clone()], Arc::new(MockResolver));
         registry.circuit_breaker =
@@ -3264,7 +3270,7 @@ mod tests {
         // Acquiring the next token takes one second. A fresh two-second
         // request timeout would exceed this bound; the shared budget does not.
         let result = tokio::time::timeout(
-            EXCHANGE_SEARCH_TIMEOUT + Duration::from_millis(500),
+            exchange_search_timeout() + Duration::from_millis(500),
             registry.search("HYDR"),
         )
         .await

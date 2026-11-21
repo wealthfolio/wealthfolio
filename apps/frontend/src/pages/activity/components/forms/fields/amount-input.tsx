@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from "@wealthfolio/ui";
 import { currencyFractionDigits } from "@/lib/currency-decimals";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
 
@@ -31,6 +32,8 @@ interface AmountInputProps<TFieldValues extends FieldValues = FieldValues> {
   onValueChange?: (value: number | null | undefined) => void;
   /** Called when the input loses focus. */
   onBlur?: () => void;
+  /** Shows the value without letting the user type over it. */
+  readOnly?: boolean;
 }
 
 function toInputTestId(name: string) {
@@ -50,6 +53,7 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
   currency,
   onValueChange,
   onBlur,
+  readOnly,
 }: AmountInputProps<TFieldValues>) {
   const { t } = useTranslation(["activity"]);
   const resolvedLabel = label ?? t("activity:form.label_amount");
@@ -89,15 +93,20 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
               <FormControl>
                 <MoneyInput
                   data-slot="input-group-control"
-                  className="min-w-0 flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:outline-none aria-invalid:ring-0"
+                  className={cn(
+                    "min-w-0 flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:outline-none aria-invalid:ring-0",
+                    readOnly && "text-muted-foreground",
+                  )}
                   ref={field.ref}
                   name={field.name}
                   value={field.value}
                   onValueChange={(value, isUserEdit) => {
+                    if (readOnly) return;
                     field.onChange(value);
                     if (isUserEdit) onValueChange?.(value);
                   }}
                   onBlur={onBlur}
+                  readOnly={readOnly}
                   placeholder={placeholder}
                   maxDecimalPlaces={decimalPlaces}
                   aria-label={resolvedLabel}
@@ -115,10 +124,13 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
                 name={field.name}
                 value={field.value}
                 onValueChange={(value, isUserEdit) => {
+                  if (readOnly) return;
                   field.onChange(value);
                   if (isUserEdit) onValueChange?.(value);
                 }}
                 onBlur={onBlur}
+                readOnly={readOnly}
+                className={readOnly ? "text-muted-foreground" : undefined}
                 placeholder={placeholder}
                 maxDecimalPlaces={decimalPlaces}
                 aria-label={resolvedLabel}

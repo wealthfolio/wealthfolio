@@ -17,10 +17,10 @@
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "أخرى"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "تحويل الرصيد / سلفة نقدية",
-    "charge": "قيد مدين",
-    "interestCharge": "رسوم الفائدة",
-    "refundCredit": "استرداد / إضافة رصيد",
+    "balanceTransferCashAdvance": "سلفة نقدية / تحويل رصيد",
+    "charge": "شراء",
+    "interestCharge": "فوائد",
+    "refundCredit": "استرداد",
     "reimbursementRefund": "تعويض / استرداد"
   },
   "budgetChart": {
@@ -229,7 +229,7 @@
     "notesPayee": "ملاحظات / المستفيد",
     "notesPlaceholder": "مثال: AMAZON*MARKETPLACE، STARBUCKS COFFEE",
     "payCardDesc": "سدد مبلغ هذه البطاقة من حساب آخر",
-    "payment": "دفعة",
+    "payment": "سداد",
     "pickCategory": "اختر فئة",
     "pickCategoryOptional": "اختر فئة (اختياري)",
     "pickDate": "اختر تاريخًا",
@@ -243,7 +243,30 @@
     "tagEventOptional": "وسم حدث (اختياري)",
     "transfer": "تحويل",
     "transferBetween": "تحويل بين الحسابات",
-    "updateTransaction": "تحديث المعاملة"
+    "updateTransaction": "تحديث المعاملة",
+    "typeChange": {
+      "transferOut": "يُحتسب تحويلًا صادرًا. وحتى يُربط بالحساب الآخر، تحتسبه التقارير إنفاقًا.",
+      "transferIn": "يُحتسب تحويلًا واردًا. وحتى يُربط بالحساب الآخر، تحتسبه التقارير دخلًا.",
+      "cardPayment": "يُحتسب سدادًا: يخفض ما عليك وليس إنفاقًا.",
+      "cardAdvance": "يُحتسب سلفة نقدية أو تحويل رصيد: يزيد ما عليك وليس إنفاقًا.",
+      "spending": "يُحتسب إنفاقًا في تقاريرك.",
+      "refund": "يُحتسب استردادًا، فيقلّل إنفاقك.",
+      "income": "يُحتسب دخلًا في تقاريرك.",
+      "none": "لم يعد يُحتسب إنفاقًا ولا دخلًا.",
+      "reversesBalance": "ويتحرك الرصيد أيضًا في الاتجاه المعاكس.",
+      "owesMore": "سيزيد الآن ما عليك.",
+      "owesLess": "سيخفض الآن ما عليك."
+    },
+    "linkRow": {
+      "paidFrom": "مدفوع من",
+      "receivedFrom": "مستلم من",
+      "sentTo": "مرسل إلى",
+      "untracked": "حساب لا أتتبعه",
+      "suggested": "مقترح: {{account}} · {{date}} · {{amount}}",
+      "link": "ربط",
+      "hint": "اختر الحساب الآخر لربط الطرفين، أو اتركه كما هو.",
+      "savesFirst": "اختيار حساب يحفظ هذا التغيير أولًا، ثم يربط الطرفين."
+    }
   },
   "category": {
     "addDescription": "أنشئ فئة جديدة لتنظيم معاملاتك.",

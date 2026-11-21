@@ -42,7 +42,6 @@ const KINDS: &[&str] = &[
     "VEHICLE",
     "COLLECTIBLE",
     "PRECIOUS_METAL",
-    "PRIVATE_EQUITY",
     "LIABILITY",
     "OTHER",
 ];
@@ -128,10 +127,6 @@ fn parse_day(field: &str, value: &str, errors: &mut Vec<String>) -> Option<Naive
     }
 }
 
-fn is_alternative(kind: &AssetKind) -> bool {
-    !matches!(kind, AssetKind::Investment | AssetKind::Fx)
-}
-
 /// Check one new asset against the stored ones.
 fn plan_asset(
     args: &AlternativeAssetArgs,
@@ -143,7 +138,7 @@ fn plan_asset(
     let mut warnings = Vec::new();
     let kind = args.kind.clone();
     let is_liability = kind == AssetKind::Liability;
-    if !is_alternative(&kind) {
+    if !kind.is_alternative() {
         errors.push(format!("kind must be one of {}", KINDS.join(", ")));
     }
 
@@ -252,7 +247,7 @@ fn plan_asset(
         if !is_liability {
             errors.push("linkedAssetId is for liabilities".to_string());
         } else if !stored.iter().any(|asset| {
-            asset.id == *linked && is_alternative(&asset.kind) && asset.kind != AssetKind::Liability
+            asset.id == *linked && asset.kind.is_alternative() && asset.kind != AssetKind::Liability
         }) {
             errors.push(format!(
                 "linkedAssetId {linked} is not a stored alternative asset (such as a property)"
@@ -343,7 +338,7 @@ async fn load_plan(
         .get_assets()
         .map_err(failed)?
         .into_iter()
-        .filter(|asset| is_alternative(&asset.kind))
+        .filter(|asset| asset.kind.is_alternative())
         .collect();
     let timezone = env
         .settings_service()
@@ -415,7 +410,7 @@ impl AgentTool for PrepareAlternativeAsset {
     }
 
     fn description(&self) -> &'static str {
-        "Preview creating an alternative asset (PROPERTY, VEHICLE, COLLECTIBLE, PRECIOUS_METAL, PRIVATE_EQUITY, OTHER) or a LIABILITY (mortgage, auto, student or personal loan, HELOC, other), WITHOUT saving. Takes a name, currency, the value or balance owed on a date, and kind details (a liability's type and the asset it finances; a metal's type, quantity and unit; an asset's purchase price and date). A liability created here is a manual balance with no interest rate, term or payment schedule; loans with terms are set up in the app. Returns the asset as it would be created, other assets of that kind with the same name, warnings and errors. A non-base currency registers its exchange rate pair on creation. After commit_alternative_asset, record further dated values or balances with prepare_quote_import / commit_quote_import using the returned assetId (values above zero only). Show the preview to the user, then pass the same arguments to commit_alternative_asset."
+        "Preview creating an alternative asset (PROPERTY, VEHICLE, COLLECTIBLE, PRECIOUS_METAL, OTHER) or a LIABILITY (mortgage, auto, student or personal loan, HELOC, other), WITHOUT saving. Takes a name, currency, the value or balance owed on a date, and kind details (a liability's type and the asset it finances; a metal's type, quantity and unit; an asset's purchase price and date). A liability created here is a manual balance with no interest rate, term or payment schedule; loans with terms are set up in the app. Returns the asset as it would be created, other assets of that kind with the same name, warnings and errors. A non-base currency registers its exchange rate pair on creation. After commit_alternative_asset, record further dated values or balances with prepare_quote_import / commit_quote_import using the returned assetId (values above zero only). Show the preview to the user, then pass the same arguments to commit_alternative_asset."
     }
 
     fn input_schema(&self) -> serde_json::Value {

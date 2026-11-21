@@ -1,6 +1,6 @@
 {
   "name": "@wealthfolio/ui",
-  "version": "3.13.0",
+  "version": "3.13.1",
   "type": "module",
   "description": "Wealthfolio UI components based on shadcn/ui and Tailwind CSS",
   "main": "dist/index.js",
@@ -99,6 +99,6 @@
     "react-i18next": "^17.1.13",
     "tsup": "^9.0.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vite": "^8.3.6"
+    "vite": "^8.3.7"
   }
 }

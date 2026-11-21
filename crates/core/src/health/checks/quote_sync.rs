@@ -5,8 +5,9 @@
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 
-use crate::assets::{AssetServiceTrait, QuoteMode};
+use crate::assets::{Asset, AssetKind, AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
+use crate::fx::{normalize_currency_code, FxServiceTrait};
 use crate::health::model::{
     AffectedItem, DiagnosticDomain, Evidence, FixAction, HealthCategory, HealthDiagnostic,
     HealthEntityRef, HealthIssue, NavigateAction, Severity,
@@ -45,6 +46,7 @@ pub fn gather_quote_sync_errors(
     asset_service: &dyn AssetServiceTrait,
     holding_market_values: &HashMap<String, f64>,
     latest_quote_times: &HashMap<String, chrono::DateTime<chrono::Utc>>,
+    fx_service: Option<&dyn FxServiceTrait>,
 ) -> Vec<QuoteSyncErrorInfo> {
     // Get sync states with errors
     let sync_states_with_errors = match quote_service.get_sync_states_with_errors() {
@@ -68,10 +70,34 @@ pub fn gather_quote_sync_errors(
         Err(_) => return Vec::new(),
     };
 
-    // Build a map of asset_id -> (symbol, quote_mode)
-    let asset_map: HashMap<String, (String, QuoteMode)> = all_assets
+    let failing_assets: Vec<Asset> = all_assets
         .into_iter()
-        .filter(|a| asset_ids_set.contains(&a.id))
+        .filter(|asset| asset_ids_set.contains(&asset.id))
+        .collect();
+    let fx_ids: Vec<String> = failing_assets
+        .iter()
+        .filter(|asset| asset.kind == AssetKind::Fx)
+        .map(|asset| asset.id.clone())
+        .collect();
+    let quoted_ids: HashSet<String> = if fx_service.is_some() && !fx_ids.is_empty() {
+        match quote_service.get_latest_quotes(&fx_ids) {
+            Ok(quotes) => quotes.into_keys().collect(),
+            // If quote history cannot be read, keep reporting these failures.
+            Err(_) => fx_ids.into_iter().collect(),
+        }
+    } else {
+        HashSet::new()
+    };
+    let converted_fx_ids = fx_service
+        .map(|fx| {
+            fx_pairs_converted_without_quotes(&failing_assets, &quoted_ids, |from, to| {
+                fx.get_latest_exchange_rate(from, to).is_ok()
+            })
+        })
+        .unwrap_or_default();
+
+    let asset_map: HashMap<String, (String, QuoteMode)> = failing_assets
+        .into_iter()
         .map(|a| {
             (
                 a.id.clone(),
@@ -90,7 +116,7 @@ pub fn gather_quote_sync_errors(
                 .unwrap_or_else(|| (s.asset_id.clone(), QuoteMode::Market));
 
             // Skip assets with manual pricing - they don't need quote syncing
-            if quote_mode == QuoteMode::Manual {
+            if quote_mode == QuoteMode::Manual || converted_fx_ids.contains(&s.asset_id) {
                 return None;
             }
 
@@ -109,6 +135,25 @@ pub fn gather_quote_sync_errors(
                 market_value,
                 has_synced_before,
             })
+        })
+        .collect()
+}
+
+/// Suppress unsupported direct crosses only when they have never had a quote
+/// and the converter can resolve them through stored rates.
+fn fx_pairs_converted_without_quotes(
+    assets: &[Asset],
+    quoted_ids: &HashSet<String>,
+    converts: impl Fn(&str, &str) -> bool,
+) -> HashSet<String> {
+    assets
+        .iter()
+        .filter(|asset| asset.kind == AssetKind::Fx && !quoted_ids.contains(&asset.id))
+        .filter_map(|asset| {
+            let from = normalize_currency_code(asset.instrument_symbol.as_deref()?.trim())
+                .to_ascii_uppercase();
+            let to = normalize_currency_code(asset.quote_ccy.trim()).to_ascii_uppercase();
+            (!from.is_empty() && !to.is_empty() && converts(&from, &to)).then(|| asset.id.clone())
         })
         .collect()
 }
@@ -386,6 +431,29 @@ fn compute_data_hash(asset_ids: &[String], severity: Severity) -> String {
 mod tests {
     use super::*;
     use crate::health::model::HealthConfig;
+
+    #[test]
+    fn only_unquoted_fx_pairs_with_a_working_route_are_suppressed() {
+        use crate::assets::AssetKind;
+        let asset = |id: &str, kind, from: &str| Asset {
+            id: id.into(),
+            kind,
+            instrument_symbol: Some(from.into()),
+            quote_ccy: "AED".into(),
+            ..Default::default()
+        };
+        let assets = vec![
+            asset("unsupported", AssetKind::Fx, "cop"),
+            asset("quoted", AssetKind::Fx, "COP"),
+            asset("missing", AssetKind::Fx, "XYZ"),
+            asset("security", AssetKind::Investment, "COP"),
+        ];
+        let quoted = HashSet::from(["quoted".to_string()]);
+        let suppressed = fx_pairs_converted_without_quotes(&assets, &quoted, |from, to| {
+            from == "COP" && to == "AED"
+        });
+        assert_eq!(suppressed, HashSet::from(["unsupported".to_string()]));
+    }
 
     #[test]
     fn test_no_errors_no_issues() {

@@ -2,6 +2,7 @@ import { profileFetch } from "@/features/profiles/session";
 // Web-specific activity commands
 import type { ParseConfig, ParsedCsvResult } from "@/lib/types";
 import { API_PREFIX, logger } from "./core";
+import { invokeTimeoutMs } from "../invoke-timeout";
 
 async function extractErrorMessage(response: Response): Promise<string | null> {
   const contentType = response.headers.get("content-type") ?? "";
@@ -45,6 +46,7 @@ export const parseCsv = async (file: File, config: ParseConfig): Promise<ParsedC
       method: "POST",
       body: formData,
       credentials: "same-origin",
+      signal: AbortSignal.timeout(invokeTimeoutMs("parse_csv")),
     });
 
     if (!response.ok) {

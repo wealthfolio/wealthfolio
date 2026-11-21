@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { useTranslation } from "react-i18next";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { calculatePerformanceSummary } from "@/adapters";
@@ -144,10 +145,18 @@ export function DashboardContent({
     retry: 1,
   });
 
-  const gainLossAmount = performancePeriodPnl(portfolioPerformance);
-  const simpleReturn = performanceSummaryReturn(portfolioPerformance);
+  const hasIncompleteHistory =
+    valuationHistory?.some((point) => !isValuationComplete(point.valueStatus)) ?? false;
+  const hasIncompletePeriod =
+    ((endDate === undefined || endDate >= todayISO) &&
+      !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)) ||
+    hasIncompleteHistory;
+  const gainLossAmount = hasIncompletePeriod ? null : performancePeriodPnl(portfolioPerformance);
+  const simpleReturn = hasIncompletePeriod ? null : performanceSummaryReturn(portfolioPerformance);
   const isCurrentValuationUnavailable =
-    !isCurrentValuationLoading && !portfolioCurrentValuation && Boolean(currentValuationError);
+    !isCurrentValuationLoading &&
+    (!isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) ||
+      (!portfolioCurrentValuation && Boolean(currentValuationError)));
   const portfolioSourceDataAsOf =
     portfolioCurrentValuation?.summary.sourceDataAsOf ??
     (!isCurrentValuationUnavailable
@@ -159,8 +168,8 @@ export function DashboardContent({
       valuationHistory
         // A day the engine could not fully convert carries a partial value;
         // it is not plotted rather than drawn as if it were complete.
-        ?.filter((item) => item.valueStatus !== "unavailable")
-        .map((item) => ({
+        ?.map((item) => ({
+          isUnavailable: !isValuationComplete(item.valueStatus),
           date: item.valuationDate,
           totalValue: item.totalValueBase,
           netContribution: item.netContributionBase,

@@ -71,10 +71,10 @@
     "clearCategory": "Kategorie entfernen"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Saldoübertragung / Barauszahlung",
-    "charge": "Belastung",
-    "interestCharge": "Sollzinsen",
-    "refundCredit": "Erstattung / Gutschrift",
+    "balanceTransferCashAdvance": "Bargeldabhebung / Saldoübertragung",
+    "charge": "Einkauf",
+    "interestCharge": "Zinsen",
+    "refundCredit": "Erstattung",
     "reimbursementRefund": "Kostenerstattung / Rückerstattung"
   },
   "rules": {
@@ -898,7 +898,30 @@
     "notesPayee": "Notizen / Empfänger",
     "notesPlaceholder": "z. B. AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Transaktion aktualisieren",
-    "createTransaction": "Transaktion erstellen"
+    "createTransaction": "Transaktion erstellen",
+    "typeChange": {
+      "transferOut": "Zählt als ausgehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie weiterhin als Ausgabe.",
+      "transferIn": "Zählt als eingehende Überweisung. Bis sie mit dem anderen Konto verknüpft ist, zählen Berichte sie weiterhin als Einnahme.",
+      "cardPayment": "Zählt als Zahlung: senkt Ihren offenen Betrag und ist keine Ausgabe.",
+      "cardAdvance": "Zählt als Bargeldabhebung oder Saldoübertragung: erhöht Ihren offenen Betrag, ist aber keine Ausgabe.",
+      "spending": "Zählt in Ihren Berichten als Ausgabe.",
+      "refund": "Zählt als Erstattung und senkt Ihre Ausgaben.",
+      "income": "Zählt in Ihren Berichten als Einnahme.",
+      "none": "Zählt nicht mehr als Ausgabe oder Einnahme.",
+      "reversesBalance": "Der Saldo bewegt sich außerdem in die andere Richtung.",
+      "owesMore": "Erhöht jetzt Ihren offenen Betrag.",
+      "owesLess": "Senkt jetzt Ihren offenen Betrag."
+    },
+    "linkRow": {
+      "paidFrom": "Bezahlt von",
+      "receivedFrom": "Erhalten von",
+      "sentTo": "Überwiesen an",
+      "untracked": "Ein Konto, das ich nicht erfasse",
+      "suggested": "Vorschlag: {{account}} · {{date}} · {{amount}}",
+      "link": "Verknüpfen",
+      "hint": "Wählen Sie das andere Konto, um beide Seiten zu verknüpfen, oder lassen Sie es so.",
+      "savesFirst": "Wenn Sie ein Konto wählen, wird diese Änderung zuerst gespeichert, dann werden beide Seiten verknüpft."
+    }
   },
   "txTab": {
     "duplicatedComment": "Dupliziert",

@@ -3,6 +3,7 @@ import {
   isActivityEditCancelled,
   useActivitySplitReview,
 } from "@/features/spending/components/activity-split-review-provider";
+import { getCashActivityLabel, isCreditCardAccountType } from "@/features/spending/lib/constants";
 import { isCashSymbol } from "@/lib/activity-utils";
 import type { ActivityUpdate } from "@/lib/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,6 +40,8 @@ interface CashReclassificationActivity {
 
 interface CashActivityReclassificationProps {
   activity?: CashReclassificationActivity;
+  /** The activity's account type; a credit card has its own counterparts. */
+  accountType?: string;
   onSuccess?: () => void;
   disabled?: boolean;
 }
@@ -50,11 +53,19 @@ const RECLASSIFICATION_TYPES: Record<string, string> = {
   TRANSFER_IN: "DEPOSIT",
 };
 
+// A card holds no deposits: its payment comes back from, and returns to, a refund/credit.
+const CARD_RECLASSIFICATION_TYPES: Record<string, string> = {
+  ...RECLASSIFICATION_TYPES,
+  CREDIT: "TRANSFER_IN",
+  TRANSFER_IN: "CREDIT",
+};
+
 /** Reclassifies a saved row separately from unsaved edits, without rounding its values. */
 export function CashActivityReclassification(props: CashActivityReclassificationProps) {
-  const { activity } = props;
+  const { activity, accountType } = props;
+  const isCard = isCreditCardAccountType(accountType);
   const type = activity?.activityTypeOverride?.trim() || activity?.activityType || "";
-  const target = RECLASSIFICATION_TYPES[type];
+  const target = (isCard ? CARD_RECLASSIFICATION_TYPES : RECLASSIFICATION_TYPES)[type];
   const asset = activity?.assetId || activity?.assetSymbol;
   if (
     !target ||
@@ -71,6 +82,7 @@ export function CashActivityReclassification(props: CashActivityReclassification
 function ReclassificationAction({
   activity,
   target,
+  accountType,
   onSuccess,
   disabled,
 }: CashActivityReclassificationProps & {
@@ -103,7 +115,9 @@ function ReclassificationAction({
   });
   const error = mutation.error && !isActivityEditCancelled(mutation.error);
   const label = t("activity:cash_reclassification.action", {
-    type: t(`activity:type_${target.toLowerCase()}`),
+    type: isCreditCardAccountType(accountType)
+      ? getCashActivityLabel(t, target, accountType)
+      : t(`activity:type_${target.toLowerCase()}`),
   });
 
   return (

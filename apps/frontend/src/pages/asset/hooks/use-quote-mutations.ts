@@ -87,6 +87,5 @@ export const useQuoteMutations = (
   return {
     saveQuoteMutation,
     deleteQuoteMutation,
-    invalidateQuoteQueries,
   };
 };

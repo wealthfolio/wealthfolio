@@ -38,6 +38,12 @@ vi.mock("../fields", () => ({
       <input data-testid={`input-${name}`} name={name} type="number" id={name} />
     </div>
   ),
+  ChargeLinesField: ({ totalName, label }: { totalName: string; label: string }) => (
+    <div>
+      <label htmlFor={totalName}>{label}</label>
+      <input data-testid={`input-${totalName}`} name={totalName} type="number" id={totalName} />
+    </div>
+  ),
   QuantityInput: ({ name, label }: { name: string; label: string }) => (
     <div>
       <label htmlFor={name}>{label}</label>

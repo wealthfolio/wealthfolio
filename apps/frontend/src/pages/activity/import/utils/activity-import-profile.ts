@@ -138,11 +138,11 @@ export const CREDIT_CARD_TRANSACTION_IMPORT_PROFILE: ActivityImportProfile = {
   ...CASH_TRANSACTION_IMPORT_PROFILE,
   allowedActivityTypes: CREDIT_CARD_ACTIVITY_TYPES,
   activityTypeLabels: {
-    [ActivityType.WITHDRAWAL]: "Charge",
+    [ActivityType.WITHDRAWAL]: "Purchase",
     [ActivityType.TRANSFER_IN]: "Payment",
-    [ActivityType.TRANSFER_OUT]: "Balance Transfer / Cash Advance",
-    [ActivityType.CREDIT]: "Refund / Credit",
-    [ActivityType.INTEREST]: "Interest Charge",
+    [ActivityType.TRANSFER_OUT]: "Cash Advance / Balance Transfer",
+    [ActivityType.CREDIT]: "Refund",
+    [ActivityType.INTEREST]: "Interest",
   },
 };
 
@@ -194,7 +194,7 @@ function getMappedAccountColumnValue(
     ? accountFieldMapping
     : [accountFieldMapping];
   for (const mappedHeader of mappedHeaders) {
-    const idx = headers.indexOf(mappedHeader);
+    const idx = headers.lastIndexOf(mappedHeader);
     if (idx === -1) continue;
     const value = row[idx]?.trim();
     if (value) return value;

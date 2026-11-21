@@ -32,7 +32,7 @@ import { InfiniteScrollTrigger } from "@/components/infinite-scroll-trigger";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
 import { cn, formatDateISO } from "@/lib/utils";
-import type { Account, ActivityDetails, TaxonomyCategory } from "@/lib/types";
+import type { Account, Activity, ActivityDetails, TaxonomyCategory } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
 
 import {
@@ -59,6 +59,7 @@ import { isActivityEditCancelled, useActivitySplitReview } from "./activity-spli
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "@/pages/activity/components/transfer-match-dialog";
+import { nonCashTransferAssetKey } from "@/pages/activity/components/transfer-link-utils";
 import {
   ActivityViewModeToggle,
   type ActivityViewMode,
@@ -89,6 +90,7 @@ import {
 import { cashActivityFlowMetadata } from "../lib/cash-activity-form-utils";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import {
+  getTransferLinkStatus,
   isTransferCashActivity,
   stableArr,
   toRowVM,
@@ -233,6 +235,10 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       open: boolean;
       mode: "link" | "unlink";
       row: TransactionRowVM | null;
+      /** Link mode: the suggested other side to select. */
+      counterpartId?: string;
+      /** The row as the edit form just saved it, when it saved first. */
+      saved?: Activity;
     }>({ open: false, mode: "link", row: null });
     const [loanPaymentRow, setLoanPaymentRow] = useState<TransactionRowVM | null>(null);
     const [deletingIds, setDeletingIds] = useState<string[] | null>(null);
@@ -700,16 +706,19 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         ]);
         return updateActivity(reviewed);
       },
-      onSuccess: (_, row) => {
+      onSuccess: (saved, row) => {
         invalidateSpendingCaches(qc);
         qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
         qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
+        // The form opens on the row as saved. A synced row keeps its source
+        // type and holds the reimbursement as an override, which replaces any
+        // earlier one: built from the old row, the form showed that earlier
+        // type, and saving it undid the reimbursement.
         const updatedRow: TransactionRowVM = {
           ...row,
           activity: {
             ...row.activity,
-            activityType: "CREDIT",
-            subtype: "REIMBURSEMENT",
+            ...saved,
             cashFlowBucket: "spending",
           },
           category: null,
@@ -844,7 +853,15 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const handleEditRow = useCallback(
       async (row: TransactionRowVM) => {
-        if (isTransferCashActivity(row.activity)) {
+        // A linked pair edits both legs together, and a conversion or a
+        // security move needs the transfer editor's fields. A one-sided cash
+        // transfer in the account's own currency is a plain cash row whose type
+        // can change, so it opens the Spending form.
+        const isPlainOneSided =
+          getTransferLinkStatus(row.activity) === "unlinked" &&
+          !nonCashTransferAssetKey(row.activity) &&
+          row.activity.currency === accountById.get(row.activity.accountId)?.currency;
+        if (isTransferCashActivity(row.activity) && !isPlainOneSided) {
           setEditingActivity(undefined);
           setShowForm(false);
           // Load the paired leg so the form pre-fills "To Account" (#1563).
@@ -1367,7 +1384,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               <TableHeader
                 className={cn(
                   "bg-card sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
-                  !scrollsSideways && "[@media(width>1024px)]:top-[var(--page-header-height,0px)]",
+                  !scrollsSideways &&
+                    "supports-[overflow:clip]:top-[var(--page-header-height,0px)] [@media(width>1024px)]:top-[var(--page-header-height,0px)]",
                 )}
               >
                 <TableRow>
@@ -1419,7 +1437,16 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           onOpenChange={setShowForm}
           activity={editingActivityForForm}
           onTransferClick={handleTransferClick}
-          onConvertToTransfer={() => editingActivity && handleLinkTransfer(editingActivity)}
+          onLinkTransfer={(counterpartId, saved) =>
+            editingActivity &&
+            setTransferMatchDialog({
+              open: true,
+              mode: "link",
+              row: editingActivity,
+              counterpartId,
+              saved,
+            })
+          }
         />
 
         <SplitTransactionSheet
@@ -1475,13 +1502,15 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         <TransferMatchDialog
           open={transferMatchDialog.open}
           mode={transferMatchDialog.mode}
-          sourceActivity={transferMatchDialog.row?.activity}
+          sourceActivity={transferMatchDialog.saved ?? transferMatchDialog.row?.activity}
+          counterpartId={transferMatchDialog.counterpartId}
           accounts={accounts}
           onOpenChange={(open) =>
             setTransferMatchDialog((prev) => ({
               ...prev,
               open,
               row: open ? prev.row : null,
+              saved: open ? prev.saved : undefined,
             }))
           }
           onComplete={refetch}

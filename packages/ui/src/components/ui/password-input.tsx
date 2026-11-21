@@ -29,7 +29,7 @@ export function PasswordInput({ id, className, disabled, showLabel, hideLabel, .
         type="button"
         variant="ghost"
         size="icon"
-        className="text-muted-foreground hover:text-foreground absolute end-1 top-1/2 size-8 -translate-y-1/2"
+        className="text-muted-foreground hover:text-foreground absolute inset-y-0 end-1 my-auto size-8"
         disabled={disabled}
         aria-label={label}
         aria-controls={inputId}

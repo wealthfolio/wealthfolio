@@ -37,6 +37,7 @@ function SummaryStats({ goals }: { goals: Goal[] }) {
   const { settings } = useSettingsContext();
   const currency = settings?.baseCurrency ?? goals[0]?.currency ?? "USD";
 
+  const hasCompleteValues = goals.every((goal) => goal.summaryCurrentValue != null);
   const saved = goals.reduce((s, g) => s + (g.summaryCurrentValue ?? 0), 0);
   const target = goals.reduce((s, g) => s + (g.summaryTargetAmount ?? g.targetAmount ?? 0), 0);
   const overall = target > 0 ? saved / target : 0;
@@ -46,7 +47,9 @@ function SummaryStats({ goals }: { goals: Goal[] }) {
 
   const savedDisplay = isBalanceHidden
     ? "••••"
-    : amountFormatting.formatCompactAmount(saved, currency);
+    : hasCompleteValues
+      ? amountFormatting.formatCompactAmount(saved, currency)
+      : "N/A";
   const targetDisplay = isBalanceHidden
     ? "••••"
     : amountFormatting.formatCompactAmount(target, currency);
@@ -57,7 +60,7 @@ function SummaryStats({ goals }: { goals: Goal[] }) {
       <StatBlock label={t("goals:dashboard.stat_target")} value={targetDisplay} />
       <StatBlock
         label={t("goals:dashboard.stat_overall")}
-        value={numberFormatting.formatPercent(overall)}
+        value={hasCompleteValues ? numberFormatting.formatPercent(overall) : "N/A"}
       />
       <StatBlock
         label={t("goals:dashboard.stat_on_track")}

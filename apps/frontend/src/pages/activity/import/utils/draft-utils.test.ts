@@ -6,7 +6,7 @@ import {
   reconcileExpenseReversalBoundary,
 } from "./draft-utils";
 import { getActivityImportProfileForAccountType } from "./activity-import-profile";
-import { applyAssetResolution } from "./asset-review-utils";
+import { applyAssetResolution, buildImportAssetCandidateFromDraft } from "./asset-review-utils";
 import type { DraftActivity } from "../context";
 
 const headers = [
@@ -1230,5 +1230,96 @@ describe("createDraftActivities explicit activity mapping", () => {
     expect(draft.assetCandidateKey).toBeUndefined();
     expect(draft.amount).toBe("1000.00");
     expect(draft.status).toBe("valid");
+  });
+});
+
+describe("createDraftActivities ISIN fallback for a name in Symbol", () => {
+  const fundHeaders = ["Date", "Type", "Name", "ISIN", "Quantity", "Price"];
+  const fundMapping = {
+    fieldMappings: {
+      [ImportFormat.DATE]: "Date",
+      [ImportFormat.ACTIVITY_TYPE]: "Type",
+      [ImportFormat.SYMBOL]: "Name",
+      [ImportFormat.ISIN]: "ISIN",
+      [ImportFormat.QUANTITY]: "Quantity",
+      [ImportFormat.UNIT_PRICE]: "Price",
+    },
+    activityMappings: { [ActivityType.BUY]: ["buy"] },
+    symbolMappings: {} as Record<string, string>,
+    accountMappings: {},
+  };
+  const fund = "PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN";
+
+  function draftFor(row: string[], symbolMappings: Record<string, string> = {}) {
+    const [draft] = createDraftActivities(
+      [row],
+      fundHeaders,
+      { ...fundMapping, symbolMappings },
+      { ...parseConfig, defaultCurrency: "INR" },
+      "account-1",
+    );
+    expect(draft).toBeDefined();
+    return draft;
+  }
+
+  it("resolves by the valid ISIN and keeps the name", () => {
+    const draft = draftFor(["2026-10-01", "buy", fund, "INF879O01027", "10", "90"]);
+
+    expect(draft.symbol).toBe("INF879O01027");
+    expect(draft.symbolName).toBe(fund);
+    expect(draft.isin).toBe("INF879O01027");
+    expect(draft.assetCandidateKey).toContain("INF879O01027");
+    expect(draft.assetCandidateKey).not.toContain(fund);
+  });
+
+  it("lets a symbol mapping win over the ISIN", () => {
+    const draft = draftFor(["2026-10-01", "buy", fund, "INF879O01027", "10", "90"], {
+      [fund]: "0P0000XVAA.BO",
+    });
+
+    expect(draft.symbol).toBe("0P0000XVAA.BO");
+    expect(draft.symbolName).toBeUndefined();
+  });
+
+  it.each([ActivityType.DIVIDEND, ActivityType.ADJUSTMENT])(
+    "keeps cash and placeholder symbols out of asset resolution for %s",
+    (activityType) => {
+      for (const symbol of ["$CASH-USD", "----"]) {
+        const [draft] = createDraftActivities(
+          [["2026-10-01", activityType, symbol, "US0378331005", "1", "10"]],
+          fundHeaders,
+          { ...fundMapping, activityMappings: { [activityType]: [activityType] } },
+          parseConfig,
+          "account-1",
+        );
+
+        expect(buildImportAssetCandidateFromDraft(draft)).toBeNull();
+        expect(draft.symbol).toBe(symbol);
+        expect(draft.symbolName).toBeUndefined();
+      }
+    },
+  );
+
+  it("keeps a Symbol's instrument prefix when it resolves by the ISIN", () => {
+    const draft = draftFor([
+      "2026-10-01",
+      "buy",
+      "bond:Example Treasury Note",
+      "US912810TH14",
+      "1",
+      "100",
+    ]);
+
+    expect(draft.symbol).toBe("US912810TH14");
+    expect(draft.instrumentType).toBe("BOND");
+    expect(draft.symbolName).toBe("Example Treasury Note");
+  });
+
+  it("keeps a valid Symbol and a name with an invalid ISIN", () => {
+    expect(draftFor(["2026-10-01", "buy", "AAPL", "US0378331005", "1", "200"]).symbol).toBe("AAPL");
+
+    const invalid = draftFor(["2026-10-01", "buy", fund, "INF879O01028", "10", "90"]);
+    expect(invalid.symbol).toBe(fund);
+    expect(invalid.symbolName).toBeUndefined();
   });
 });

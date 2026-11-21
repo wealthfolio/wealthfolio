@@ -198,6 +198,10 @@ export function useActivityColumns({
     [t],
   );
 
+  const accountTypeById = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account.accountType])),
+    [accounts],
+  );
   const accountOptions = useMemo(
     () =>
       accounts.map((account) => ({
@@ -502,6 +506,7 @@ export function useActivityColumns({
               onDelete={onDelete}
               onLinkTransfer={onLinkTransfer}
               onUnlinkTransfer={onUnlinkTransfer}
+              accountType={accountTypeById.get(row.original.accountId)}
             />
           </div>
         ),
@@ -509,6 +514,7 @@ export function useActivityColumns({
     ],
     [
       accountOptions,
+      accountTypeById,
       activityTypeOptions,
       formatting,
       handleSymbolSearch,

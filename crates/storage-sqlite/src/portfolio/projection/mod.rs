@@ -1018,6 +1018,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn holdings_read_captures_latest_valuation_dates_for_its_scope() {
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        store
+            .write_window(vec![window(2, None, &[2, 4])])
+            .await
+            .unwrap();
+        let mut other = window(3, None, &[3]);
+        other.account_id = "other".into();
+        other.snapshots = None;
+        for row in &mut other.valuations {
+            row.account_id = "other".into();
+            row.id = "other-valuation".into();
+        }
+        store.write_window(vec![other]).await.unwrap();
+
+        let read = store
+            .holdings_read(&["acc1".into(), "empty".into()], date(3), None)
+            .unwrap();
+        assert_eq!(read.last_valued, HashMap::from([("acc1".into(), date(4))]));
+        assert_eq!(
+            store
+                .holdings_read(&["other".into()], date(3), None)
+                .unwrap()
+                .last_valued,
+            HashMap::from([("other".into(), date(3))])
+        );
+        assert!(store
+            .holdings_read(&[], date(3), None)
+            .unwrap()
+            .last_valued
+            .is_empty());
+    }
+
+    #[tokio::test]
     async fn a_window_writes_the_positions_of_every_snapshot_it_keeps() {
         #[derive(QueryableByName)]
         struct PositionRow {

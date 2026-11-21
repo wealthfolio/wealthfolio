@@ -96,7 +96,9 @@ export function SearchableSelect({
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.value}
+                  // cmdk can't match or highlight an empty value, so an empty
+                  // option ("No exchange") is searched by its label.
+                  value={option.value || option.label}
                   keywords={[option.label]}
                   onSelect={() => {
                     onValueChange(option.value);

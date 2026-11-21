@@ -7,11 +7,11 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
-import { createActivity, updateActivity } from "@/adapters";
+import { createActivity, findTransferMatchCandidates, updateActivity } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport, usePlatform } from "@/hooks/use-platform";
 import { accountPickerItems } from "@/components/account-picker-items";
@@ -28,9 +28,12 @@ import type {
   ActivityUpdate,
   TaxonomyCategory,
 } from "@/lib/types";
+import { getEffectiveType } from "@/lib/types";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 
 import {
+  Alert,
+  AlertDescription,
   Button,
   DatePickerInput,
   Form,
@@ -61,6 +64,8 @@ import {
   SheetTitle,
   Textarea,
   Spinner,
+  useAmountFormatting,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 
 import {
@@ -73,13 +78,12 @@ import {
   getCashActivityLabel,
   isCreditCardAccountType,
   isCashActivityIncome,
+  isCashActivityOutflow,
   isSpendingAccountType,
 } from "../lib/constants";
 import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSettings } from "@/hooks/use-settings";
 import { AdvancedOptionsSection } from "@/pages/activity/components/forms/fields/advanced-options-section";
-import { canConvertToTransfer } from "@/pages/activity/components/transfer-link-utils";
-import { CashActivityReclassification } from "@/pages/activity/components/cash-activity-reclassification";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
@@ -87,6 +91,8 @@ import { QuickEventPopover } from "./quick-event-popover";
 import type { ActivitySplit, CashFlowBucket } from "../types/cash-activity";
 import {
   cashActivityFlowMetadata,
+  describeTypeChange,
+  linkableTransferType,
   resolveCashActivitySubtype,
 } from "../lib/cash-activity-form-utils";
 
@@ -195,8 +201,12 @@ interface CashActivityFormProps {
   };
   /** Called when user selects Transfer in creation mode; receives the selected spending account id */
   onTransferClick?: (accountId: string) => void;
-  /** Called to pair the saved deposit or withdrawal with another account as a transfer. */
-  onConvertToTransfer?: () => void;
+  /**
+   * Called to link the saved row with the other account's side, a transfer's
+   * other leg. `counterpartId` is the suggested match to select. When the
+   * form saved the row first, `saved` is the row as it is now.
+   */
+  onLinkTransfer?: (counterpartId?: string, saved?: Activity) => void;
   /** A known creation action opens directly on its details. */
   intent?: "expense" | "income";
 }
@@ -206,7 +216,7 @@ export function CashActivityForm({
   onOpenChange,
   activity,
   onTransferClick,
-  onConvertToTransfer,
+  onLinkTransfer,
   intent,
 }: CashActivityFormProps) {
   const { t } = useTranslation();
@@ -214,6 +224,11 @@ export function CashActivityForm({
   const reviewEdits = useActivitySplitReview();
   const formSchema = useMemo(() => buildFormSchema(t), [t]);
   const isEditing = !!activity?.id;
+  // The type the row shows: a synced row keeps its source type and stores the
+  // user's choice as an override, which is the one to edit and compare with.
+  const savedType = activity
+    ? (getEffectiveType(activity) as FormValues["activityType"])
+    : undefined;
   const isQuickEntry = !isEditing && !!intent;
   const initialType = intent === "income" ? "DEPOSIT" : "WITHDRAWAL";
   const isMobile = useIsMobileViewport();
@@ -293,7 +308,7 @@ export function CashActivityForm({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
     defaultValues: {
       accountId: activity?.accountId ?? "",
-      activityType: (activity?.activityType as FormValues["activityType"]) ?? initialType,
+      activityType: savedType ?? initialType,
       activityDate: activity?.activityDate ? new Date(activity.activityDate) : new Date(),
       amount: activity?.amount != null ? Math.abs(parseFloat(activity.amount)) : 0,
       currency: activity?.currency ?? "",
@@ -312,7 +327,7 @@ export function CashActivityForm({
         accountId:
           activity?.accountId ??
           (isQuickEntry && spendingAccounts.length !== 1 ? "" : (spendingAccounts[0]?.id ?? "")),
-        activityType: (activity?.activityType as FormValues["activityType"]) ?? initialType,
+        activityType: savedType ?? initialType,
         activityDate: activity?.activityDate ? new Date(activity.activityDate) : new Date(),
         amount: activity?.amount != null ? Math.abs(parseFloat(activity.amount)) : 0,
         // Seeded from the activity, not the account: recomputing it on save is
@@ -333,7 +348,7 @@ export function CashActivityForm({
       setAmountTyped(false);
       setAmountTapped(false);
     }
-  }, [open, activity, spendingAccounts, form, initialType, isQuickEntry]);
+  }, [open, activity, savedType, spendingAccounts, form, initialType, isQuickEntry]);
 
   const watchType = form.watch("activityType");
   const watchAccountId = form.watch("accountId");
@@ -344,15 +359,12 @@ export function CashActivityForm({
     : t("spending:cashForm.transferBetween");
   const activityTypeOptions = useMemo<FormValues["activityType"][]>(() => {
     const options = getActivityTypesForAccount(selectedAccount?.accountType);
-    const currentType = activity?.activityType as FormValues["activityType"] | undefined;
+    const currentType = savedType;
     const all = currentType && !options.includes(currentType) ? [...options, currentType] : options;
-    // Transfer reclassification uses the separate action so the ordinary save
-    // cannot bypass confirmation or resubmit rounded amounts and timestamps.
-    if (isEditing && (currentType === "TRANSFER_IN" || currentType === "TRANSFER_OUT")) {
-      return [currentType];
-    }
-    return all.filter((t) => t !== "TRANSFER_IN" && t !== "TRANSFER_OUT");
-  }, [activity?.activityType, isEditing, selectedAccount?.accountType]);
+    // A saved row can become a transfer, or stop being one. A new transfer has
+    // two sides, so it is entered with the transfer action instead.
+    return isEditing ? all : all.filter((t) => t !== "TRANSFER_IN" && t !== "TRANSFER_OUT");
+  }, [savedType, isEditing, selectedAccount?.accountType]);
   const mobileTypeOptions = useMemo(
     () =>
       activityTypeOptions.map((type) => ({
@@ -364,20 +376,14 @@ export function CashActivityForm({
           resolveCashActivitySubtype({
             activityType: type,
             accountType: selectedAccount?.accountType,
-            existingActivityType: activity?.activityType,
+            existingActivityType: savedType,
             existingSubtype: activity?.subtype,
           }),
         ),
         description: getMobileTypeDescription(type, t),
         Icon: getMobileTypeIcon(type),
       })),
-    [
-      activityTypeOptions,
-      selectedAccount?.accountType,
-      activity?.activityType,
-      activity?.subtype,
-      t,
-    ],
+    [activityTypeOptions, selectedAccount?.accountType, savedType, activity?.subtype, t],
   );
   const isIncomeType = isCashActivityIncome(
     watchType,
@@ -434,7 +440,7 @@ export function CashActivityForm({
       const subtype = resolveCashActivitySubtype({
         activityType: values.activityType,
         accountType: account?.accountType,
-        existingActivityType: activity?.activityType,
+        existingActivityType: savedType,
         existingSubtype: activity?.subtype,
       });
 
@@ -450,7 +456,12 @@ export function CashActivityForm({
           currency,
           fxRate,
           comment: values.notes ?? null,
-          metadata: cashActivityFlowMetadata(values.activityType, subtype, activity?.metadata),
+          metadata: cashActivityFlowMetadata(
+            values.activityType,
+            subtype,
+            activity?.metadata,
+            savedType,
+          ),
         };
         const [reviewed] = await reviewEdits([update]);
         saved = await updateActivity(reviewed);
@@ -712,33 +723,166 @@ export function CashActivityForm({
       </FormItem>
     ) : null;
 
-  // Editing a saved deposit or withdrawal: pair it with another account as a transfer.
-  const convertToTransferField =
-    isEditing && onConvertToTransfer && canConvertToTransfer(activity) ? (
-      <FormItem>
-        <FormLabel>{t("spending:cashForm.transfer")}</FormLabel>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => {
-            onOpenChange(false);
-            onConvertToTransfer();
-          }}
-        >
-          <Icons.ArrowLeftRight className="h-4 w-4" />
-          {t("spending:transactions.convertToTransfer")}
-        </Button>
-      </FormItem>
-    ) : null;
+  // Changing a saved row's type says how reports will count it, before saving.
+  const typeChange =
+    isEditing && activity
+      ? describeTypeChange(
+          { activityType: savedType ?? activity.activityType, subtype: activity.subtype },
+          {
+            activityType: watchType,
+            subtype: resolveCashActivitySubtype({
+              activityType: watchType,
+              accountType: selectedAccount?.accountType,
+              existingActivityType: savedType,
+              existingSubtype: activity.subtype,
+            }),
+          },
+          selectedAccount?.accountType,
+        )
+      : null;
+  // A card's payment and advance notes already say which way the balance goes.
+  const balanceNote = !isCreditCardAccount
+    ? t("spending:cashForm.typeChange.reversesBalance")
+    : typeChange?.effect === "cardPayment" || typeChange?.effect === "cardAdvance"
+      ? null
+      : isCashActivityOutflow(watchType, selectedAccount?.accountType)
+        ? t("spending:cashForm.typeChange.owesMore")
+        : t("spending:cashForm.typeChange.owesLess");
+  const typeChangeNotice = typeChange ? (
+    <Alert>
+      <Icons.Info className="h-4 w-4" aria-hidden="true" />
+      <AlertDescription>
+        {[
+          typeChange.effect && t(`spending:cashForm.typeChange.${typeChange.effect}`),
+          typeChange.reversesBalance && balanceNote,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      </AlertDescription>
+    </Alert>
+  ) : null;
 
-  const reclassificationField = (
-    <CashActivityReclassification
-      activity={activity}
-      onSuccess={() => onOpenChange(false)}
-      disabled={saveMutation.isPending}
-    />
-  );
+  // A transfer's other side: the account the money came from or went to. A
+  // saved row links as the transfer it would become. When the chosen transfer
+  // is a different one, such as a card advance made a payment, the row saves
+  // the change first and then links. The account must be unchanged.
+  const isTransferChoice = watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT";
+  // A card's transfer has no category, nor has a neutral row until its type
+  // changes. A bank's one-sided transfer still counts under its category.
+  const showNeutralCategory =
+    (isTransferChoice && isCreditCardAccount) || (isNeutralBucket && watchType === savedType);
+  const canLink =
+    isEditing &&
+    !!activity?.id &&
+    !!onLinkTransfer &&
+    isTransferChoice &&
+    watchAccountId === activity.accountId &&
+    !!savedType;
+  const linkSavesFirst =
+    canLink && linkableTransferType(savedType, selectedAccount?.accountType) !== watchType;
+  const { data: savedSuggestion } = useQuery({
+    queryKey: ["transfer-match-suggestion", activity?.id, savedType],
+    queryFn: async () => {
+      const [first] = await findTransferMatchCandidates({
+        activityId: activity!.id,
+        windowDays: 7,
+        limit: 1,
+        includeCashFlows: true,
+      });
+      return first ?? null;
+    },
+    enabled: open && canLink && !linkSavesFirst,
+    staleTime: 30_000,
+  });
+  const formatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+  // The query keeps its last answer once disabled: a match found for the
+  // saved row's own transfer doesn't fit a different one chosen since.
+  const suggestedMatch = linkSavesFirst ? null : savedSuggestion;
+  const suggestedAccount = suggestedMatch
+    ? accounts?.find((account) => account.id === suggestedMatch.activity.accountId)
+    : undefined;
+  const linkRowLabel =
+    watchType === "TRANSFER_OUT"
+      ? t("spending:cashForm.linkRow.sentTo")
+      : isCreditCardAccount
+        ? t("spending:cashForm.linkRow.paidFrom")
+        : t("spending:cashForm.linkRow.receivedFrom");
+  // Leaving for the link sheet drops what was typed here, so it asks first.
+  const [pendingLink, setPendingLink] = useState<{ counterpartId?: string } | null>(null);
+  const startLink = (counterpartId?: string) => {
+    if (linkSavesFirst) {
+      void form.handleSubmit(async (values) => {
+        const saved = await saveMutation.mutateAsync(values).catch(() => null);
+        if (saved) onLinkTransfer?.(undefined, saved);
+      })();
+      return;
+    }
+    const hasOtherInput =
+      Object.keys(dirtyFields).some((field) => field !== "activityType") ||
+      eventId !== (activity?.eventId ?? null);
+    if (hasOtherInput) {
+      setPendingLink({ counterpartId });
+      return;
+    }
+    onOpenChange(false);
+    onLinkTransfer?.(counterpartId);
+  };
+  const linkField = canLink ? (
+    <FormItem className={cn(isMobile && "gap-0")}>
+      <FormLabel className={cn(isMobile && "sr-only")}>{linkRowLabel}</FormLabel>
+      <Button
+        type="button"
+        variant="field"
+        className={isMobile ? formRowClassName : pickerTriggerClassName}
+        onClick={() => startLink()}
+        disabled={saveMutation.isPending}
+      >
+        {isMobile && <FormRowLabel>{linkRowLabel}</FormRowLabel>}
+        <span className={cn("text-muted-foreground truncate", isMobile && "ms-auto")}>
+          {t("spending:cashForm.linkRow.untracked")}
+        </span>
+        {pickerChevron}
+      </Button>
+      {suggestedMatch && suggestedAccount ? (
+        <div
+          className={cn(
+            "text-muted-foreground flex items-center justify-between gap-2 text-sm",
+            isMobile && "px-4 py-2",
+          )}
+        >
+          <span className="min-w-0 truncate">
+            {t("spending:cashForm.linkRow.suggested", {
+              account: suggestedAccount.name,
+              date: dateFormatting.formatDate(suggestedMatch.activity.activityDate),
+              amount: formatting.formatAmount(
+                Math.abs(Number(suggestedMatch.activity.amount ?? 0)),
+                suggestedMatch.activity.currency,
+              ),
+            })}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => startLink(suggestedMatch.activity.id)}
+            disabled={saveMutation.isPending}
+          >
+            <Icons.Link className="me-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            {t("spending:cashForm.linkRow.link")}
+          </Button>
+        </div>
+      ) : null}
+      {!isMobile && (
+        <p className="text-muted-foreground text-xs">
+          {linkSavesFirst
+            ? t("spending:cashForm.linkRow.savesFirst")
+            : t("spending:cashForm.linkRow.hint")}
+        </p>
+      )}
+    </FormItem>
+  ) : null;
 
   const transferCard = onTransferClick ? (
     <button
@@ -819,7 +963,7 @@ export function CashActivityForm({
           <FormItem className={cn(isMobile && "gap-0")}>
             {" "}
             <FormLabel className={cn(isMobile && "sr-only")}>
-              {isNeutralBucket ? t("spending:filters.category") : categoryLabel}
+              {showNeutralCategory ? t("spending:filters.category") : categoryLabel}
             </FormLabel>
             {(activity?.splits?.length ?? 0) > 0 ? (
               <p
@@ -830,7 +974,7 @@ export function CashActivityForm({
               >
                 {t("spending:split.categoryProtected")}
               </p>
-            ) : isNeutralBucket ? (
+            ) : showNeutralCategory ? (
               <div
                 className={cn(
                   "border-input bg-muted/40 text-muted-foreground h-input-height flex items-center rounded-md border px-3 py-2 text-sm",
@@ -1056,7 +1200,6 @@ export function CashActivityForm({
 
   const desktopFields = (
     <div className="space-y-4">
-      {reclassificationField}
       {isQuickEntry && amountField}
       {showChoiceFields && (
         <>
@@ -1068,9 +1211,10 @@ export function CashActivityForm({
               ) : (
                 <>
                   {typeSelectField}
+                  {typeChangeNotice}
+                  {linkField}
                   {/* Transfer button — creation only, redirects to the full transfer form */}
                   {transferButtonField}
-                  {convertToTransferField}
                 </>
               )}
               {isMobileCreate && transferCard}
@@ -1109,7 +1253,6 @@ export function CashActivityForm({
   // sheet; currency and FX sit behind one row instead of a collapsible box.
   const mobileFields = (
     <div className="space-y-4 p-4">
-      {reclassificationField}
       {(isQuickEntry || showDetailsFields) && amountHero}
       {showChoiceFields && isMobileCreate && !isQuickEntry ? (
         <>
@@ -1126,8 +1269,11 @@ export function CashActivityForm({
           {showDetailsFields && eventField}
         </FormRowGroup>
       )}
+      {showChoiceFields && !isQuickEntry && !isMobileCreate && typeChangeNotice}
+      {showChoiceFields && !isQuickEntry && !isMobileCreate && linkField && (
+        <FormRowGroup>{linkField}</FormRowGroup>
+      )}
       {showChoiceFields && !isQuickEntry && !isMobileCreate && transferButtonField}
-      {showChoiceFields && !isQuickEntry && !isMobileCreate && convertToTransferField}
       {showDetailsFields && (
         <>
           <FormRowGroup>{notesField}</FormRowGroup>
@@ -1326,6 +1472,16 @@ export function CashActivityForm({
         open={confirmDiscard}
         onOpenChange={setConfirmDiscard}
         onDiscard={() => onOpenChange(false)}
+      />
+      <DiscardChangesDialog
+        open={!!pendingLink}
+        onOpenChange={(next) => !next && setPendingLink(null)}
+        onDiscard={() => {
+          const counterpartId = pendingLink?.counterpartId;
+          setPendingLink(null);
+          onOpenChange(false);
+          onLinkTransfer?.(counterpartId);
+        }}
       />
     </>
   );

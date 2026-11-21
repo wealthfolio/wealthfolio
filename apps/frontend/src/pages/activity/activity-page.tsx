@@ -404,6 +404,12 @@ const ActivityPage = ({ initialAction }: ActivityPageProps) => {
     return accounts.filter((a) => !excluded.has(a.id));
   }, [accounts, spendingAccountIds, isSpendingEnabled]);
 
+  // Each account's type, so a row menu can offer a card's own actions.
+  const accountTypeById = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account.accountType])),
+    [accounts],
+  );
+
   const investmentAccountIds = useMemo(
     () => investmentAccounts.map((a) => a.id),
     [investmentAccounts],
@@ -826,6 +832,7 @@ const ActivityPage = ({ initialAction }: ActivityPageProps) => {
           onDuplicate={handleDuplicate}
           onLinkTransfer={handleLinkTransfer}
           onUnlinkTransfer={handleUnlinkTransfer}
+          accountTypeById={accountTypeById}
           filtersActive={investmentsFiltersActive}
           onAdd={() => handleEdit(undefined)}
           showConnectAccountLink={showConnectAccountLink}
@@ -864,6 +871,7 @@ const ActivityPage = ({ initialAction }: ActivityPageProps) => {
           handleDelete={handleDelete}
           onLinkTransfer={handleLinkTransfer}
           onUnlinkTransfer={handleUnlinkTransfer}
+          accountTypeById={accountTypeById}
           filtersActive={investmentsFiltersActive}
           onAdd={() => handleEdit(undefined)}
           showConnectAccountLink={showConnectAccountLink}

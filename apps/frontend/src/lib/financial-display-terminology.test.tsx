@@ -71,6 +71,7 @@ it.each([
           type="tool-call"
           addResult={vi.fn()}
           resume={vi.fn()}
+          respondToApproval={vi.fn()}
         />
       </I18nextProvider>,
     );

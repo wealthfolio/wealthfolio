@@ -72,10 +72,10 @@
     "clearCategory": "Effacer la catégorie"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Transfert de solde / Avance de fonds",
-    "charge": "Dépense",
-    "interestCharge": "Intérêts débiteurs",
-    "refundCredit": "Remboursement / Crédit",
+    "balanceTransferCashAdvance": "Avance de fonds / Transfert de solde",
+    "charge": "Achat",
+    "interestCharge": "Intérêts",
+    "refundCredit": "Remboursement",
     "reimbursementRefund": "Remboursement"
   },
   "rules": {
@@ -941,7 +941,30 @@
     "notesPayee": "Notes / Bénéficiaire",
     "notesPlaceholder": "ex. : AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Mettre à jour la transaction",
-    "createTransaction": "Créer la transaction"
+    "createTransaction": "Créer la transaction",
+    "typeChange": {
+      "transferOut": "Compté comme un virement sortant. Tant qu'il n'est pas lié à l'autre compte, les rapports le comptent comme une dépense.",
+      "transferIn": "Compté comme un virement entrant. Tant qu'il n'est pas lié à l'autre compte, les rapports le comptent comme un revenu.",
+      "cardPayment": "Compté comme un paiement : il réduit ce que vous devez et n'est pas une dépense.",
+      "cardAdvance": "Compté comme une avance de fonds ou un transfert de solde : il augmente ce que vous devez et n'est pas une dépense.",
+      "spending": "Compté comme une dépense dans vos rapports.",
+      "refund": "Compté comme un remboursement, qui réduit vos dépenses.",
+      "income": "Compté comme un revenu dans vos rapports.",
+      "none": "N'est plus compté comme dépense ni comme revenu.",
+      "reversesBalance": "Le solde varie aussi dans l'autre sens.",
+      "owesMore": "Il augmente désormais ce que vous devez.",
+      "owesLess": "Il réduit désormais ce que vous devez."
+    },
+    "linkRow": {
+      "paidFrom": "Payé depuis",
+      "receivedFrom": "Reçu de",
+      "sentTo": "Envoyé à",
+      "untracked": "Un compte non suivi",
+      "suggested": "Suggestion : {{account}} · {{date}} · {{amount}}",
+      "link": "Lier",
+      "hint": "Choisissez l'autre compte pour lier les deux côtés, ou laissez-le tel quel.",
+      "savesFirst": "Choisir un compte enregistre d'abord cette modification, puis lie les deux côtés."
+    }
   },
   "txTab": {
     "duplicatedComment": "Dupliqué",

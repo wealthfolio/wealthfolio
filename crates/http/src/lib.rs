@@ -6,6 +6,8 @@
 
 use std::sync::LazyLock;
 
+pub mod timeouts;
+
 static ROOTS: LazyLock<Vec<reqwest::Certificate>> = LazyLock::new(|| {
     webpki_root_certs::TLS_SERVER_ROOT_CERTS
         .iter()

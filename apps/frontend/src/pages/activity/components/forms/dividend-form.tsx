@@ -16,6 +16,7 @@ import {
   AccountSelect,
   AdvancedOptionsSection,
   AmountInput,
+  ChargeLinesField,
   createValidatedSubmit,
   DatePicker,
   FormSection,
@@ -26,7 +27,11 @@ import {
 } from "./fields";
 import { calculateIncomeFinalAmount } from "@/lib/activity-final-amount";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
-import { assetMetadataSchema } from "./schemas";
+import {
+  assetMetadataSchema,
+  createChargeLineFields,
+  createChargeLinesRefinement,
+} from "./schemas";
 import { useIncomeAmounts } from "./use-income-amounts";
 import { Spinner } from "@wealthfolio/ui";
 
@@ -121,7 +126,10 @@ export const createDividendFormSchema = (t?: TFunction) =>
       symbolQuoteCcy: z.string().nullable().optional(),
       symbolInstrumentType: z.string().nullable().optional(),
       assetMetadata: assetMetadataSchema,
+      // Fee and tax lines (metadata.charges)
+      ...createChargeLineFields(t),
     })
+    .superRefine(createChargeLinesRefinement(t))
     .superRefine((data, ctx) => {
       if (data.grossAmount !== undefined && (data.tax ?? 0) > data.grossAmount) {
         ctx.addIssue({
@@ -438,11 +446,14 @@ export function DividendForm({
                 maxDecimalPlaces={moneyDecimals}
               />
             )}
-            <AmountInput
-              name="tax"
+            <ChargeLinesField
+              totalName="tax"
+              linesName="taxLines"
+              category="tax"
               label={t("activity:form.label_withholding_tax")}
               currency={currency}
               onValueChange={incomeAmounts.onChargeChange}
+              onTotalChange={incomeAmounts.onChargeChange}
               maxDecimalPlaces={moneyDecimals}
             />
             {!isAssetBacked && (

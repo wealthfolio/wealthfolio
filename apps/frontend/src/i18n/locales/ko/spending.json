@@ -71,10 +71,10 @@
     "clearCategory": "카테고리 지우기"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "잔액 이체 / 현금 서비스",
-    "charge": "카드 사용",
-    "interestCharge": "이자 비용",
-    "refundCredit": "환급 / 크레딧",
+    "balanceTransferCashAdvance": "현금서비스 / 잔액 이체",
+    "charge": "구매",
+    "interestCharge": "이자",
+    "refundCredit": "환불",
     "reimbursementRefund": "환급 / 환불"
   },
   "rules": {
@@ -879,7 +879,7 @@
     "addDescription": "추적 중인 지출 계좌에 새 거래를 추가합니다.",
     "selectAccount": "계좌 선택",
     "selectType": "거래 유형 선택",
-    "payment": "결제",
+    "payment": "대금 납부",
     "transfer": "이체",
     "payCardDesc": "다른 계좌에서 이 카드로 결제",
     "neutralTransfer": "중립 이체",
@@ -890,7 +890,30 @@
     "notesPayee": "메모 / 수취인",
     "notesPlaceholder": "예: AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "거래 업데이트",
-    "createTransaction": "거래 생성"
+    "createTransaction": "거래 생성",
+    "typeChange": {
+      "transferOut": "이체 출금으로 집계됩니다. 상대 계좌와 연결하기 전까지는 보고서에서 지출로 집계됩니다.",
+      "transferIn": "이체 입금으로 집계됩니다. 상대 계좌와 연결하기 전까지는 보고서에서 수입으로 집계됩니다.",
+      "cardPayment": "대금 납부로 집계됩니다. 갚을 금액이 줄며 지출에 포함되지 않습니다.",
+      "cardAdvance": "현금서비스 또는 잔액 이체로 집계됩니다. 갚을 금액이 늘지만 지출에 포함되지 않습니다.",
+      "spending": "보고서에서 지출로 집계됩니다.",
+      "refund": "환불로 집계되어 지출이 줄어듭니다.",
+      "income": "보고서에서 수입으로 집계됩니다.",
+      "none": "더 이상 지출이나 수입으로 집계되지 않습니다.",
+      "reversesBalance": "잔액도 반대 방향으로 움직입니다.",
+      "owesMore": "이제 갚을 금액이 늘어납니다.",
+      "owesLess": "이제 갚을 금액이 줄어듭니다."
+    },
+    "linkRow": {
+      "paidFrom": "출금 계좌",
+      "receivedFrom": "보낸 계좌",
+      "sentTo": "받는 계좌",
+      "untracked": "관리하지 않는 계좌",
+      "suggested": "추천: {{account}} · {{date}} · {{amount}}",
+      "link": "연결",
+      "hint": "상대 계좌를 골라 양쪽을 연결하거나 그대로 두세요.",
+      "savesFirst": "계좌를 고르면 이 변경을 먼저 저장한 뒤 양쪽을 연결합니다."
+    }
   },
   "txTab": {
     "duplicatedComment": "복제됨",

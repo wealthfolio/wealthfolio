@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{extract::Query, Json};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use wealthfolio_core::errors::{Error as CoreError, ValidationError};
 use wealthfolio_core::portfolios::{AccountScope, ResolvedAccountScope};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use wealthfolio_core::{
@@ -16,8 +17,8 @@ use wealthfolio_core::{
             reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
             validate_holdings_import_snapshot, CashBalanceInput,
             HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
-            ManualHoldingInput, ManualHoldingsEntry, ManualSnapshotRequest, ManualSnapshotService,
-            SnapshotSource,
+            ManualHoldingInput, ManualHoldingsEntry, ManualHoldingsSaveError,
+            ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
         },
         valuation::{
             CurrentAccountValuationService, CurrentValuationResponse, DailyAccountValuation,
@@ -26,18 +27,23 @@ use wealthfolio_core::{
     quotes::MarketSyncMode,
 };
 
-use crate::{api::shared::holdings_account_ids, error::ApiResult, main_lib::AppState};
+use crate::{
+    api::shared::holdings_account_ids,
+    error::{ApiError, ApiResult},
+    main_lib::AppState,
+};
 
 use super::dto::{
-    AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsQuery,
-    AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult, CurrentValuationBody,
-    DeleteSnapshotQuery, FilterBody, HistoryFilterBody, HistoryQuery, HoldingItemQuery,
-    HoldingsSnapshotInput, ImportHoldingsCsvRequest, ImportHoldingsCsvResult,
+    AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsFilterBody,
+    AssetHoldingsQuery, AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult,
+    CurrentValuationBody, DeleteSnapshotQuery, FilterBody, HistoryFilterBody, HistoryQuery,
+    HoldingItemQuery, HoldingsSnapshotInput, ImportHoldingsCsvRequest, ImportHoldingsCsvResult,
     SaveManualHoldingsRequest, SnapshotDateQuery, SnapshotInfo, SnapshotsQuery, SymbolCheckResult,
 };
 use super::mappers::{parse_date, parse_date_optional};
 
-fn resolve_scope(
+/// Resolves a scope to the accounts whose holdings it reports.
+fn resolve_holdings_scope(
     filter: &AccountScope,
     state: &AppState,
 ) -> Result<ResolvedAccountScope, crate::error::ApiError> {
@@ -48,7 +54,7 @@ fn resolve_scope(
         .clone();
     state
         .portfolio_service
-        .resolve_account_scope(filter, &base)
+        .resolve_account_scope_for_purpose(filter, &base, AccountPurpose::Holdings)
         .map_err(crate::error::ApiError::from)
 }
 
@@ -135,14 +141,14 @@ async fn load_holdings_scope_for_filter(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(filter, state)?;
-    let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(filter, state)?;
+    let account_ids = &resolved.account_ids;
     if account_ids.is_empty() {
         return Ok(HoldingsScope::default());
     }
     Ok(state
         .holdings_service
-        .get_holdings_scope(&account_ids, &base, &resolved.scope_id, include_closed)
+        .get_holdings_scope(account_ids, &base, &resolved.scope_id, include_closed)
         .await?)
 }
 
@@ -258,30 +264,51 @@ pub async fn get_asset_holdings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AssetHoldingsQuery>,
 ) -> ApiResult<Json<HoldingsListResponse>> {
+    load_asset_holdings_scope(state.as_ref(), &q.asset_id, None)
+        .await
+        .map(Json)
+}
+
+pub async fn get_asset_holdings_for_scope(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(body): Json<AssetHoldingsFilterBody>,
+) -> ApiResult<Json<HoldingsListResponse>> {
+    load_asset_holdings_scope(state.as_ref(), &body.asset_id, Some(&body.filter))
+        .await
+        .map(Json)
+}
+
+async fn load_asset_holdings_scope(
+    state: &AppState,
+    asset_id: &str,
+    filter: Option<&AccountScope>,
+) -> ApiResult<HoldingsListResponse> {
     let base = state
         .base_currency
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let accounts = state.account_service.get_active_accounts()?;
-
-    let ids = accounts
-        .into_iter()
-        .filter(|account| {
-            wealthfolio_core::accounts::account_supports_portfolio_scope(
-                account,
-                AccountPurpose::Holdings,
-            )
-        })
-        .map(|account| account.id)
-        .collect::<Vec<_>>();
-    Ok(Json(
+    let ids = if let Some(filter) = filter {
+        resolve_holdings_scope(filter, state)?.account_ids
+    } else {
         state
-            .holdings_service
-            .get_asset_holdings_scope(&ids, &q.asset_id, &base)
-            .await?
-            .into(),
-    ))
+            .account_service
+            .get_active_accounts()?
+            .into_iter()
+            .filter(|account| {
+                wealthfolio_core::accounts::account_supports_portfolio_scope(
+                    account,
+                    AccountPurpose::Holdings,
+                )
+            })
+            .map(|account| account.id)
+            .collect::<Vec<_>>()
+    };
+    Ok(state
+        .holdings_service
+        .get_asset_holdings_scope(&ids, asset_id, &base)
+        .await?
+        .into())
 }
 
 pub async fn get_asset_lots(
@@ -341,8 +368,8 @@ pub async fn get_historical_valuations_for_scope(
                 .map_err(|e| anyhow::anyhow!("Invalid endDate: {}", e))
         })
         .transpose()?;
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let vals = if account_ids.is_empty() {
         Vec::new()
     } else if account_ids.len() == 1 {
@@ -354,7 +381,7 @@ pub async fn get_historical_valuations_for_scope(
             .valuation_service
             .get_historical_valuation_totals_for_accounts(
                 &resolved.scope_id,
-                &account_ids,
+                account_ids,
                 &resolved.base_currency,
                 start,
                 end,
@@ -442,8 +469,8 @@ pub async fn get_portfolio_allocations(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let allocations = if account_ids.len() == 1 {
         state
             .allocation_service
@@ -452,7 +479,7 @@ pub async fn get_portfolio_allocations(
     } else {
         state
             .allocation_service
-            .get_portfolio_allocations_for_accounts(&account_ids, &base, &resolved.scope_id)
+            .get_portfolio_allocations_for_accounts(account_ids, &base, &resolved.scope_id)
             .await?
     };
     Ok(Json(allocations))
@@ -467,8 +494,8 @@ pub async fn get_holdings_by_allocation(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let result = if account_ids.len() == 1 {
         state
             .allocation_service
@@ -483,7 +510,7 @@ pub async fn get_holdings_by_allocation(
         state
             .allocation_service
             .get_holdings_by_allocation_for_accounts(
-                &account_ids,
+                account_ids,
                 &base,
                 &body.taxonomy_id,
                 &body.category_id,
@@ -649,6 +676,18 @@ pub async fn delete_snapshot_handler(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
+/// A refusal the user can act on keeps its code and message. Other failures
+/// stay as text, as before the save moved into core: the response and its
+/// error code stay those of an untyped failure.
+fn manual_holdings_error(error: ManualHoldingsSaveError) -> ApiError {
+    match error {
+        ManualHoldingsSaveError::Save(
+            refusal @ CoreError::Validation(ValidationError::AlternativeAssetNotInAccount),
+        ) => refusal.into(),
+        other => anyhow::anyhow!(other.to_string()).into(),
+    }
+}
+
 pub async fn save_manual_holdings_handler(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(req): Json<SaveManualHoldingsRequest>,
@@ -691,9 +730,7 @@ pub async fn save_manual_holdings_handler(
         },
     )
     .await
-    // As text, as before the save moved into core: the response and its
-    // error code stay those of an untyped failure.
-    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    .map_err(manual_holdings_error)?;
 
     // SnapshotService emits the dated HoldingsChanged event after persistence.
 
@@ -961,4 +998,36 @@ async fn import_single_snapshot_impl(
         .map_err(|e| anyhow::anyhow!("Failed to save snapshot: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::response::IntoResponse;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn a_refused_holdings_save_keeps_its_code_and_message() {
+        let response = manual_holdings_error(ManualHoldingsSaveError::Save(CoreError::Validation(
+            ValidationError::AlternativeAssetNotInAccount,
+        )))
+        .into_response();
+
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body reads");
+        let body: serde_json::Value = serde_json::from_slice(&body).expect("JSON body");
+        assert_eq!(body["errorCode"], "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT");
+        assert_eq!(
+            body["message"],
+            wealthfolio_core::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT
+        );
+    }
+
+    #[test]
+    fn other_holdings_save_failures_stay_untyped() {
+        let error = manual_holdings_error(ManualHoldingsSaveError::Invalid("bad row".to_string()));
+        assert!(matches!(error, ApiError::Anyhow(_)));
+    }
 }

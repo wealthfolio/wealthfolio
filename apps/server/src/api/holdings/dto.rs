@@ -53,6 +53,13 @@ pub struct AssetHoldingsQuery {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetHoldingsFilterBody {
+    pub asset_id: String,
+    pub filter: AccountScope,
+}
+
+#[derive(Deserialize)]
 pub struct AssetLotsQuery {
     #[serde(rename = "assetId")]
     pub asset_id: String,

@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
+import enActivity from "@/i18n/locales/en/activity.json";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -47,6 +49,7 @@ vi.mock("@/features/spending/adapters/cash-activities", () => ({
 vi.mock("../hooks/use-activity-mutations", () => ({
   useActivityMutations: () => ({
     linkTransferActivitiesMutation: { isPending: false },
+    convertToTransferMutation: { isPending: false },
     unlinkTransferActivitiesMutation: { isPending: false },
     updateActivityMutation: { isPending: false, mutateAsync: updateActivity },
   }),
@@ -493,6 +496,34 @@ describe("Match transfers review", () => {
       expect(convertToInternalTransfer).toHaveBeenCalledWith({
         activityId: "out-1",
         counterpartActivityId: "dep-1",
+        splitReview: [],
+      }),
+    );
+    expect(linkTransferPairs).not.toHaveBeenCalled();
+  });
+
+  it("links a card credit matching a bank withdrawal as the card's payment (#2740)", async () => {
+    const user = userEvent.setup();
+    renderPage({
+      certain: [],
+      needsReview: [
+        row(leg("credit-1", "tfsa", "CREDIT"), [candidate(leg("out-1", "bank", "WITHDRAWAL"))]),
+      ],
+    });
+
+    expect(
+      await screen.findByText(enActivity.transfer_review.card_credit_hint),
+    ).toBeInTheDocument();
+    // A card's credit is not a transfer to mark external.
+    await user.click(screen.getByRole("button", { name: /more/i }));
+    expect(screen.queryByRole("menuitem", { name: /external/i })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    await waitFor(() =>
+      expect(convertToInternalTransfer).toHaveBeenCalledWith({
+        activityId: "credit-1",
+        counterpartActivityId: "out-1",
         splitReview: [],
       }),
     );

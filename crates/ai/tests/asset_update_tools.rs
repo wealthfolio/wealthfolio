@@ -189,7 +189,10 @@ async fn a_partial_update_sends_back_every_field_storage_would_clear() {
     assert_eq!(profile.quote_mode, Some(QuoteMode::Market));
     assert_eq!(profile.kind, Some(AssetKind::Investment));
     assert_eq!(profile.instrument_symbol.as_deref(), Some("AMZN"));
-    assert_eq!(profile.instrument_exchange_mic.as_deref(), Some("XNAS"));
+    assert_eq!(
+        profile.instrument_exchange_mic,
+        Some(Some("XNAS".to_string()))
+    );
     assert_eq!(
         profile.provider_config,
         amazon(QuoteMode::Market).provider_config

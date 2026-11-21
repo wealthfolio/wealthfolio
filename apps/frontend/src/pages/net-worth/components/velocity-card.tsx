@@ -1,8 +1,9 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { CompactAmount } from "@/components/financial/compact-amount";
+import { CARD_LABEL } from "@/components/financial/styles";
 import { useDateFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
-import { CompactAmount } from "./compact-amount";
-import { CARD_LABEL, toneClass, toneFill, type Velocity } from "./utils";
+import { toneClass, toneFill, type Velocity } from "./utils";
 
 function signOf(value: number): string {
   return Math.abs(value) < 0.005 ? "" : value > 0 ? "+" : "-";

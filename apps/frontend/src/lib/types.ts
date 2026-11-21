@@ -487,6 +487,8 @@ export interface TransferMatchCandidateRequest {
   activityId: string;
   windowDays?: number;
   limit?: number;
+  /** For an unlinked cash transfer, also suggest the opposite deposit or withdrawal. */
+  includeCashFlows?: boolean;
 }
 
 export type TransferMatchReason =
@@ -1229,6 +1231,12 @@ export interface DateRange {
 
 export type TimePeriod = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "ALL";
 
+export interface FxConversionIssue {
+  itemId: string;
+  fromCurrency: string;
+  toCurrency: string;
+}
+
 export type ValuationStatus = "complete" | "partialUnpriced" | "unavailable";
 
 export interface AccountValuation {
@@ -1274,6 +1282,10 @@ export interface AccountValuation {
 }
 
 export interface CurrentAccountValuation {
+  /** Amounts are known subtotals unless complete. */
+  valueStatus?: ValuationStatus;
+  accountValueStatus?: ValuationStatus;
+  missingFx?: FxConversionIssue[];
   accountId: string;
   accountCurrency: string;
   baseCurrency: string;
@@ -1297,6 +1309,9 @@ export interface CurrentValuationSplit {
 }
 
 export interface CurrentValuationSummary {
+  /** Amounts are known subtotals unless complete. */
+  valueStatus?: ValuationStatus;
+  missingFx?: FxConversionIssue[];
   scopeId: string;
   baseCurrency: string;
   cashBalanceBase: number;
@@ -1561,6 +1576,8 @@ export interface ImportAssetCandidate {
   isin?: string;
   providerId?: string;
   providerSymbol?: string;
+  /** Instrument name from the import file, used when no provider names a new asset. */
+  name?: string;
 }
 
 export type ImportAssetPreviewStatus =
@@ -1849,6 +1866,9 @@ export interface LiabilitiesSection {
  * Response containing net worth calculation - structured as a balance sheet
  */
 export interface NetWorthResponse {
+  /** Totals and breakdowns are known subtotals unless complete. */
+  valueStatus?: ValuationStatus;
+  missingFx?: FxConversionIssue[];
   /** As-of date for the calculation (ISO format) */
   date: string;
   /** Assets section with total and breakdown */
@@ -1870,6 +1890,8 @@ export interface NetWorthResponse {
  * Provides component-level breakdown for accurate gain calculation.
  */
 export interface NetWorthHistoryPoint {
+  valueStatus?: ValuationStatus;
+  missingFx?: FxConversionIssue[];
   /** Date of this data point (ISO format) */
   date: string;
 

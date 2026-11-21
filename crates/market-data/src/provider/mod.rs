@@ -40,3 +40,12 @@ pub use traits::MarketDataProvider;
 
 /// Identifier shared with the custom scraper adapter in core.
 pub const DATA_SOURCE_CUSTOM_SCRAPER: &str = "CUSTOM_SCRAPER";
+
+/// Built-in provider defaults shared by native and server runtimes. Keep the
+/// generic application client and custom-provider configuration independent.
+pub(crate) fn http_client_builder() -> reqwest::ClientBuilder {
+    let policy = &wealthfolio_http::timeouts::policy().provider;
+    wealthfolio_http::client_builder()
+        .connect_timeout(std::time::Duration::from_millis(policy.connect_ms))
+        .timeout(std::time::Duration::from_millis(policy.request_ms))
+}

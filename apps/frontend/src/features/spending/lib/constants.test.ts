@@ -31,11 +31,11 @@ describe("spending constants", () => {
     it("uses card-specific activity options for credit cards", () => {
       expect(getActivityTypesForAccount(AccountType.CREDIT_CARD)).toEqual([
         "WITHDRAWAL",
+        "CREDIT",
+        "TRANSFER_IN",
         "FEE",
         "INTEREST",
-        "TRANSFER_IN",
         "TRANSFER_OUT",
-        "CREDIT",
       ]);
     });
 
@@ -203,15 +203,15 @@ describe("getCashActivityLabel", () => {
     expect(getCashActivityLabel(t, "CREDIT", AccountType.CASH, "REIMBURSEMENT")).toBe(
       "Reimbursement / refund",
     );
-    expect(getCashActivityLabel(t, "WITHDRAWAL", AccountType.CREDIT_CARD)).toBe("Charge");
+    expect(getCashActivityLabel(t, "WITHDRAWAL", AccountType.CREDIT_CARD)).toBe("Purchase");
     expect(getCashActivityLabel(t, "FEE", AccountType.CREDIT_CARD)).toBe("Fee");
-    expect(getCashActivityLabel(t, "INTEREST", AccountType.CREDIT_CARD)).toBe("Interest Charge");
+    expect(getCashActivityLabel(t, "INTEREST", AccountType.CREDIT_CARD)).toBe("Interest");
     expect(getCashActivityLabel(t, "TRANSFER_IN", AccountType.CREDIT_CARD)).toBe("Payment");
     expect(getCashActivityLabel(t, "TRANSFER_OUT", AccountType.CREDIT_CARD)).toBe(
-      "Balance Transfer / Cash Advance",
+      "Cash Advance / Balance Transfer",
     );
     expect(getCashActivityLabel(t, "CREDIT", AccountType.CREDIT_CARD, "REIMBURSEMENT")).toBe(
-      "Refund / Credit",
+      "Refund",
     );
   });
 
@@ -219,10 +219,10 @@ describe("getCashActivityLabel", () => {
     const t = i18n.getFixedT("fr");
 
     expect(getCashActivityLabel(t, "WITHDRAWAL", AccountType.CASH)).toBe("Retrait");
-    expect(getCashActivityLabel(t, "WITHDRAWAL", AccountType.CREDIT_CARD)).toBe("Dépense");
+    expect(getCashActivityLabel(t, "WITHDRAWAL", AccountType.CREDIT_CARD)).toBe("Achat");
     expect(getCashActivityLabel(t, "TRANSFER_IN", AccountType.CREDIT_CARD)).toBe("Paiement");
     expect(getCashActivityLabel(t, "TRANSFER_OUT", AccountType.CREDIT_CARD)).toBe(
-      "Transfert de solde / Avance de fonds",
+      "Avance de fonds / Transfert de solde",
     );
   });
 });

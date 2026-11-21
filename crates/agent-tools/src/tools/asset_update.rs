@@ -260,7 +260,9 @@ fn requested_profile(asset: &Asset, args: &AssetUpdateArgs) -> UpdateAssetProfil
         instrument_symbol: trimmed(args.symbol.as_deref())
             .map(str::to_string)
             .or_else(|| asset.instrument_symbol.clone()),
-        instrument_exchange_mic: exchange_mic.or_else(|| asset.instrument_exchange_mic.clone()),
+        instrument_exchange_mic: exchange_mic
+            .or_else(|| asset.instrument_exchange_mic.clone())
+            .map(Some),
         provider_config: updated_provider_config(asset, args),
         metadata: None,
     }
@@ -276,7 +278,10 @@ fn asset_after(asset: &Asset, profile: &UpdateAssetProfile) -> Asset {
             .clone()
             .unwrap_or_else(|| asset.quote_ccy.clone()),
         instrument_symbol: profile.instrument_symbol.clone(),
-        instrument_exchange_mic: profile.instrument_exchange_mic.clone(),
+        instrument_exchange_mic: profile
+            .instrument_exchange_mic
+            .clone()
+            .unwrap_or_else(|| asset.instrument_exchange_mic.clone()),
         provider_config: profile.provider_config.clone(),
         ..asset.clone()
     }

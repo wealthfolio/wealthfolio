@@ -1,5 +1,6 @@
+use super::currency::normalize_currency_code;
 use super::fx_model::{
-    ExchangeRate, ExchangeRateDateQuery, ExchangeRateDateResult, NewExchangeRate,
+    ExchangeRate, ExchangeRateDateQuery, ExchangeRateDateResult, ExchangeRateInfo, NewExchangeRate,
 };
 use crate::errors::Result;
 use crate::quotes::Quote;
@@ -50,6 +51,15 @@ pub trait FxServiceTrait: Send + Sync {
         days: i64,
     ) -> Result<Vec<ExchangeRate>>;
     fn get_latest_exchange_rate(&self, from_currency: &str, to_currency: &str) -> Result<Decimal>;
+    /// Resolves the same rate as conversion, with quote freshness when supported.
+    /// Implementations without timestamp metadata still report availability.
+    fn get_latest_exchange_rate_info(&self, from: &str, to: &str) -> Result<ExchangeRateInfo> {
+        self.get_latest_exchange_rate(from, to)
+            .map(|rate| ExchangeRateInfo {
+                rate,
+                oldest_quote_time: None,
+            })
+    }
     fn get_exchange_rate_for_date(
         &self,
         from_currency: &str,
@@ -121,4 +131,42 @@ pub trait FxServiceTrait: Send + Sync {
     /// Registers multiple FX pairs in batch.
     /// Pairs are (from_currency, to_currency).
     async fn ensure_fx_pairs(&self, pairs: Vec<(String, String)>) -> Result<()>;
+    /// For each registered pair that has no conversion path at all (no direct
+    /// rate and no route through other stored rates), registers `from/pivot`
+    /// and `pivot/to`. The converter already routes through any stored pairs,
+    /// so once those two have rates, `from -> to` converts through the pivot
+    /// while a direct rate, when it exists, still wins as the shorter path.
+    ///
+    /// Providers do not quote every cross (Yahoo has no `COPAED=X`), and
+    /// nothing else would register the legs. Returns the pivot pairs it
+    /// asked for, deduplicated, in the order first needed.
+    async fn ensure_pivot_fx_pairs(
+        &self,
+        pairs: Vec<(String, String)>,
+        pivot: &str,
+    ) -> Result<Vec<(String, String)>> {
+        let canonical = |code: &str| normalize_currency_code(code.trim()).to_ascii_uppercase();
+        let pivot = canonical(pivot);
+        let mut wanted: Vec<(String, String)> = Vec::new();
+        for (from, to) in pairs {
+            let (from, to) = (canonical(&from), canonical(&to));
+            if from == to || from == pivot || to == pivot || from.is_empty() || to.is_empty() {
+                continue;
+            }
+            if self.get_latest_exchange_rate(&from, &to).is_ok() {
+                continue;
+            }
+            for leg in [(from.clone(), pivot.clone()), (pivot.clone(), to.clone())] {
+                if !wanted.contains(&leg) {
+                    wanted.push(leg);
+                }
+            }
+        }
+        for (from, to) in &wanted {
+            if let Err(error) = self.register_currency_pair(from, to).await {
+                log::warn!("Failed to register FX pivot pair {from}/{to}: {error}");
+            }
+        }
+        Ok(wanted)
+    }
 }
