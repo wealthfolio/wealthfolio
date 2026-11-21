@@ -101,7 +101,7 @@ Behavior and rules:
 - **Language follows the host.** There is no API to change the language from an
   addon — the UI language is a user setting. `language` from the hook tells you
   the current host locale code: `en`, `fr`, `de`, `es`, `pt`, `zh`, `zh-Hant`,
-  `ja`, `ko`, `it`.
+  `ja`, `ko`, `it`, `vi`.
 
   Note that these are **not** all bare language codes. `zh-Hant` (Traditional
   Chinese) carries a script subtag, so `language.split("-")[0]` is not a safe

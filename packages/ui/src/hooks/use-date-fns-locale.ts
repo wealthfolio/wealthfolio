@@ -12,6 +12,7 @@ import {
   pt,
   ptBR,
   ro,
+  vi,
   zhCN,
   zhTW,
   type Locale,
@@ -31,6 +32,7 @@ const DATE_FNS_LOCALES: Record<string, Locale> = {
   "zh-CN": zhCN,
   "ja-JP": ja,
   "ko-KR": ko,
+  "vi-VN": vi,
 };
 
 const LANGUAGE_LOCALES: Record<string, Locale> = {
@@ -41,6 +43,7 @@ const LANGUAGE_LOCALES: Record<string, Locale> = {
   es,
   pt: ptBR,
   ro,
+  vi,
   zh: zhCN,
   ja,
   ko,
@@ -58,6 +61,7 @@ const REGION_LOCALES: Record<string, Locale> = {
   BR: ptBR,
   PT: pt,
   RO: ro,
+  VN: vi,
   CN: zhCN,
   JP: ja,
   KR: ko,

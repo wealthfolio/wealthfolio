@@ -6,6 +6,7 @@ import esHoldings from "@/i18n/locales/es/holdings.json";
 import frHoldings from "@/i18n/locales/fr/holdings.json";
 import jaHoldings from "@/i18n/locales/ja/holdings.json";
 import koHoldings from "@/i18n/locales/ko/holdings.json";
+import viHoldings from "@/i18n/locales/vi/holdings.json";
 import zhHoldings from "@/i18n/locales/zh/holdings.json";
 import zhHantHoldings from "@/i18n/locales/zh-Hant/holdings.json";
 import { describe, expect, it } from "vitest";
@@ -119,6 +120,7 @@ describe("holdings type filters", () => {
       frHoldings,
       jaHoldings,
       koHoldings,
+      viHoldings,
       zhHoldings,
       zhHantHoldings,
     ]) {
@@ -136,6 +138,7 @@ describe("holdings type filters", () => {
       frHoldings,
       jaHoldings,
       koHoldings,
+      viHoldings,
       zhHoldings,
       zhHantHoldings,
     ]) {

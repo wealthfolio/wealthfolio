@@ -48,6 +48,7 @@ export const FORMATTING_REGIONS = [
   "IT",
   "RO",
   "BG",
+  "VN",
 ] as const;
 
 export type FormattingRegionSetting = (typeof FORMATTING_REGIONS)[number];
@@ -72,6 +73,7 @@ const FORMATTING_REGION_LOCALES: Record<Exclude<FormattingRegionSetting, "system
   IT: "it-IT",
   RO: "ro-RO",
   BG: "bg-BG",
+  VN: "vi-VN",
 };
 
 export interface PercentFormatOptions {
