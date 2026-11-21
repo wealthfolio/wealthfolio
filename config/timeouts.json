@@ -111,6 +111,8 @@
         "link_transfer_pairs",
         "review_transfer_matches",
         "unlink_transfer_activities",
+        "list_suppressed_activities",
+        "restore_suppressed_activities",
         "import_activities",
         "get_account_import_mapping",
         "save_account_import_mapping",
