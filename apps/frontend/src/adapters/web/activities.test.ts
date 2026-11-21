@@ -1,6 +1,11 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { installProfileSession } from "@/features/profiles/session";
 import { parseCsv } from "./activities";
+import { invoke } from "./core";
+
+beforeEach(() => {
+  installProfileSession({ profileId: "test", scopeId: "scope-test" });
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -24,4 +29,25 @@ it("bounds multipart CSV parsing without changing its content or profile scope",
   const body = init.body as FormData;
   expect(body.get("file")).toBe(file);
   expect(JSON.parse(body.get("config") as string)).toEqual(config);
+});
+
+const stubFetch = () => {
+  const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+    new Response("[]", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+};
+
+it.each([
+  [undefined, "/api/v1/activities/suppressed"],
+  [[], "/api/v1/activities/suppressed?accountIds="],
+  [["acc-1", "acc-2"], "/api/v1/activities/suppressed?accountIds=acc-1%2Cacc-2"],
+])("lists suppressed activities for account filter %j", async (accountIds, expected) => {
+  const fetchMock = stubFetch();
+  await invoke("list_suppressed_activities", { accountIds });
+  expect(fetchMock.mock.calls[0][0]).toBe(expected);
 });

@@ -40,10 +40,10 @@ pub use activities_model::{
     ImportedActivityIdentity, IncomeData, InternalTransferPairRequest,
     InternalTransferPairResponse, LinkTransferPairsResult, LinkedTransfer, LinkedTransferPair,
     NewActivity, PrepareActivitiesResult, PreviewedActivityUpdate,
-    SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind, TransferMatchCandidate,
-    TransferMatchCandidateRequest, TransferMatchReason, TransferMatchReview, TransferMatchWarning,
-    TransferPairLinkError, TransferPairLinkRequest, UnlinkedTransfer, UnlinkedTransfers,
-    UnlinkedTransfersRequest,
+    SaveBrokerSyncProfileRulesRequest, Sort, SuppressedActivity, TemplateKind,
+    TransferMatchCandidate, TransferMatchCandidateRequest, TransferMatchReason,
+    TransferMatchReview, TransferMatchWarning, TransferPairLinkError, TransferPairLinkRequest,
+    UnlinkedTransfer, UnlinkedTransfers, UnlinkedTransfersRequest,
 };
 pub use activities_service::ActivityService;
 pub use activities_traits::{ActivityRepositoryTrait, ActivityServiceTrait};

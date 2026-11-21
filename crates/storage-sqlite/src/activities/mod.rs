@@ -1,5 +1,6 @@
 //! SQLite storage implementation for activities.
 
+mod deletions;
 mod model;
 mod repository;
 

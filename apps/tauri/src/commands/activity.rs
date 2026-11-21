@@ -7,7 +7,7 @@ use wealthfolio_core::activities::{
     ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ConvertToTransferRequest,
     ImportActivitiesResult, ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData,
     ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse,
-    LinkTransferPairsResult, NewActivity, ParseConfig, ParsedCsvResult, Sort,
+    LinkTransferPairsResult, NewActivity, ParseConfig, ParsedCsvResult, Sort, SuppressedActivity,
     TransferMatchCandidate, TransferMatchCandidateRequest, TransferMatchReview,
     TransferPairLinkRequest,
 };
@@ -145,6 +145,35 @@ pub async fn delete_activity(
         .map_err(|e| e.to_string())?;
     context.health_service().clear_cache().await;
     Ok(deleted)
+}
+
+#[tauri::command]
+pub async fn list_suppressed_activities(
+    account_ids: Option<Vec<String>>,
+    state: ProfileAccess,
+) -> Result<Vec<SuppressedActivity>, String> {
+    let context = state.context()?;
+    debug!("Listing suppressed activities...");
+    context
+        .activity_service()
+        .list_suppressed_activities(account_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_suppressed_activities(
+    deletion_ids: Vec<String>,
+    state: ProfileAccess,
+) -> Result<Vec<Activity>, String> {
+    let context = state.context()?;
+    debug!("Restoring suppressed activities...");
+    let restored = context
+        .activity_service()
+        .restore_suppressed_activities(deletion_ids)
+        .await
+        .map_err(|e| e.to_string())?;
+    context.health_service().clear_cache().await;
+    Ok(restored)
 }
 
 #[tauri::command]
