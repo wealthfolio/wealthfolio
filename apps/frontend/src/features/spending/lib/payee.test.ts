@@ -107,4 +107,13 @@ describe("ensurePayee", () => {
 
     expect(createCategory).toHaveBeenCalledWith(expect.objectContaining({ name: "New Dentist" }));
   });
+
+  it("sorts a new payee after the payees the server has, not the caller's list", async () => {
+    storedPayees = [...payees, payee("p3", "Gym")];
+    createCategory.mockResolvedValue(payee("p4", "New Dentist"));
+
+    await ensurePayee("New Dentist", payees);
+
+    expect(createCategory).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 3 }));
+  });
 });

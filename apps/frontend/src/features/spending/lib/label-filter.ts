@@ -1,7 +1,7 @@
 import type { CashActivity } from "../types/cash-activity";
 import type { ActivityLabel, ActivityLabelFilter } from "../types/insight";
 
-type LabelledActivity = Pick<CashActivity, "assignments" | "eventId">;
+type LabelledActivity = Pick<CashActivity, "assignments" | "splits" | "eventId">;
 
 /**
  * Whether a label filter keeps an activity: it carries at least one included
@@ -18,6 +18,10 @@ export function labelFilterKeeps(
 ): boolean {
   const carries = (label: ActivityLabel) => {
     if (label.kind === "category") {
+      // A split activity's categories are its splits', which replace the
+      // assignment it has in the same taxonomy.
+      const splits = activity.splits.filter((split) => split.taxonomyId === label.taxonomyId);
+      if (splits.length > 0) return splits.some((split) => split.categoryId === label.categoryId);
       return activity.assignments.some(
         (assignment) =>
           assignment.taxonomyId === label.taxonomyId && assignment.categoryId === label.categoryId,

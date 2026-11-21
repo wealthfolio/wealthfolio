@@ -96,6 +96,6 @@ export async function ensurePayee(
     name: trimmed,
     key: `payee_${crypto.randomUUID()}`,
     color: taxonomy.taxonomy.color,
-    sortOrder: payees.length,
+    sortOrder: taxonomy.categories.length,
   });
 }

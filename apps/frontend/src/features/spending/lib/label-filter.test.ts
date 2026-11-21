@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ActivityTaxonomyAssignment } from "../types/cash-activity";
+import type { ActivitySplit, ActivityTaxonomyAssignment } from "../types/cash-activity";
 import type { ActivityLabel, ActivityLabelFilter } from "../types/insight";
 import { labelFilterKeeps } from "./label-filter";
 
@@ -13,6 +13,7 @@ const activity = (payeeId: string | null, eventId: string | null = null) => ({
   assignments: payeeId
     ? [{ taxonomyId: "payees", categoryId: payeeId } as ActivityTaxonomyAssignment]
     : [],
+  splits: [] as ActivitySplit[],
   eventId,
 });
 const typeByEvent = new Map([["trip-1", "travel"]]);
@@ -45,5 +46,28 @@ describe("labelFilterKeeps", () => {
     expect(labelFilterKeeps(filter, activity(null, "trip-1"), typeByEvent)).toBe(true);
     expect(labelFilterKeeps(filter, activity(null, "unknown"), typeByEvent)).toBe(false);
     expect(labelFilterKeeps(filter, activity("bakery"), typeByEvent)).toBe(false);
+  });
+
+  it("reads a split activity's categories from its splits, and its payee as before", () => {
+    const category = (categoryId: string): ActivityLabel => ({
+      kind: "category",
+      taxonomyId: "spending_categories",
+      categoryId,
+    });
+    const split = {
+      ...activity("bakery"),
+      assignments: [
+        { taxonomyId: "payees", categoryId: "bakery" },
+        { taxonomyId: "spending_categories", categoryId: "household" },
+      ] as ActivityTaxonomyAssignment[],
+      splits: [
+        { taxonomyId: "spending_categories", categoryId: "clothing" },
+        { taxonomyId: "spending_categories", categoryId: "gifts" },
+      ] as ActivitySplit[],
+    };
+
+    expect(labelFilterKeeps({ include: [category("gifts")] }, split, typeByEvent)).toBe(true);
+    expect(labelFilterKeeps({ include: [category("household")] }, split, typeByEvent)).toBe(false);
+    expect(labelFilterKeeps({ include: [payee("bakery")] }, split, typeByEvent)).toBe(true);
   });
 });
