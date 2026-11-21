@@ -201,6 +201,9 @@
     "spending": "Gastos",
     "saving": "Poupança",
     "netSaved": "Poupança líquida",
+    "netBeforeSavings": "Líquido antes da poupança",
+    "includeSavings": "Incluir poupança",
+    "includeSavingsHint": "Contar o dinheiro movido para a poupança e de volta no líquido e nestes gráficos.",
     "net": "Líquido"
   },
   "insights": {
@@ -791,6 +794,7 @@
     "vsPrior": "vs anterior",
     "moreCount": "+{{count}} mais",
     "netCashflow": "FLUXO DE CAIXA LÍQUIDO",
+    "netCashflowBeforeSavings": "FLUXO DE CAIXA LÍQUIDO · ANTES DA POUPANÇA",
     "leftOver": "Sobrado {{pct}}",
     "overspentCapped": "Sobregastado em mais de 100%",
     "overspentBy": "Sobregastado em {{pct}}",
@@ -822,6 +826,7 @@
   "moneyFlow": {
     "title": "Fluxo de dinheiro",
     "subtitle": "De onde veio o seu dinheiro e para onde foi em {{period}}.",
+    "onlySavings": "Neste período só há dinheiro movido para a poupança ou de volta. Ative «Incluir poupança» para vê-lo.",
     "focusSubtitle": "Todas as categorias em {{period}}.",
     "focusSubcategoriesSubtitle": "Todas as subcategorias em {{period}}.",
     "back": "Todos os fluxos",

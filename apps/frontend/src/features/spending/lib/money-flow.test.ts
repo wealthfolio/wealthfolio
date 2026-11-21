@@ -993,7 +993,7 @@ describe("money flow against the spending insight", () => {
     };
   }
 
-  function graphFor(source: SpendingInsight) {
+  function graphFor(source: SpendingInsight, options?: { includeSavings?: boolean }) {
     const { currentReport, budget } = insightToReportProjection(source, {
       formatCalendarDate: () => "",
     });
@@ -1016,9 +1016,25 @@ describe("money flow against the spending insight", () => {
           savings: [],
         },
         labels,
+        options,
       ),
     );
   }
+
+  it("leaves over income less spending when savings are left out", () => {
+    // Money went to savings and came back; neither is drawn or netted.
+    const source = insight(4000, 2000);
+    const graph = graphFor(source, { includeSavings: false });
+
+    expectBalanced(graph);
+    expect(node(graph, "saved")).toBeUndefined();
+    expect(node(graph, "from-savings")).toBeUndefined();
+    expect(graph.totals.fromSavings).toBe(0);
+    expect(node(graph, "surplus")?.value).toBeCloseTo(
+      source.headline.income - source.headline.spent,
+      6,
+    );
+  });
 
   it("leaves over exactly the headline net cashflow", () => {
     const source = insight(4000);

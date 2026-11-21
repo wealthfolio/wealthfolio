@@ -201,6 +201,9 @@
     "spending": "Dépenses",
     "saving": "Épargne",
     "netSaved": "Épargne nette",
+    "netBeforeSavings": "Net avant épargne",
+    "includeSavings": "Inclure l'épargne",
+    "includeSavingsHint": "Compter l'argent versé vers l'épargne ou repris de celle-ci dans le net et dans ces graphiques.",
     "net": "Net"
   },
   "insights": {
@@ -791,6 +794,7 @@
     "vsPrior": "vs précédent",
     "moreCount": "+{{count}} de plus",
     "netCashflow": "FLUX NET",
+    "netCashflowBeforeSavings": "FLUX NET · AVANT ÉPARGNE",
     "leftOver": "Reste {{pct}}",
     "overspentCapped": "Dépassement de 100 %+",
     "overspentBy": "Dépassement de {{pct}}",
@@ -822,6 +826,7 @@
   "moneyFlow": {
     "title": "Flux d'argent",
     "subtitle": "D'où vient votre argent et où il est allé pour {{period}}.",
+    "onlySavings": "Cette période ne contient que de l'argent versé vers l'épargne ou repris de celle-ci. Activez « Inclure l'épargne » pour le voir.",
     "focusSubtitle": "Toutes les catégories pour {{period}}.",
     "focusSubcategoriesSubtitle": "Toutes les sous-catégories pour {{period}}.",
     "back": "Tous les flux",

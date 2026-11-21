@@ -195,6 +195,9 @@
     "spending": "支出",
     "saving": "貯蓄",
     "netSaved": "純貯蓄",
+    "netBeforeSavings": "貯蓄前の収支",
+    "includeSavings": "貯蓄を含める",
+    "includeSavingsHint": "貯蓄への入金と貯蓄からの出金を、収支とこれらのグラフに含めます。",
     "net": "収支"
   },
   "insights": {
@@ -744,6 +747,7 @@
     "vsPrior": "前期間比",
     "moreCount": "他{{count}}件",
     "netCashflow": "純キャッシュフロー",
+    "netCashflowBeforeSavings": "純キャッシュフロー · 貯蓄前",
     "leftOver": "残り {{pct}}",
     "overspentCapped": "100%以上の使いすぎ",
     "overspentBy": "{{pct}}の使いすぎ",
@@ -771,6 +775,7 @@
   "moneyFlow": {
     "title": "お金の流れ",
     "subtitle": "{{period}}のお金の出どころと行き先。",
+    "onlySavings": "この期間は貯蓄への入金または貯蓄からの出金のみです。表示するには「貯蓄を含める」をオンにしてください。",
     "focusSubtitle": "{{period}}のすべてのカテゴリ。",
     "focusSubcategoriesSubtitle": "{{period}}のすべてのサブカテゴリ。",
     "back": "すべての流れ",

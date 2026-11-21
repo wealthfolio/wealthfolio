@@ -13,6 +13,7 @@ import {
 } from "../../../lib/money-flow";
 import type { BudgetSnapshot } from "../../../types/budget";
 import type { MonthlyReport } from "../../../types/report";
+import { SavingsInCashFlowToggle } from "../../savings-in-cash-flow-toggle";
 import { MoneyFlowChart } from "./money-flow-chart";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 
@@ -29,6 +30,9 @@ interface MoneyFlowSectionProps {
   currency: string;
   isLoading: boolean;
   isMobile: boolean;
+  /** Whether savings are drawn in the flow; see `useSavingsInCashFlow`. */
+  includeSavings: boolean;
+  onIncludeSavingsChange: (includeSavings: boolean) => void;
   onCategoryClick?: (categoryId: string) => void;
 }
 
@@ -48,6 +52,8 @@ export function MoneyFlowSection({
   currency,
   isLoading,
   isMobile,
+  includeSavings,
+  onIncludeSavingsChange,
   onCategoryClick,
 }: MoneyFlowSectionProps) {
   const { t } = useTranslation();
@@ -84,8 +90,21 @@ export function MoneyFlowSection({
         category: (taxonomyId, id, name) => getCategoryLabel(t, taxonomyId, id, name),
         group: (id, name) => getBudgetGroupLabel(t, id, name),
       },
+      { includeSavings },
     );
-  }, [currentReport, budget, spendingCategories, incomeCategories, savingsCategories, t]);
+  }, [
+    currentReport,
+    budget,
+    spendingCategories,
+    incomeCategories,
+    savingsCategories,
+    includeSavings,
+    t,
+  ]);
+  const periodHasSavings =
+    (currentReport?.current.saved ?? 0) > 0 || (currentReport?.current.fromSavings ?? 0) > 0;
+  // Shown when it changes the chart, and while off so it can be turned back on.
+  const showSavingsToggle = !includeSavings || periodHasSavings;
 
   const graph = useMemo(
     () => (input ? buildMoneyFlowGraph(input, { includeCategories: !isMobile }) : null),
@@ -103,7 +122,10 @@ export function MoneyFlowSection({
   }, [input, unfolded, focusId]);
 
   const isEmpty = !graph || graph.nodes.length === 0;
-  if (!isLoading && isEmpty) return null;
+  // Leaving savings out can empty the chart: the section stays, with the
+  // switch, so they can be brought back.
+  const onlySavings = !isLoading && isEmpty && !includeSavings && periodHasSavings;
+  if (!isLoading && isEmpty && !onlySavings) return null;
 
   const focusedNode = focusedGraph?.nodes.find((node) => node.id === focusedGraph.rootId);
   // Two zooms deep, the way back names the view it returns to.
@@ -128,11 +150,19 @@ export function MoneyFlowSection({
         if (event.key === "Escape" && focusedNode) leaveZoom(path.length - 1, true);
       }}
     >
-      <header className="mb-3 min-w-0">
-        <h2 className="text-foreground truncate text-base font-semibold tracking-tight">
-          {focusedNode ? focusedNode.name : t("spending:moneyFlow.title")}
-        </h2>
-        <p className="text-muted-foreground text-xs">{subtitle}</p>
+      <header className="mb-3 flex min-w-0 items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-foreground truncate text-base font-semibold tracking-tight">
+            {focusedNode ? focusedNode.name : t("spending:moneyFlow.title")}
+          </h2>
+          <p className="text-muted-foreground text-xs">{subtitle}</p>
+        </div>
+        {showSavingsToggle && !focusedNode && (
+          <SavingsInCashFlowToggle
+            checked={includeSavings}
+            onCheckedChange={onIncludeSavingsChange}
+          />
+        )}
       </header>
 
       <Card className="px-2 py-3 md:px-4 md:py-4">
@@ -183,7 +213,11 @@ export function MoneyFlowSection({
             )}
           </div>
         )}
-        {isLoading || !shownGraph ? (
+        {onlySavings ? (
+          <p className="text-muted-foreground px-2 py-6 text-center text-sm">
+            {t("spending:moneyFlow.onlySavings")}
+          </p>
+        ) : isLoading || !shownGraph ? (
           <MoneyFlowSkeleton />
         ) : (
           <MoneyFlowChart

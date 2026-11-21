@@ -196,6 +196,9 @@
     "spending": "支出",
     "saving": "儲蓄",
     "netSaved": "淨儲蓄",
+    "netBeforeSavings": "儲蓄前淨額",
+    "includeSavings": "包含儲蓄",
+    "includeSavingsHint": "在淨額和這些圖表中計入轉入和轉出儲蓄的資金。",
     "net": "淨額"
   },
   "insights": {
@@ -751,6 +754,7 @@
     "vsPrior": "相較於上期",
     "moreCount": "+{{count}} 筆",
     "netCashflow": "淨現金流",
+    "netCashflowBeforeSavings": "淨現金流 · 儲蓄前",
     "leftOver": "剩餘 {{pct}}",
     "overspentCapped": "超支 100% 以上",
     "overspentBy": "超支 {{pct}}",
@@ -779,6 +783,7 @@
   "moneyFlow": {
     "title": "資金流向",
     "subtitle": "{{period}} 的資金來源與去向。",
+    "onlySavings": "此期間只有轉入或轉出儲蓄的資金。開啟「包含儲蓄」即可查看。",
     "focusSubtitle": "{{period}} 的所有類別。",
     "focusSubcategoriesSubtitle": "{{period}} 的所有子類別。",
     "back": "全部流向",

@@ -201,6 +201,9 @@
     "spending": "Spese",
     "saving": "Risparmio",
     "netSaved": "Risparmio netto",
+    "netBeforeSavings": "Netto prima del risparmio",
+    "includeSavings": "Includi risparmio",
+    "includeSavingsHint": "Conta il denaro spostato verso e dal risparmio nel netto e in questi grafici.",
     "net": "Netto"
   },
   "insights": {
@@ -791,6 +794,7 @@
     "vsPrior": "vs precedente",
     "moreCount": "+{{count}} altre",
     "netCashflow": "FLUSSO DI CASSA NETTO",
+    "netCashflowBeforeSavings": "FLUSSO DI CASSA NETTO · PRIMA DEL RISPARMIO",
     "leftOver": "Residuo {{pct}}",
     "overspentCapped": "Speso oltre il 100% in eccesso",
     "overspentBy": "Speso in eccesso del {{pct}}",
@@ -822,6 +826,7 @@
   "moneyFlow": {
     "title": "Flusso di denaro",
     "subtitle": "Da dove sono arrivati i tuoi soldi e dove sono andati per {{period}}.",
+    "onlySavings": "In questo periodo c'è solo denaro spostato verso o dal risparmio. Attiva «Includi risparmio» per vederlo.",
     "focusSubtitle": "Tutte le categorie per {{period}}.",
     "focusSubcategoriesSubtitle": "Tutte le sottocategorie per {{period}}.",
     "back": "Tutti i flussi",

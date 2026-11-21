@@ -23,6 +23,7 @@ import {
   useLocalizationSettings,
 } from "@wealthfolio/ui";
 
+import { useSavingsInCashFlow } from "../../../hooks/use-savings-in-cash-flow";
 import { useSpendingSettings } from "../../../hooks/use-spending-settings";
 import { ancestorChain, rollUpToTopLevel, topCategoryId } from "../../../lib/category-rollup";
 import { getZonedDateParts } from "../../../lib/timezone";
@@ -94,6 +95,8 @@ export function WhereIAmStage({
 }: WhereIAmStageProps) {
   const dateFormatting = useDateFormatting();
   const isMobile = useIsMobile();
+  // One switch (on the money flow) for the chart and the net cashflow card.
+  const [includeSavings, setIncludeSavings] = useSavingsInCashFlow();
   const periodLabel = useMemo(
     () => buildPeriodSubtitle(range, dateFormatting),
     [range, dateFormatting],
@@ -120,7 +123,12 @@ export function WhereIAmStage({
           currency={currency}
           isLoading={isLoading}
         />
-        <NetCashflowCard months={months} currency={currency} isLoading={isLoading} />
+        <NetCashflowCard
+          months={months}
+          currency={currency}
+          isLoading={isLoading}
+          includeSavings={includeSavings}
+        />
       </div>
       <MoneyFlowSection
         // A new date range starts the flow fresh (no zoom carried over).
@@ -134,6 +142,8 @@ export function WhereIAmStage({
         currency={currency}
         isLoading={isLoading}
         isMobile={!!isMobile}
+        includeSavings={includeSavings}
+        onIncludeSavingsChange={setIncludeSavings}
         onCategoryClick={onCategoryClick}
       />
       <BreakdownCanvas
@@ -728,9 +738,19 @@ interface NetCashflowCardProps {
   months: MonthBucket[];
   currency: string;
   isLoading: boolean;
+  /**
+   * Whether net cashflow is what is left after saving too. When false it is
+   * income less spending, and Net saved is a figure beside it, not part of it.
+   */
+  includeSavings: boolean;
 }
 
-const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading }) => {
+const NetCashflowCard: FC<NetCashflowCardProps> = ({
+  months,
+  currency,
+  isLoading,
+  includeSavings,
+}) => {
   const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const totals = useMemo(() => {
@@ -741,13 +761,14 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
       income += m.report?.current.income ?? 0;
       spent += m.report?.current.outflow ?? 0;
       // Net saving: money brought back from savings offsets what went in. A
-      // negative net hides the bar, and Net carries the difference.
+      // negative net hides the bar, and Net carries the difference; with
+      // savings left out of Net, the figure stays beside it with its sign.
       saved += (m.report?.current.saved ?? 0) - (m.report?.current.fromSavings ?? 0);
     }
-    const net = income - spent - saved;
+    const net = income - spent - (includeSavings ? saved : 0);
     const surplusRate = income > 0 ? net / income : 0;
     return { income, spent, saved, net, surplusRate };
-  }, [months]);
+  }, [months, includeSavings]);
 
   if (isLoading) {
     return (
@@ -760,7 +781,9 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
     );
   }
 
-  const denom = Math.max(totals.income, totals.spent, totals.saved, 1);
+  // Left out of the net, savings don't set the scale either: a large transfer
+  // would shrink the income and spending bars to slivers.
+  const denom = Math.max(totals.income, totals.spent, includeSavings ? totals.saved : 0, 1);
   const incomePct = (totals.income / denom) * 100;
   const spentPct = (totals.spent / denom) * 100;
   const savedPct = (totals.saved / denom) * 100;
@@ -769,7 +792,11 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
   return (
     <Card className={CARD_CLASS}>
       <div className="flex items-baseline justify-between">
-        <div className={LABEL_CLASS}>{t("spending:whereIAm.netCashflow")}</div>
+        <div className={LABEL_CLASS}>
+          {includeSavings
+            ? t("spending:whereIAm.netCashflow")
+            : t("spending:whereIAm.netCashflowBeforeSavings")}
+        </div>
       </div>
       <div className="mt-2 flex items-baseline justify-between gap-2">
         <div
@@ -844,19 +871,25 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
             <PrivacyAmount value={totals.spent} currency={currency} />
           </span>
         </div>
-        {totals.saved > 0 && (
+        {(totals.saved > 0 || (!includeSavings && totals.saved < 0)) && (
           <div className="text-2xs flex items-center gap-2">
             <span className="text-muted-foreground w-16 shrink-0">
               {t("spending:cashFlow.netSaved")}
             </span>
-            <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
-              <div
-                className="h-full rounded-full bg-[#6B8E54]/70 transition-all"
-                style={{ width: `${savedPct}%` }}
-              />
-            </div>
+            {includeSavings ? (
+              <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
+                <div
+                  className="h-full rounded-full bg-[#6B8E54]/70 transition-all"
+                  style={{ width: `${savedPct}%` }}
+                />
+              </div>
+            ) : (
+              // A figure beside the net, not a bar on its scale.
+              <div className="flex-1" />
+            )}
             <span className="text-foreground/90 w-20 shrink-0 text-end font-semibold tabular-nums">
-              <PrivacyAmount value={totals.saved} currency={currency} />
+              {totals.saved < 0 && "−"}
+              <PrivacyAmount value={Math.abs(totals.saved)} currency={currency} />
             </span>
           </div>
         )}
