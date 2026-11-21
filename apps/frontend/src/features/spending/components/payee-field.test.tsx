@@ -53,3 +53,13 @@ it("offers to clear the payee only when one is set", async () => {
 
   expect(onPick).toHaveBeenCalledWith("");
 });
+
+it("offers to clear with no payee set when asked to, for a selection of several", async () => {
+  const user = userEvent.setup();
+  const onPick = vi.fn();
+  render(<PayeeCommand value="" clearable payees={payees} onPick={onPick} />);
+
+  await user.click(screen.getByText("No payee"));
+
+  expect(onPick).toHaveBeenCalledWith("");
+});

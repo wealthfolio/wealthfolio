@@ -16,7 +16,7 @@ interface TransactionsBulkBarProps {
   onTagEvent: (eventId: string | null) => void;
   /** Existing payees, offered in the "Set payee" list. */
   payees: TaxonomyCategory[];
-  /** Called with an existing payee's name or a new one to create. */
+  /** Called with an existing payee's name, a new one to create, or "" to clear. */
   onSetPayee: (name: string) => void;
   onDelete: () => void;
   onClearSelection: () => void;
@@ -91,6 +91,7 @@ export function TransactionsBulkBar({
           <PopoverContent className="w-70 p-0" align="end">
             <PayeeCommand
               value=""
+              clearable
               payees={payees}
               onPick={(name) => {
                 setPayeeOpen(false);

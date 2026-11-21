@@ -49,14 +49,23 @@ export async function setActivityPayee(
   await assignActivityCategory(activityId, PAYEES_TAXONOMY_ID, payee.id);
 }
 
-/** Files several activities under the payee called `name`, in one write. */
+/**
+ * Files several activities under the payee called `name`, in one write. An
+ * empty name clears the payee of each.
+ */
 export async function setActivitiesPayee(
   activityIds: string[],
   name: string,
   payees: TaxonomyCategory[],
 ): Promise<void> {
+  if (activityIds.length === 0) return;
   const trimmed = name.trim();
-  if (!trimmed || activityIds.length === 0) return;
+  if (!trimmed) {
+    await Promise.all(
+      activityIds.map((activityId) => unassignActivityCategory(activityId, PAYEES_TAXONOMY_ID)),
+    );
+    return;
+  }
   const payee = await ensurePayee(trimmed, payees);
   await bulkAssignCategories(
     activityIds.map((activityId) => ({
@@ -72,15 +81,19 @@ export async function ensurePayee(
   name: string,
   payees: TaxonomyCategory[],
 ): Promise<TaxonomyCategory> {
-  const existing = findPayee(payees, name);
+  const trimmed = name.trim();
+  const existing = findPayee(payees, trimmed);
   if (existing) return existing;
   // A payee has no colour of its own to pick: it takes its taxonomy's.
   const taxonomy = await getTaxonomy(PAYEES_TAXONOMY_ID);
   if (!taxonomy) throw new Error("The payees taxonomy is missing");
+  // The caller's list can be behind: the payee may have been added since.
+  const added = findPayee(taxonomy.categories, trimmed);
+  if (added) return added;
   return createCategory({
     taxonomyId: PAYEES_TAXONOMY_ID,
     parentId: null,
-    name,
+    name: trimmed,
     key: `payee_${crypto.randomUUID()}`,
     color: taxonomy.taxonomy.color,
     sortOrder: payees.length,

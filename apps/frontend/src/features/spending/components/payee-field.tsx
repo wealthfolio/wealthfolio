@@ -86,13 +86,19 @@ interface PayeeCommandProps {
   payees: TaxonomyCategory[];
   /** Called with a payee's name, a new name to add, or "" to clear. */
   onPick: (name: string) => void;
+  /**
+   * Offers "No payee" even with no current payee: for a selection of several
+   * transactions, some of which may have one.
+   */
+  clearable?: boolean;
 }
 
 /**
  * The searchable payee list, for any popover: existing payees by name, an
  * `Add "<name>"` row for a name no payee has yet, and "No payee" when one is set.
  */
-export function PayeeCommand({ value, payees, onPick }: PayeeCommandProps) {
+export function PayeeCommand({ value, payees, onPick, clearable = false }: PayeeCommandProps) {
+  const canClear = value !== "" || clearable;
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
 
@@ -142,7 +148,7 @@ export function PayeeCommand({ value, payees, onPick }: PayeeCommandProps) {
             ))}
           </CommandGroup>
         )}
-        {(canAdd || value !== "") && (
+        {(canAdd || canClear) && (
           <>
             <CommandSeparator />
             <CommandGroup>
@@ -157,7 +163,7 @@ export function PayeeCommand({ value, payees, onPick }: PayeeCommandProps) {
                   {t("spending:cashForm.payeeAdd", { name: typed })}
                 </CommandItem>
               )}
-              {value !== "" && typed === "" && (
+              {canClear && typed === "" && (
                 <CommandItem
                   onSelect={() => pick("")}
                   className="text-muted-foreground flex items-center gap-2"

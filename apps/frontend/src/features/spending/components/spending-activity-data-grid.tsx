@@ -916,7 +916,7 @@ export function SpendingActivityDataGrid({
               {t("spending:cashForm.payeeBulkSet")}
             </PopoverTrigger>
             <PopoverContent className="w-70 p-0" align="end">
-              <PayeeCommand value="" payees={payees} onPick={setPayeeOnSelected} />
+              <PayeeCommand value="" clearable payees={payees} onPick={setPayeeOnSelected} />
             </PopoverContent>
           </Popover>
         </div>
