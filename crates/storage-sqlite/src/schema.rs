@@ -777,6 +777,7 @@ diesel::table! {
         scope_type -> Text,
         scope_id -> Nullable<Text>,
         taxonomy_id -> Text,
+        target_type -> Text,
         trigger_type -> Text,
         drift_band_bps -> Integer,
         band_type -> Text,
@@ -805,6 +806,22 @@ diesel::table! {
         updated_at -> Text,
     }
 }
+
+diesel::table! {
+    allocation_target_asset_weights (id) {
+        id -> Text,
+        target_id -> Text,
+        asset_id -> Text,
+        target_bps -> Integer,
+        is_locked -> Integer,
+        is_required -> Integer,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::joinable!(allocation_target_asset_weights -> allocation_targets (target_id));
+diesel::joinable!(allocation_target_asset_weights -> assets (asset_id));
 
 diesel::table! {
     addon_storage (addon_id, key) {
@@ -957,6 +974,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     budget_rollover_settings,
     allocation_targets,
     allocation_target_weights,
+    allocation_target_asset_weights,
     personal_access_tokens,
     mcp_audit_log,
     allocation_target_constraints,

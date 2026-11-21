@@ -10,11 +10,12 @@ use serde::Deserialize;
 use wealthfolio_core::{
     accounts::AccountPurpose,
     portfolio::allocation_targets::{
-        AllocationRule, AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight,
-        AllocationWorksheetLineInput, AllocationWorksheetResult, CalculateAllocationWorksheetInput,
-        CalculatedAdjustments, DriftReport, GenerateCalculatedAdjustmentsInput,
-        NewAllocationTarget, NewAllocationTargetWeight, SaveAllocationTargetResult, ScopeType,
-        WorksheetCashInput, WorksheetMode,
+        AllocationRule, AllocationTarget, AllocationTargetAssetWeight, AllocationTargetConstraint,
+        AllocationTargetWeight, AllocationWorksheetLineInput, AllocationWorksheetResult,
+        CalculateAllocationWorksheetInput, CalculatedAdjustments, DriftReport,
+        GenerateCalculatedAdjustmentsInput, NewAllocationTarget, NewAllocationTargetAssetWeight,
+        NewAllocationTargetWeight, SaveAllocationTargetResult, ScopeType, WorksheetCashInput,
+        WorksheetMode,
     },
     portfolios::AccountScope,
 };
@@ -117,6 +118,16 @@ async fn list_weights(
     Ok(Json(weights))
 }
 
+async fn list_asset_weights(
+    Path(target_id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<Vec<AllocationTargetAssetWeight>>> {
+    let weights = state
+        .allocation_target_service
+        .list_asset_weights_for_target(&target_id)?;
+    Ok(Json(weights))
+}
+
 async fn save_weights(
     Path(target_id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
@@ -135,6 +146,8 @@ struct SaveTargetWithWeightsBody {
     id: Option<String>,
     input: NewAllocationTarget,
     weights: Vec<NewAllocationTargetWeight>,
+    #[serde(default)]
+    asset_weights: Vec<NewAllocationTargetAssetWeight>,
 }
 
 async fn save_target_with_weights(
@@ -143,7 +156,7 @@ async fn save_target_with_weights(
 ) -> ApiResult<Json<SaveAllocationTargetResult>> {
     let saved = state
         .allocation_target_service
-        .save_target_with_weights(body.id, body.input, body.weights)
+        .save_target_with_weights(body.id, body.input, body.weights, body.asset_weights)
         .await?;
     Ok(Json(saved))
 }
@@ -368,6 +381,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route(
             "/allocation-targets/{id}/weights",
             get(list_weights).post(save_weights),
+        )
+        .route(
+            "/allocation-targets/{id}/asset-weights",
+            get(list_asset_weights),
         )
         .route(
             "/allocation-targets/{id}/constraints",

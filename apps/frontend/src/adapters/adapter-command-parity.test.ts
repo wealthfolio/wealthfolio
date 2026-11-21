@@ -6,6 +6,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   calculateAllocationWorksheet,
   generateCalculatedAdjustments as generateTauriCalculatedAdjustments,
+  listAllocationTargetAssetWeights,
+  saveAllocationTargetWithWeights,
 } from "./tauri";
 import { COMMANDS, invoke } from "./web/core";
 
@@ -122,6 +124,66 @@ function collectNamedReexports(
 
   return { hasStar, names };
 }
+
+describe("asset allocation target transport", () => {
+  beforeEach(() => {
+    platformInvokeMock
+      .mockReset()
+      .mockImplementation((command: string, payload?: Record<string, unknown>) =>
+        invoke(command, payload),
+      );
+  });
+
+  it("lists asset weights from the asset-weights route", async () => {
+    const mock = stubFetch([]);
+    await listAllocationTargetAssetWeights("target/1");
+    const { url, method } = lastCall(mock);
+    expect(url).toBe("/api/v1/allocation-targets/target%2F1/asset-weights");
+    expect(method).toBe("GET");
+  });
+
+  it("sends asset weights next to an empty category weight list", async () => {
+    const mock = stubFetch({});
+    const input = {
+      name: "Stocks",
+      scopeType: "all" as const,
+      taxonomyId: "__individual_securities__",
+      targetType: "asset" as const,
+      triggerType: "manual" as const,
+      driftBandBps: 500,
+    };
+    const assetWeights = [
+      { assetId: "asset-1", targetBps: 10000, isLocked: false, isRequired: false },
+    ];
+    await saveAllocationTargetWithWeights(null, input, [], assetWeights);
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/allocation-targets/save-with-weights");
+    expect(method).toBe("POST");
+    expect(JSON.parse(body as string)).toEqual({
+      id: null,
+      input,
+      weights: [],
+      assetWeights,
+    });
+  });
+
+  it("sends an empty asset weight list for category targets", async () => {
+    const mock = stubFetch({});
+    await saveAllocationTargetWithWeights(
+      "target-1",
+      {
+        name: "Mix",
+        scopeType: "all",
+        taxonomyId: "asset_classes",
+        triggerType: "manual",
+        driftBandBps: 500,
+      },
+      [{ categoryId: "EQUITY", targetBps: 10000, isLocked: false, isRequired: false }],
+    );
+    const parsed = JSON.parse(lastCall(mock).body as string) as { assetWeights: unknown };
+    expect(parsed.assetWeights).toEqual([]);
+  });
+});
 
 describe("calculated worksheet transport", () => {
   it("previews a position total without assigning an account in either runtime", async () => {

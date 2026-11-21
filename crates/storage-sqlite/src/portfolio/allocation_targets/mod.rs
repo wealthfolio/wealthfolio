@@ -2,6 +2,8 @@ mod model;
 pub mod repository;
 
 pub(crate) use model::{
-    AllocationTargetConstraintDB, AllocationTargetDB, AllocationTargetWeightDB,
+    AllocationTargetAssetWeightDB, AllocationTargetConstraintDB, AllocationTargetDB,
+    AllocationTargetWeightDB,
 };
 pub use repository::AllocationTargetRepository;
+pub(crate) use repository::{remove_asset_from_targets, spread_into_target};

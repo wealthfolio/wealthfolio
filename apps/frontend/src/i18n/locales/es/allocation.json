@@ -87,7 +87,8 @@
     "buildFromScratch": "Crear desde cero",
     "exampleWeights": "Pesos de ejemplo",
     "exampleDescription": "Úsalos como punto de partida cuantitativo y luego revisa y edita los pesos.",
-    "disclosure": "Solo pesos de ejemplo. No son recomendaciones y Wealthfolio no ha evaluado si se ajustan a ti."
+    "disclosure": "Solo pesos de ejemplo. No son recomendaciones y Wealthfolio no ha evaluado si se ajustan a ti.",
+    "equalWeight": "Peso igual"
   },
   "mode": {
     "enableSellsTip": "Permite las reducciones en la configuración de este objetivo para usar «Reequilibrar»."
@@ -170,7 +171,12 @@
     "suggestedTargetName": "Objetivo {{name}}",
     "customFallback": "Personalizado",
     "deleteDialogTitle": "¿Eliminar objetivo?",
-    "deleteDialogDescription": "Esto eliminará permanentemente “{{name}}” y todos sus pesos objetivo. Esta acción no se puede deshacer."
+    "deleteDialogDescription": "Esto eliminará permanentemente “{{name}}” y todos sus pesos objetivo. Esta acción no se puede deshacer.",
+    "individualSecurities": "Valores individuales",
+    "individualSecuritiesNote": "Un peso por valor. No se incluyen el efectivo ni los activos alternativos.",
+    "security": "Valor",
+    "targetTypeFixed": "El tipo de asignación no se puede cambiar después de crear el objetivo. Crea un objetivo nuevo para usar otro tipo.",
+    "noSecuritiesFound": "No se encontraron valores en este ámbito. Añade posiciones antes de crear un objetivo de valores individuales."
   },
   "scope": {
     "allAccounts": "Todas las cuentas",
@@ -541,6 +547,10 @@
     "industry_many": "industrias",
     "category_one": "categoría",
     "region_many": "regiones",
-    "category_many": "categorías"
+    "category_many": "categorías",
+    "security": "valores",
+    "security_one": "valor",
+    "security_many": "valores",
+    "security_other": "valores"
   }
 }

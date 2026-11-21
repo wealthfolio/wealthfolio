@@ -26,8 +26,10 @@ import { useHoldings } from "@/hooks/use-holdings";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useTaxonomies, useTaxonomy } from "@/hooks/use-taxonomies";
+import { useAssets } from "@/pages/asset/hooks/use-assets";
 import {
   useDeleteAllocationTarget,
+  useAllocationTargetAssetWeights,
   useAllocationTargetWeights,
   useSaveAllocationTargetWithWeights,
 } from "../hooks/use-allocation-target-mutations";
@@ -40,8 +42,10 @@ import type {
   ConstraintSubjectType,
   AccountScope,
   TargetScopeType,
+  TargetType,
   TaxonomyCategory,
 } from "@/lib/types";
+import { INDIVIDUAL_SECURITIES_TAXONOMY_ID } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { generateId } from "@/lib/id";
 import { toast } from "sonner";
@@ -54,6 +58,12 @@ import { TargetWeightEditor, type WeightDraft } from "./target-weight-editor";
 import { DriftBandSlider } from "./drift-band-slider";
 import { useTargetConstraints } from "../hooks/use-target-constraints";
 import { accountScopeFromTarget, accountScopeKey } from "./target-scope";
+import {
+  buildSecurityTargetRows,
+  equalWeightBps,
+  securityCurrentAllocation,
+  securityTargetCategories,
+} from "./security-target-rows";
 import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 type EditorMode =
@@ -66,6 +76,8 @@ type TargetEditorMode = "create" | "edit";
 
 const UNKNOWN_ALLOCATION_CATEGORY_ID = "__UNKNOWN__";
 const ROUNDING_TOLERANCE_BPS = 5;
+const EMPTY_SECURITY_ROWS: ReturnType<typeof buildSecurityTargetRows> = [];
+const SECURITY_START_IDS = ["current", "equal", "scratch"] as const;
 
 function defaultScopeFromAccountScope(scope: AccountScope): {
   scopeType: TargetScopeType;
@@ -166,7 +178,17 @@ function buildGuidedWeights(
   startId: string,
   categories: TaxonomyCategory[],
   currentAllocation: Record<string, number>,
+  exactTotal = false,
 ): WeightDraft[] {
+  if (startId === "equal") {
+    const shares = equalWeightBps(categories.length);
+    return categories.map((category, index) => ({
+      categoryId: category.id,
+      targetBps: shares[index],
+      isLocked: false,
+    }));
+  }
+
   if (startId === "scratch") {
     return categories.map((category) => ({
       categoryId: category.id,
@@ -182,7 +204,8 @@ function buildGuidedWeights(
         targetBps: Math.round((currentAllocation[category.id] ?? 0) * 100),
         isLocked: false,
       })),
-      { roundingOnly: true },
+      // Many securities add up rounding that the tolerance for categories cannot absorb.
+      { roundingOnly: !exactTotal },
     );
   }
 
@@ -520,8 +543,12 @@ function TargetEditor({
   const { data: portfolios = [] } = usePortfolios();
   const guidedTaxonomies = taxonomies.filter((taxonomy) => taxonomy.id !== "instrument_type");
   const saveTarget = useSaveAllocationTargetWithWeights();
+  // A target carries one kind of weight, so only that kind is read.
   const { data: existingWeightsData, isLoading: existingWeightsLoading } =
-    useAllocationTargetWeights(target?.id ?? null);
+    useAllocationTargetWeights(target && target.targetType !== "asset" ? target.id : null);
+  const { data: existingAssetWeightsData, isLoading: existingAssetWeightsLoading } =
+    useAllocationTargetAssetWeights(target?.targetType === "asset" ? target.id : null);
+  const { assets } = useAssets();
   const targetConstraintsQuery = useTargetConstraints(target?.id);
   const holdingsQuery = useHoldings(accountScope);
   const holdings = holdingsQuery.isComplete ? holdingsQuery.holdings : [];
@@ -572,6 +599,8 @@ function TargetEditor({
     markDirty();
   }
 
+  const [targetKind, setTargetKind] = useState<TargetType>(target?.targetType ?? "category");
+  const isAssetTarget = targetKind === "asset";
   const [taxonomyId, setTaxonomyId] = useState(target?.taxonomyId ?? "asset_classes");
   const [startId, setStartId] = useState<string>(target ? "saved" : "current");
   const [targetName, setTargetName] = useState(target?.name ?? "");
@@ -603,15 +632,45 @@ function TargetEditor({
   const initializedGuidedWeightsKey = React.useRef<string | null>(null);
   const resetTargetId = target?.id ?? null;
   const resetTargetTaxonomyId = target?.taxonomyId ?? "asset_classes";
+  const resetTargetType = target?.targetType ?? "category";
   const resetTargetName = target?.name ?? "";
   const resetTargetDriftBandBps = target?.driftBandBps ?? 100;
   const resetTargetBandType = target?.bandType ?? "absolute";
   const resetTargetRelativeFactorBps = target?.relativeFactorBps ?? 2000;
 
-  const { data: taxonomy, isLoading: taxonomyLoading } = useTaxonomy(taxonomyId);
+  // An asset target names no taxonomy: its sentinel id must never be loaded.
+  const { data: taxonomy, isLoading: taxonomyLoading } = useTaxonomy(
+    isAssetTarget ? null : taxonomyId,
+  );
+  const savedWeightDrafts = React.useMemo(() => {
+    if (target?.targetType === "asset") {
+      return existingAssetWeightsData
+        ? existingAssetWeightsData.map((weight) => ({
+            categoryId: weight.assetId,
+            targetBps: weight.targetBps,
+            isLocked: weight.isLocked,
+          }))
+        : null;
+    }
+    return existingWeightsData ? savedWeightsToDraft(existingWeightsData) : null;
+  }, [existingAssetWeightsData, existingWeightsData, target?.targetType]);
+  const securityRows = React.useMemo(
+    () =>
+      isAssetTarget
+        ? buildSecurityTargetRows(
+            holdings,
+            savedWeightDrafts?.map((weight) => weight.categoryId) ?? [],
+            assets,
+          )
+        : EMPTY_SECURITY_ROWS,
+    [assets, holdings, isAssetTarget, savedWeightDrafts],
+  );
   const targetCategories = React.useMemo(
-    () => taxonomy?.categories.filter((category) => !category.parentId) ?? [],
-    [taxonomy],
+    () =>
+      isAssetTarget
+        ? securityTargetCategories(securityRows)
+        : (taxonomy?.categories.filter((category) => !category.parentId) ?? []),
+    [isAssetTarget, securityRows, taxonomy],
   );
   const categories = React.useMemo(
     () => topLevelCategories(categoriesForTaxonomy(allocations, taxonomyId)),
@@ -619,21 +678,29 @@ function TargetEditor({
   );
   const currentAllocation = React.useMemo(
     () =>
-      Object.fromEntries(categories.map((category) => [category.categoryId, category.percentage])),
-    [categories],
+      isAssetTarget
+        ? securityCurrentAllocation(securityRows)
+        : Object.fromEntries(
+            categories.map((category) => [category.categoryId, category.percentage]),
+          ),
+    [categories, isAssetTarget, securityRows],
   );
   // One colour per category across the presets, the editor and the target pages. Unknown
   // counts too: it takes a place among the categories held, as in the drift report.
   const colorByCategory = React.useMemo(
     () =>
-      buildAllocationTargetColorMap([
-        ...categoriesForTaxonomy(allocations, taxonomyId).map((category) => ({
-          categoryId: category.categoryId,
-          currentValue: category.value,
-        })),
-        ...targetCategories.map((category) => ({ categoryId: category.id, currentValue: 0 })),
-      ]),
-    [allocations, taxonomyId, targetCategories],
+      buildAllocationTargetColorMap(
+        isAssetTarget
+          ? securityRows.map((row) => ({ categoryId: row.assetId, currentValue: row.value }))
+          : [
+              ...categoriesForTaxonomy(allocations, taxonomyId).map((category) => ({
+                categoryId: category.categoryId,
+                currentValue: category.value,
+              })),
+              ...targetCategories.map((category) => ({ categoryId: category.id, currentValue: 0 })),
+            ],
+      ),
+    [allocations, isAssetTarget, securityRows, taxonomyId, targetCategories],
   );
   const guidedWeightsKey = React.useMemo(() => {
     if (target && startId === "saved") return null;
@@ -673,19 +740,17 @@ function TargetEditor({
   const cannotTargetScope = !target && accountScope.type === "accounts";
   const selectedTaxonomy = taxonomies.find((taxonomy) => taxonomy.id === taxonomyId);
   // Seeds an editable name that is saved, so it carries no bidi isolation marks.
+  const typeName = isAssetTarget
+    ? t("allocation:editor.individualSecurities")
+    : selectedTaxonomy?.name;
   const suggestedTargetName = stripBidiControls(
     startId === "scratch" || startId === "current"
       ? t("allocation:editor.suggestedTargetName", {
-          name: selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
+          name: typeName ?? t("allocation:editor.customFallback"),
         })
       : t("allocation:editor.suggestedTargetName", {
-          name:
-            selectedPresetName ?? selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
+          name: selectedPresetName ?? typeName ?? t("allocation:editor.customFallback"),
         }),
-  );
-  const savedWeightDrafts = React.useMemo(
-    () => (existingWeightsData ? savedWeightsToDraft(existingWeightsData) : null),
-    [existingWeightsData],
   );
 
   useEffect(() => {
@@ -697,6 +762,7 @@ function TargetEditor({
   // shows it again, which would discard the edits made before leaving.
   useEffectOnChange(() => {
     if (resetTargetId) {
+      setTargetKind(resetTargetType);
       setTaxonomyId(resetTargetTaxonomyId);
       setStartId("saved");
       setTargetName(resetTargetName);
@@ -709,6 +775,7 @@ function TargetEditor({
       setWholeSharesOnly(target?.wholeSharesOnly ?? false);
       turnoverDraft.reset();
     } else {
+      setTargetKind("category");
       setTaxonomyId("asset_classes");
       setStartId("current");
       setTargetName("");
@@ -734,6 +801,7 @@ function TargetEditor({
     resetTargetId,
     resetTargetName,
     resetTargetTaxonomyId,
+    resetTargetType,
     onUnsavedChange,
     target?.allowSells,
     target?.minTradeAmount,
@@ -753,11 +821,12 @@ function TargetEditor({
     if (hasUnsavedChanges && weights.length > 0) return;
     if (initializedGuidedWeightsKey.current === guidedWeightsKey) return;
     initializedGuidedWeightsKey.current = guidedWeightsKey;
-    setWeights(buildGuidedWeights(startId, targetCategories, currentAllocation));
+    setWeights(buildGuidedWeights(startId, targetCategories, currentAllocation, isAssetTarget));
   }, [
     currentAllocation,
     guidedWeightsKey,
     hasUnsavedChanges,
+    isAssetTarget,
     startId,
     target,
     targetCategories,
@@ -771,6 +840,7 @@ function TargetEditor({
 
   const handleTaxonomySelect = (id: string) => {
     if (id === taxonomyId) return;
+    setTargetKind("category");
     setTaxonomyId(id);
     if (target?.taxonomyId === id && savedWeightDrafts) {
       setStartId("saved");
@@ -784,6 +854,31 @@ function TargetEditor({
     markDirty();
   };
 
+  // The type is chosen once, when the target is created.
+  const handleSecuritiesSelect = () => {
+    if (isAssetTarget || target) return;
+    setTargetKind("asset");
+    setTaxonomyId(INDIVIDUAL_SECURITIES_TAXONOMY_ID);
+    setStartId("current");
+    setWeights([]);
+    initializedGuidedWeightsKey.current = null;
+    setNameTouched(false);
+    markDirty();
+  };
+
+  // A security bought since the target was saved has no weight yet: it starts at zero.
+  const editorWeights = React.useMemo(
+    () =>
+      isAssetTarget
+        ? [
+            ...weights,
+            ...targetCategories
+              .filter((category) => !weights.some((weight) => weight.categoryId === category.id))
+              .map((category) => ({ categoryId: category.id, targetBps: 0, isLocked: false })),
+          ]
+        : weights,
+    [isAssetTarget, targetCategories, weights],
+  );
   const totalBps = weights.reduce((sum, weight) => sum + weight.targetBps, 0);
   const isSaving = saveTarget.isPending;
   const validTurnover =
@@ -796,9 +891,12 @@ function TargetEditor({
       ? t("allocation:editor.savedTarget")
       : startId === "scratch"
         ? t("allocation:presets.buildFromScratch")
-        : (selectedPresetTitle ?? t("allocation:presets.currentAllocation"));
+        : startId === "equal"
+          ? t("allocation:presets.equalWeight")
+          : (selectedPresetTitle ?? t("allocation:presets.currentAllocation"));
   const showEditorSkeleton =
-    taxonomyLoading || (!!target && existingWeightsLoading && weights.length === 0);
+    taxonomyLoading ||
+    (!!target && (existingWeightsLoading || existingAssetWeightsLoading) && weights.length === 0);
 
   async function persistTarget() {
     if (!canSave || isSaving) return;
@@ -809,6 +907,7 @@ function TargetEditor({
         scopeType: scope.scopeType,
         scopeId: scope.scopeType === "all" ? null : scope.scopeId,
         taxonomyId,
+        targetType: targetKind,
         triggerType: "threshold",
         driftBandBps: Math.round(driftBandPct * 100),
         bandType,
@@ -825,12 +924,26 @@ function TargetEditor({
       const saved = await saveTarget.mutateAsync({
         id: target?.id ?? null,
         input,
-        weights: weights.map((weight) => ({
-          categoryId: weight.categoryId,
-          targetBps: weight.targetBps,
-          isLocked: weight.isLocked,
-          isRequired: true,
-        })),
+        // A target carries one kind of weight. A security left at zero is simply not targeted,
+        // unless the user locked it there.
+        weights: isAssetTarget
+          ? []
+          : weights.map((weight) => ({
+              categoryId: weight.categoryId,
+              targetBps: weight.targetBps,
+              isLocked: weight.isLocked,
+              isRequired: true,
+            })),
+        assetWeights: isAssetTarget
+          ? weights
+              .filter((weight) => weight.targetBps > 0 || weight.isLocked)
+              .map((weight) => ({
+                assetId: weight.categoryId,
+                targetBps: weight.targetBps,
+                isLocked: weight.isLocked,
+                isRequired: true,
+              }))
+          : undefined,
       });
 
       if (saved.target.id && constraintsDraft.length > 0) {
@@ -861,6 +974,7 @@ function TargetEditor({
 
   function handleCancel() {
     if (target) {
+      setTargetKind(target.targetType ?? "category");
       setTaxonomyId(target.taxonomyId);
       setStartId("saved");
       setTargetName(target.name);
@@ -874,6 +988,7 @@ function TargetEditor({
       turnoverDraft.reset();
       if (savedWeightDrafts) setWeights(savedWeightDrafts);
     } else {
+      setTargetKind("category");
       setTaxonomyId("asset_classes");
       setStartId("current");
       setTargetName("");
@@ -997,7 +1112,7 @@ function TargetEditor({
               {t("allocation:editor.step2")}
             </StepHeader>
             <div className="space-y-2">
-              {guidedTaxonomies.map((taxonomy) => {
+              {(target && isAssetTarget ? [] : guidedTaxonomies).map((taxonomy) => {
                 const count = topLevelCategories(
                   categoriesForTaxonomy(allocations, taxonomy.id),
                 ).length;
@@ -1028,7 +1143,38 @@ function TargetEditor({
                   </button>
                 );
               })}
+              {(!target || isAssetTarget) && (
+                <button
+                  type="button"
+                  onClick={handleSecuritiesSelect}
+                  disabled={!!target}
+                  aria-pressed={isAssetTarget}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-start transition-colors",
+                    isAssetTarget ? "border-foreground bg-card" : "bg-muted/20 hover:bg-muted/40",
+                  )}
+                >
+                  <span className="min-w-0">
+                    <span className="text-foreground block truncate text-xs font-semibold">
+                      {t("allocation:editor.individualSecurities")}
+                    </span>
+                    <span className="text-muted-foreground text-2xs">
+                      {t("allocation:editor.individualSecuritiesNote")}
+                    </span>
+                  </span>
+                  {isAssetTarget && (
+                    <span className="bg-foreground text-background text-2xs flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
+            {target ? (
+              <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
+                {t("allocation:editor.targetTypeFixed")}
+              </p>
+            ) : null}
           </section>
 
           <section className={cn(cardSurfaceClassName, "p-5")}>
@@ -1163,19 +1309,49 @@ function TargetEditor({
               <StepHeader number={4}>{t("allocation:editor.step4")}</StepHeader>
             </div>
 
-            <ModelPresetPicker
-              taxonomyId={taxonomyId}
-              selected={startId === "saved" ? null : startId}
-              onSelect={(presetId) => {
-                setStartId(presetId);
-                setWeights(buildGuidedWeights(presetId, targetCategories, currentAllocation));
-                initializedGuidedWeightsKey.current = null;
-                markDirty();
-              }}
-              currentCategories={categories}
-              colorByCategory={colorByCategory}
-              compact
-            />
+            {isAssetTarget ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {SECURITY_START_IDS.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={startId === id}
+                    onClick={() => {
+                      setStartId(id);
+                      setWeights(buildGuidedWeights(id, targetCategories, currentAllocation, true));
+                      initializedGuidedWeightsKey.current = null;
+                      markDirty();
+                    }}
+                    className={cn(
+                      "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors",
+                      startId === id
+                        ? "border-foreground bg-foreground text-background"
+                        : "bg-card hover:border-muted-foreground/50",
+                    )}
+                  >
+                    {id === "current"
+                      ? t("allocation:presets.currentAllocation")
+                      : id === "equal"
+                        ? t("allocation:presets.equalWeight")
+                        : t("allocation:presets.buildFromScratch")}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <ModelPresetPicker
+                taxonomyId={taxonomyId}
+                selected={startId === "saved" ? null : startId}
+                onSelect={(presetId) => {
+                  setStartId(presetId);
+                  setWeights(buildGuidedWeights(presetId, targetCategories, currentAllocation));
+                  initializedGuidedWeightsKey.current = null;
+                  markDirty();
+                }}
+                currentCategories={categories}
+                colorByCategory={colorByCategory}
+                compact
+              />
+            )}
           </section>
 
           <section className={cn(cardSurfaceClassName, "p-5")}>
@@ -1203,10 +1379,14 @@ function TargetEditor({
             ) : targetCategories.length > 0 ? (
               <TargetWeightEditor
                 categories={targetCategories}
-                weights={weights}
+                weights={editorWeights}
                 currentAllocation={currentAllocation}
                 colorByCategory={colorByCategory}
-                categoryLabel={categoryLabelForTaxonomy(selectedTaxonomy?.name, t)}
+                categoryLabel={
+                  isAssetTarget
+                    ? t("allocation:editor.security")
+                    : categoryLabelForTaxonomy(selectedTaxonomy?.name, t)
+                }
                 bandType={bandType}
                 driftBandBps={Math.round(driftBandPct * 100)}
                 relativeFactorBps={Math.round(relativeFactorPct * 100)}
@@ -1217,7 +1397,9 @@ function TargetEditor({
               />
             ) : (
               <p className="text-muted-foreground rounded-lg border px-4 py-6 text-xs">
-                {t("allocation:editor.noCategoriesFound")}
+                {isAssetTarget
+                  ? t("allocation:editor.noSecuritiesFound")
+                  : t("allocation:editor.noCategoriesFound")}
               </p>
             )}
           </section>

@@ -1,8 +1,10 @@
 import type {
   AccountScope,
   DriftReport,
+  NewAllocationTargetAssetWeight,
   NewAllocationTargetWeight,
   NewAllocationTarget,
+  AllocationTargetAssetWeight,
   AllocationTargetWeight,
   AllocationTarget,
   SaveAllocationTargetResult,
@@ -63,15 +65,26 @@ export const saveAllocationTargetWeights = async (
   return invoke<AllocationTargetWeight[]>("save_allocation_target_weights", { targetId, weights });
 };
 
+export const listAllocationTargetAssetWeights = async (
+  targetId: string,
+): Promise<AllocationTargetAssetWeight[]> => {
+  return invoke<AllocationTargetAssetWeight[]>("list_allocation_target_asset_weights", {
+    targetId,
+  });
+};
+
+/** A target carries one kind of weight: asset targets send `weights: []`. */
 export const saveAllocationTargetWithWeights = async (
   id: string | null,
   input: NewAllocationTarget,
   weights: NewAllocationTargetWeight[],
+  assetWeights: NewAllocationTargetAssetWeight[] = [],
 ): Promise<SaveAllocationTargetResult> => {
   return invoke<SaveAllocationTargetResult>("save_allocation_target_with_weights", {
     id,
     input,
     weights,
+    assetWeights,
   });
 };
 

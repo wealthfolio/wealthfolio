@@ -80,7 +80,8 @@
     "buildFromScratch": "ゼロから作成",
     "exampleWeights": "比率の例",
     "exampleDescription": "数値上の出発点として使い、その後で比率を確認・編集してください。",
-    "disclosure": "比率の例にすぎません。推奨ではなく、Wealthfolio はこれがあなたに合うかどうかを評価していません。"
+    "disclosure": "比率の例にすぎません。推奨ではなく、Wealthfolio はこれがあなたに合うかどうかを評価していません。",
+    "equalWeight": "均等配分"
   },
   "mode": {
     "enableSellsTip": "リバランスを使うには、この目標の設定で減額を許可してください。"
@@ -162,7 +163,12 @@
     "suggestedTargetName": "{{name}}の目標",
     "customFallback": "カスタム",
     "deleteDialogTitle": "目標を削除しますか?",
-    "deleteDialogDescription": "「{{name}}」とそのすべての目標比率を完全に削除します。この操作は取り消せません。"
+    "deleteDialogDescription": "「{{name}}」とそのすべての目標比率を完全に削除します。この操作は取り消せません。",
+    "individualSecurities": "個別銘柄",
+    "individualSecuritiesNote": "銘柄ごとに1つの比率を設定します。現金とオルタナティブ資産は含まれません。",
+    "security": "銘柄",
+    "targetTypeFixed": "目標を作成した後は、配分タイプを変更できません。別のタイプを使うには、新しい目標を作成してください。",
+    "noSecuritiesFound": "この範囲に銘柄がありません。個別銘柄の目標を作成する前に保有資産を追加してください。"
   },
   "scope": {
     "allAccounts": "すべての口座",
@@ -505,6 +511,8 @@
     "region_other": "地域",
     "category_other": "カテゴリ",
     "assetClass_other": "資産クラス",
-    "industry_other": "産業"
+    "industry_other": "産業",
+    "security": "銘柄",
+    "security_other": "銘柄"
   }
 }
