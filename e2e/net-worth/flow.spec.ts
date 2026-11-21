@@ -75,3 +75,13 @@ test("privacy hides flow amounts", async ({ page }) => {
   await page.getByLabel("Hide balances").check();
   await expect(card.getByRole("button", { name: "Investments — ••••" })).toBeVisible();
 });
+
+test("showcase fans Investments in by account", async ({ page }) => {
+  await page.goto("/e2e/net-worth/?scenario=showcase&language=en&locale=en-US");
+  const card = page.getByRole("main", { name: "Net worth card" });
+  await card.getByRole("button", { name: "Show flow" }).click();
+  for (const account of ["401(k)", "Brokerage", "Roth IRA", "529 Plan"]) {
+    await expect(card.getByRole("button", { name: `${account} — `, exact: false })).toBeVisible();
+  }
+  await expect(card.getByText("401(k)", { exact: true })).toBeVisible();
+});

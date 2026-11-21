@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryKeys } from "@/lib/query-keys";
 import { MemoryRouter } from "react-router-dom";
 import { NetWorthAttentionCard } from "@/pages/net-worth/components/net-worth-attention";
 import { useState } from "react";
@@ -55,6 +56,126 @@ const history: ParsedHistoryPoint[] = [
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
+// A balanced, entirely fictional household for demos and screenshots: every
+// category is large enough to read in the flow diagram, and Investments fans in
+// by account from seeded account valuations that sum to its category total.
+const SHOWCASE_ACCOUNTS = [
+  { id: "acct-401k", name: "401(k)", value: 450_000 },
+  { id: "acct-brokerage", name: "Brokerage", value: 320_000 },
+  { id: "acct-roth", name: "Roth IRA", value: 180_000 },
+  { id: "acct-529", name: "529 Plan", value: 100_000 },
+];
+
+function showcase(): { data: ParsedNetWorth; history: ParsedHistoryPoint[] } {
+  const children = (category: string, items: [string, number][]) =>
+    items.map(([name, value]) => ({ category, name, value, assetId: `${category}-${name}` }));
+  const total = (items: { value: number }[]) => items.reduce((sum, item) => sum + item.value, 0);
+  const investments = SHOWCASE_ACCOUNTS.map(({ id, name, value }) => ({
+    category: "investments",
+    name,
+    value,
+    assetId: id,
+  }));
+  const properties = children("properties", [
+    ["Primary Home", 540_000],
+    ["Rental Condo", 180_000],
+  ]);
+  const cash = children("cash", [
+    ["Savings", 140_000],
+    ["Checking", 50_000],
+  ]);
+  const vehicles = children("vehicles", [
+    ["SUV", 50_000],
+    ["Sedan", 35_000],
+  ]);
+  const collectibles = children("collectibles", [
+    ["Art", 28_000],
+    ["Watches", 17_000],
+  ]);
+  const breakdown = [
+    { category: "investments", name: "Investments", value: total(investments) },
+    { category: "properties", name: "Real Estate", value: total(properties), children: properties },
+    { category: "cash", name: "Cash", value: total(cash), children: cash },
+    { category: "vehicles", name: "Vehicles", value: total(vehicles), children: vehicles },
+    {
+      category: "collectibles",
+      name: "Collectibles",
+      value: total(collectibles),
+      children: collectibles,
+    },
+  ];
+  const liabilities = [
+    { category: "liabilities", name: "Mortgage", value: 420_000, assetId: "mortgage" },
+    { category: "liabilities", name: "Auto Loan", value: 28_000, assetId: "auto-loan" },
+    { category: "liabilities", name: "Credit Card", value: 6_000, assetId: "credit-card" },
+  ];
+  const assetsTotal = total(breakdown);
+  const liabilitiesTotal = total(liabilities);
+  const latest = Object.fromEntries([
+    ...breakdown.map((item) => [item.category, item.value]),
+    ...liabilities.map((item) => [item.assetId, item.value]),
+  ]) as Record<string, number>;
+  // A year earlier: markets up, property flat-ish, cars depreciating, debts paid down.
+  const growth: Record<string, number> = {
+    investments: 1.21,
+    properties: 1.04,
+    cash: 0.92,
+    vehicles: 0.86,
+    collectibles: 1.03,
+    mortgage: 0.97,
+    "auto-loan": 0.7,
+    "credit-card": 1.25,
+  };
+  const yearAgo = Object.fromEntries(
+    Object.entries(latest).map(([key, value]) => [key, Math.round(value / growth[key])]),
+  );
+  const point = (date: string, values: Record<string, number>): ParsedHistoryPoint => {
+    const assets = breakdown.reduce((sum, item) => sum + values[item.category], 0);
+    const debts = liabilities.reduce((sum, item) => sum + values[item.assetId], 0);
+    return {
+      date,
+      netWorth: assets - debts,
+      totalAssets: assets,
+      totalLiabilities: debts,
+      portfolioValue: values.investments,
+      alternativeAssetsValue: assets - values.investments,
+      netContribution: 0,
+      breakdown: values,
+    };
+  };
+  return {
+    data: {
+      netWorth: assetsTotal - liabilitiesTotal,
+      assets: { total: assetsTotal, breakdown },
+      liabilities: { total: liabilitiesTotal, breakdown: liabilities },
+    },
+    history: [point("2025-09-06", yearAgo), point("2026-09-06", latest)],
+  };
+}
+
+if (new URLSearchParams(location.search).get("scenario") === "showcase") {
+  // The flow reads accounts and their current valuations through React Query.
+  queryClient.setQueryDefaults([QueryKeys.ACCOUNTS], { staleTime: Infinity });
+  queryClient.setQueryDefaults([QueryKeys.CURRENT_VALUATION], { staleTime: Infinity });
+  queryClient.setQueryData(
+    [QueryKeys.ACCOUNTS, false],
+    SHOWCASE_ACCOUNTS.map(({ id, name }) => ({ id, name, isActive: true })),
+  );
+  queryClient.setQueryData(
+    [
+      QueryKeys.CURRENT_VALUATION,
+      `accounts:${SHOWCASE_ACCOUNTS.map(({ id }) => id).join(",")}`,
+      "with-accounts",
+    ],
+    {
+      accounts: SHOWCASE_ACCOUNTS.map(({ id, value }) => ({
+        accountId: id,
+        investmentMarketValueBase: value,
+      })),
+    },
+  );
+}
+
 function Fixture() {
   const params = new URLSearchParams(location.search);
   const [width, setWidth] = useState(params.get("width") ?? "auto");
@@ -64,9 +185,12 @@ function Fixture() {
   const [hidden, setHidden] = useState(false);
   const [attentionLinked, setAttentionLinked] = useState(false);
   const [attentionAdd, setAttentionAdd] = useState(false);
-  const current = structuredClone(data);
-  const points = structuredClone(history);
-  if (scenario === "extreme") {
+  const isShowcase = scenario === "showcase";
+  const current = structuredClone(isShowcase ? showcase().data : data);
+  const points = structuredClone(isShowcase ? showcase().history : history);
+  if (isShowcase) {
+    // Self-contained: skip the adjustments below.
+  } else if (scenario === "extreme") {
     current.assets.breakdown[0].value = 1_234_567_890_123_456_000;
     current.assets.total = current.assets.breakdown[0].value + 400_000;
     current.netWorth = current.assets.total - current.liabilities.total;
@@ -169,6 +293,7 @@ function Fixture() {
                 "assets-only",
                 "extreme",
                 "itemized",
+                "showcase",
               ].map((value) => (
                 <option key={value}>{value}</option>
               ))}
@@ -233,12 +358,13 @@ function Fixture() {
           style={{ padding: 16, width: width === "auto" ? undefined : Number(width) + 32 }}
         >
           {/* The flow diagram reads accounts through React Query; with no backend
-              here those reads fail and it shows the flat Investments node. */}
+              here those reads fail and it shows the flat Investments node, except
+              in the showcase scenario, which seeds them. */}
           <QueryClientProvider client={queryClient}>
             <BreakdownTable
               data={current}
               history={points}
-              currency="EUR"
+              currency={isShowcase ? "USD" : "EUR"}
               periodLabel="ALL"
               onSelect={() => undefined}
             />
