@@ -761,7 +761,8 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({
       income += m.report?.current.income ?? 0;
       spent += m.report?.current.outflow ?? 0;
       // Net saving: money brought back from savings offsets what went in. A
-      // negative net hides the bar, and Net carries the difference.
+      // negative net hides the bar, and Net carries the difference; with
+      // savings left out of Net, the figure stays beside it with its sign.
       saved += (m.report?.current.saved ?? 0) - (m.report?.current.fromSavings ?? 0);
     }
     const net = income - spent - (includeSavings ? saved : 0);
@@ -870,7 +871,7 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({
             <PrivacyAmount value={totals.spent} currency={currency} />
           </span>
         </div>
-        {totals.saved > 0 && (
+        {(totals.saved > 0 || (!includeSavings && totals.saved < 0)) && (
           <div className="text-2xs flex items-center gap-2">
             <span className="text-muted-foreground w-16 shrink-0">
               {t("spending:cashFlow.netSaved")}
@@ -887,7 +888,8 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({
               <div className="flex-1" />
             )}
             <span className="text-foreground/90 w-20 shrink-0 text-end font-semibold tabular-nums">
-              <PrivacyAmount value={totals.saved} currency={currency} />
+              {totals.saved < 0 && "−"}
+              <PrivacyAmount value={Math.abs(totals.saved)} currency={currency} />
             </span>
           </div>
         )}

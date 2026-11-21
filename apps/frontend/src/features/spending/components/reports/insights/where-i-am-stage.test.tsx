@@ -381,4 +381,15 @@ describe("Net cashflow with money brought back from savings", () => {
     // The chart follows the same switch.
     expect(screen.queryByText("To savings")).not.toBeInTheDocument();
   });
+
+  it("keeps a net withdrawal beside the net once savings are switched off", () => {
+    const card = renderMonth(200, 900, { savingsInChart: true });
+    expect(within(card).queryByText("Net saved")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "Include savings" }));
+
+    // 1,000 − 1,500: the 700 brought back is no longer in the net, so it shows.
+    expect(card).toHaveTextContent(/−\$500/);
+    expect(within(card).getByText("Net saved").parentElement!).toHaveTextContent(/−\$700/);
+  });
 });
