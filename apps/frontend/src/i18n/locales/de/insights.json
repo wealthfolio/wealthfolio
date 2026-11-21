@@ -136,7 +136,16 @@
       "per_month": "/Mon."
     },
     "days_ago_one": "vor {{count}} T",
-    "days_ago_other": "vor {{count}} T"
+    "days_ago_other": "vor {{count}} T",
+    "flow": {
+      "show": "Fluss anzeigen",
+      "hide": "Fluss ausblenden",
+      "debts_label": "Schulden",
+      "other_holdings_one": "{{count}} kleinere Position",
+      "other_holdings_other": "{{count}} kleinere Positionen",
+      "unattributed": "Sonstiges",
+      "node_aria": "{{name}} — {{amount}}"
+    }
   },
   "highlights": {
     "movers": "Größte Kursbewegungen",

@@ -1,9 +1,10 @@
-import { render, screen } from "@/test/render";
-import { expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@/test/render";
+import { beforeEach, expect, it, vi } from "vitest";
 import { BreakdownTable } from "./breakdown-table";
 import type { ParsedHistoryPoint, ParsedNetWorth } from "./utils";
 
 vi.mock("./composition-bar", () => ({ CompositionBar: () => null }));
+vi.mock("./net-worth-flow-diagram", () => ({ NetWorthFlow: () => <div>flow-diagram</div> }));
 vi.mock("@/components/financial/compact-amount", () => ({
   CompactAmount: ({ value }: { value: number }) => <span>amount:{value}</span>,
 }));
@@ -26,6 +27,10 @@ const point = (cash: number, loan: number, date: string): ParsedHistoryPoint => 
   netContribution: 0,
   breakdown: { cash, loan },
 });
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
 function table(history: ParsedHistoryPoint[], isIncomplete = false, values = data) {
   return render(
     <BreakdownTable
@@ -90,4 +95,12 @@ it("leaves a legacy liability change unavailable when the row has no history key
 it("preserves New for values first added during a comparable period", () => {
   table([point(0, 0, "2026-11-01"), point(400, 100, "2026-11-16")]);
   expect(screen.getAllByText("New")).toHaveLength(3);
+});
+
+it("keeps the flow diagram collapsed until the composition bar is expanded", () => {
+  table([]);
+  expect(screen.queryByText("flow-diagram")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Show flow" }));
+  expect(screen.getByText("flow-diagram")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Hide flow" })).toBeVisible();
 });

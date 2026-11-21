@@ -136,7 +136,16 @@
       "per_month": "/月"
     },
     "days_ago_other": "{{count}} 天前",
-    "days_ago_one": "{{count}} 天前"
+    "days_ago_one": "{{count}} 天前",
+    "flow": {
+      "show": "顯示流向",
+      "hide": "隱藏流向",
+      "debts_label": "負債",
+      "other_holdings_one": "{{count}} 項較小持倉",
+      "other_holdings_other": "{{count}} 項較小持倉",
+      "unattributed": "其他",
+      "node_aria": "{{name}} — {{amount}}"
+    }
   },
   "highlights": {
     "movers": "漲跌排行",

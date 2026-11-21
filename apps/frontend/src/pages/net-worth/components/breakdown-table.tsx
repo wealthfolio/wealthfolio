@@ -1,7 +1,7 @@
 import { DashboardCard } from "@/components/dashboard-card";
 import { CompactAmount } from "@/components/financial/compact-amount";
 import { CARD_LABEL, CATEGORY_CSS_COLORS } from "@/components/financial/styles";
-import { useNumberFormatting } from "@wealthfolio/ui";
+import { useNumberFormatting, usePersistentState } from "@wealthfolio/ui";
 import {
   Collapsible,
   CollapsibleContent,
@@ -11,6 +11,8 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompositionBar } from "./composition-bar";
+import { NetWorthFlow } from "./net-worth-flow-diagram";
+import { FLOW_EXPANDED_STORAGE_KEY } from "./net-worth-flow-utils";
 import {
   deriveChange,
   formatChangePercent,
@@ -143,6 +145,16 @@ export function BreakdownTable({
     : null;
   const [assetsOpen, setAssetsOpen] = useState(true);
   const [liabilitiesOpen, setLiabilitiesOpen] = useState(true);
+  // CompositionBar is the collapsed state of the Sankey flow diagram —
+  // clicking it expands in place. Nothing is removed; the bar keeps its
+  // at-a-glance job and the diagram adds the structure it can't show.
+  const [flowExpanded, setFlowExpanded] = usePersistentState<boolean>(
+    FLOW_EXPANDED_STORAGE_KEY,
+    false,
+  );
+  const flowToggleLabel = t(
+    flowExpanded ? "insights:networth.flow.hide" : "insights:networth.flow.show",
+  );
 
   return (
     <div className="@container/breakdown min-w-0">
@@ -165,9 +177,31 @@ export function BreakdownTable({
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent className={SHARED_GRID}>
-              {/* Composition — proportion of assets (the rows below are its legend) */}
-              <div className="border-border/60 col-span-full mt-2.5 mb-1 border-b pb-3">
-                <CompositionBar data={data} />
+              {/* Composition bar — click to expand in place into the Sankey flow
+                  diagram (the same category proportions, rotated, with flows
+                  attached). The rows below remain its legend. */}
+              <div className="border-border/60 col-span-full mt-2.5 mb-1 min-w-0 border-b pb-3">
+                <Collapsible open={flowExpanded} onOpenChange={setFlowExpanded}>
+                  <CollapsibleTrigger
+                    className="focus-visible:ring-ring focus-visible:ring-offset-background group flex w-full flex-col gap-1.5 rounded-md text-start outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                    aria-label={flowToggleLabel}
+                  >
+                    <CompositionBar data={data} />
+                    <span
+                      className={`${CARD_LABEL} group-hover:text-foreground flex items-center gap-1 transition-colors`}
+                    >
+                      <Icons.ChevronRight
+                        className={`h-3 w-3 transition-transform ${flowExpanded ? "rotate-90" : "rtl:rotate-180"}`}
+                      />
+                      {flowToggleLabel}
+                    </span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {flowExpanded && (
+                      <NetWorthFlow data={data} currency={currency} onSelect={onSelect} />
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
 
               {/* Column labels */}

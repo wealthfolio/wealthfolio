@@ -136,7 +136,16 @@
       "per_month": "/mo"
     },
     "days_ago_one": "{{count}}d ago",
-    "days_ago_other": "{{count}}d ago"
+    "days_ago_other": "{{count}}d ago",
+    "flow": {
+      "show": "Show flow",
+      "hide": "Hide flow",
+      "debts_label": "Debts",
+      "other_holdings_one": "{{count}} smaller holding",
+      "other_holdings_other": "{{count}} smaller holdings",
+      "unattributed": "Other",
+      "node_aria": "{{name}} — {{amount}}"
+    }
   },
   "highlights": {
     "movers": "Top movers",

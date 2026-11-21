@@ -134,7 +134,15 @@
       "debt_added": "新規負債",
       "per_month": "/月"
     },
-    "days_ago_other": "{{count}}日前"
+    "days_ago_other": "{{count}}日前",
+    "flow": {
+      "show": "フローを表示",
+      "hide": "フローを隠す",
+      "debts_label": "負債",
+      "other_holdings_other": "その他 {{count}} 件の保有",
+      "unattributed": "その他",
+      "node_aria": "{{name}} — {{amount}}"
+    }
   },
   "highlights": {
     "movers": "値動き上位",
