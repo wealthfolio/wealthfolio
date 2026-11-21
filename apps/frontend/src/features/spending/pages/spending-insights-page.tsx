@@ -31,7 +31,7 @@ import { SpendingPeriodSelector } from "../components/spending-period-toggle";
 import { PAYEES_TAXONOMY_ID } from "../lib/payee";
 import { PeriodNavigation } from "../components/period-navigation";
 import { useCashActivities } from "../hooks/use-cash-activities";
-import { useEventSpendingSummaries } from "../hooks/use-spending-events";
+import { useEventSpendingSummaries, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSpendingInsight } from "../hooks/use-spending-insight";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import {
@@ -42,6 +42,7 @@ import {
 } from "../lib/year-period";
 import { getActivitySpendingAmount, getVisibleSpendingAmount } from "../lib/constants";
 import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
+import { labelFilterKeeps } from "../lib/label-filter";
 import {
   addMonthsToMonthKey,
   currentMonthKey,
@@ -509,7 +510,17 @@ export default function SpendingInsightsPage({
       endDate: zonedCalendarDateBoundaryToDate(end, "end", appTimezone).toISOString(),
     };
   }, [appTimezone, customRange, customYear, range]);
-  const { data: heatmapActivities = [] } = useCashActivities(heatmapRequest);
+  const { data: heatmapWindowActivities = [] } = useCashActivities(heatmapRequest);
+  const { data: allEvents = [] } = useSpendingEvents();
+  // The activities come unfiltered, the daily totals beside them filtered: keep
+  // the same ones here, so the hours, the cell lists and the totals agree.
+  const heatmapActivities = useMemo(() => {
+    if (!labelFilter) return heatmapWindowActivities;
+    const typeByEvent = new Map(allEvents.map((event) => [event.id, event.eventTypeId] as const));
+    return heatmapWindowActivities.filter((activity) =>
+      labelFilterKeeps(labelFilter, activity, typeByEvent),
+    );
+  }, [allEvents, heatmapWindowActivities, labelFilter]);
   const {
     data: heatmapInsight,
     isError: heatmapInsightErrored,
