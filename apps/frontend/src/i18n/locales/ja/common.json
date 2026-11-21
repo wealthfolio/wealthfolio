@@ -1,5 +1,7 @@
 {
   "valuation_incomplete": "一部の価格または為替レートが不明なため、合計を表示できません。",
+  "valuation_incomplete_fx_other": "次の為替レートがないため、合計を表示できません:",
+  "view_in_health_center": "ヘルスセンターで確認",
   "known_subtotal": "確認済みの小計",
   "periodReturn": "{{period}}のリターン",
   "currentValue": "現在の評価額",

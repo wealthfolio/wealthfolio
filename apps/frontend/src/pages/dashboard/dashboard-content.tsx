@@ -1,3 +1,4 @@
+import { IncompleteValuationNote } from "@/components/incomplete-valuation-note";
 import { isValuationComplete } from "@/lib/valuation";
 import { useTranslation } from "react-i18next";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
@@ -23,7 +24,7 @@ import { format } from "date-fns";
 import { useMemo } from "react";
 import { HealthStatusIndicator } from "@/components/health-status-icon";
 import { PrivacyToggle } from "@/components/privacy-toggle";
-import type { AccountScope } from "@/lib/types";
+import type { AccountScope, FxConversionIssue } from "@/lib/types";
 import { accountScopeKey } from "@/pages/allocation-targets/components/target-scope";
 import { AccountsSummary } from "./accounts-summary";
 import Balance from "./balance";
@@ -77,6 +78,27 @@ interface DashboardContentProps {
   scope?: AccountScope;
   scopeLabel?: string;
   accountIds?: string[];
+}
+
+/** N/A for the period's gain or return; an incomplete valuation says why. */
+function PeriodNotAvailable({
+  isIncomplete,
+  missingFx,
+}: {
+  isIncomplete: boolean;
+  missingFx?: FxConversionIssue[];
+}) {
+  const { t } = useTranslation();
+  const label = (
+    <span className="text-muted-foreground lg:text-md text-sm font-light">
+      {t("performance:not_available")}
+    </span>
+  );
+  return isIncomplete ? (
+    <IncompleteValuationNote missingFx={missingFx}>{label}</IncompleteValuationNote>
+  ) : (
+    label
+  );
 }
 
 export function DashboardContent({
@@ -223,6 +245,12 @@ export function DashboardContent({
               <Balance
                 isLoading={isCurrentValuationLoading}
                 isUnavailable={isCurrentValuationUnavailable}
+                incompleteValuation={
+                  portfolioCurrentValuation &&
+                  !isValuationComplete(portfolioCurrentValuation.summary.valueStatus)
+                    ? { missingFx: portfolioCurrentValuation.summary.missingFx }
+                    : undefined
+                }
                 targetValue={totalValue}
                 currency={baseCurrency}
                 displayCurrency={true}
@@ -241,9 +269,10 @@ export function DashboardContent({
             ) : (
               <>
                 {gainLossAmount == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">
-                    {t("performance:not_available")}
-                  </span>
+                  <PeriodNotAvailable
+                    isIncomplete={hasIncompletePeriod}
+                    missingFx={portfolioCurrentValuation?.summary.missingFx}
+                  />
                 ) : (
                   <GainAmount
                     className="lg:text-md text-sm font-light"
@@ -255,9 +284,10 @@ export function DashboardContent({
                 {/* Stretch: the row centres its items, so an empty divider has no height. */}
                 <div className="border-secondary my-1 self-stretch border-e pe-2" />
                 {simpleReturn == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">
-                    {t("performance:not_available")}
-                  </span>
+                  <PeriodNotAvailable
+                    isIncomplete={hasIncompletePeriod}
+                    missingFx={portfolioCurrentValuation?.summary.missingFx}
+                  />
                 ) : (
                   <GainPercent
                     className="lg:text-md text-sm font-light"

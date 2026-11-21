@@ -2623,6 +2623,8 @@ export interface HealthStatus {
   issues: HealthIssue[];
   checkedAt: string;
   isStale: boolean;
+  /** Issues the user dismissed; not counted in the severity or counts. */
+  dismissedIssues?: HealthIssue[];
 }
 
 /**

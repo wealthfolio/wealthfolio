@@ -1,3 +1,4 @@
+import { IncompleteValuationNote } from "@/components/incomplete-valuation-note";
 import { isValuationComplete } from "@/lib/valuation";
 import { useNetWorth, useNetWorthHistory } from "@/hooks/use-alternative-assets";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
@@ -146,9 +147,10 @@ export function NetWorthContent() {
 
   const parsedHistory = useMemo(() => parseHistory(historyData), [historyData]);
   const longHistory = useMemo(() => parseHistory(longHistoryData), [longHistoryData]);
+  const hasIncompleteHistory =
+    historyData?.some((point) => !isValuationComplete(point.valueStatus)) ?? false;
   const hasIncompleteValuation =
-    !isValuationComplete(netWorthData?.valueStatus) ||
-    (historyData?.some((point) => !isValuationComplete(point.valueStatus)) ?? false);
+    !isValuationComplete(netWorthData?.valueStatus) || hasIncompleteHistory;
   const missingFx = useMemo(
     () => [
       ...(netWorthData?.missingFx ?? []),
@@ -261,6 +263,7 @@ export function NetWorthContent() {
                 isUnavailable={
                   !!netWorthData?.valueStatus && netWorthData.valueStatus !== "complete"
                 }
+                incompleteValuation={{ missingFx: netWorthData?.missingFx }}
                 targetValue={parsedData?.netWorth ?? 0}
                 currency={currency}
                 displayCurrency={true}
@@ -278,9 +281,17 @@ export function NetWorthContent() {
                   <Skeleton className="h-4 w-16" />
                 </div>
               ) : parsedHistory.length < 2 ? (
-                <span className="text-muted-foreground text-sm">
-                  {t("performance:not_available")}
-                </span>
+                hasIncompleteHistory ? (
+                  <IncompleteValuationNote missingFx={missingFx}>
+                    <span className="text-muted-foreground text-sm">
+                      {t("performance:not_available")}
+                    </span>
+                  </IncompleteValuationNote>
+                ) : (
+                  <span className="text-muted-foreground text-sm">
+                    {t("performance:not_available")}
+                  </span>
+                )
               ) : (
                 <>
                   <GainAmount

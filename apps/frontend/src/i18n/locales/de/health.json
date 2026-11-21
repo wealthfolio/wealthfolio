@@ -300,5 +300,11 @@
     "insufficient_quantity": "Diese Transaktion entfernt {{requested}} Einheiten von {{asset}}, es wurden jedoch nur {{held}} gehalten. Die verbleibenden {{excess}} Einheiten haben keine Kostenbasis.",
     "missing_final_cash": "Diese gebuchte Transaktion hat keinen endgültigen Barbetrag und hat daher den Barbestand nicht verändert.",
     "option_expiry_not_option": "Dieser Optionsverfall nennt {{asset}}, das kein Optionskontrakt ist, daher hat er nichts verändert. Verknüpfen Sie ihn mit dem verfallenen Kontrakt."
+  },
+  "dismissed": {
+    "title_one": "Ausgeblendetes Problem ({{count}})",
+    "title_other": "Ausgeblendete Probleme ({{count}})",
+    "description": "Nicht in der Liste und im Badge. Ein Problem erscheint von selbst wieder, wenn sich seine Daten ändern.",
+    "restore": "Wieder anzeigen"
   }
 }

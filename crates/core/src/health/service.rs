@@ -349,11 +349,12 @@ impl HealthService {
             effective_timezone(configured_timezone, client_timezone),
         ));
 
-        // Filter out dismissed issues (unless data has changed)
-        let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
+        // Set dismissed issues apart (unless data has changed)
+        let (active_issues, dismissed_issues) = self.partition_dismissed_issues(all_issues).await?;
 
-        // Build status
-        let status = HealthStatus::from_issues(filtered_issues);
+        // Build status; dismissed issues don't count toward its severity
+        let status =
+            HealthStatus::from_issues(active_issues).with_dismissed_issues(dismissed_issues);
 
         // Cache the result
         let cached = CachedStatus {
@@ -890,14 +891,19 @@ impl HealthService {
         .await
     }
 
-    /// Filters out issues that have been dismissed (unless their data has changed).
-    async fn filter_dismissed_issues(&self, issues: Vec<HealthIssue>) -> Result<Vec<HealthIssue>> {
+    /// Splits issues into active and dismissed ones. A dismissal whose data
+    /// has changed since is dropped, and its issue is active again.
+    async fn partition_dismissed_issues(
+        &self,
+        issues: Vec<HealthIssue>,
+    ) -> Result<(Vec<HealthIssue>, Vec<HealthIssue>)> {
         let dismissals = self.dismissal_store.get_dismissals().await?;
 
         let dismissed_map: std::collections::HashMap<String, &IssueDismissal> =
             dismissals.iter().map(|d| (d.issue_id.clone(), d)).collect();
 
-        let mut filtered = Vec::new();
+        let mut active = Vec::new();
+        let mut dismissed = Vec::new();
 
         for issue in issues {
             if let Some(dismissal) = dismissed_map.get(&issue.id) {
@@ -908,15 +914,16 @@ impl HealthService {
                     if let Err(e) = self.dismissal_store.remove_dismissal(&issue.id).await {
                         warn!("Failed to remove stale dismissal: {}", e);
                     }
-                    filtered.push(issue);
+                    active.push(issue);
+                } else {
+                    dismissed.push(issue);
                 }
-                // Otherwise, skip the dismissed issue
             } else {
-                filtered.push(issue);
+                active.push(issue);
             }
         }
 
-        Ok(filtered)
+        Ok((active, dismissed))
     }
 }
 
@@ -4685,6 +4692,18 @@ mod tests {
         service: &HealthService,
         stale_valuations: &[StaleAssetInfo],
     ) -> Vec<HealthIssue> {
+        stale_valuation_status(service, stale_valuations)
+            .await
+            .issues
+            .into_iter()
+            .filter(|issue| issue.code.as_deref() == Some("price_manual_valuation_stale"))
+            .collect()
+    }
+
+    async fn stale_valuation_status(
+        service: &HealthService,
+        stale_valuations: &[StaleAssetInfo],
+    ) -> HealthStatus {
         service
             .run_checks_with_stale_valuations(
                 "USD",
@@ -4706,10 +4725,51 @@ mod tests {
             )
             .await
             .unwrap()
-            .issues
-            .into_iter()
-            .filter(|issue| issue.code.as_deref() == Some("price_manual_valuation_stale"))
-            .collect()
+    }
+
+    #[tokio::test]
+    async fn dismissed_issue_is_listed_apart_until_restored() {
+        let service = HealthService::new(Arc::new(MockDismissalStore::new()));
+        let status = stale_valuation_status(&service, &[stale("house", 120)]).await;
+        assert_eq!(status.issues.len(), 1);
+        assert!(status.dismissed_issues.is_empty());
+        let issue = status.issues[0].clone();
+
+        service
+            .dismiss_issue(&issue.id, &issue.data_hash)
+            .await
+            .unwrap();
+        let status = stale_valuation_status(&service, &[stale("house", 120)]).await;
+        assert!(status.issues.is_empty());
+        assert_eq!(status.dismissed_issues.len(), 1);
+        assert_eq!(status.dismissed_issues[0].id, issue.id);
+        // A dismissed issue counts toward neither the severity nor the badge.
+        assert_eq!(status.overall_severity, crate::health::Severity::Info);
+        assert!(status.issue_counts.is_empty());
+
+        service.restore_issue(&issue.id).await.unwrap();
+        let status = stale_valuation_status(&service, &[stale("house", 120)]).await;
+        assert_eq!(status.issues.len(), 1);
+        assert_eq!(status.issues[0].id, issue.id);
+        assert!(status.dismissed_issues.is_empty());
+    }
+
+    #[tokio::test]
+    async fn dismissed_issue_returns_by_itself_when_its_data_changes() {
+        let service = HealthService::new(Arc::new(MockDismissalStore::new()));
+        let issue = stale_valuation_issues(&service, &[stale("house", 120)]).await[0].clone();
+
+        // A dismissal recorded against other data than the issue now has.
+        service
+            .dismiss_issue(&issue.id, "hash-of-older-data")
+            .await
+            .unwrap();
+
+        let status = stale_valuation_status(&service, &[stale("house", 120)]).await;
+        assert_eq!(status.issues.len(), 1);
+        assert_eq!(status.issues[0].id, issue.id);
+        assert!(status.dismissed_issues.is_empty());
+        assert!(service.get_dismissed_ids().await.unwrap().is_empty());
     }
 
     #[tokio::test]

@@ -1,5 +1,12 @@
 {
   "valuation_incomplete": "الإجمالي غير متاح: بعض الأسعار أو أسعار الصرف مفقودة.",
+  "valuation_incomplete_fx_zero": "الإجمالي غير متاح: أسعار الصرف مفقودة:",
+  "valuation_incomplete_fx_one": "الإجمالي غير متاح: سعر الصرف مفقود:",
+  "valuation_incomplete_fx_two": "الإجمالي غير متاح: سعرا الصرف مفقودان:",
+  "valuation_incomplete_fx_few": "الإجمالي غير متاح: أسعار الصرف مفقودة:",
+  "valuation_incomplete_fx_many": "الإجمالي غير متاح: أسعار الصرف مفقودة:",
+  "valuation_incomplete_fx_other": "الإجمالي غير متاح: أسعار الصرف مفقودة:",
+  "view_in_health_center": "عرض في مركز السلامة",
   "known_subtotal": "المجموع الفرعي المعروف",
   "periodReturn": "عائد {{period}}",
   "currentValue": "القيمة الحالية",

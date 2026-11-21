@@ -299,5 +299,10 @@
     "insufficient_quantity": "이 거래는 {{asset}} {{requested}}단위를 차감하지만 보유 수량은 {{held}}단위뿐이었습니다. 나머지 {{excess}}단위에는 취득 원가가 없습니다.",
     "missing_final_cash": "이 기장된 거래에는 최종 현금 금액이 없어 현금 잔액이 변경되지 않았습니다.",
     "option_expiry_not_option": "이 옵션 만기는 옵션 계약이 아닌 {{asset}}을(를) 지정하고 있어 아무것도 변경되지 않았습니다. 만기된 계약에 연결하세요."
+  },
+  "dismissed": {
+    "title_other": "무시한 문제 ({{count}})",
+    "description": "목록과 배지에 표시되지 않습니다. 데이터가 바뀌면 문제가 자동으로 다시 표시됩니다.",
+    "restore": "다시 표시"
   }
 }

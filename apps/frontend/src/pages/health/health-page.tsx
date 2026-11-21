@@ -2,6 +2,7 @@ import {
   useDismissHealthIssue,
   useExecuteHealthFix,
   useHealthStatus,
+  useRestoreHealthIssue,
   useRunHealthChecks,
 } from "@/hooks/use-health";
 import { HOVER_SLOT } from "@/lib/hover-slot";
@@ -21,6 +22,11 @@ import {
   Spinner,
 } from "@wealthfolio/ui";
 import { cn } from "@wealthfolio/ui/lib/utils";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@wealthfolio/ui/components/ui/collapsible";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IssueDetailSheet } from "./components/issue-detail-sheet";
@@ -194,6 +200,77 @@ function HealthIssueRow({
   );
 }
 
+function DismissedIssues({
+  issues,
+  onOpen,
+  onRestore,
+  isRestoring,
+}: {
+  issues: HealthIssue[];
+  onOpen: (issue: HealthIssue) => void;
+  onRestore: (issue: HealthIssue) => void;
+  isRestoring: boolean;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger
+        render={
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm"
+          />
+        }
+      >
+        {/* Points toward the text while closed, down once open. */}
+        <Icons.ChevronDown
+          className={cn("h-4 w-4 transition-transform", !open && "-rotate-90 rtl:rotate-90")}
+        />
+        {t("health:dismissed.title", { count: issues.length })}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <p className="text-muted-foreground mt-2 mb-3 text-xs">
+          {t("health:dismissed.description")}
+        </p>
+        <div className={cn(cardSurfaceClassName, "divide-y")}>
+          {issues.map((issue) => (
+            <div
+              key={issue.id}
+              className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors"
+              onClick={() => onOpen(issue)}
+            >
+              <SeverityDot severity={issue.severity} />
+              <div className="min-w-0 flex-1">
+                <span className="line-clamp-2 block text-sm sm:line-clamp-1">
+                  {translateIssueText(t, issue, "title")}
+                </span>
+                <span className="text-muted-foreground block text-xs">
+                  {t(`health:${SEVERITY_LABEL_KEYS[issue.severity]}`)}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 shrink-0 px-2.5 text-xs"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  onRestore(issue);
+                }}
+                disabled={isRestoring}
+              >
+                <Icons.Eye className="me-1 h-3 w-3" />
+                {t("health:dismissed.restore")}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function StatusSummary({
   counts,
   selectedSeverity,
@@ -276,6 +353,7 @@ export default function HealthPage() {
   const { data: status, isLoading, error } = useHealthStatus();
   const runChecksMutation = useRunHealthChecks();
   const dismissMutation = useDismissHealthIssue();
+  const restoreMutation = useRestoreHealthIssue();
   const fixMutation = useExecuteHealthFix();
   // A fix that resolves the open issue removes it from the fresh status, so its
   // sheet closes with it, as after a dismiss.
@@ -292,6 +370,10 @@ export default function HealthPage() {
   const handleRefresh = () => {
     runChecksMutation.mutate();
   };
+
+  const dismissedIssues = status?.dismissedIssues ?? [];
+  const isSelectedDismissed =
+    selectedIssue !== null && dismissedIssues.some((issue) => issue.id === selectedIssue.id);
 
   const filteredIssues = status?.issues.filter((issue) => {
     if (selectedSeverity && issue.severity !== selectedSeverity) return false;
@@ -411,6 +493,15 @@ export default function HealthPage() {
                 <HealthyState />
               )}
             </div>
+
+            {dismissedIssues.length > 0 && (
+              <DismissedIssues
+                issues={dismissedIssues}
+                onOpen={setSelectedIssue}
+                onRestore={(issue) => restoreMutation.mutate(issue.id)}
+                isRestoring={restoreMutation.isPending}
+              />
+            )}
           </div>
         ) : null}
       </PageContent>
@@ -441,6 +532,13 @@ export default function HealthPage() {
           }
         }}
         onRunFixAction={runFix}
+        // A dismissed issue's sheet offers to show it again instead.
+        onRestore={
+          isSelectedDismissed && selectedIssue
+            ? () => restoreMutation.mutate(selectedIssue.id)
+            : undefined
+        }
+        isRestoring={restoreMutation.isPending}
         isDismissing={dismissMutation.isPending}
         isFixing={fixMutation.isPending}
       />

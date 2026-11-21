@@ -1,3 +1,4 @@
+import { IncompleteValuationNote } from "@/components/incomplete-valuation-note";
 import { isValuationComplete } from "@/lib/valuation";
 import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
@@ -27,7 +28,7 @@ import {
   TooltipTrigger,
   buttonVariants,
 } from "@wealthfolio/ui";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
@@ -654,6 +655,21 @@ const AccountPage = () => {
     !isCurrentValuationLoading &&
     (!isValuationComplete(currentAccountValuation?.accountValueStatus) ||
       (!currentAccountValuation && Boolean(currentValuationError)));
+  const isCurrentValuationIncomplete =
+    !!currentAccountValuation && !isValuationComplete(currentAccountValuation.accountValueStatus);
+  // The all-time gain of a transactions account comes from the valuation.
+  const isAllTimeGainIncomplete =
+    selectedIntervalCode === "ALL" &&
+    !isHoldingsMode &&
+    !!metricsValuation &&
+    !isValuationComplete(metricsValuation.valueStatus);
+  const missingFx = currentAccountValuation?.missingFx;
+  const withIncompleteNote = (isIncomplete: boolean, notAvailable: ReactNode) =>
+    isIncomplete ? (
+      <IncompleteValuationNote missingFx={missingFx}>{notAvailable}</IncompleteValuationNote>
+    ) : (
+      notAvailable
+    );
   const performanceCurrency = accountPerformance?.scope.currency ?? baseCurrency;
   const gainLossCurrencyToDisplay =
     selectedIntervalCode === "ALL" && !isHoldingsMode
@@ -1075,9 +1091,12 @@ const AccountPage = () => {
                             {isCurrentValuationLoading ? (
                               <Skeleton className="h-8 w-36" />
                             ) : isCurrentValuationUnavailable ? (
-                              <span className="text-muted-foreground">
-                                {t("account:not_available")}
-                              </span>
+                              withIncompleteNote(
+                                isCurrentValuationIncomplete,
+                                <span className="text-muted-foreground">
+                                  {t("account:not_available")}
+                                </span>,
+                              )
                             ) : (
                               <PrivacyAmount
                                 value={displayedTotalValue}
@@ -1094,9 +1113,12 @@ const AccountPage = () => {
                               className="flex h-5 items-center gap-2 text-sm"
                             >
                               {gainLossAmountToDisplay == null ? (
-                                <span className="text-muted-foreground text-sm font-light">
-                                  {t("account:not_available")}
-                                </span>
+                                withIncompleteNote(
+                                  isAllTimeGainIncomplete,
+                                  <span className="text-muted-foreground text-sm font-light">
+                                    {t("account:not_available")}
+                                  </span>,
+                                )
                               ) : (
                                 <GainAmount
                                   className="text-sm font-light"
@@ -1106,9 +1128,12 @@ const AccountPage = () => {
                                 />
                               )}
                               {percentageToDisplay == null ? (
-                                <span className="text-muted-foreground bg-foreground/10 rounded-md px-2 py-px text-xs font-light">
-                                  {t("account:not_available")}
-                                </span>
+                                withIncompleteNote(
+                                  isAllTimeGainIncomplete,
+                                  <span className="text-muted-foreground bg-foreground/10 rounded-md px-2 py-px text-xs font-light">
+                                    {t("account:not_available")}
+                                  </span>,
+                                )
                               ) : (
                                 <GainPercent
                                   value={percentageToDisplay}
@@ -1195,6 +1220,7 @@ const AccountPage = () => {
               <div className="flex min-h-0 flex-col gap-4">
                 <AccountMetrics
                   valuation={metricsValuation}
+                  missingFx={missingFx}
                   performance={accountPerformance}
                   cashCurrencySplit={liveCurrentValuation?.summary.cashCurrencySplit}
                   className="min-h-0 grow"

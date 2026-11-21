@@ -1,5 +1,9 @@
 {
   "valuation_incomplete": "Totale non disponibile: mancano alcuni prezzi o tassi di cambio.",
+  "valuation_incomplete_fx_one": "Totale non disponibile: manca il tasso di cambio per",
+  "valuation_incomplete_fx_many": "Totale non disponibile: mancano i tassi di cambio per",
+  "valuation_incomplete_fx_other": "Totale non disponibile: mancano i tassi di cambio per",
+  "view_in_health_center": "Vedi nel Centro salute",
   "known_subtotal": "Subtotale noto",
   "periodReturn": "Rendimento {{period}}",
   "currentValue": "Valore attuale",

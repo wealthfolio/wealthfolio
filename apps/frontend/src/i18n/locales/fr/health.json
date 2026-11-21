@@ -336,5 +336,12 @@
     "insufficient_quantity": "Cette opération retire {{requested}} unités de {{asset}}, mais seules {{held}} étaient détenues. Les {{excess}} unités restantes n’ont pas de prix de revient.",
     "missing_final_cash": "Cette opération comptabilisée n’a pas de montant final en espèces et n’a donc pas modifié le solde de trésorerie.",
     "option_expiry_not_option": "Cette expiration d’option porte sur {{asset}}, qui n’est pas un contrat d’option ; elle n’a donc rien modifié. Associez-la au contrat arrivé à expiration."
+  },
+  "dismissed": {
+    "title_one": "Problème ignoré ({{count}})",
+    "title_many": "Problèmes ignorés ({{count}})",
+    "title_other": "Problèmes ignorés ({{count}})",
+    "description": "Masqués dans la liste et le badge. Un problème réapparaît de lui-même quand ses données changent.",
+    "restore": "Réafficher"
   }
 }
