@@ -7,6 +7,23 @@ import { matchesProfileScope, profileFetch, profileScope } from "./session";
 const mocks = vi.hoisted(() => ({ command: vi.fn(), reload: vi.fn() }));
 vi.mock("@/adapters", () => ({
   isWeb: true,
+  // usePlatform (imported by ProfileShell) reads isTauri at the module level.
+  // Keep it false so the hook uses detectPlatformFromUserAgent and
+  // biometric_lock stays false (unavailable) in every test.
+  isTauri: false,
+  getPlatform: vi.fn(() =>
+    Promise.resolve({
+      os: "unknown",
+      is_mobile: false,
+      is_desktop: true,
+      capabilities: {
+        connect_sync: true,
+        device_sync: true,
+        cloud_sync: true,
+        biometric_lock: false,
+      },
+    }),
+  ),
   listenPortfolioUpdateStart: async () => () => {},
 }));
 vi.mock("./api", async (importOriginal) => ({

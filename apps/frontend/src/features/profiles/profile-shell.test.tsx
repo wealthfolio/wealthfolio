@@ -20,6 +20,23 @@ vi.mock("@/adapters", () => ({
   get isWeb() {
     return mocks.isWeb;
   },
+  // usePlatform (imported by ProfileShell) reads isTauri and optionally calls
+  // getPlatform. Keep isTauri false so the hook uses detectPlatformFromUserAgent
+  // and biometric_lock stays false (unavailable) in every test.
+  isTauri: false,
+  getPlatform: vi.fn(() =>
+    Promise.resolve({
+      os: "unknown",
+      is_mobile: false,
+      is_desktop: true,
+      capabilities: {
+        connect_sync: true,
+        device_sync: true,
+        cloud_sync: true,
+        biometric_lock: false,
+      },
+    }),
+  ),
   listenPortfolioUpdateStart: mocks.listen,
 }));
 vi.mock("@tauri-apps/api/event", () => ({
