@@ -91,7 +91,7 @@ easy-to-use tool to track their investments, net worth, spending and goals.
 - [x] SSO in self-hosted version (OpenID Connect)
 - [x] Separate profiles with app lock
 - [x] Optional database encryption and password-protected backups
-- [x] 11 languages, including right-to-left Arabic
+- [x] 12 languages, including right-to-left Arabic
 
 ### Up Next
 

@@ -72,3 +72,24 @@ describe("OnboardingStep2 language picker", () => {
     expect(screen.getByTestId("language-en-button")).toBeInTheDocument();
   });
 });
+
+describe("OnboardingStep2 region picker", () => {
+  it("offers every formatting region in the overlay", async () => {
+    const user = userEvent.setup();
+    const { FORMATTING_REGIONS } = await import("@wealthfolio/ui");
+    renderStep2();
+
+    for (const other of screen.getAllByRole("button", { name: /other/i })) {
+      await user.click(other);
+      if (screen.queryByPlaceholderText("Search regions...")) break;
+      await user.click(screen.getByRole("button", { name: "Close" }));
+    }
+    expect(screen.getByPlaceholderText("Search regions...")).toBeInTheDocument();
+
+    const regions = FORMATTING_REGIONS.filter((region) => region !== "system");
+    for (const region of regions) {
+      expect(screen.getByText(region, { selector: "span.text-sm" })).toBeInTheDocument();
+    }
+    expect(screen.getByText("Russia")).toBeInTheDocument();
+  });
+});

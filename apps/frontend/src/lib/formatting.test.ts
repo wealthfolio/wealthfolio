@@ -34,6 +34,7 @@ describe("locale formatting", () => {
     expect(resolveFormattingLocale("AT", "en")).toBe("de-AT");
     expect(resolveFormattingLocale("RO", "en")).toBe("ro-RO");
     expect(resolveFormattingLocale("BG", "en")).toBe("bg-BG");
+    expect(resolveFormattingLocale("RU", "en")).toBe("ru-RU");
     expect(resolveFormattingLocale("en-US", "fr")).toBe("en-US");
   });
 

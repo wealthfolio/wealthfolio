@@ -185,3 +185,53 @@ test("rejects extra keys, empty strings and incompatible value types", (t) => {
   assert.match(result.stdout, /common.json:message: type mismatch/);
   assert.match(result.stdout, /common.json:obsolete: extra key/);
 });
+
+const countlessOne = {
+  en: { common: { items_one: "Item", items_other: "{{count}} items" } },
+};
+
+test("requires the count in a one form that also serves 21, 31 (Russian)", (t) => {
+  const result = check(t, {
+    ...countlessOne,
+    ru: {
+      common: {
+        items_one: "Позиция",
+        items_few: "{{count}} позиции",
+        items_many: "{{count}} позиций",
+        items_other: "{{count}} позиции",
+      },
+    },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /common.json:items_one: empty text or interpolation mismatch/);
+  assert.doesNotMatch(result.stdout, /items_few|items_many|items_other/);
+});
+
+test("accepts a Russian one form that keeps the count", (t) => {
+  const result = check(t, {
+    ...countlessOne,
+    ru: {
+      common: {
+        items_one: "{{count}} позиция",
+        items_few: "{{count}} позиции",
+        items_many: "{{count}} позиций",
+        items_other: "{{count}} позиции",
+      },
+    },
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test("keeps a countless one form valid where one means only 1 (French)", (t) => {
+  const result = check(t, {
+    ...countlessOne,
+    fr: {
+      common: {
+        items_one: "Élément",
+        items_many: "{{count}} éléments",
+        items_other: "{{count}} éléments",
+      },
+    },
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});

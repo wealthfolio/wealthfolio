@@ -21,6 +21,7 @@ const regionalDecimals = [
   ["IT", "8.765,43"],
   ["RO", "8.765,43"],
   ["BG", "8\u00a0765,43"],
+  ["RU", "8\u00a0765,43"],
 ] as const;
 
 describe("display number grouping", () => {
