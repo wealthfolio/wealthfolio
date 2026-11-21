@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -14,6 +14,7 @@ import {
   getTransferPairForActivity,
   searchActivities,
 } from "@/adapters";
+import { getCashActivityLabel, isCreditCardAccountType } from "@/features/spending/lib/constants";
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import {
@@ -21,6 +22,7 @@ import {
   type Account,
   type Activity,
   type ActivityDetails,
+  type ConvertToTransferRequest,
   type TransferMatchCandidate,
 } from "@/lib/types";
 import { cn, formatDateISO, formatDateTime } from "@/lib/utils";
@@ -127,6 +129,17 @@ const STRICT = "strict";
 const ANY = "any";
 const SAME_ASSET = "same";
 const CASH_ASSET = "cash";
+
+/** A credit card's own name for a type ("Purchase", "Payment"), or none elsewhere. */
+function cardTypeLabel(
+  t: TFunction,
+  activityType: string,
+  accountType: string | undefined,
+): string | undefined {
+  return isCreditCardAccountType(accountType)
+    ? getCashActivityLabel(t, activityType, accountType)
+    : undefined;
+}
 
 function isTransferType(activityType: string | undefined): boolean {
   return activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT;
@@ -392,7 +405,10 @@ function ActivitySummaryRow({
   return (
     <div className={cn("flex flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm", className)}>
       <div className="flex items-center justify-between gap-3">
-        <ActivityTypeBadge type={normalized.activityType as ActivityType} />
+        <ActivityTypeBadge
+          type={normalized.activityType as ActivityType}
+          label={cardTypeLabel(t, normalized.activityType, normalized.accountType)}
+        />
         <span className="text-muted-foreground shrink-0 text-xs">{date}</span>
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -526,7 +542,16 @@ function PairDetails({
     },
     {
       label: t("activity:table_type"),
-      value: (leg) => <ActivityTypeBadge type={getEffectiveType(leg) as ActivityType} />,
+      value: (leg) => (
+        <ActivityTypeBadge
+          type={getEffectiveType(leg) as ActivityType}
+          label={cardTypeLabel(
+            t,
+            getEffectiveType(leg),
+            accountMap.get(leg.accountId)?.accountType,
+          )}
+        />
+      ),
     },
     {
       label: t("activity:field_date"),
@@ -670,6 +695,7 @@ function CandidateButton({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useTranslation();
   const dateFormatting = useDateFormatting();
   const formatting = useAmountFormatting();
   const normalized = normalizeActivity(candidate.activity, accountMap);
@@ -699,6 +725,7 @@ function CandidateButton({
           {isTransferType(normalized.activityType) ? null : (
             <ActivityTypeBadge
               type={normalized.activityType as ActivityType}
+              label={cardTypeLabel(t, normalized.activityType, normalized.accountType)}
               className="text-2xs px-1.5 py-0 font-normal"
             />
           )}
@@ -736,8 +763,11 @@ function CandidateButton({
  * serves "Make it a transfer…".
  */
 export function TransferMatchDialog(props: TransferMatchDialogProps) {
-  const { sourceActivity, mode } = props;
-  if (sourceActivity && mode === "link" && canConvertToTransfer(sourceActivity)) {
+  const { sourceActivity, mode, accounts } = props;
+  const accountType = accounts.find(
+    (account) => account.id === sourceActivity?.accountId,
+  )?.accountType;
+  if (sourceActivity && mode === "link" && canConvertToTransfer(sourceActivity, accountType)) {
     return <ConvertToTransferDialog {...props} sourceActivity={sourceActivity} />;
   }
   return <TransferLinkDialog {...props} />;
@@ -1559,17 +1589,41 @@ function TransferLinkDialog({
     [accountMap, sourceActivity],
   );
   const oppositeType = oppositeTransferType(source?.activityType);
-  const counterpartTypes = useMemo(() => (oppositeType ? [oppositeType] : []), [oppositeType]);
+  // A cash transfer's other side may still be a plain deposit or withdrawal,
+  // as a bank sync brings in a card payment's bank side; linking converts it.
+  const oppositeCashFlow =
+    source && !isSecurityTransfer(source)
+      ? oppositeType === ActivityType.TRANSFER_IN
+        ? ActivityType.DEPOSIT
+        : oppositeType === ActivityType.TRANSFER_OUT
+          ? ActivityType.WITHDRAWAL
+          : undefined
+      : undefined;
+  const counterpartTypes = useMemo(
+    () => [oppositeType, oppositeCashFlow].filter((type): type is ActivityType => !!type),
+    [oppositeType, oppositeCashFlow],
+  );
   const search = useManualTransferSearch({ open, source, counterpartTypes, accountMap });
 
+  const reviewConversion = useConvertToTransferSplitReview();
   const {
     linkTransferActivitiesMutation,
+    convertToTransferMutation,
     unlinkTransferActivitiesMutation,
     updateActivityMutation,
   } = useActivityMutations();
+  // A conversion's preview runs before its mutation starts; the sheet stays
+  // busy through both, and a sheet closed meanwhile converts nothing.
+  const [previewing, setPreviewing] = useState(false);
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
   const isProcessing =
     mode === "link"
-      ? linkTransferActivitiesMutation.isPending
+      ? previewing ||
+        linkTransferActivitiesMutation.isPending ||
+        convertToTransferMutation.isPending
       : unlinkTransferActivitiesMutation.isPending || updateActivityMutation.isPending;
 
   const [suggestions, setSuggestions] = useState<TransferMatchCandidate[]>([]);
@@ -1581,9 +1635,14 @@ function TransferLinkDialog({
   const [counterpart, setCounterpart] = useState<TransferDialogActivity | null>(null);
   const [counterpartError, setCounterpartError] = useState<string | null>(null);
   const [counterpartLoading, setCounterpartLoading] = useState(false);
+  // Each load supersedes the last: a late answer for an earlier activity is
+  // dropped, so its deposit or withdrawal can't be converted for this one.
+  const loadRef = useRef(0);
 
   useEffectOnChange(() => {
     if (!open) return;
+    const load = ++loadRef.current;
+    const isCurrent = () => load === loadRef.current;
     setSelectedCandidate(null);
     setSuggestions([]);
     setSuggestionsFailed(false);
@@ -1598,14 +1657,16 @@ function TransferLinkDialog({
         activityId: sourceActivity.id,
         windowDays: 7,
         limit: 25,
+        includeCashFlows: true,
       })
-        .then(setSuggestions)
-        .catch(() => setSuggestionsFailed(true))
-        .finally(() => setSuggestionsLoading(false));
+        .then((found) => isCurrent() && setSuggestions(found))
+        .catch(() => isCurrent() && setSuggestionsFailed(true))
+        .finally(() => isCurrent() && setSuggestionsLoading(false));
     } else {
       setCounterpartLoading(true);
       getTransferPairForActivity(sourceActivity.id)
         .then((pair) => {
+          if (!isCurrent()) return;
           if (!pair) {
             setCounterpartError(t("activity:transfer_match.error_load_pair"));
             return;
@@ -1614,12 +1675,14 @@ function TransferLinkDialog({
             sourceActivity.id === pair.transferIn.id ? pair.transferOut : pair.transferIn,
           );
         })
-        .catch((error) =>
-          setCounterpartError(
-            error instanceof Error ? error.message : t("activity:transfer_match.error_load_pair"),
-          ),
+        .catch(
+          (error) =>
+            isCurrent() &&
+            setCounterpartError(
+              error instanceof Error ? error.message : t("activity:transfer_match.error_load_pair"),
+            ),
         )
-        .finally(() => setCounterpartLoading(false));
+        .finally(() => isCurrent() && setCounterpartLoading(false));
     }
   }, [mode, open, sourceActivity, counterpartId, attempt, t]);
 
@@ -1641,18 +1704,50 @@ function TransferLinkDialog({
 
   const confirmLink = useCallback(async () => {
     if (!sourceActivity?.id || !selected?.activity.id) return;
-    await linkTransferActivitiesMutation.mutateAsync({
-      activityAId: sourceActivity.id,
-      activityBId: selected.activity.id,
-    });
+    if (canConvertToTransfer(selected.activity)) {
+      // The other side is a deposit or withdrawal: converting retypes it and links both.
+      let request: ConvertToTransferRequest;
+      setPreviewing(true);
+      try {
+        request = await reviewConversion({
+          activityId: sourceActivity.id,
+          counterpartActivityId: selected.activity.id,
+        });
+      } catch (error) {
+        // A declined split review says nothing; a failed preview is reported.
+        if (!isActivityEditCancelled(error)) {
+          toast.error(t("activity:transfer_match.convert_error"), {
+            description: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      } finally {
+        setPreviewing(false);
+      }
+      if (!openRef.current) return;
+      try {
+        await convertToTransferMutation.mutateAsync(request);
+      } catch {
+        // The mutation has reported it.
+        return;
+      }
+    } else {
+      await linkTransferActivitiesMutation.mutateAsync({
+        activityAId: sourceActivity.id,
+        activityBId: selected.activity.id,
+      });
+    }
     await onComplete?.();
     onOpenChange(false);
   }, [
+    convertToTransferMutation,
     linkTransferActivitiesMutation,
     onComplete,
     onOpenChange,
-    selected?.activity.id,
+    reviewConversion,
+    selected?.activity,
     sourceActivity?.id,
+    t,
   ]);
 
   const canClearInvalidLink =

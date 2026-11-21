@@ -143,8 +143,9 @@ for (const scenario of [
     await expect(grid.getByRole("radio", { name: copy.deposit, exact: true })).toHaveCount(0);
     const charge = grid.getByRole("radio", { name: copy.charge, exact: true });
     await expect(charge).toHaveAttribute("aria-checked", "true");
-    await cards.last().scrollIntoViewIfNeeded();
-    await cards.last().tap();
+    // A card lists Purchase, Refund, Fee, Interest.
+    await cards.nth(1).scrollIntoViewIfNeeded();
+    await cards.nth(1).tap();
     await expect(grid.getByRole("radio", { name: copy.refund, exact: true })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -152,13 +153,13 @@ for (const scenario of [
     await expect(
       grid.getByRole("radio", { name: copy.refund, exact: true }),
     ).toHaveAccessibleDescription(copy.creditDescription);
-    await charge.focus();
+    await grid.getByRole("radio", { name: copy.refund, exact: true }).focus();
     await page.keyboard.press(scenario.direction === "rtl" ? "ArrowLeft" : "ArrowRight");
     await expect(grid.getByRole("radio", { name: copy.fee, exact: true })).toHaveAttribute(
       "aria-checked",
       "true",
     );
-    await expect(cards.nth(1)).toHaveCSS("outline-style", "solid");
+    await expect(cards.nth(2)).toHaveCSS("outline-style", "solid");
     await expect(next).toBeInViewport();
     expect(writes).toHaveLength(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

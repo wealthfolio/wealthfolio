@@ -72,10 +72,10 @@
     "clearCategory": "Quitar categoría"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Transferencia de saldo / Adelanto de efectivo",
-    "charge": "Cargo",
-    "interestCharge": "Cargo por intereses",
-    "refundCredit": "Reembolso / Abono",
+    "balanceTransferCashAdvance": "Adelanto de efectivo / Transferencia de saldo",
+    "charge": "Compra",
+    "interestCharge": "Intereses",
+    "refundCredit": "Devolución",
     "reimbursementRefund": "Reembolso / devolución"
   },
   "rules": {
@@ -941,7 +941,30 @@
     "notesPayee": "Notas / Beneficiario",
     "notesPlaceholder": "p. ej., AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Actualizar transacción",
-    "createTransaction": "Crear transacción"
+    "createTransaction": "Crear transacción",
+    "typeChange": {
+      "transferOut": "Cuenta como transferencia saliente. Hasta que se vincule con la otra cuenta, los informes la cuentan como gasto.",
+      "transferIn": "Cuenta como transferencia entrante. Hasta que se vincule con la otra cuenta, los informes la cuentan como ingreso.",
+      "cardPayment": "Cuenta como un pago: reduce lo que debes y no es un gasto.",
+      "cardAdvance": "Cuenta como un adelanto de efectivo o una transferencia de saldo: aumenta lo que debes y no es un gasto.",
+      "spending": "Cuenta como gasto en tus informes.",
+      "refund": "Cuenta como una devolución, que reduce tus gastos.",
+      "income": "Cuenta como ingreso en tus informes.",
+      "none": "Ya no cuenta como gasto ni como ingreso.",
+      "reversesBalance": "Además, el saldo se mueve en sentido contrario.",
+      "owesMore": "Ahora aumenta lo que debes.",
+      "owesLess": "Ahora reduce lo que debes."
+    },
+    "linkRow": {
+      "paidFrom": "Pagado desde",
+      "receivedFrom": "Recibido de",
+      "sentTo": "Enviado a",
+      "untracked": "Una cuenta que no registro",
+      "suggested": "Sugerencia: {{account}} · {{date}} · {{amount}}",
+      "link": "Vincular",
+      "hint": "Elige la otra cuenta para vincular ambos lados, o déjalo así.",
+      "savesFirst": "Al elegir una cuenta, primero se guarda este cambio y luego se vinculan ambos lados."
+    }
   },
   "txTab": {
     "duplicatedComment": "Duplicada",

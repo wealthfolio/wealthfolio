@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "Alterar para {{type}}",
-    "description": "O tipo da transação guardada é alterado, o subtipo é removido e os metadados de transferência são atualizados. O movimento de caixa, a conta, o montante, a data, a moeda, as notas e a categoria são preservados; os relatórios de fluxos e desempenho podem mudar. Alterações não guardadas não são incluídas.",
+    "description": "Só o tipo muda. Valor, data, conta, notas e categoria continuam iguais, mas os relatórios podem contá-lo de outra forma. Edições não salvas não são incluídas.",
     "external": "A transferência será marcada como externa. Use Vincular transferência para a associar a outra conta.",
     "linked": "Esta transação pertence a um grupo de transferências. Desvincule primeiro a transferência e reabra Editar. Ambas as transações são preservadas."
   },
@@ -562,7 +562,10 @@
     "marked_external": "Marcada como externa",
     "load_error": "Não foi possível carregar as transferências para combinar.",
     "empty_title": "Todas as transferências estão combinadas",
-    "empty_desc": "Nenhuma transferência está sem o outro lado."
+    "empty_desc": "Nenhuma transferência está sem o outro lado.",
+    "section_card_credit": "Reembolsos do cartão que podem ser pagamentos",
+    "section_card_credit_hint": "O mesmo valor saiu de outra conta. Se pagou o cartão, vincule-os; se for um reembolso de verdade, pule.",
+    "card_credit_hint": "Salvo como reembolso no cartão. Vincular o transforma no pagamento do cartão."
   },
   "form": {
     "section_conversion": "Conversão de fundos",
@@ -1550,11 +1553,11 @@
       "issuesTitle_many": "Há problemas com {{count}} entradas de atividade."
     },
     "creditCard": {
-      "charge": "Cobrança",
+      "charge": "Compra",
       "payment": "Pagamento",
-      "transfer": "Transferência de saldo / Adiantamento em dinheiro",
-      "refund": "Reembolso / Crédito",
-      "interest": "Cobrança de juros"
+      "transfer": "Saque / Transferência de saldo",
+      "refund": "Estorno",
+      "interest": "Juros"
     }
   },
   "validation": {

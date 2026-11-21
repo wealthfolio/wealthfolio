@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "Change to {{type}}",
-    "description": "This changes the saved transaction type, clears its subtype and updates transfer metadata. Cash movement, account, amount, date, currency, notes and category stay the same; cash-flow and performance reporting may change. Unsaved edits are not included.",
+    "description": "Only the type changes. The amount, date, account, notes and category stay as they are, but reports may count it differently. Unsaved edits aren't included.",
     "external": "The transfer will be marked external. Use Link transfer to pair it with another account.",
     "linked": "This transaction has a transfer group. Use Unlink transfer first, then reopen Edit to change its type. Both linked transactions are kept."
   },
@@ -546,7 +546,10 @@
     "marked_external": "Marked as external",
     "load_error": "Could not load transfers to match.",
     "empty_title": "All transfers are matched",
-    "empty_desc": "No transfer is missing its other side."
+    "empty_desc": "No transfer is missing its other side.",
+    "section_card_credit": "Card refunds that may be payments",
+    "section_card_credit_hint": "The same amount left another account. If it paid the card, link them; if it's a real refund, skip it.",
+    "card_credit_hint": "Saved as a refund on the card. Linking makes it the card's payment."
   },
   "form": {
     "section_conversion": "Fund conversion",
@@ -1489,11 +1492,11 @@
       "issuesTitle_other": "There are issues with {{count}} activity entries."
     },
     "creditCard": {
-      "charge": "Charge",
+      "charge": "Purchase",
       "payment": "Payment",
-      "transfer": "Balance Transfer / Cash Advance",
-      "refund": "Refund / Credit",
-      "interest": "Interest Charge"
+      "transfer": "Cash Advance / Balance Transfer",
+      "refund": "Refund",
+      "interest": "Interest"
     }
   },
   "validation": {
