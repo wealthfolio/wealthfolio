@@ -516,6 +516,12 @@ fn return_method(method: engine::model::ReturnMethod) -> ReturnMethod {
     }
 }
 
+fn var_method(method: engine::model::VarMethod) -> VarMethod {
+    match method {
+        engine::model::VarMethod::Historical => VarMethod::Historical,
+    }
+}
+
 fn quality(status: engine::model::QualityStatus) -> DataQualityStatus {
     match status {
         engine::model::QualityStatus::Ok => DataQualityStatus::Ok,
@@ -593,6 +599,17 @@ pub fn from_kernel(result: engine::model::PerformanceResult) -> PerformanceResul
             trough_date: result.risk.trough_date,
             recovery_date: result.risk.recovery_date,
             drawdown_duration_days: result.risk.drawdown_duration_days,
+            ulcer_index: result.risk.ulcer_index,
+            calmar_ratio: result.risk.calmar_ratio,
+            sterling_ratio: result.risk.sterling_ratio,
+            var_95: result.risk.var_95,
+            var_99: result.risk.var_99,
+            cvar_95: result.risk.cvar_95,
+            cvar_99: result.risk.cvar_99,
+            var_method: result.risk.var_method.map(var_method),
+            skewness: result.risk.skewness,
+            excess_kurtosis: result.risk.excess_kurtosis,
+            period_count: result.risk.period_count,
         },
         data_quality: PerformanceDataQuality {
             status: quality(result.data_quality.status),
