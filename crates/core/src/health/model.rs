@@ -205,6 +205,7 @@ impl FixAction {
             id: crate::health::fixes::MATCH_OPTION_EXPIRY_CONTRACTS_FIX.to_string(),
             label: "Use Matched Contracts".to_string(),
             payload: serde_json::json!({ "activityIds": activity_ids, "timezone": timezone }),
+            confirm: None,
         }
     }
 }
