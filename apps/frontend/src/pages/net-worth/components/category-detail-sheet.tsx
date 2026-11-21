@@ -1,13 +1,14 @@
+import { CategoryAvatar } from "@/components/financial/category-avatar";
+import { CompactAmount } from "@/components/financial/compact-amount";
+import { CARD_LABEL } from "@/components/financial/styles";
 import { buttonVariants, useNumberFormatting } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { CategoryTrendChart } from "./category-trend-chart";
-import { CompactAmount } from "./compact-amount";
 import {
-  CARD_LABEL,
-  CATEGORY_CSS_COLORS,
+  categoryItemDetailPath,
   deriveChange,
   formatChangePercent,
   hadBalanceBefore,
@@ -17,52 +18,6 @@ import {
   type ParsedHistoryPoint,
   type SelectedCategory,
 } from "./utils";
-
-/** Net-worth category color (CSS), with red for liabilities. */
-function categoryColor(selected: SelectedCategory): string {
-  if (selected.isLiability) return "var(--destructive)";
-  return CATEGORY_CSS_COLORS[selected.key] ?? "var(--muted-foreground)";
-}
-
-/** Alternative-asset duotone icon matching the category kind. */
-function CategoryIcon({ selected, className }: { selected: SelectedCategory; className?: string }) {
-  if (selected.isLiability) return <Icons.LiabilityDuotone className={className} />;
-  switch (selected.key) {
-    case "properties":
-      return <Icons.RealEstateDuotone className={className} />;
-    case "vehicles":
-      return <Icons.VehicleDuotone className={className} />;
-    case "collectibles":
-      return <Icons.CollectibleDuotone className={className} />;
-    case "preciousMetals":
-      return <Icons.PreciousDuotone className={className} />;
-    case "cash":
-      return <Icons.Wallet className={className} />;
-    default:
-      return <Icons.OtherAssetDuotone className={className} />;
-  }
-}
-
-/** Rounded icon chip tinted with the category color. */
-function CategoryAvatar({
-  selected,
-  className = "h-7 w-7",
-  iconClassName = "h-4 w-4",
-}: {
-  selected: SelectedCategory;
-  className?: string;
-  iconClassName?: string;
-}) {
-  const color = categoryColor(selected);
-  return (
-    <div
-      className={`flex shrink-0 items-center justify-center rounded-md ${className}`}
-      style={{ color, backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)` }}
-    >
-      <CategoryIcon selected={selected} className={iconClassName} />
-    </div>
-  );
-}
 
 interface CategoryDetailSheetProps {
   open: boolean;
@@ -87,12 +42,15 @@ export function CategoryDetailSheet({
   const trend = selected
     ? history.map((point) => ({ date: point.date, value: point.breakdown[selected.key] ?? 0 }))
     : [];
-  const change = deriveChange(
-    trend.map((t) => t.value),
-    selected?.isLiability ?? false,
-    hadBalanceBefore(history, selected?.firstValueDate),
-  );
-  const sign = Math.abs(change.amount) < 0.005 ? "" : change.amount > 0 ? "+" : "-";
+  const change =
+    trend.length >= 2
+      ? deriveChange(
+          trend.map((t) => t.value),
+          selected?.isLiability ?? false,
+          hadBalanceBefore(history, selected?.firstValueDate),
+        )
+      : null;
+  const sign = !change || Math.abs(change.amount) < 0.005 ? "" : change.amount > 0 ? "+" : "-";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -101,7 +59,7 @@ export function CategoryDetailSheet({
           <>
             <SheetHeader className="mt-4">
               <SheetTitle className="flex items-center gap-2.5">
-                <CategoryAvatar selected={selected} />
+                <CategoryAvatar category={selected.key} isLiability={selected.isLiability} />
                 {selected.name}
               </SheetTitle>
             </SheetHeader>
@@ -114,20 +72,26 @@ export function CategoryDetailSheet({
                   <CompactAmount value={selected.value} currency={currency} />
                 </div>
                 <div
-                  className={`mt-0.5 flex items-baseline gap-1.5 text-sm tabular-nums ${toneClass(change.amount)}`}
+                  className={`mt-0.5 flex items-baseline gap-1.5 text-sm tabular-nums ${toneClass(change?.amount ?? 0)}`}
                 >
-                  <span>
-                    {sign}
-                    <CompactAmount value={Math.abs(change.amount)} currency={currency} />
-                  </span>
-                  <span>
-                    {change.percent !== null && sign}
-                    {formatChangePercent(
-                      change,
-                      t("insights:networth.breakdown_table.new"),
-                      formatting,
-                    )}
-                  </span>
+                  {change ? (
+                    <>
+                      <span>
+                        {sign}
+                        <CompactAmount value={Math.abs(change.amount)} currency={currency} />
+                      </span>
+                      <span>
+                        {change.percent !== null && sign}
+                        {formatChangePercent(
+                          change,
+                          t("insights:networth.breakdown_table.new"),
+                          formatting,
+                        )}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                   <span className="text-muted-foreground font-normal">
                     {t("insights:networth.category_sheet.over_period", { period: periodLabel })}
                   </span>
@@ -139,7 +103,7 @@ export function CategoryDetailSheet({
                 <p className={`${CARD_LABEL} pb-2`}>
                   {t("insights:networth.category_sheet.trend_period", { period: periodLabel })}
                 </p>
-                <CategoryTrendChart data={trend} color={toneColor(change.amount)} />
+                <CategoryTrendChart data={trend} color={toneColor(change?.amount ?? 0)} />
               </div>
 
               {/* A liability is one item with a page of its own. */}
@@ -166,10 +130,14 @@ export function CategoryDetailSheet({
                   </p>
                   <div className="divide-border/40 divide-y">
                     {selected.children.map((child, index) => {
+                      const detailPath = categoryItemDetailPath(selected.key, child.assetId);
                       const content = (
                         <>
                           <div className="flex min-w-0 items-center gap-2.5">
-                            <CategoryAvatar selected={selected} />
+                            <CategoryAvatar
+                              category={selected.key}
+                              isLiability={selected.isLiability}
+                            />
                             <span className="text-foreground/90 min-w-0 truncate text-sm">
                               {child.name}
                             </span>
@@ -185,7 +153,7 @@ export function CategoryDetailSheet({
                             <span className="text-foreground/90 text-sm tabular-nums">
                               <CompactAmount value={child.value} currency={currency} />
                             </span>
-                            {child.assetId && (
+                            {detailPath && (
                               <Icons.ChevronRight
                                 className="text-muted-foreground size-4 rtl:rotate-180"
                                 aria-hidden
@@ -195,11 +163,11 @@ export function CategoryDetailSheet({
                         </>
                       );
                       const rowClass = "flex items-center justify-between gap-3 py-2";
-                      // Each item opens its own asset page.
-                      return child.assetId ? (
+                      // Cash items identify accounts; other items identify assets.
+                      return detailPath ? (
                         <Link
                           key={child.assetId}
-                          to={`/holdings/${encodeURIComponent(child.assetId)}`}
+                          to={detailPath}
                           onClick={() => onOpenChange(false)}
                           className={`${rowClass} hover:bg-muted/50 -mx-2 rounded-md px-2 pointer-coarse:min-h-11`}
                         >

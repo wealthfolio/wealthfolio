@@ -8,7 +8,10 @@ use crate::events::{
 };
 use log::{debug, error, info, warn};
 use tauri::AppHandle;
-use wealthfolio_core::health::{FixAction, HealthConfig, HealthServiceTrait, HealthStatus};
+use wealthfolio_core::health::{
+    match_option_expiry_contracts, FixAction, HealthConfig, HealthServiceTrait, HealthStatus,
+    MatchOptionExpiryContractsPayload, MATCH_OPTION_EXPIRY_CONTRACTS_FIX,
+};
 use wealthfolio_core::quotes::{MarketSyncMode, SyncMode};
 
 /// Get current health status (cached or fresh check).
@@ -196,6 +199,27 @@ pub async fn execute_health_fix(
         // Clear health cache so next check reflects the sync results
         context.health_service().clear_cache().await;
 
+        return Ok(());
+    }
+
+    // Move option expiries recorded against a stock onto their contracts.
+    // The activity updates emit domain events, which recalculate the accounts.
+    if action.id == MATCH_OPTION_EXPIRY_CONTRACTS_FIX {
+        let payload: MatchOptionExpiryContractsPayload =
+            serde_json::from_value(action.payload.clone())
+                .map_err(|e| format!("Invalid payload for {}: {}", action.id, e))?;
+        let moved = match_option_expiry_contracts(
+            context.activity_service(),
+            context.account_service(),
+            context.asset_service(),
+            context.snapshot_service(),
+            payload,
+            Some(context.get_timezone()).filter(|tz| !tz.trim().is_empty()),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        info!("Linked {} option expiries to their contracts", moved);
+        context.health_service().clear_cache().await;
         return Ok(());
     }
 

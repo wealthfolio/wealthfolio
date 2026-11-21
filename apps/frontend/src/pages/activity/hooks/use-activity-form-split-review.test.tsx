@@ -255,3 +255,26 @@ it.each([["a"], ["a", "a"], ["a", "other"]])(
     expect(screen.queryByRole("alertdialog")).toBeNull();
   },
 );
+
+it("logs why a desktop save failed without the values entered", async () => {
+  mocks.reviewActivitiesSplitEffects.mockImplementation(async (updates: ActivityUpdate[]) =>
+    updates.map((update) => [
+      {
+        activityId: update.id,
+        removedSplits: 0,
+        hasRetainedCategoryAssignment: false,
+        fingerprint: "unchanged",
+      },
+    ]),
+  );
+  mocks.updateActivity.mockRejectedValue(new Error("Save rejected"));
+  mount();
+  fireEvent.click(screen.getByText("Save edit"));
+  await waitFor(() => expect(mocks.toast.error).toHaveBeenCalled());
+
+  const logged = mocks.logger.error.mock.calls.map(([message]) => String(message)).join("\n");
+  expect(logged).toContain("Save rejected");
+  expect(logged).toContain(ActivityType.WITHDRAWAL);
+  expect(logged).not.toContain("25");
+  expect(logged).not.toContain("account");
+});

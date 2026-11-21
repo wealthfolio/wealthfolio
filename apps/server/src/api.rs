@@ -25,6 +25,7 @@ use tower_http::{
 };
 use tracing::Level;
 use utoipa::OpenApi;
+use wealthfolio_http::timeouts::request_timeout;
 
 mod accounts;
 mod activities;
@@ -271,13 +272,7 @@ fn app_router_with_profiles(
         .with_state(())
         .layer(middleware::from_fn({
             let ordinary_timeout = config.request_timeout;
-            move |request: axum::extract::Request, next: middleware::Next| async move {
-                use axum::response::IntoResponse;
-                let timeout = request_timeout(request.uri().path(), ordinary_timeout);
-                tokio::time::timeout(timeout, next.run(request))
-                    .await
-                    .unwrap_or_else(|_| axum::http::StatusCode::REQUEST_TIMEOUT.into_response())
-            }
+            move |request, next| with_request_timeout(request, next, ordinary_timeout)
         }));
 
     if config.mcp_enabled {
@@ -305,28 +300,56 @@ fn app_router_with_profiles(
         ))
 }
 
-fn request_timeout(path: &str, ordinary: std::time::Duration) -> std::time::Duration {
-    // Accept either the outer URI or Axum's prefix-stripped nested route URI.
-    let path = path.strip_prefix("/api/v1").unwrap_or(path);
-    if matches!(
-        path,
-        "/cloud-backups/capture"
-            | "/connect/device/generate-snapshot"
-            | "/sync/pairing/complete-with-transfer"
-    ) || (path.starts_with("/cloud-backups/") && path.ends_with("/package"))
-        || (path.starts_with("/utilities/database/backups/") && path.ends_with("/export"))
-    {
-        std::time::Duration::from_secs(
-            wealthfolio_device_sync::limits::BACKUP_CAPTURE_TIMEOUT_SECONDS,
-        )
-    } else {
-        ordinary
-    }
+async fn with_request_timeout(
+    request: axum::extract::Request,
+    next: Next,
+    ordinary_timeout: std::time::Duration,
+) -> Response {
+    use axum::response::IntoResponse;
+    let timeout = request_timeout(request.uri().path(), ordinary_timeout);
+    tokio::time::timeout(timeout, next.run(request))
+        .await
+        .unwrap_or_else(|_| axum::http::StatusCode::REQUEST_TIMEOUT.into_response())
 }
 
 #[cfg(test)]
 mod request_timeout_tests {
     use super::*;
+    use tower::ServiceExt;
+
+    #[tokio::test(start_paused = true)]
+    async fn middleware_returns_408_but_does_not_apply_the_routine_limit_to_imports() {
+        for (path, expected) in [
+            ("/api/v1/accounts", 408),
+            ("/api/v1/activities/import/parse", 200),
+            ("/api/v1/activities/import/assets/preview", 200),
+            ("/api/v1/activities/import/check", 200),
+            ("/api/v1/snapshots/import/check", 200),
+            ("/api/v1/activities/import", 200),
+            ("/api/v1/snapshots/import", 200),
+            ("/api/v1/valuations/history/query", 200),
+            ("/api/v1/connect/device/trigger-cycle", 200),
+            ("/api/v1/taxonomies/migration/run", 200),
+            ("/api/v1/sync/team/reset", 200),
+        ] {
+            let router = Router::new()
+                .route(
+                    path,
+                    get(|| async {
+                        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+                        "finished"
+                    }),
+                )
+                .layer(middleware::from_fn(|request, next| {
+                    with_request_timeout(request, next, std::time::Duration::from_millis(1))
+                }));
+            let response = router
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status().as_u16(), expected, "{path}");
+        }
+    }
     #[test]
     fn transfer_routes_include_preparation_time_without_changing_ordinary_routes() {
         let ordinary = std::time::Duration::from_secs(300);
@@ -345,13 +368,13 @@ mod request_timeout_tests {
                 request_timeout(&format!("/api/v1{path}"), ordinary)
             );
         }
-        for path in [
-            "/api/v1/accounts",
-            "/api/v1/cloud-backups/action",
-            "/api/v1/connect/device/status",
-        ] {
+        for path in ["/api/v1/accounts", "/api/v1/connect/device/status"] {
             assert_eq!(request_timeout(path, ordinary), ordinary);
         }
+        assert_eq!(
+            request_timeout("/api/v1/cloud-backups/action", ordinary),
+            std::time::Duration::from_secs(270),
+        );
     }
 }
 

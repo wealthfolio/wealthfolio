@@ -1,5 +1,5 @@
 import {
-  useAssistantState,
+  useAuiState,
   type ToolCallMessagePartComponent,
   type ToolCallMessagePartProps,
 } from "@assistant-ui/react";
@@ -106,7 +106,7 @@ const TOOLS_SHOWING_THEIR_ERRORS = new Set(["import_csv"]);
  * which says the tool was not used.
  */
 export function ToolCallPart(props: ToolCallMessagePartProps) {
-  const Card = useAssistantState(({ tools }) => tools.tools[props.toolName]?.[0]);
+  const Card = useAuiState(({ tools }) => tools.toolUIs[props.toolName]?.[0]?.render);
   const notRun =
     resultError(props.result) !== undefined && !TOOLS_SHOWING_THEIR_ERRORS.has(props.toolName);
   const Render = Card && !notRun ? Card : ToolFallback;

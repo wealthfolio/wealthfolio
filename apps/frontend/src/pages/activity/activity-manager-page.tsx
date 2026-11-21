@@ -317,7 +317,7 @@ const ActivityManagerPage = () => {
                       variant="outline"
                       size="sm"
                       className="w-fit"
-                      onClick={() => navigate(`/account/${selectedAccount.id}`)}
+                      onClick={() => navigate(`/accounts/${selectedAccount.id}`)}
                     >
                       <Icons.ExternalLink className="me-2 h-3 w-3" />
                       {t("activity:manager.go_to_account")}

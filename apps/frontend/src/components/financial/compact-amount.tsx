@@ -8,8 +8,7 @@ interface CompactAmountProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 /**
- * Privacy-aware compact currency amount (e.g. $17K, $1.5M). Net worth amounts
- * share one base currency, so the narrow symbol ($, not US$) is unambiguous.
+ * Privacy-aware compact currency amount using a narrow currency symbol (e.g. $17K, $1.5M).
  */
 export function CompactAmount({
   value,

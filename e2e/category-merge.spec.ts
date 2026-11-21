@@ -1,5 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
+import {
+  restoreSpendingSettings,
+  updateSettings,
+  useSpendingAccounts,
+  type Settings,
+  type SpendingSettings,
+} from "./api";
 import { BASE_URL } from "./helpers";
+
+// What each test changed, put back after it for the next spec on this worker.
+let previousSettings: Settings | undefined;
+let previousSpending: SpendingSettings | undefined;
+test.afterEach(async ({ page }) => {
+  if (previousSpending) await restoreSpendingSettings(page, previousSpending);
+  if (previousSettings) await updateSettings(page, previousSettings);
+  previousSpending = undefined;
+  previousSettings = undefined;
+});
 
 for (const direction of ["ltr", "rtl"]) {
   test(`reviewed category merge preserves historical splits and budgets (${direction})`, async ({
@@ -24,19 +41,15 @@ for (const direction of ["ltr", "rtl"]) {
       expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
       return response.json();
     };
-    await api(
-      "settings",
-      {
-        baseCurrency: "USD",
-        timezone: "UTC",
-        onboardingCompleted: true,
-        language: "en",
-        theme: "light",
-        syncEnabled: false,
-        autoUpdateCheckEnabled: false,
-      },
-      "PUT",
-    );
+    previousSettings = await updateSettings(page, {
+      baseCurrency: "USD",
+      timezone: "UTC",
+      onboardingCompleted: true,
+      language: "en",
+      theme: "light",
+      syncEnabled: false,
+      autoUpdateCheckEnabled: false,
+    });
     const account = await api(
       "accounts",
       {
@@ -49,7 +62,7 @@ for (const direction of ["ltr", "rtl"]) {
       },
       "POST",
     );
-    await api("spending/settings", { enabled: true, accountIds: [account.id] }, "PUT");
+    previousSpending = await useSpendingAccounts(page, [account.id]);
     const createCategory = (name: string, parentId?: string, taxonomyId = "spending_categories") =>
       api(
         "taxonomies/categories",
@@ -187,16 +200,26 @@ for (const direction of ["ltr", "rtl"]) {
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     // A real intervening write invalidates the review without partial merging.
-    await api(
-      "spending/budget/targets",
-      {
-        taxonomyId: "spending_categories",
-        categoryId: source.id,
-        periodKey: "2026-03",
-        targetType: "category",
-        amount: "60",
+    // It lands after the dialog sent its reviewed revision: written any earlier,
+    // a background refetch of the review (a portfolio update completing
+    // invalidates every query) can pick it up first and merge it legitimately.
+    await page.route(
+      "**/api/v1/spending/categories/merge",
+      async (route) => {
+        await api(
+          "spending/budget/targets",
+          {
+            taxonomyId: "spending_categories",
+            categoryId: source.id,
+            periodKey: "2026-03",
+            targetType: "category",
+            amount: "60",
+          },
+          "POST",
+        );
+        await route.continue();
       },
-      "POST",
+      { times: 1 },
     );
     const staleResponse = page.waitForResponse((response) =>
       response.url().endsWith("/spending/categories/merge"),

@@ -356,3 +356,56 @@ describe("AssetEditSheet unfinished edits", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 });
+
+function exchangeTrigger(): HTMLElement {
+  return screen.getByRole("combobox", { name: "Exchange" });
+}
+
+describe("AssetEditSheet exchange", () => {
+  beforeEach(() => {
+    mutateAsync.mockReset();
+    mutateAsync.mockResolvedValue(undefined);
+  });
+
+  it("clears a stored exchange with the No exchange option", async () => {
+    renderSheet(buildAsset({ instrumentExchangeMic: "XSTU" }));
+
+    const exchange = exchangeTrigger();
+    expect(exchange).toHaveTextContent("XSTU");
+    fireEvent.click(exchange);
+    fireEvent.click(await screen.findByRole("option", { name: "No exchange" }));
+    expect(exchange).toHaveTextContent("No exchange");
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync.mock.calls.at(-1)![0]).toMatchObject({ instrumentExchangeMic: null });
+  });
+
+  it("shows No exchange for an asset without one", () => {
+    renderSheet(buildAsset());
+    expect(exchangeTrigger()).toHaveTextContent("No exchange");
+  });
+
+  it("keeps a stored exchange on an unrelated save", async () => {
+    renderSheet(buildAsset({ instrumentExchangeMic: "XSTU" }));
+    setInputValue(screen.getByRole("textbox", { name: /^name$/i }), "Renamed");
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync.mock.calls.at(-1)![0]).toMatchObject({
+      name: "Renamed",
+      instrumentExchangeMic: "XSTU",
+    });
+  });
+
+  it("leaves the exchange out when an asset without one is saved untouched", async () => {
+    renderSheet(buildAsset());
+    setInputValue(screen.getByRole("textbox", { name: /^name$/i }), "Renamed");
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    const payload = mutateAsync.mock.calls.at(-1)![0];
+    expect(payload).toMatchObject({ name: "Renamed" });
+    expect(payload.instrumentExchangeMic).toBeUndefined();
+  });
+});

@@ -14,7 +14,7 @@ pub mod rows;
 mod run;
 
 use chrono::NaiveDate;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
@@ -22,6 +22,7 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use wealthfolio_portfolio_engine as engine;
 
+use crate::assets::{AssetKind, QuoteMode};
 use crate::errors::{Error, Result};
 use crate::fx::FxServiceTrait;
 use crate::lots::LotRepositoryTrait;
@@ -31,10 +32,12 @@ use crate::portfolio::projection::{
 use crate::portfolio::snapshot::{
     reconcile_quote_sync_from_latest_account_snapshots, SnapshotServiceTrait,
 };
-use crate::quotes::{MarketSyncMode, SyncResult};
+use crate::quotes::{MarketSyncMode, SyncMode, SyncResult, DEFAULT_HISTORY_DAYS};
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 pub(crate) use facts::raw_activity;
+#[cfg(test)]
+pub(crate) use facts::raw_asset;
 pub use facts::{window_quotes, FactSources, LoadedFacts};
 pub use persist::{valuation_rows, WindowCadence};
 
@@ -355,9 +358,11 @@ impl PortfolioCoordinator {
             None => Ok(SyncResult::default()),
         };
         // Whatever the provider did, the FX converter sees the latest rates.
-        if let Err(error) = self.deps.fx_service.initialize() {
+        let fx_service = self.deps.fx_service.clone();
+        if let Err(error) = blocking(move || fx_service.initialize()).await {
             warn!("Failed to initialize FX service after market sync: {error}");
         }
+        self.sync_fx_pivot_pairs().await;
         match result {
             Ok(result) => {
                 observer.market_sync_completed(&result);
@@ -369,6 +374,96 @@ impl PortfolioCoordinator {
                 observer.market_sync_failed(&message);
                 Err(message)
             }
+        }
+    }
+
+    /// Registers and backfills `X/USD` and `USD/Y` for every FX pair `X/Y`
+    /// that still has no conversion path after the sync, e.g. because the
+    /// provider has no direct cross. Only pairs this call creates are synced
+    /// here; legs that already existed follow their own sync state, so a pivot
+    /// leg the provider also lacks is not refetched on every job.
+    async fn sync_fx_pivot_pairs(&self) {
+        let assets = match self.deps.sources.assets.list() {
+            Ok(assets) => assets,
+            Err(error) => {
+                warn!("Failed to list assets for FX pivot pairs: {error}");
+                return;
+            }
+        };
+        let existing_fx: HashSet<String> = assets
+            .iter()
+            .filter(|asset| asset.kind == AssetKind::Fx)
+            .map(|asset| asset.id.clone())
+            .collect();
+        let pairs: Vec<(String, String)> = assets
+            .iter()
+            .filter(|asset| {
+                asset.kind == AssetKind::Fx
+                    && asset.quote_mode == QuoteMode::Market
+                    && asset.is_active
+            })
+            .filter_map(|asset| Some((asset.instrument_symbol.clone()?, asset.quote_ccy.clone())))
+            .collect();
+
+        let pivot_pairs = match self
+            .deps
+            .fx_service
+            .ensure_pivot_fx_pairs(pairs, crate::fx::DEFAULT_FX_PIVOT_CURRENCY)
+            .await
+        {
+            Ok(pivot_pairs) => pivot_pairs,
+            Err(error) => {
+                warn!("Failed to register FX pivot pairs: {error}");
+                return;
+            }
+        };
+        if pivot_pairs.is_empty() {
+            return;
+        }
+
+        let new_ids: Vec<String> = match self.deps.sources.assets.list() {
+            Ok(assets) => assets
+                .into_iter()
+                .filter(|asset| asset.kind == AssetKind::Fx && !existing_fx.contains(&asset.id))
+                .map(|asset| asset.id)
+                .collect(),
+            Err(error) => {
+                warn!("Failed to list assets after registering FX pivot pairs: {error}");
+                return;
+            }
+        };
+        if new_ids.is_empty() {
+            return;
+        }
+        info!(
+            "Registered {} FX pivot pair(s) through {} for pairs without a rate",
+            new_ids.len(),
+            crate::fx::DEFAULT_FX_PIVOT_CURRENCY
+        );
+
+        // FX assets have no activities: backfill starts at the earliest
+        // activity overall, so history before today converts too.
+        let mode = SyncMode::BackfillHistory {
+            days: DEFAULT_HISTORY_DAYS,
+        };
+        match self.deps.sources.quotes.sync(mode, Some(new_ids)).await {
+            Ok(result) if !result.is_success() => {
+                let failed: Vec<&str> = result
+                    .errors
+                    .iter()
+                    .map(|error| error.asset_id.as_str())
+                    .collect();
+                warn!(
+                    "History backfill failed for {} FX pivot pair(s): {failed:?}",
+                    result.failed
+                );
+            }
+            Ok(_) => {}
+            Err(error) => warn!("Failed to sync FX pivot pairs: {error}"),
+        }
+        let fx_service = self.deps.fx_service.clone();
+        if let Err(error) = blocking(move || fx_service.initialize()).await {
+            warn!("Failed to initialize FX service after syncing pivot pairs: {error}");
         }
     }
 
@@ -549,7 +644,12 @@ impl PortfolioCoordinator {
     /// Accounts whose stored projection is stale: a pending fact marker for
     /// the account (or for everything), or valuations ending before today.
     /// Price markers are left to the next job, which they trigger anyway.
+    /// While a job runs it reports none: the job marks the accounts it is
+    /// rebuilding, and those need no rebuild from the user.
     pub fn stale_accounts(&self) -> Result<Vec<StaleAccount>> {
+        if self.job.try_lock().is_err() {
+            return Ok(Vec::new());
+        }
         let markers = self.deps.projections.pending_markers()?;
         let last_valued = self.deps.projections.last_valued_days()?;
         let today = self.today();

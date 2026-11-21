@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "Alterar para {{type}}",
-    "description": "O tipo da transação guardada é alterado, o subtipo é removido e os metadados de transferência são atualizados. O movimento de caixa, a conta, o montante, a data, a moeda, as notas e a categoria são preservados; os relatórios de fluxos e desempenho podem mudar. Alterações não guardadas não são incluídas.",
+    "description": "Só o tipo muda. Valor, data, conta, notas e categoria continuam iguais, mas os relatórios podem contá-lo de outra forma. Edições não salvas não são incluídas.",
     "external": "A transferência será marcada como externa. Use Vincular transferência para a associar a outra conta.",
     "linked": "Esta transação pertence a um grupo de transferências. Desvincule primeiro a transferência e reabra Editar. Ambas as transações são preservadas."
   },
@@ -562,7 +562,10 @@
     "marked_external": "Marcada como externa",
     "load_error": "Não foi possível carregar as transferências para combinar.",
     "empty_title": "Todas as transferências estão combinadas",
-    "empty_desc": "Nenhuma transferência está sem o outro lado."
+    "empty_desc": "Nenhuma transferência está sem o outro lado.",
+    "section_card_credit": "Reembolsos do cartão que podem ser pagamentos",
+    "section_card_credit_hint": "O mesmo valor saiu de outra conta. Se pagou o cartão, vincule-os; se for um reembolso de verdade, pule.",
+    "card_credit_hint": "Salvo como reembolso no cartão. Vincular o transforma no pagamento do cartão."
   },
   "form": {
     "section_conversion": "Conversão de fundos",
@@ -590,6 +593,13 @@
     "label_price": "Preço",
     "label_fee": "Taxa",
     "label_tax": "Imposto",
+    "break_down_charge": "Detalhar",
+    "add_charge_line": "Adicionar linha",
+    "remove_charge_line": "Remover linha",
+    "charge_line_label": "Descrição da linha",
+    "charge_line_amount": "Valor da linha",
+    "placeholder_fee_line": "ex.: Corretagem",
+    "placeholder_tax_line": "ex.: Imposto do selo",
     "label_quantity": "Quantidade",
     "label_contracts": "Contratos",
     "label_bonds": "Títulos",
@@ -747,6 +757,7 @@
     "err_expiration_required": "A data de vencimento é obrigatória.",
     "err_expiration_invalid": "Insira uma data de vencimento válida.",
     "err_option_type_required": "O tipo de opção é obrigatório.",
+    "err_option_contract_required": "Escolha o contrato de opção que venceu, não a ação subjacente.",
     "err_multiplier_number": "O multiplicador do contrato deve ser um número.",
     "err_multiplier_gt_zero": "O multiplicador do contrato deve ser maior que 0.",
     "err_enter_split_ratio": "Insira uma razão de desdobramento.",
@@ -755,6 +766,10 @@
     "err_withholding_tax_number": "A retenção na fonte deve ser um número.",
     "err_withholding_tax_non_negative": "A retenção na fonte não pode ser negativa.",
     "err_charges_exceed_amount_before_tax": "Os impostos e as taxas não podem ser superiores ao valor antes de impostos.",
+    "err_charge_label_required": "Insira uma descrição.",
+    "err_charge_amount_required": "Insira um valor.",
+    "err_charge_lines_total": "Detalhe também este total.",
+    "err_charge_lines_precision": "A soma das linhas é precisa demais. Use valores menores ou menos casas decimais.",
     "err_fmv_number": "O valor justo de mercado por unidade deve ser um número.",
     "err_fmv_gt_zero": "O valor justo de mercado por unidade deve ser maior que 0.",
     "err_received_quantity_number": "A quantidade recebida deve ser um número.",
@@ -1001,6 +1016,8 @@
       "decimalAuto": "Detecção automática",
       "decimalPeriod": "Ponto (.)",
       "decimalComma": "Vírgula (,)",
+      "numberFormatWarningTitle": "Verifique os formatos numéricos",
+      "numberFormatWarningDescription": "Algumas colunas têm formatos numéricos ambíguos ou contraditórios ({{columns}}). Verifique estes valores ou escolha um separador decimal nas configurações de análise na etapa de envio.",
       "summaryDelimiter": "Delimitador: {{value}}",
       "summaryDate": "Data: {{value}}",
       "summaryDecimal": "Decimal: {{value}}",
@@ -1290,6 +1307,34 @@
       "syncAutomatically": "Prefere sincronizar automaticamente?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transação",
+      "transactionCount_other": "{{count}} transações",
+      "transactionCount_many": "{{count}} transações",
+      "checkingTitle": "Correspondência de ativos",
+      "checkingDescription": "Verificando os ativos únicos entre os ativos existentes e os provedores de dados de mercado habilitados.",
+      "slowTitle": "A correspondência de ativos está demorando mais que o normal",
+      "slowDescription": "Ainda estamos aguardando os resultados. Você pode esperar ou voltar ao mapeamento.",
+      "checked": "Ativos verificados: {{completed}} / {{total}}",
+      "elapsed": "Tempo decorrido: {{seconds}} s",
+      "savedDescription": "Nenhuma atividade ou posição foi importada. Seu arquivo e mapeamentos foram mantidos.",
+      "retryRemaining": "Verificar ativos restantes ({{remaining}})",
+      "timeoutTitle": "O tempo para correspondência de ativos esgotou",
+      "timeoutDescription": "A solicitação terminou antes de todos os resultados chegarem. As correspondências encontradas foram mantidas. Tente novamente os ativos restantes.",
+      "networkTitle": "Não foi possível conectar ao servidor",
+      "networkDescription": "Verifique sua conexão e tente novamente. As correspondências encontradas foram mantidas.",
+      "providerTitle": "Os dados de mercado estão indisponíveis",
+      "providerDescription": "Um provedor de dados de mercado está indisponível. Tente mais tarde. As correspondências encontradas foram mantidas.",
+      "tooLargeTitle": "A solicitação de ativos é muito grande",
+      "tooLargeDescription": "O servidor ou proxy rejeitou a solicitação por seu tamanho. Tente um CSV menor ou verifique o limite de tamanho das solicitações.",
+      "failedDescription": "Não foi possível concluir a verificação dos ativos. As correspondências encontradas foram mantidas. Tente novamente os ativos restantes.",
+      "continueCheckingTitle": "Continuar a correspondência de ativos",
+      "partialDescription": "As correspondências encontradas foram mantidas. Verifique os ativos restantes antes de continuar.",
+      "editingPaused": "Você poderá editar as correspondências quando a verificação terminar.",
+      "technicalDetails": "Detalhes técnicos",
+      "selfHostedHelp": "Em instalações auto-hospedadas, verifique a conexão do servidor, os provedores habilitados e os limites e tempos de espera do proxy reverso.",
+      "copyDiagnostics": "Copiar diagnóstico",
+      "copied": "Diagnóstico copiado. O conteúdo do arquivo e os valores financeiros foram excluídos.",
+      "copyFailed": "Não foi possível copiar. Você pode selecionar e copiar os detalhes acima.",
       "noAssetsTitle": "Nenhum ativo requer revisão",
       "noAssetsDescription": "Esta importação contém apenas atividades do tipo dinheiro: você pode continuar para a revisão de atividades.",
       "resolvingMessage": "Resolvendo ativos e correspondendo símbolos…",
@@ -1508,11 +1553,11 @@
       "issuesTitle_many": "Há problemas com {{count}} entradas de atividade."
     },
     "creditCard": {
-      "charge": "Cobrança",
+      "charge": "Compra",
       "payment": "Pagamento",
-      "transfer": "Transferência de saldo / Adiantamento em dinheiro",
-      "refund": "Reembolso / Crédito",
-      "interest": "Cobrança de juros"
+      "transfer": "Saque / Transferência de saldo",
+      "refund": "Estorno",
+      "interest": "Juros"
     }
   },
   "validation": {

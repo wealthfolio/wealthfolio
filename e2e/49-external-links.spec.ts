@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 for (const direction of ["ltr", "rtl"] as const) {

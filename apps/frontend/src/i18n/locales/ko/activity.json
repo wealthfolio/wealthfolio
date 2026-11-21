@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "{{type}}(으)로 변경",
-    "description": "저장된 거래 유형을 변경하고 하위 유형을 지우며 이체 메타데이터를 업데이트합니다. 현금 이동, 계좌, 금액, 날짜, 통화, 메모 및 카테고리는 유지되지만 현금 흐름 및 성과 보고서는 달라질 수 있습니다. 저장하지 않은 수정 사항은 포함되지 않습니다.",
+    "description": "유형만 바뀝니다. 금액, 날짜, 계좌, 메모, 카테고리는 그대로지만 보고서에서 다르게 집계될 수 있습니다. 저장하지 않은 수정 사항은 포함되지 않습니다.",
     "external": "외부 이체로 표시됩니다. 이체 연결을 사용하여 다른 계좌와 연결하세요.",
     "linked": "이 거래는 이체 그룹에 속합니다. 먼저 이체 연결을 해제한 후 편집을 다시 열어 유형을 변경하세요. 두 거래 모두 유지됩니다."
   },
@@ -543,7 +543,10 @@
     "marked_external": "외부로 표시했습니다",
     "load_error": "맞출 이체를 불러오지 못했습니다.",
     "empty_title": "모든 이체가 맞춰졌습니다",
-    "empty_desc": "상대편이 없는 이체가 없습니다."
+    "empty_desc": "상대편이 없는 이체가 없습니다.",
+    "section_card_credit": "결제일 수 있는 카드 환불",
+    "section_card_credit_hint": "같은 금액이 다른 계좌에서 나갔습니다. 카드 대금 결제라면 연결하고, 실제 환불이라면 건너뛰세요.",
+    "card_credit_hint": "카드 환불로 저장되어 있습니다. 연결하면 카드 대금 결제가 됩니다."
   },
   "form": {
     "section_conversion": "펀드 전환",
@@ -571,6 +574,13 @@
     "label_price": "가격",
     "label_fee": "수수료",
     "label_tax": "세금",
+    "break_down_charge": "세부 항목으로 나누기",
+    "add_charge_line": "항목 추가",
+    "remove_charge_line": "항목 삭제",
+    "charge_line_label": "항목 이름",
+    "charge_line_amount": "항목 금액",
+    "placeholder_fee_line": "예: 거래 수수료",
+    "placeholder_tax_line": "예: 인지세",
     "label_quantity": "수량",
     "label_contracts": "계약 수",
     "label_bonds": "채권",
@@ -728,6 +738,7 @@
     "err_expiration_required": "만기일은 필수입니다.",
     "err_expiration_invalid": "유효한 만기일을 입력하세요.",
     "err_option_type_required": "옵션 유형은 필수입니다.",
+    "err_option_contract_required": "기초 주식이 아닌 만기된 옵션 계약을 선택하세요.",
     "err_multiplier_number": "계약 승수는 숫자여야 합니다.",
     "err_multiplier_gt_zero": "계약 승수는 0보다 커야 합니다.",
     "err_enter_split_ratio": "분할 비율을 입력해 주세요.",
@@ -736,6 +747,10 @@
     "err_withholding_tax_number": "원천징수세는 숫자여야 합니다.",
     "err_withholding_tax_non_negative": "원천징수세는 음수가 될 수 없습니다.",
     "err_charges_exceed_amount_before_tax": "세금과 수수료는 세전 금액을 초과할 수 없습니다.",
+    "err_charge_label_required": "이름을 입력해 주세요.",
+    "err_charge_amount_required": "금액을 입력해 주세요.",
+    "err_charge_lines_total": "이 합계의 세부 항목도 입력해 주세요.",
+    "err_charge_lines_precision": "항목 합계의 정밀도가 너무 높습니다. 금액을 줄이거나 소수 자릿수를 줄여 주세요.",
     "err_fmv_number": "단위당 공정시장가치는 숫자여야 합니다.",
     "err_fmv_gt_zero": "단위당 공정시장가치는 0보다 커야 합니다.",
     "err_received_quantity_number": "수령 수량은 숫자여야 합니다.",
@@ -967,6 +982,8 @@
       "decimalAuto": "자동 감지",
       "decimalPeriod": "마침표 (.)",
       "decimalComma": "쉼표 (,)",
+      "numberFormatWarningTitle": "숫자 형식을 확인하세요",
+      "numberFormatWarningDescription": "일부 열의 숫자 형식이 모호하거나 서로 다릅니다({{columns}}). 값을 확인하거나 업로드 단계의 분석 설정에서 소수점 구분 기호를 선택하세요.",
       "summaryDelimiter": "구분자: {{value}}",
       "summaryDate": "날짜: {{value}}",
       "summaryDecimal": "소수점: {{value}}",
@@ -1228,6 +1245,33 @@
       "syncAutomatically": "자동으로 동기화하시겠습니까?"
     },
     "assets": {
+      "transactionCount_one": "거래 {{count}}건",
+      "transactionCount_other": "거래 {{count}}건",
+      "checkingTitle": "자산 일치 여부 확인 중",
+      "checkingDescription": "기존 자산 및 활성화된 시장 데이터 제공업체를 통해 중복을 제외한 자산을 확인하고 있습니다.",
+      "slowTitle": "자산 확인이 평소보다 오래 걸리고 있습니다",
+      "slowDescription": "아직 결과를 기다리고 있습니다. 계속 기다리거나 매핑으로 돌아갈 수 있습니다.",
+      "checked": "확인한 자산: {{completed}} / {{total}}",
+      "elapsed": "경과 시간: {{seconds}}초",
+      "savedDescription": "활동이나 보유 자산은 아직 가져오지 않았습니다. 파일과 매핑은 유지됩니다.",
+      "retryRemaining": "남은 자산 확인 ({{remaining}})",
+      "timeoutTitle": "자산 확인 시간이 초과되었습니다",
+      "timeoutDescription": "모든 결과를 받기 전에 요청이 종료되었습니다. 완료된 일치 결과는 유지됩니다. 남은 자산을 다시 시도하세요.",
+      "networkTitle": "서버에 연결할 수 없습니다",
+      "networkDescription": "연결을 확인하고 다시 시도하세요. 완료된 일치 결과는 유지됩니다.",
+      "providerTitle": "시장 데이터를 사용할 수 없습니다",
+      "providerDescription": "시장 데이터 제공업체를 사용할 수 없습니다. 나중에 다시 시도하세요. 완료된 일치 결과는 유지됩니다.",
+      "tooLargeTitle": "자산 요청이 너무 큽니다",
+      "tooLargeDescription": "서버 또는 프록시가 요청 크기로 인해 거부했습니다. 더 작은 CSV를 사용하거나 요청 크기 제한을 확인하세요.",
+      "failedDescription": "자산 확인을 완료하지 못했습니다. 완료된 일치 결과는 유지됩니다. 남은 자산을 다시 시도하세요.",
+      "continueCheckingTitle": "자산 확인 계속하기",
+      "partialDescription": "완료된 일치 결과는 유지됩니다. 계속하기 전에 남은 자산을 확인하세요.",
+      "editingPaused": "확인이 끝나면 완료된 일치 결과를 편집할 수 있습니다.",
+      "technicalDetails": "기술 정보",
+      "selfHostedHelp": "자체 호스팅 환경에서는 서버 연결, 활성화된 제공업체, 역방향 프록시의 요청 크기 및 시간 제한을 확인하세요.",
+      "copyDiagnostics": "진단 정보 복사",
+      "copied": "진단 정보를 복사했습니다. 파일 내용과 금융 수치는 포함되지 않습니다.",
+      "copyFailed": "복사하지 못했습니다. 위의 정보를 선택하여 복사할 수 있습니다.",
       "noAssetsTitle": "검토가 필요한 자산이 없습니다",
       "noAssetsDescription": "이번 가져오기에는 현금성 활동만 포함되어 있습니다 — 활동 검토로 계속 진행할 수 있습니다.",
       "resolvingMessage": "자산을 확인하고 종목 코드를 매칭하는 중…",
@@ -1429,11 +1473,11 @@
       "issuesTitle_other": "활동 항목 {{count}}건에 문제가 있습니다."
     },
     "creditCard": {
-      "charge": "청구",
-      "payment": "결제",
-      "transfer": "잔액 이체 / 현금서비스",
-      "refund": "환불 / 입금",
-      "interest": "이자 청구"
+      "charge": "구매",
+      "payment": "대금 납부",
+      "transfer": "현금서비스 / 잔액 이체",
+      "refund": "환불",
+      "interest": "이자"
     }
   },
   "validation": {

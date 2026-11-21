@@ -161,8 +161,8 @@ pub(super) fn scale_lot(lot: &mut crate::portfolio::snapshot::Lot, factor: Decim
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn income_from_activities(
-    activities: &[Activity],
+pub(super) fn income_from_activities<'a>(
+    activities: impl IntoIterator<Item = &'a Activity>,
     rejected: &HashSet<String>,
     currencies: &HashMap<String, String>,
     base: &str,
@@ -212,12 +212,6 @@ pub(super) fn apply_history(
         .filter(|i| i.kind == crate::portfolio::projection::ActivityIssueKind::Rejected)
         .map(|i| i.activity_id.clone())
         .collect();
-    let activities: Vec<Activity> = read
-        .activities
-        .iter()
-        .filter(|a| a.account_id == account_id)
-        .cloned()
-        .collect();
     let currencies: HashMap<String, String> = holdings
         .iter()
         .filter_map(|h| {
@@ -231,7 +225,9 @@ pub(super) fn apply_history(
         .map(|h| h.base_currency.as_str())
         .unwrap_or(&read.base_currency);
     let incomes = income_from_activities(
-        &activities,
+        read.activities
+            .iter()
+            .filter(|a| a.account_id == account_id),
         &rejected,
         &currencies,
         base,
@@ -249,7 +245,6 @@ pub(super) fn apply_history(
         })
         .map(|a| a.id.as_str())
         .collect();
-    let pending = read.history_pending(account_id, read.day);
     for holding in holdings {
         if holding.holding_type == HoldingType::Cash {
             holding.income = Some(MonetaryValue::zero());
@@ -293,7 +288,7 @@ pub(super) fn apply_history(
         }
         // An observed cost does not establish a sales history. Retained,
         // compatible recorded sales remain useful, without overriding its basis.
-        if pending || (holding.translate_observed_basis && !has_disposals) {
+        if holding.translate_observed_basis && !has_disposals {
             realized = MonetaryValue::unavailable();
             disposed = MonetaryValue::unavailable();
         }
@@ -315,14 +310,10 @@ pub(super) fn apply_history(
                 .unwrap_or_else(MonetaryValue::unavailable)
         };
         holding.total_gain = Some(unrealized.add(&realized));
-        let income = if pending {
-            MonetaryValue::unavailable()
-        } else {
-            incomes
-                .get(asset_id)
-                .cloned()
-                .unwrap_or_else(MonetaryValue::zero)
-        };
+        let income = incomes
+            .get(asset_id)
+            .cloned()
+            .unwrap_or_else(MonetaryValue::zero);
         holding.income = Some(income);
         refresh_total_return(holding);
     }

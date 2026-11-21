@@ -8,7 +8,7 @@ import type { ParsedNetWorth } from "./utils";
 vi.mock("@/components/dashboard-card", () => ({
   DashboardCard: ({ children }: { children: ReactNode }) => <section>{children}</section>,
 }));
-vi.mock("./compact-amount", () => ({
+vi.mock("@/components/financial/compact-amount", () => ({
   CompactAmount: ({ value }: { value: number }) => <span>{value}</span>,
 }));
 

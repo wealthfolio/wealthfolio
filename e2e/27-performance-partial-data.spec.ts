@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL } from "./helpers";
 
 test("partial P&L keeps its subtotal and explains the gap on desktop/mobile in LTR/RTL", async ({

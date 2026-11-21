@@ -203,6 +203,18 @@ async fn resolve_scope(
         .map_err(|e| e.to_string())
 }
 
+/// Resolves a scope to the accounts whose holdings it reports.
+fn resolve_holdings_scope(
+    filter: &AccountScope,
+    state: &ServiceContext,
+) -> Result<ResolvedAccountScope, String> {
+    let base_currency = state.get_base_currency();
+    state
+        .portfolio_service()
+        .resolve_account_scope_for_purpose(filter, &base_currency, AccountPurpose::Holdings)
+        .map_err(|e| e.to_string())
+}
+
 async fn resolve_current_valuation_scope(
     filter: &AccountScope,
     state: &ServiceContext,
@@ -276,15 +288,15 @@ async fn get_holdings_scope_for_filter(
     include_closed: bool,
 ) -> Result<HoldingsScope, String> {
     let base_currency = state.get_base_currency();
-    let resolved = resolve_scope(&filter, state).await?;
-    let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&filter, state)?;
+    let account_ids = &resolved.account_ids;
     if account_ids.is_empty() {
         return Ok(HoldingsScope::default());
     }
     state
         .holdings_service()
         .get_holdings_scope(
-            &account_ids,
+            account_ids,
             &base_currency,
             &resolved.scope_id,
             include_closed,
@@ -316,20 +328,24 @@ pub async fn get_holding(
 pub async fn get_asset_holdings(
     state: ProfileAccess,
     asset_id: String,
+    filter: Option<AccountScopeInput>,
 ) -> Result<HoldingsListResponse, String> {
     let context = state.context()?;
-    debug!("Get holdings for asset {} across all accounts", asset_id);
+    debug!("Get holdings for asset {}", asset_id);
     let base_currency = context.get_base_currency();
-    let accounts = context
-        .account_service()
-        .get_active_accounts()
-        .map_err(|e| format!("Failed to get accounts: {}", e))?;
-
-    let ids = accounts
-        .into_iter()
-        .filter(|account| account_supports_portfolio_scope(account, AccountPurpose::Holdings))
-        .map(|account| account.id)
-        .collect::<Vec<_>>();
+    let ids = if let Some(filter) = filter {
+        let filter = filter.into_account_filter()?;
+        resolve_holdings_scope(&filter, &context)?.account_ids
+    } else {
+        context
+            .account_service()
+            .get_active_accounts()
+            .map_err(|e| format!("Failed to get accounts: {}", e))?
+            .into_iter()
+            .filter(|account| account_supports_portfolio_scope(account, AccountPurpose::Holdings))
+            .map(|account| account.id)
+            .collect::<Vec<_>>()
+    };
     context
         .holdings_service()
         .get_asset_holdings_scope(&ids, &asset_id, &base_currency)
@@ -361,8 +377,8 @@ pub async fn get_portfolio_allocations(
     let context = state.context()?;
     let base_currency = context.get_base_currency();
     let filter = filter.into_account_filter()?;
-    let resolved = resolve_scope(&filter, &context).await?;
-    let account_ids = holdings_account_ids(&context, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&filter, &context)?;
+    let account_ids = &resolved.account_ids;
     if account_ids.len() == 1 {
         context
             .allocation_service()
@@ -372,11 +388,7 @@ pub async fn get_portfolio_allocations(
     } else {
         context
             .allocation_service()
-            .get_portfolio_allocations_for_accounts(
-                &account_ids,
-                &base_currency,
-                &resolved.scope_id,
-            )
+            .get_portfolio_allocations_for_accounts(account_ids, &base_currency, &resolved.scope_id)
             .await
             .map_err(|e| e.to_string())
     }
@@ -392,8 +404,8 @@ pub async fn get_holdings_by_allocation(
     let context = state.context()?;
     let base_currency = context.get_base_currency();
     let filter = filter.into_account_filter()?;
-    let resolved = resolve_scope(&filter, &context).await?;
-    let account_ids = holdings_account_ids(&context, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&filter, &context)?;
+    let account_ids = &resolved.account_ids;
     if account_ids.len() == 1 {
         context
             .allocation_service()
@@ -404,7 +416,7 @@ pub async fn get_holdings_by_allocation(
         context
             .allocation_service()
             .get_holdings_by_allocation_for_accounts(
-                &account_ids,
+                account_ids,
                 &base_currency,
                 &taxonomy_id,
                 &category_id,
@@ -447,13 +459,9 @@ pub async fn get_historical_valuations(
         .transpose()?;
 
     let result = if let Some(input) = filter {
-        let base_currency = context.get_base_currency();
         let account_filter = input.into_account_filter()?;
-        let resolved = context
-            .portfolio_service()
-            .resolve_account_scope(&account_filter, &base_currency)
-            .map_err(|e| e.to_string())?;
-        let account_ids = holdings_account_ids(context.as_ref(), &resolved.account_ids)?;
+        let resolved = resolve_holdings_scope(&account_filter, &context)?;
+        let account_ids = &resolved.account_ids;
         if account_ids.is_empty() {
             Ok(Vec::new())
         } else if account_ids.len() == 1 {
@@ -466,7 +474,7 @@ pub async fn get_historical_valuations(
                 .valuation_service()
                 .get_historical_valuation_totals_for_accounts(
                     &resolved.scope_id,
-                    &account_ids,
+                    account_ids,
                     &resolved.base_currency,
                     from_date_opt,
                     to_date_opt,
@@ -485,12 +493,8 @@ pub async fn get_historical_valuations(
             .get_historical_valuations(&account_id, from_date_opt, to_date_opt)
             .map_err(|e| e.to_string())
     } else {
-        let base_currency = context.get_base_currency();
-        let resolved = context
-            .portfolio_service()
-            .resolve_account_scope(&AccountScope::All, &base_currency)
-            .map_err(|e| e.to_string())?;
-        let account_ids = holdings_account_ids(context.as_ref(), &resolved.account_ids)?;
+        let resolved = resolve_holdings_scope(&AccountScope::All, &context)?;
+        let account_ids = &resolved.account_ids;
         if account_ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -498,7 +502,7 @@ pub async fn get_historical_valuations(
             .valuation_service()
             .get_historical_valuation_totals_for_accounts(
                 &resolved.scope_id,
-                &account_ids,
+                account_ids,
                 &resolved.base_currency,
                 from_date_opt,
                 to_date_opt,

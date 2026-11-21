@@ -15,7 +15,10 @@ use axum::{
 };
 use serde_json::json;
 use wealthfolio_core::{
-    health::{FixAction, HealthConfig, HealthStatus},
+    health::{
+        match_option_expiry_contracts, FixAction, HealthConfig, HealthStatus,
+        MatchOptionExpiryContractsPayload, MATCH_OPTION_EXPIRY_CONTRACTS_FIX,
+    },
     quotes::MarketSyncMode,
 };
 
@@ -200,6 +203,31 @@ async fn execute_health_fix(
             }
         }
 
+        state.health_service.clear_cache().await;
+        return Ok(());
+    }
+
+    // Move option expiries recorded against a stock onto their contracts.
+    // The activity updates emit domain events, which recalculate the accounts.
+    if action.id == MATCH_OPTION_EXPIRY_CONTRACTS_FIX {
+        let payload: MatchOptionExpiryContractsPayload =
+            serde_json::from_value(action.payload.clone()).map_err(|e| {
+                ApiError::BadRequest(format!("Invalid payload for {}: {}", action.id, e))
+            })?;
+        let timezone = state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        match_option_expiry_contracts(
+            state.activity_service.clone(),
+            state.account_service.clone(),
+            state.asset_service.clone(),
+            state.snapshot_service.clone(),
+            payload,
+            Some(timezone).filter(|tz| !tz.trim().is_empty()),
+        )
+        .await?;
         state.health_service.clear_cache().await;
         return Ok(());
     }

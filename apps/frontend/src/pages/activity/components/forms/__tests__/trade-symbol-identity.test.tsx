@@ -52,6 +52,7 @@ vi.mock("../fields", async () => {
     AccountSelect: Empty,
     DatePicker: Empty,
     AmountInput: Empty,
+    ChargeLinesField: Empty,
     QuantityInput: Empty,
     TradeTotalInput: Empty,
     AssetTypeSelector: Empty,

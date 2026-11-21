@@ -72,10 +72,10 @@
     "clearCategory": "Rimuovi categoria"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Trasferimento del saldo / Anticipo di contante",
-    "charge": "Addebito",
-    "interestCharge": "Interessi passivi",
-    "refundCredit": "Rimborso / Accredito",
+    "balanceTransferCashAdvance": "Anticipo contante / Trasferimento saldo",
+    "charge": "Acquisto",
+    "interestCharge": "Interessi",
+    "refundCredit": "Rimborso",
     "reimbursementRefund": "Rimborso / restituzione"
   },
   "rules": {
@@ -941,7 +941,30 @@
     "notesPayee": "Note / Beneficiario",
     "notesPlaceholder": "es. AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Aggiorna transazione",
-    "createTransaction": "Crea transazione"
+    "createTransaction": "Crea transazione",
+    "typeChange": {
+      "transferOut": "Conta come trasferimento in uscita. Finché non è collegato all'altro conto, i report lo contano come spesa.",
+      "transferIn": "Conta come trasferimento in entrata. Finché non è collegato all'altro conto, i report lo contano come entrata.",
+      "cardPayment": "Conta come un pagamento: riduce quanto devi e non è una spesa.",
+      "cardAdvance": "Conta come un anticipo contante o un trasferimento saldo: aumenta quanto devi e non è una spesa.",
+      "spending": "Conta come spesa nei tuoi report.",
+      "refund": "Conta come rimborso, che riduce le tue spese.",
+      "income": "Conta come entrata nei tuoi report.",
+      "none": "Non conta più come spesa né come entrata.",
+      "reversesBalance": "Inoltre il saldo si muove nella direzione opposta.",
+      "owesMore": "Ora aumenta quanto devi.",
+      "owesLess": "Ora riduce quanto devi."
+    },
+    "linkRow": {
+      "paidFrom": "Pagato da",
+      "receivedFrom": "Ricevuto da",
+      "sentTo": "Inviato a",
+      "untracked": "Un conto che non seguo",
+      "suggested": "Suggerimento: {{account}} · {{date}} · {{amount}}",
+      "link": "Collega",
+      "hint": "Scegli l'altro conto per collegare entrambi i lati, oppure lascialo così.",
+      "savesFirst": "Se scegli un conto, questa modifica viene salvata e poi i due lati vengono collegati."
+    }
   },
   "txTab": {
     "duplicatedComment": "Duplicata",

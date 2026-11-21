@@ -8,11 +8,13 @@
 //! - Data consistency check
 //! - Account configuration check
 //! - Split asset identity check
+//! - Option expiry check
 
 pub mod account_configuration;
 pub mod classification;
 pub mod data_consistency;
 pub mod fx_integrity;
+pub mod option_expiry;
 pub mod price_staleness;
 pub mod quote_sync;
 pub mod split_asset_identity;
@@ -23,6 +25,7 @@ pub use account_configuration::AccountConfigurationCheck;
 pub use classification::ClassificationCheck;
 pub use data_consistency::DataConsistencyCheck;
 pub use fx_integrity::FxIntegrityCheck;
+pub use option_expiry::OptionExpiryCheck;
 pub use price_staleness::PriceStalenessCheck;
 pub use quote_sync::QuoteSyncCheck;
 pub use split_asset_identity::SplitAssetIdentityCheck;

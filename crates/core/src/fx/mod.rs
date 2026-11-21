@@ -15,7 +15,10 @@ pub use currency_converter::CurrencyConverter;
 pub use fx_errors::FxError;
 pub use fx_model::{
     ExchangeRate, ExchangeRateDateBatchRequest, ExchangeRateDateQuery, ExchangeRateDateResult,
-    FxContext, NewExchangeRate,
+    ExchangeRateInfo, FxContext, FxConversionIssue, NewExchangeRate,
 };
 pub use fx_service::FxService;
 pub use fx_traits::{FxRepositoryTrait, FxServiceTrait};
+
+/// Default bridge for provider FX crosses without a stored conversion path.
+pub const DEFAULT_FX_PIVOT_CURRENCY: &str = "USD";

@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "Cambia in {{type}}",
-    "description": "Il tipo della transazione salvata viene modificato, il sottotipo cancellato e i metadati di trasferimento aggiornati. Movimento di cassa, conto, importo, data, valuta, note e categoria restano invariati; i report sui flussi e sui rendimenti possono cambiare. Le modifiche non salvate sono escluse.",
+    "description": "Cambia solo il tipo. Importo, data, conto, note e categoria restano invariati, ma i report potrebbero conteggiarlo diversamente. Le modifiche non salvate non sono incluse.",
     "external": "Il trasferimento sarà contrassegnato come esterno. Usa Collega trasferimento per associarlo a un altro conto.",
     "linked": "Questa transazione appartiene a un gruppo di trasferimenti. Scollega prima il trasferimento, poi riapri Modifica. Entrambe le transazioni vengono conservate."
   },
@@ -562,7 +562,10 @@
     "marked_external": "Segnato come esterno",
     "load_error": "Impossibile caricare i trasferimenti da abbinare.",
     "empty_title": "Tutti i trasferimenti sono abbinati",
-    "empty_desc": "A nessun trasferimento manca l’altro lato."
+    "empty_desc": "A nessun trasferimento manca l’altro lato.",
+    "section_card_credit": "Rimborsi della carta che potrebbero essere pagamenti",
+    "section_card_credit_hint": "Lo stesso importo è uscito da un altro conto. Se ha pagato la carta, collegali; se è un vero rimborso, saltalo.",
+    "card_credit_hint": "Salvato come rimborso sulla carta. Collegandolo diventa il pagamento della carta."
   },
   "form": {
     "section_conversion": "Switch",
@@ -590,6 +593,13 @@
     "label_price": "Prezzo",
     "label_fee": "Commissione",
     "label_tax": "Imposta",
+    "break_down_charge": "Dettaglia",
+    "add_charge_line": "Aggiungi voce",
+    "remove_charge_line": "Rimuovi voce",
+    "charge_line_label": "Descrizione della voce",
+    "charge_line_amount": "Importo della voce",
+    "placeholder_fee_line": "es. Commissione di negoziazione",
+    "placeholder_tax_line": "es. Imposta di bollo",
     "label_quantity": "Quantità",
     "label_contracts": "Contratti",
     "label_bonds": "Obbligazioni",
@@ -747,6 +757,7 @@
     "err_expiration_required": "La data di scadenza è obbligatoria.",
     "err_expiration_invalid": "Inserisci una data di scadenza valida.",
     "err_option_type_required": "Il tipo di opzione è obbligatorio.",
+    "err_option_contract_required": "Scegli il contratto di opzione scaduto, non l’azione sottostante.",
     "err_multiplier_number": "Il moltiplicatore del contratto deve essere un numero.",
     "err_multiplier_gt_zero": "Il moltiplicatore del contratto deve essere maggiore di 0.",
     "err_enter_split_ratio": "Inserisci un rapporto di frazionamento.",
@@ -755,6 +766,10 @@
     "err_withholding_tax_number": "La ritenuta d'acconto deve essere un numero.",
     "err_withholding_tax_non_negative": "La ritenuta d'acconto non può essere negativa.",
     "err_charges_exceed_amount_before_tax": "Imposte e commissioni non possono superare l'importo lordo.",
+    "err_charge_label_required": "Inserisci una descrizione.",
+    "err_charge_amount_required": "Inserisci un importo.",
+    "err_charge_lines_total": "Dettaglia anche questo totale.",
+    "err_charge_lines_precision": "La somma delle voci è troppo precisa. Usa importi più piccoli o meno decimali.",
     "err_fmv_number": "Il valore equo di mercato per unità deve essere un numero.",
     "err_fmv_gt_zero": "Il valore equo di mercato per unità deve essere maggiore di 0.",
     "err_received_quantity_number": "La quantità ricevuta deve essere un numero.",
@@ -1001,6 +1016,8 @@
       "decimalAuto": "Rilevamento automatico",
       "decimalPeriod": "Punto (.)",
       "decimalComma": "Virgola (,)",
+      "numberFormatWarningTitle": "Controlla i formati numerici",
+      "numberFormatWarningDescription": "Alcune colonne hanno formati numerici ambigui o contrastanti ({{columns}}). Controlla questi valori o scegli un separatore decimale nelle impostazioni di analisi durante il caricamento.",
       "summaryDelimiter": "Delimitatore: {{value}}",
       "summaryDate": "Data: {{value}}",
       "summaryDecimal": "Decimale: {{value}}",
@@ -1290,6 +1307,34 @@
       "syncAutomatically": "Preferisci la sincronizzazione automatica?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transazione",
+      "transactionCount_many": "{{count}} transazioni",
+      "transactionCount_other": "{{count}} transazioni",
+      "checkingTitle": "Abbinamento delle attività finanziarie",
+      "checkingDescription": "Verifica delle attività finanziarie uniche tra quelle esistenti e i fornitori di dati di mercato abilitati.",
+      "slowTitle": "L’abbinamento richiede più tempo del previsto",
+      "slowDescription": "Stiamo ancora attendendo i risultati. Puoi attendere o tornare alla mappatura.",
+      "checked": "Attività finanziarie verificate: {{completed}} / {{total}}",
+      "elapsed": "Tempo trascorso: {{seconds}} s",
+      "savedDescription": "Non sono stati importati movimenti o posizioni. Il file e le mappature sono conservati.",
+      "retryRemaining": "Verifica le attività finanziarie rimanenti ({{remaining}})",
+      "timeoutTitle": "Tempo di abbinamento scaduto",
+      "timeoutDescription": "La richiesta è terminata prima dell’arrivo di tutti i risultati. Gli abbinamenti completati sono conservati. Riprova le attività finanziarie rimanenti.",
+      "networkTitle": "Connessione al server non riuscita",
+      "networkDescription": "Controlla la connessione e riprova. Gli abbinamenti completati sono conservati.",
+      "providerTitle": "Dati di mercato non disponibili",
+      "providerDescription": "Un fornitore di dati di mercato non è disponibile. Riprova più tardi. Gli abbinamenti completati sono conservati.",
+      "tooLargeTitle": "La richiesta è troppo grande",
+      "tooLargeDescription": "Il server o il proxy ha rifiutato la richiesta per le sue dimensioni. Prova un CSV più piccolo o controlla il limite delle richieste.",
+      "failedDescription": "Impossibile completare la verifica. Gli abbinamenti completati sono conservati. Riprova le attività finanziarie rimanenti.",
+      "continueCheckingTitle": "Continua l’abbinamento",
+      "partialDescription": "Gli abbinamenti completati sono conservati. Verifica le attività finanziarie rimanenti prima di continuare.",
+      "editingPaused": "Potrai modificare gli abbinamenti al termine della verifica.",
+      "technicalDetails": "Dettagli tecnici",
+      "selfHostedHelp": "Per le installazioni autogestite, controlla la connessione del server, i fornitori abilitati e i limiti e i tempi di attesa del proxy inverso.",
+      "copyDiagnostics": "Copia diagnostica",
+      "copied": "Diagnostica copiata. Il contenuto del file e i valori finanziari sono esclusi.",
+      "copyFailed": "Copia non riuscita. Puoi selezionare e copiare i dettagli qui sopra.",
       "noAssetsTitle": "Nessun asset richiede revisione",
       "noAssetsDescription": "Questa importazione contiene solo movimenti di tipo liquidità: puoi continuare con la revisione dei movimenti.",
       "resolvingMessage": "Risoluzione degli asset e abbinamento dei simboli…",
@@ -1508,11 +1553,11 @@
       "issuesTitle_other": "Sono presenti problemi con {{count}} voci di movimento."
     },
     "creditCard": {
-      "charge": "Addebito",
+      "charge": "Acquisto",
       "payment": "Pagamento",
-      "transfer": "Trasferimento saldo / Anticipo contante",
-      "refund": "Rimborso / Accredito",
-      "interest": "Addebito interessi"
+      "transfer": "Anticipo contante / Trasferimento saldo",
+      "refund": "Rimborso",
+      "interest": "Interessi"
     }
   },
   "validation": {

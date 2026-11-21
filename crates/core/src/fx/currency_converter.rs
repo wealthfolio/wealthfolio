@@ -1,8 +1,14 @@
 use crate::fx::fx_errors::FxError;
-use crate::fx::fx_model::ExchangeRate;
-use chrono::NaiveDate;
+use crate::fx::fx_model::{ExchangeRate, ExchangeRateInfo};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+
+#[derive(Clone, Copy)]
+struct RateObservation {
+    rate: Decimal,
+    timestamp: DateTime<Utc>,
+}
 
 /// A calculator for currency conversions using a Graph-based approach.
 /// It stores rates as independent time-series per pair and calculates paths on demand.
@@ -16,7 +22,7 @@ pub struct CurrencyConverter {
     /// Key: (From_Currency, To_Currency)
     /// Value: BTreeMap<Date, Rate>
     /// Using BTreeMap allows O(log N) lookup for dates.
-    rates: HashMap<(String, String), BTreeMap<NaiveDate, Decimal>>,
+    rates: HashMap<(String, String), BTreeMap<NaiveDate, RateObservation>>,
     observations: HashSet<(String, String, NaiveDate)>,
 }
 
@@ -50,10 +56,13 @@ impl CurrencyConverter {
                 .insert((rate.from_currency.clone(), rate.to_currency.clone(), date));
 
             // 1. Store Forward Rate
-            self.rates
-                .entry(forward_pair.clone())
-                .or_default()
-                .insert(date, forward_rate);
+            self.rates.entry(forward_pair.clone()).or_default().insert(
+                date,
+                RateObservation {
+                    rate: forward_rate,
+                    timestamp: rate.timestamp,
+                },
+            );
 
             self.adj
                 .entry(rate.from_currency.clone())
@@ -69,10 +78,13 @@ impl CurrencyConverter {
                 ))
             {
                 let inverse_rate = Decimal::ONE / forward_rate;
-                self.rates
-                    .entry(inverse_pair)
-                    .or_default()
-                    .insert(date, inverse_rate);
+                self.rates.entry(inverse_pair).or_default().insert(
+                    date,
+                    RateObservation {
+                        rate: inverse_rate,
+                        timestamp: rate.timestamp,
+                    },
+                );
 
                 self.adj
                     .entry(rate.to_currency.clone())
@@ -87,7 +99,7 @@ impl CurrencyConverter {
     /// 1. Finds the closest rate ON or BEFORE the date.
     /// 2. Finds the closest rate AFTER the date.
     /// 3. Returns the one with the smallest day difference.
-    fn get_direct_rate(&self, from: &str, to: &str, date: NaiveDate) -> Option<Decimal> {
+    fn get_direct_rate(&self, from: &str, to: &str, date: NaiveDate) -> Option<RateObservation> {
         let key = (from.to_string(), to.to_string());
 
         if let Some(history) = self.rates.get(&key) {
@@ -134,20 +146,39 @@ impl CurrencyConverter {
         to_currency: &str,
         date: NaiveDate,
     ) -> Result<Decimal, FxError> {
+        Ok(amount * self.get_rate_info(from_currency, to_currency, date)?.rate)
+    }
+
+    /// Selects the same route and observations used by ordinary conversions.
+    pub fn get_rate_info(
+        &self,
+        from_currency: &str,
+        to_currency: &str,
+        date: NaiveDate,
+    ) -> Result<ExchangeRateInfo, FxError> {
         if from_currency == to_currency {
-            return Ok(amount);
+            return Ok(ExchangeRateInfo {
+                rate: Decimal::ONE,
+                oldest_quote_time: None,
+            });
         }
 
         // BFS State: (Current Currency, Accumulated Rate)
-        let mut queue: VecDeque<(String, Decimal)> = VecDeque::new();
+        let mut queue: VecDeque<(String, ExchangeRateInfo)> = VecDeque::new();
         let mut visited: HashSet<String> = HashSet::new();
 
-        queue.push_back((from_currency.to_string(), Decimal::ONE));
+        queue.push_back((
+            from_currency.to_string(),
+            ExchangeRateInfo {
+                rate: Decimal::ONE,
+                oldest_quote_time: None,
+            },
+        ));
         visited.insert(from_currency.to_string());
 
         while let Some((current_curr, current_rate)) = queue.pop_front() {
             if current_curr == to_currency {
-                return Ok(amount * current_rate);
+                return Ok(current_rate);
             }
 
             if let Some(neighbors) = self.adj.get(&current_curr) {
@@ -156,7 +187,19 @@ impl CurrencyConverter {
                         // Check if a rate exists nearby for this specific edge
                         if let Some(rate) = self.get_direct_rate(&current_curr, neighbor, date) {
                             visited.insert(neighbor.clone());
-                            queue.push_back((neighbor.clone(), current_rate * rate));
+                            queue.push_back((
+                                neighbor.clone(),
+                                ExchangeRateInfo {
+                                    rate: current_rate.rate * rate.rate,
+                                    oldest_quote_time: Some(
+                                        current_rate
+                                            .oldest_quote_time
+                                            .map_or(rate.timestamp, |time| {
+                                                time.min(rate.timestamp)
+                                            }),
+                                    ),
+                                },
+                            ));
                         }
                     }
                 }
@@ -223,6 +266,41 @@ mod tests {
             source: "MANUAL".to_string(),
             timestamp: date_time,
         }
+    }
+
+    #[test]
+    fn route_info_uses_selected_observations_including_inverse_and_non_usd_hops() {
+        let rates = vec![
+            make_rate("EUR", "COP", 2.0, 2026, 11, 14),
+            make_rate("EUR", "GBP", 3.0, 2026, 11, 16),
+            make_rate("GBP", "AED", 4.0, 2026, 11, 17),
+        ];
+        let oldest = rates[0].timestamp;
+        let mut converter = CurrencyConverter::new(rates).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 11, 17).unwrap();
+        let info = converter.get_rate_info("COP", "AED", date).unwrap();
+        assert_eq!(info.rate, Decimal::from(6));
+        assert_eq!(info.rate, converter.get_rate("COP", "AED", date).unwrap());
+        assert_eq!(info.oldest_quote_time, Some(oldest));
+        // A direct rate remains preferred even when its quote is older than the route.
+        let direct = make_rate("COP", "AED", 9.0, 2026, 10, 1);
+        converter.add_historical_rates(vec![direct.clone()]);
+        let info = converter.get_rate_info("COP", "AED", date).unwrap();
+        assert_eq!(info.rate, Decimal::from(9));
+        assert_eq!(info.oldest_quote_time, Some(direct.timestamp));
+    }
+
+    #[test]
+    fn rate_info_keeps_the_timestamp_of_the_nearest_observation() {
+        let mut before = make_rate("EUR", "USD", 2.0, 2026, 11, 16);
+        before.timestamp = Utc.with_ymd_and_hms(2026, 11, 16, 17, 30, 0).unwrap();
+        let after = make_rate("EUR", "USD", 3.0, 2026, 11, 18);
+        let converter = CurrencyConverter::new(vec![before.clone(), after]).unwrap();
+        let info = converter
+            .get_rate_info("EUR", "USD", NaiveDate::from_ymd_opt(2026, 11, 17).unwrap())
+            .unwrap();
+        assert_eq!(info.rate, Decimal::from(2));
+        assert_eq!(info.oldest_quote_time, Some(before.timestamp));
     }
 
     #[test]

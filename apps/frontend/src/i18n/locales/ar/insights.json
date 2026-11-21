@@ -133,6 +133,8 @@
   "networth": {
     "add_first_asset": "أضف أول أصل لك",
     "attention": {
+      "missing_fx": "سعر صرف مفقود:",
+      "review_valuation": "مراجعة مشكلات التقييم",
       "add_property": "أضف عقارًا لـ {{name}}",
       "link_explanation": "ربط عقار موجود لا يغيّر صافي ثروتك.",
       "link_property": "اربط عقارًا بـ {{name}}",

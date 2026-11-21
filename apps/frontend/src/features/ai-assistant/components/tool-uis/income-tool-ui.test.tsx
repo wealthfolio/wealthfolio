@@ -33,6 +33,7 @@ function renderCard(output: Record<string, unknown>, locale = "US") {
         type="tool-call"
         addResult={vi.fn()}
         resume={vi.fn()}
+        respondToApproval={vi.fn()}
       />
     </FormattingProvider>,
   );

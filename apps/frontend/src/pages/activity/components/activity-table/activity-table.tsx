@@ -135,6 +135,8 @@ interface ActivityTableProps {
   handleDelete: (activity: ActivityDetails) => void;
   onLinkTransfer?: (activity: ActivityDetails) => void;
   onUnlinkTransfer?: (activity: ActivityDetails) => void;
+  /** Each account's type by id, for the row menu's card actions. */
+  accountTypeById?: ReadonlyMap<string, string>;
   filtersActive?: boolean;
   onAdd?: () => void;
   /** Show a "Connect Account" button next to the add button when there are no activities. */
@@ -157,6 +159,7 @@ export const ActivityTable = ({
   handleDelete,
   onLinkTransfer,
   onUnlinkTransfer,
+  accountTypeById,
   filtersActive = false,
   onAdd,
   showConnectAccountLink = false,
@@ -801,6 +804,7 @@ export const ActivityTable = ({
               onDuplicate={handleDuplicate}
               onLinkTransfer={onLinkTransfer}
               onUnlinkTransfer={onUnlinkTransfer}
+              accountType={accountTypeById?.get(row.original.accountId)}
               hoverReveal
             />
           );
@@ -818,6 +822,7 @@ export const ActivityTable = ({
       handleDuplicate,
       onLinkTransfer,
       onUnlinkTransfer,
+      accountTypeById,
       amountFormatting,
       showsCashBalance,
       symbolExchangeCountMap,
@@ -992,14 +997,16 @@ export const ActivityTable = ({
               row border stays with the table grid instead of moving with
               sticky cells, so the cells draw the header's bottom line.
               The page header's offset only applies when the header pins to
-              the page. Otherwise it pins to a nearer scroll container (the
-              box while it scrolls sideways, or at 1024px and below an
-              ancestor `globals.css` gives `overflow-x: hidden`), where that
-              offset would push it down over the rows. */}
+              the page. While the box scrolls sideways the header pins to the
+              box instead, where that offset would push it down over the rows.
+              Engines without `overflow: clip` keep `globals.css`'s
+              `overflow-x: hidden` up to 1024px, which makes an ancestor the
+              scroller there too, so they get the offset only above 1024px. */}
           <TableHeader
             className={cn(
               "bg-card sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
-              !scrollsSideways && "[@media(width>1024px)]:top-[var(--page-header-height,0px)]",
+              !scrollsSideways &&
+                "supports-[overflow:clip]:top-[var(--page-header-height,0px)] [@media(width>1024px)]:top-[var(--page-header-height,0px)]",
             )}
           >
             {table.getHeaderGroups().map((headerGroup) => (

@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "Change to {{type}}",
-    "description": "This changes the saved transaction type, clears its subtype and updates transfer metadata. Cash movement, account, amount, date, currency, notes and category stay the same; cash-flow and performance reporting may change. Unsaved edits are not included.",
+    "description": "Only the type changes. The amount, date, account, notes and category stay as they are, but reports may count it differently. Unsaved edits aren't included.",
     "external": "The transfer will be marked external. Use Link transfer to pair it with another account.",
     "linked": "This transaction has a transfer group. Use Unlink transfer first, then reopen Edit to change its type. Both linked transactions are kept."
   },
@@ -546,7 +546,10 @@
     "marked_external": "Marked as external",
     "load_error": "Could not load transfers to match.",
     "empty_title": "All transfers are matched",
-    "empty_desc": "No transfer is missing its other side."
+    "empty_desc": "No transfer is missing its other side.",
+    "section_card_credit": "Card refunds that may be payments",
+    "section_card_credit_hint": "The same amount left another account. If it paid the card, link them; if it's a real refund, skip it.",
+    "card_credit_hint": "Saved as a refund on the card. Linking makes it the card's payment."
   },
   "form": {
     "section_conversion": "Fund conversion",
@@ -574,6 +577,13 @@
     "label_price": "Price",
     "label_fee": "Fee",
     "label_tax": "Tax",
+    "break_down_charge": "Break down",
+    "add_charge_line": "Add line",
+    "remove_charge_line": "Remove line",
+    "charge_line_label": "Line label",
+    "charge_line_amount": "Line amount",
+    "placeholder_fee_line": "e.g. Commission",
+    "placeholder_tax_line": "e.g. Stamp duty",
     "label_quantity": "Quantity",
     "label_contracts": "Contracts",
     "label_bonds": "Bonds",
@@ -731,6 +741,7 @@
     "err_expiration_required": "Expiration date is required.",
     "err_expiration_invalid": "Enter a valid expiration date.",
     "err_option_type_required": "Option type is required.",
+    "err_option_contract_required": "Choose the option contract that expired, not its underlying stock.",
     "err_multiplier_number": "Contract multiplier must be a number.",
     "err_multiplier_gt_zero": "Contract multiplier must be greater than 0.",
     "err_enter_split_ratio": "Please enter a split ratio.",
@@ -739,6 +750,10 @@
     "err_withholding_tax_number": "Withholding tax must be a number.",
     "err_withholding_tax_non_negative": "Withholding tax must be non-negative.",
     "err_charges_exceed_amount_before_tax": "Tax and fees can't be more than the amount before tax.",
+    "err_charge_label_required": "Enter a label.",
+    "err_charge_amount_required": "Enter an amount.",
+    "err_charge_lines_total": "Break down this total too.",
+    "err_charge_lines_precision": "The line sum is too precise. Use smaller amounts or fewer decimal places.",
     "err_fmv_number": "FMV per unit must be a number.",
     "err_fmv_gt_zero": "FMV per unit must be greater than 0.",
     "err_received_quantity_number": "Received quantity must be a number.",
@@ -974,6 +989,8 @@
       "decimalAuto": "Auto-detect",
       "decimalPeriod": "Period (.)",
       "decimalComma": "Comma (,)",
+      "numberFormatWarningTitle": "Check number formats",
+      "numberFormatWarningDescription": "Some columns have ambiguous or conflicting number formats ({{columns}}). Check these values or choose a decimal separator in Parse Settings on the Upload step.",
       "summaryDelimiter": "Delimiter: {{value}}",
       "summaryDate": "Date: {{value}}",
       "summaryDecimal": "Decimal: {{value}}",
@@ -1243,6 +1260,33 @@
       "syncAutomatically": "Want this to sync automatically?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transaction",
+      "transactionCount_other": "{{count}} transactions",
+      "checkingTitle": "Matching assets",
+      "checkingDescription": "Checking unique assets against existing assets and enabled market-data providers.",
+      "slowTitle": "Asset matching is taking longer than usual",
+      "slowDescription": "We’re still waiting for results. You can keep waiting or go back to mapping.",
+      "checked": "Assets checked: {{completed}} / {{total}}",
+      "elapsed": "Elapsed: {{seconds}} s",
+      "savedDescription": "No activities or holdings have been imported. Your file and mappings are kept.",
+      "retryRemaining": "Check remaining assets ({{remaining}})",
+      "timeoutTitle": "Asset matching timed out",
+      "timeoutDescription": "The request ended before all results were returned. Completed matches are kept. Try the remaining assets again.",
+      "networkTitle": "Couldn’t connect to the server",
+      "networkDescription": "Check your connection and try again. Completed matches are kept.",
+      "providerTitle": "Market data is unavailable",
+      "providerDescription": "A market-data provider is unavailable. Try again later. Completed matches are kept.",
+      "tooLargeTitle": "Asset request is too large",
+      "tooLargeDescription": "The server or proxy rejected this request as too large. Try a smaller CSV or check the request-size limit.",
+      "failedDescription": "We couldn’t finish checking assets. Completed matches are kept. Try the remaining assets again.",
+      "continueCheckingTitle": "Continue asset matching",
+      "partialDescription": "Completed matches are kept. Check the remaining assets before continuing.",
+      "editingPaused": "You can edit completed matches when checking finishes.",
+      "technicalDetails": "Technical details",
+      "selfHostedHelp": "For self-hosted setups, check server connectivity, enabled providers, and reverse-proxy request limits and timeouts.",
+      "copyDiagnostics": "Copy diagnostics",
+      "copied": "Diagnostics copied. File contents and financial values are excluded.",
+      "copyFailed": "Couldn’t copy. You can select and copy the details above.",
       "noAssetsTitle": "No assets require review",
       "noAssetsDescription": "This import only contains cash-style activities — you can continue to activity review.",
       "resolvingMessage": "Resolving assets and matching symbols…",
@@ -1448,11 +1492,11 @@
       "issuesTitle_other": "There are issues with {{count}} activity entries."
     },
     "creditCard": {
-      "charge": "Charge",
+      "charge": "Purchase",
       "payment": "Payment",
-      "transfer": "Balance Transfer / Cash Advance",
-      "refund": "Refund / Credit",
-      "interest": "Interest Charge"
+      "transfer": "Cash Advance / Balance Transfer",
+      "refund": "Refund",
+      "interest": "Interest"
     }
   },
   "validation": {

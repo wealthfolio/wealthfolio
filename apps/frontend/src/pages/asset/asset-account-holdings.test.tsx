@@ -44,7 +44,7 @@ it.each([false, true])(
     mocks.getScope.mockResolvedValue({
       holdings: [holding],
       incompleteAccounts: [
-        { accountId: "other", status: "pending", reasonCode: "PROJECTION_PENDING" },
+        { accountId: "other", status: "pending", reasonCode: "CALCULATION_REQUIRED" },
       ],
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

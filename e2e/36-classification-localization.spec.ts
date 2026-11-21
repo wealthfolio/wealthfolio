@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 import type { TaxonomyCategory, TaxonomyWithCategories } from "../apps/frontend/src/lib/types";
 

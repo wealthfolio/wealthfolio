@@ -63,6 +63,10 @@ does not provide this. See the
 [reverse proxy guide](https://wealthfolio.app/docs/guide/self-hosting/reverse-proxy/)
 for examples.
 
+Use the [production timeout matrix](timeouts.md) to align server, client, and
+proxy limits. It includes an NGINX configuration generator using the shared
+policy.
+
 ## OIDC providers using a private CA
 
 If your identity provider uses a private certificate authority (for example,

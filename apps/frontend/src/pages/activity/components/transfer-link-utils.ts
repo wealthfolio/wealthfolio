@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 
-import { ActivityType } from "@/lib/constants";
+import { ActivityType, isLiabilityAccountType } from "@/lib/constants";
 import { getEffectiveType, type TransferMatchCandidate } from "@/lib/types";
 import { normalizeCurrency } from "@/lib/utils";
 
@@ -64,11 +64,20 @@ export function isSameAccountCashFxConversion(
   );
 }
 
-/** A cash deposit or withdrawal, which "Make it a transfer…" can pair with another account. */
-export function canConvertToTransfer(activity: TransferLinkActivityLike): boolean {
+/**
+ * A cash deposit or withdrawal, which "Make it a transfer…" can pair with another
+ * account. So can a credit card's refund or credit, which becomes the card's
+ * payment: a card holds no deposits, so a payment saved wrongly is saved as one.
+ */
+export function canConvertToTransfer(
+  activity: TransferLinkActivityLike,
+  accountType?: string,
+): boolean {
   const type = getEffectiveType(activity);
   return (
-    (type === ActivityType.DEPOSIT || type === ActivityType.WITHDRAWAL) &&
+    (type === ActivityType.DEPOSIT ||
+      type === ActivityType.WITHDRAWAL ||
+      (type === ActivityType.CREDIT && isLiabilityAccountType(accountType))) &&
     !nonCashTransferAssetKey(activity)
   );
 }

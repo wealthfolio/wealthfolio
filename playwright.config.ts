@@ -11,16 +11,25 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+// Suites with their own configs.
+const OTHER_SUITES = [
+  "**/addon-sandbox/**",
+  "**/design-system/**",
+  "**/net-worth/**",
+  "**/profiles/**",
+];
+
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["**/addon-sandbox/**", "**/design-system/**", "**/net-worth/**", "**/profiles/**"],
-  /* Run tests in files sequentially to ensure onboarding runs before activity tests */
+  testIgnore: OTHER_SUITES,
+  /* Tests in a file run in order; files spread over workers, each with its own
+     server and database (scripts/run-e2e.mjs). */
   fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Use single worker to ensure test order */
+  /* One worker unless the runner starts a server per worker (WF_E2E_WORKERS). */
   workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
@@ -37,8 +46,15 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
+    // Onboards a new installation through the UI, so it runs first, alone.
+    {
+      name: "onboarding",
+      testMatch: "**/01-happy-path.spec.ts",
+      use: { ...devices["Desktop Chrome"], channel: "chrome", headless: true },
+    },
     {
       name: "chromium",
+      testIgnore: [...OTHER_SUITES, "**/01-happy-path.spec.ts"],
       use: { ...devices["Desktop Chrome"], channel: "chrome", headless: true },
     },
 

@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "{{type}}に変更",
-    "description": "保存済みの取引種別を変更し、サブタイプを削除して振替メタデータを更新します。現金の移動、口座、金額、日付、通貨、メモ、カテゴリは維持されますが、キャッシュフローや運用成績のレポートは変わる場合があります。未保存の編集は含まれません。",
+    "description": "変わるのは種類だけです。金額、日付、口座、メモ、カテゴリはそのままですが、レポートでの扱いが変わる場合があります。未保存の編集は含まれません。",
     "external": "外部振替として記録されます。「振替をリンク」で別の口座と関連付けられます。",
     "linked": "この取引は振替グループに属しています。先に振替のリンクを解除し、編集を開き直して種別を変更してください。両方の取引は保持されます。"
   },
@@ -543,7 +543,10 @@
     "marked_external": "外部としてマークしました",
     "load_error": "照合する振替を読み込めませんでした。",
     "empty_title": "すべての振替が照合済みです",
-    "empty_desc": "相手側が欠けている振替はありません。"
+    "empty_desc": "相手側が欠けている振替はありません。",
+    "section_card_credit": "支払いの可能性があるカードの返金",
+    "section_card_credit_hint": "同じ金額が別の口座から出ています。カードの支払いならリンクし、本当の返金ならスキップしてください。",
+    "card_credit_hint": "カードの返金として保存されています。リンクするとカードへの支払いになります。"
   },
   "form": {
     "section_conversion": "スイッチング",
@@ -571,6 +574,13 @@
     "label_price": "価格",
     "label_fee": "手数料",
     "label_tax": "税金",
+    "break_down_charge": "内訳を入力",
+    "add_charge_line": "明細を追加",
+    "remove_charge_line": "明細を削除",
+    "charge_line_label": "明細の名称",
+    "charge_line_amount": "明細の金額",
+    "placeholder_fee_line": "例：売買手数料",
+    "placeholder_tax_line": "例：印紙税",
     "label_quantity": "数量",
     "label_contracts": "契約数",
     "label_bonds": "債券",
@@ -728,6 +738,7 @@
     "err_expiration_required": "満期日は必須です。",
     "err_expiration_invalid": "有効な満期日を入力してください。",
     "err_option_type_required": "オプションタイプは必須です。",
+    "err_option_contract_required": "原資産の株式ではなく、満期を迎えたオプション契約を選択してください。",
     "err_multiplier_number": "契約乗数は数値である必要があります。",
     "err_multiplier_gt_zero": "契約乗数は0より大きい値である必要があります。",
     "err_enter_split_ratio": "分割比率を入力してください。",
@@ -736,6 +747,10 @@
     "err_withholding_tax_number": "源泉徴収税は数値である必要があります。",
     "err_withholding_tax_non_negative": "源泉徴収税は0以上である必要があります。",
     "err_charges_exceed_amount_before_tax": "税金と手数料の合計は税引前金額を超えることはできません。",
+    "err_charge_label_required": "名称を入力してください。",
+    "err_charge_amount_required": "金額を入力してください。",
+    "err_charge_lines_total": "この合計の内訳も入力してください。",
+    "err_charge_lines_precision": "明細の合計の精度が高すぎます。金額を小さくするか、小数点以下の桁数を減らしてください。",
     "err_fmv_number": "単位あたりFMVは数値である必要があります。",
     "err_fmv_gt_zero": "単位あたりFMVは0より大きい値である必要があります。",
     "err_received_quantity_number": "受取数量は数値である必要があります。",
@@ -967,6 +982,8 @@
       "decimalAuto": "自動検出",
       "decimalPeriod": "ピリオド(.)",
       "decimalComma": "カンマ(,)",
+      "numberFormatWarningTitle": "数値形式を確認してください",
+      "numberFormatWarningDescription": "一部の列の数値形式が曖昧、または混在しています（{{columns}}）。値を確認するか、アップロード手順の解析設定で小数点の区切り文字を選択してください。",
       "summaryDelimiter": "区切り文字: {{value}}",
       "summaryDate": "日付: {{value}}",
       "summaryDecimal": "小数点: {{value}}",
@@ -1228,6 +1245,33 @@
       "syncAutomatically": "自動で同期しますか?"
     },
     "assets": {
+      "transactionCount_one": "取引{{count}}件",
+      "transactionCount_other": "取引{{count}}件",
+      "checkingTitle": "資産を照合中",
+      "checkingDescription": "既存の資産と有効な市場データプロバイダーに対して、重複を除いた資産を確認しています。",
+      "slowTitle": "資産の照合に通常より時間がかかっています",
+      "slowDescription": "結果を待っています。このまま待つか、マッピングに戻ることができます。",
+      "checked": "確認済みの資産：{{completed}} / {{total}}",
+      "elapsed": "経過時間：{{seconds}} 秒",
+      "savedDescription": "アクティビティや保有資産はまだインポートされていません。ファイルとマッピングは保持されています。",
+      "retryRemaining": "残りの資産を確認（{{remaining}}）",
+      "timeoutTitle": "資産の照合がタイムアウトしました",
+      "timeoutDescription": "すべての結果を受信する前にリクエストが終了しました。完了した照合は保持されています。残りの資産を再試行してください。",
+      "networkTitle": "サーバーに接続できませんでした",
+      "networkDescription": "接続を確認して再試行してください。完了した照合は保持されています。",
+      "providerTitle": "市場データを利用できません",
+      "providerDescription": "市場データプロバイダーを利用できません。後でもう一度お試しください。完了した照合は保持されています。",
+      "tooLargeTitle": "資産リクエストが大きすぎます",
+      "tooLargeDescription": "サイズが大きすぎるため、サーバーまたはプロキシがリクエストを拒否しました。小さい CSV を試すか、リクエストのサイズ制限を確認してください。",
+      "failedDescription": "資産の確認を完了できませんでした。完了した照合は保持されています。残りの資産を再試行してください。",
+      "continueCheckingTitle": "資産の照合を続ける",
+      "partialDescription": "完了した照合は保持されています。続行する前に残りの資産を確認してください。",
+      "editingPaused": "確認が終了したら、完了した照合を編集できます。",
+      "technicalDetails": "技術的な詳細",
+      "selfHostedHelp": "セルフホスト環境では、サーバーの接続、有効なプロバイダー、リバースプロキシのサイズ制限とタイムアウトを確認してください。",
+      "copyDiagnostics": "診断情報をコピー",
+      "copied": "診断情報をコピーしました。ファイルの内容や財務数値は含まれません。",
+      "copyFailed": "コピーできませんでした。上の詳細を選択してコピーできます。",
       "noAssetsTitle": "確認が必要な資産はありません",
       "noAssetsDescription": "このインポートには現金系の取引のみが含まれています。取引の確認に進めます。",
       "resolvingMessage": "資産を解決し銘柄を照合しています…",
@@ -1429,11 +1473,11 @@
       "issuesTitle_other": "{{count}}件の取引エントリに問題があります。"
     },
     "creditCard": {
-      "charge": "利用",
-      "payment": "支払",
-      "transfer": "残高移行／キャッシング",
-      "refund": "返金／入金",
-      "interest": "利息請求"
+      "charge": "ショッピング",
+      "payment": "支払い",
+      "transfer": "キャッシング / 残高移行",
+      "refund": "返金",
+      "interest": "利息"
     }
   },
   "validation": {
