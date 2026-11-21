@@ -7,11 +7,12 @@
 //! every consumer one shape to read instead of a country-name table each.
 //!
 //! `NAMES` is generated from the seeded regions taxonomy
-//! (`2026-01-01-000002_taxonomies`), so the two agree by construction and a name
-//! this resolves is a country the application can also place. Those 227 are not
-//! the whole of ISO 3166-1 — the seed carries no `CI`, `MD`, `MK`, `PS` or `CW`
-//! — and anything outside the tables resolves to `None` rather than to a code
-//! that nothing downstream renders.
+//! (`2026-01-01-000002_taxonomies`, plus the 21 countries
+//! `2026-10-01-000001_regions_missing_iso_countries` adds), so the two agree by
+//! construction and a name this resolves is a country the application can also
+//! place. That is every ISO 3166-1 code except Antarctica (`AQ`), which UN M49
+//! assigns no region; anything outside the tables resolves to `None` rather than
+//! to a code that nothing downstream renders.
 
 /// Resolve a provider country string to its ISO 3166-1 alpha-2 code.
 ///
@@ -46,7 +47,7 @@ fn lookup(table: &[(&'static str, &'static str)], key: &str) -> Option<&'static 
 }
 
 /// Country names as the regions taxonomy spells them, lowercased.
-const NAMES: [(&str, &str); 227] = [
+const NAMES: [(&str, &str); 248] = [
     ("afghanistan", "AF"),
     ("albania", "AL"),
     ("algeria", "DZ"),
@@ -72,8 +73,10 @@ const NAMES: [(&str, &str); 227] = [
     ("bermuda", "BM"),
     ("bhutan", "BT"),
     ("bolivia", "BO"),
+    ("bonaire, sint eustatius and saba", "BQ"),
     ("bosnia and herzegovina", "BA"),
     ("botswana", "BW"),
+    ("bouvet island", "BV"),
     ("brazil", "BR"),
     ("british indian ocean territory", "IO"),
     ("brunei darussalam", "BN"),
@@ -89,6 +92,8 @@ const NAMES: [(&str, &str); 227] = [
     ("chad", "TD"),
     ("chile", "CL"),
     ("china", "CN"),
+    ("christmas island", "CX"),
+    ("cocos (keeling) islands", "CC"),
     ("colombia", "CO"),
     ("comoros", "KM"),
     ("congo", "CG"),
@@ -97,8 +102,10 @@ const NAMES: [(&str, &str); 227] = [
     ("costa rica", "CR"),
     ("croatia", "HR"),
     ("cuba", "CU"),
+    ("curaçao", "CW"),
     ("cyprus", "CY"),
     ("czechia", "CZ"),
+    ("côte d'ivoire", "CI"),
     ("denmark", "DK"),
     ("djibouti", "DJ"),
     ("dominica", "DM"),
@@ -112,6 +119,7 @@ const NAMES: [(&str, &str); 227] = [
     ("eswatini", "SZ"),
     ("ethiopia", "ET"),
     ("falkland islands (malvinas)", "FK"),
+    ("faroe islands", "FO"),
     ("fiji", "FJ"),
     ("finland", "FI"),
     ("france", "FR"),
@@ -130,10 +138,12 @@ const NAMES: [(&str, &str); 227] = [
     ("guadeloupe", "GP"),
     ("guam", "GU"),
     ("guatemala", "GT"),
+    ("guernsey", "GG"),
     ("guinea", "GN"),
     ("guinea-bissau", "GW"),
     ("guyana", "GY"),
     ("haiti", "HT"),
+    ("heard island and mcdonald islands", "HM"),
     ("holy see", "VA"),
     ("honduras", "HN"),
     ("hong kong", "HK"),
@@ -144,10 +154,12 @@ const NAMES: [(&str, &str); 227] = [
     ("iran", "IR"),
     ("iraq", "IQ"),
     ("ireland", "IE"),
+    ("isle of man", "IM"),
     ("israel", "IL"),
     ("italy", "IT"),
     ("jamaica", "JM"),
     ("japan", "JP"),
+    ("jersey", "JE"),
     ("jordan", "JO"),
     ("kazakhstan", "KZ"),
     ("kenya", "KE"),
@@ -179,6 +191,7 @@ const NAMES: [(&str, &str); 227] = [
     ("mayotte", "YT"),
     ("mexico", "MX"),
     ("micronesia (federated states of)", "FM"),
+    ("moldova", "MD"),
     ("monaco", "MC"),
     ("mongolia", "MN"),
     ("montenegro", "ME"),
@@ -197,11 +210,13 @@ const NAMES: [(&str, &str); 227] = [
     ("nigeria", "NG"),
     ("niue", "NU"),
     ("norfolk island", "NF"),
+    ("north macedonia", "MK"),
     ("northern mariana islands", "MP"),
     ("norway", "NO"),
     ("oman", "OM"),
     ("pakistan", "PK"),
     ("palau", "PW"),
+    ("palestine", "PS"),
     ("panama", "PA"),
     ("papua new guinea", "PG"),
     ("paraguay", "PY"),
@@ -233,13 +248,17 @@ const NAMES: [(&str, &str); 227] = [
     ("singapore", "SG"),
     ("sint maarten (dutch part)", "SX"),
     ("slovakia", "SK"),
+    ("slovenia", "SI"),
+    ("solomon islands", "SB"),
     ("somalia", "SO"),
     ("south africa", "ZA"),
+    ("south georgia and the south sandwich islands", "GS"),
     ("south sudan", "SS"),
     ("spain", "ES"),
     ("sri lanka", "LK"),
     ("sudan", "SD"),
     ("suriname", "SR"),
+    ("svalbard and jan mayen", "SJ"),
     ("sweden", "SE"),
     ("switzerland", "CH"),
     ("syrian arab republic", "SY"),
@@ -263,6 +282,7 @@ const NAMES: [(&str, &str); 227] = [
     ("united arab emirates", "AE"),
     ("united kingdom", "GB"),
     ("united states", "US"),
+    ("united states minor outlying islands", "UM"),
     ("uruguay", "UY"),
     ("uzbekistan", "UZ"),
     ("vanuatu", "VU"),
@@ -271,16 +291,19 @@ const NAMES: [(&str, &str); 227] = [
     ("virgin islands (british)", "VG"),
     ("virgin islands (u.s.)", "VI"),
     ("wallis and futuna", "WF"),
+    ("western sahara", "EH"),
     ("yemen", "YE"),
     ("zambia", "ZM"),
     ("zimbabwe", "ZW"),
+    ("åland islands", "AX"),
 ];
 
 /// Spellings the taxonomy does not use: colloquial names ("Russia" for "Russian
 /// Federation"), constituent countries ("Scotland"), long ISO forms, and the
 /// endonyms a localised provider can return. Only disagreements are listed —
 /// `aliases_do_not_shadow_names` holds that none of these is already a name.
-const ALIASES: [(&str, &str); 61] = [
+const ALIASES: [(&str, &str); 72] = [
+    ("aland islands", "AX"),
     ("america", "US"),
     ("bolivia, plurinational state of", "BO"),
     ("brasil", "BR"),
@@ -288,6 +311,9 @@ const ALIASES: [(&str, &str); 61] = [
     ("brunei", "BN"),
     ("burma", "MM"),
     ("cape verde", "CV"),
+    ("caribbean netherlands", "BQ"),
+    ("cote d'ivoire", "CI"),
+    ("curacao", "CW"),
     ("czech republic", "CZ"),
     ("danmark", "DK"),
     ("democratic republic of the congo", "CD"),
@@ -295,26 +321,33 @@ const ALIASES: [(&str, &str); 61] = [
     ("east timor", "TL"),
     ("england", "GB"),
     ("españa", "ES"),
+    ("faeroe islands", "FO"),
     ("great britain", "GB"),
     ("holland", "NL"),
     ("iran, islamic republic of", "IR"),
     ("italia", "IT"),
+    ("ivory coast", "CI"),
     ("korea", "KR"),
     ("korea, north", "KP"),
     ("korea, south", "KR"),
     ("laos", "LA"),
     ("macau", "MO"),
+    ("macedonia", "MK"),
+    ("moldova, republic of", "MD"),
     ("méxico", "MX"),
     ("norge", "NO"),
     ("north korea", "KP"),
     ("northern ireland", "GB"),
+    ("palestine, state of", "PS"),
     ("polska", "PL"),
     ("republic of korea", "KR"),
+    ("republic of moldova", "MD"),
     ("republic of the congo", "CG"),
     ("russia", "RU"),
     ("schweiz", "CH"),
     ("scotland", "GB"),
     ("south korea", "KR"),
+    ("state of palestine", "PS"),
     ("suomi", "FI"),
     ("sverige", "SE"),
     ("swaziland", "SZ"),
@@ -346,22 +379,23 @@ const ALIASES: [(&str, &str); 61] = [
 
 /// Every code `NAMES` maps to, sorted, so a bare code can be checked without
 /// scanning the pairs.
-const CODES: [&str; 227] = [
-    "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AR", "AS", "AT", "AU", "AW", "AZ", "BA", "BB",
-    "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BR", "BS", "BT", "BW", "BY",
-    "BZ", "CA", "CD", "CF", "CG", "CH", "CK", "CL", "CM", "CN", "CO", "CR", "CU", "CV", "CY", "CZ",
-    "DE", "DJ", "DK", "DM", "DO", "DZ", "EC", "EE", "EG", "ER", "ES", "ET", "FI", "FJ", "FK", "FM",
-    "FR", "GA", "GB", "GD", "GE", "GF", "GH", "GI", "GL", "GM", "GN", "GP", "GQ", "GR", "GT", "GU",
-    "GW", "GY", "HK", "HN", "HR", "HT", "HU", "ID", "IE", "IL", "IN", "IO", "IQ", "IR", "IS", "IT",
-    "JM", "JO", "JP", "KE", "KG", "KH", "KI", "KM", "KN", "KP", "KR", "KW", "KY", "KZ", "LA", "LB",
-    "LC", "LI", "LK", "LR", "LS", "LT", "LU", "LV", "LY", "MA", "MC", "ME", "MF", "MG", "MH", "ML",
+const CODES: [&str; 248] = [
+    "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AR", "AS", "AT", "AU", "AW", "AX", "AZ", "BA",
+    "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT",
+    "BV", "BW", "BY", "BZ", "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN", "CO",
+    "CR", "CU", "CV", "CW", "CX", "CY", "CZ", "DE", "DJ", "DK", "DM", "DO", "DZ", "EC", "EE", "EG",
+    "EH", "ER", "ES", "ET", "FI", "FJ", "FK", "FM", "FO", "FR", "GA", "GB", "GD", "GE", "GF", "GG",
+    "GH", "GI", "GL", "GM", "GN", "GP", "GQ", "GR", "GS", "GT", "GU", "GW", "GY", "HK", "HM", "HN",
+    "HR", "HT", "HU", "ID", "IE", "IL", "IM", "IN", "IO", "IQ", "IR", "IS", "IT", "JE", "JM", "JO",
+    "JP", "KE", "KG", "KH", "KI", "KM", "KN", "KP", "KR", "KW", "KY", "KZ", "LA", "LB", "LC", "LI",
+    "LK", "LR", "LS", "LT", "LU", "LV", "LY", "MA", "MC", "MD", "ME", "MF", "MG", "MH", "MK", "ML",
     "MM", "MN", "MO", "MP", "MQ", "MR", "MS", "MT", "MU", "MV", "MW", "MX", "MY", "MZ", "NA", "NC",
     "NE", "NF", "NG", "NI", "NL", "NO", "NP", "NR", "NU", "NZ", "OM", "PA", "PE", "PF", "PG", "PH",
-    "PK", "PL", "PM", "PN", "PR", "PT", "PW", "PY", "QA", "RE", "RO", "RS", "RU", "RW", "SA", "SC",
-    "SD", "SE", "SG", "SH", "SK", "SL", "SM", "SN", "SO", "SR", "SS", "ST", "SV", "SX", "SY", "SZ",
-    "TC", "TD", "TF", "TG", "TH", "TJ", "TK", "TL", "TM", "TN", "TO", "TR", "TT", "TV", "TW", "TZ",
-    "UA", "UG", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VI", "VN", "VU", "WF", "WS", "YE", "YT",
-    "ZA", "ZM", "ZW",
+    "PK", "PL", "PM", "PN", "PR", "PS", "PT", "PW", "PY", "QA", "RE", "RO", "RS", "RU", "RW", "SA",
+    "SB", "SC", "SD", "SE", "SG", "SH", "SI", "SJ", "SK", "SL", "SM", "SN", "SO", "SR", "SS", "ST",
+    "SV", "SX", "SY", "SZ", "TC", "TD", "TF", "TG", "TH", "TJ", "TK", "TL", "TM", "TN", "TO", "TR",
+    "TT", "TV", "TW", "TZ", "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VI", "VN",
+    "VU", "WF", "WS", "YE", "YT", "ZA", "ZM", "ZW",
 ];
 
 #[cfg(test)]
@@ -413,8 +447,27 @@ mod tests {
         assert_eq!(to_iso_alpha2("   "), None);
         // Two letters that are not a country must not pass through as one.
         assert_eq!(to_iso_alpha2("ZZ"), None);
-        // Countries the regions seed omits, so the caller keeps the raw name.
-        assert_eq!(to_iso_alpha2("Moldova"), None);
+        // The one ISO country the regions seed omits, so the caller keeps the raw name.
+        assert_eq!(to_iso_alpha2("Antarctica"), None);
+        assert_eq!(to_iso_alpha2("AQ"), None);
+    }
+
+    #[test]
+    fn countries_the_original_seed_omitted_resolve() {
+        // Common registered domiciles for London-listed companies and trusts.
+        assert_eq!(to_iso_alpha2("Jersey"), Some("JE"));
+        assert_eq!(to_iso_alpha2("Guernsey"), Some("GG"));
+        assert_eq!(to_iso_alpha2("Isle of Man"), Some("IM"));
+        assert_eq!(to_iso_alpha2("Slovenia"), Some("SI"));
+        assert_eq!(to_iso_alpha2("SI"), Some("SI"));
+        // Accented taxonomy names, and the ASCII spellings a provider may send.
+        assert_eq!(to_iso_alpha2("Côte d'Ivoire"), Some("CI"));
+        assert_eq!(to_iso_alpha2("Cote d'Ivoire"), Some("CI"));
+        assert_eq!(to_iso_alpha2("Ivory Coast"), Some("CI"));
+        assert_eq!(to_iso_alpha2("Curaçao"), Some("CW"));
+        assert_eq!(to_iso_alpha2("Curacao"), Some("CW"));
+        assert_eq!(to_iso_alpha2("Moldova"), Some("MD"));
+        assert_eq!(to_iso_alpha2("Republic of Moldova"), Some("MD"));
     }
 
     #[test]
