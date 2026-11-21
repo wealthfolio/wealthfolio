@@ -5,6 +5,7 @@
 
 pub mod classification_migration;
 pub mod option_expiry;
+pub mod split_asset_merge;
 
 pub use classification_migration::{
     get_migration_status, migrate_legacy_classifications, MigrationResult, MigrationStatus,
@@ -14,3 +15,4 @@ pub use option_expiry::{
     MatchOptionExpiryContractsPayload, NoContractReason, OptionExpiryWithoutContractInfo,
     MATCH_OPTION_EXPIRY_CONTRACTS_FIX,
 };
+pub use split_asset_merge::merge_split_assets;
