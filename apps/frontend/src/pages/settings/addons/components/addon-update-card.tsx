@@ -2,6 +2,7 @@ import type { ExtractedAddon } from "@/adapters";
 import { clearAddonStaging, downloadAddonForReview, installFromStaging } from "@/adapters";
 import { reloadAllAddons } from "@/addons/addons-core";
 import { ExternalLink } from "@/components/external-link";
+import { cn } from "@/lib/utils";
 import type { AddonUpdateInfo, Permission, RiskLevel } from "@wealthfolio/addon-sdk";
 import { useDateFormatting, buttonVariants, Spinner } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
@@ -219,7 +220,15 @@ export function AddonUpdateCard({
             {(updateInfo.releaseNotes || updateInfo.changelogUrl) && (
               <ExternalLink
                 href={addonDetailUrl}
-                className={buttonVariants({ variant: "ghost", size: "sm" })}
+                aria-disabled={disabled || undefined}
+                tabIndex={disabled ? -1 : undefined}
+                onClick={(event) => {
+                  if (disabled) event.preventDefault();
+                }}
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  disabled && "pointer-events-none opacity-50",
+                )}
               >
                 <span className="inline-flex items-center">
                   <Icons.FileText className="me-1 h-3 w-3" />

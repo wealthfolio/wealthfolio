@@ -53,6 +53,7 @@ export default function AddonSettingsPage() {
     isLoading,
     isLoadingAddons,
     togglingAddonId,
+    uninstallingAddonIds,
     permissionDialog,
     viewPermissionDialog,
     loadInstalledAddons,
@@ -362,15 +363,22 @@ export default function AddonSettingsPage() {
                 {installedAddons.map((addon) => {
                   const addonNavItem = addonNavItemsByAddonId.get(addon.metadata.id);
                   const isPinned = addonNavItem ? isAddonPinned(addonNavItem) : false;
+                  const isRemoving = uninstallingAddonIds.includes(addon.metadata.id);
 
                   return (
                     <div
                       key={addon.metadata.id}
+                      aria-busy={isRemoving || undefined}
                       className={cn(
-                        "group p-4 transition-all duration-200 sm:p-6",
-                        addon.metadata.enabled
-                          ? cn(cardSurfaceClassName, "hover:bg-accent/30")
-                          : "bg-muted/30 rounded-(--card-radius) border border-dashed opacity-75 hover:opacity-90",
+                        "p-4 transition-all duration-200 sm:p-6",
+                        // A card being removed doesn't react to hover.
+                        !isRemoving && "group",
+                        // A card being removed uses the muted surface; its text stays opaque.
+                        isRemoving
+                          ? "bg-muted text-muted-foreground rounded-(--card-radius) border"
+                          : addon.metadata.enabled
+                            ? cn(cardSurfaceClassName, "hover:bg-accent/30")
+                            : "bg-muted/30 rounded-(--card-radius) border border-dashed opacity-75 hover:opacity-90",
                       )}
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -407,7 +415,7 @@ export default function AddonSettingsPage() {
                           {addon.metadata.description && (
                             <p
                               className={`text-xs leading-relaxed sm:text-sm ${
-                                addon.metadata.enabled
+                                addon.metadata.enabled || isRemoving
                                   ? "text-muted-foreground"
                                   : "text-muted-foreground/70"
                               }`}
@@ -420,7 +428,7 @@ export default function AddonSettingsPage() {
                           {addon.metadata.author && (
                             <div
                               className={`flex items-center gap-2 text-xs sm:text-sm ${
-                                addon.metadata.enabled
+                                addon.metadata.enabled || isRemoving
                                   ? "text-muted-foreground"
                                   : "text-muted-foreground/70"
                               }`}
@@ -440,6 +448,7 @@ export default function AddonSettingsPage() {
                             <Button
                               variant="outline"
                               size="icon"
+                              disabled={isRemoving}
                               onClick={() => handleViewPermissions(addon)}
                               className="text-muted-foreground hover:bg-accent hover:text-foreground h-9 w-9 p-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
                             >
@@ -453,6 +462,7 @@ export default function AddonSettingsPage() {
                             <Button
                               variant="outline"
                               size="icon"
+                              disabled={isRemoving}
                               onClick={() =>
                                 handleRateAddon(addon.metadata.id, addon.metadata.name)
                               }
@@ -480,14 +490,27 @@ export default function AddonSettingsPage() {
                                 </div>
                               }
                               handleDeleteConfirm={() => handleUninstallAddon(addon.metadata.id)}
-                              isPending={false}
+                              isPending={isRemoving}
                               button={
                                 <Button
                                   variant="outline"
                                   size="icon"
-                                  className="text-muted-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-9 w-9 p-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
+                                  disabled={isRemoving}
+                                  // Keeps focus somewhere to return to when the confirmation closes.
+                                  focusableWhenDisabled
+                                  className={cn(
+                                    "text-muted-foreground h-9 w-9 p-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:focus:opacity-100",
+                                    // Focusable while disabled, so the :disabled styles don't apply.
+                                    isRemoving
+                                      ? "pointer-events-none sm:opacity-100"
+                                      : "hover:bg-destructive-subtle hover:text-destructive-subtle-foreground",
+                                  )}
                                 >
-                                  <Icons.Trash className="h-4 w-4" />
+                                  {isRemoving ? (
+                                    <Spinner className="h-4 w-4" />
+                                  ) : (
+                                    <Icons.Trash className="h-4 w-4" />
+                                  )}
                                   <span className="sr-only">
                                     {t("settings:addons_remove_addon")}
                                   </span>
@@ -502,6 +525,7 @@ export default function AddonSettingsPage() {
                                     <Button
                                       variant={isPinned ? "default" : "outline"}
                                       size="icon"
+                                      disabled={isRemoving}
                                       onClick={() => setAddonPinned(addonNavItem, !isPinned)}
                                       className={
                                         isPinned
@@ -541,7 +565,7 @@ export default function AddonSettingsPage() {
                               onCheckedChange={(checked) =>
                                 handleToggleAddon(addon.metadata.id, !checked)
                               }
-                              disabled={togglingAddonId === addon.metadata.id}
+                              disabled={togglingAddonId === addon.metadata.id || isRemoving}
                             />
                           </div>
                         </div>
@@ -557,7 +581,7 @@ export default function AddonSettingsPage() {
                               addonName={addon.metadata.name}
                               updateInfo={updateResult.updateInfo}
                               onUpdateComplete={() => handleUpdateComplete(addon.metadata.id)}
-                              disabled={togglingAddonId === addon.metadata.id}
+                              disabled={togglingAddonId === addon.metadata.id || isRemoving}
                               enableAfterInstall={addon.metadata.enabled ?? true}
                               approvedNetworkHosts={addon.metadata.network?.approvedHosts ?? []}
                             />
