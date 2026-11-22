@@ -142,34 +142,82 @@ import {
   XCircle,
   // Spending taxonomy icons (referenced by category seed data)
   Award,
+  Baby,
   Banknote,
+  BatteryCharging,
+  Bed,
+  Beer,
+  Bike,
+  BookOpen,
+  Bus,
+  CakeSlice,
+  Camera,
+  Candy,
+  Carrot,
+  Cat,
+  Church,
+  Cigarette,
   Code,
   Coffee,
+  Croissant,
+  CupSoda,
+  Dices,
+  Dog,
+  Drama,
+  Droplet,
   Dumbbell,
   Film,
+  Footprints,
   Fuel,
   Gamepad2,
   Gift,
+  Glasses,
   GraduationCap,
+  Hamburger,
+  Hammer,
+  HandHeart,
+  Headphones,
   Heart,
+  Hospital,
+  IceCreamCone,
+  KeyRound,
   Laptop,
   Lightbulb,
+  Luggage,
+  Martini,
   MoreHorizontal,
+  Music,
   ParkingCircle,
+  PartyPopper,
   PiggyBank,
   Pill,
+  Pizza,
   Plane,
+  Plug,
+  PocketKnife,
+  Popcorn,
   RotateCcw,
+  School,
+  Ship,
   Shirt,
   ShoppingBag,
   ShoppingCart,
+  Skull,
   Smile,
   Sofa,
+  SprayCan,
+  Sprout,
   Stethoscope,
+  Syringe,
+  Tent,
+  Ticket,
+  ToyBrick,
   Train,
   Truck,
   Tv,
+  Umbrella,
   UtensilsCrossed,
+  WashingMachine,
   Wifi,
   Wine,
   Wrench,
@@ -797,36 +845,84 @@ const IconsInternal = {
   // Spending taxonomy icons (referenced by category seed data; keys must match
   // the strings stored in `taxonomy_categories.icon`).
   Award: Award,
+  Baby: Baby,
   Banknote: Banknote,
+  BatteryCharging: BatteryCharging,
+  Bed: Bed,
+  Beer: Beer,
+  Bike: Bike,
+  BookOpen: BookOpen,
+  Bus: Bus,
+  CakeSlice: CakeSlice,
+  Camera: Camera,
+  Candy: Candy,
+  Carrot: Carrot,
+  Cat: Cat,
+  Church: Church,
+  Cigarette: Cigarette,
   Code: Code,
   Coffee: Coffee,
+  Croissant: Croissant,
+  CupSoda: CupSoda,
+  Dices: Dices,
+  Dog: Dog,
+  Drama: Drama,
+  Droplet: Droplet,
   Dumbbell: Dumbbell,
   Film: Film,
+  Footprints: Footprints,
   Fuel: Fuel,
   Gamepad2: Gamepad2,
   Gift: Gift,
+  Glasses: Glasses,
   GraduationCap: GraduationCap,
+  Hamburger: Hamburger,
+  Hammer: Hammer,
+  HandHeart: HandHeart,
+  Headphones: Headphones,
   Heart: Heart,
+  Hospital: Hospital,
+  IceCreamCone: IceCreamCone,
+  KeyRound: KeyRound,
   Laptop: Laptop,
   Lightbulb: Lightbulb,
+  Luggage: Luggage,
+  Martini: Martini,
   MoreHorizontal: MoreHorizontal,
+  Music: Music,
   ParkingCircle: ParkingCircle,
+  PartyPopper: PartyPopper,
   PiggyBank: PiggyBank,
   Pill: Pill,
+  Pizza: Pizza,
   Plane: Plane,
+  Plug: Plug,
+  PocketKnife: PocketKnife,
+  Popcorn: Popcorn,
   RotateCcw: RotateCcw,
+  School: School,
+  Ship: Ship,
   Shirt: Shirt,
   ShoppingBag: ShoppingBag,
   ShoppingCart: ShoppingCart,
+  Skull: Skull,
   Smile: Smile,
   Sofa: Sofa,
+  SprayCan: SprayCan,
+  Sprout: Sprout,
   Stethoscope: Stethoscope,
+  Syringe: Syringe,
   // Tag is registered above as a Phosphor TagIcon — don't re-register here
   // (Lucide and Phosphor Tag both want the same key).
+  Tent: Tent,
+  Ticket: Ticket,
+  ToyBrick: ToyBrick,
   Train: Train,
   Truck: Truck,
   Tv: Tv,
+  Umbrella: Umbrella,
   UtensilsCrossed: UtensilsCrossed,
+  WashingMachine: WashingMachine,
   Wifi: Wifi,
   Wine: Wine,
   Wrench: Wrench,
@@ -1027,34 +1123,82 @@ export type IconName =
   | "HouseLineDuotone"
   // Spending taxonomy icons
   | "Award"
+  | "Baby"
   | "Banknote"
+  | "BatteryCharging"
+  | "Bed"
+  | "Beer"
+  | "Bike"
+  | "BookOpen"
+  | "Bus"
+  | "CakeSlice"
+  | "Camera"
+  | "Candy"
+  | "Carrot"
+  | "Cat"
+  | "Church"
+  | "Cigarette"
   | "Code"
   | "Coffee"
+  | "Croissant"
+  | "CupSoda"
+  | "Dices"
+  | "Dog"
+  | "Drama"
+  | "Droplet"
   | "Dumbbell"
   | "Film"
+  | "Footprints"
   | "Fuel"
   | "Gamepad2"
   | "Gift"
+  | "Glasses"
   | "GraduationCap"
+  | "Hamburger"
+  | "Hammer"
+  | "HandHeart"
+  | "Headphones"
   | "Heart"
+  | "Hospital"
+  | "IceCreamCone"
+  | "KeyRound"
   | "Laptop"
   | "Lightbulb"
+  | "Luggage"
+  | "Martini"
   | "MoreHorizontal"
+  | "Music"
   | "ParkingCircle"
+  | "PartyPopper"
   | "PiggyBank"
   | "Pill"
+  | "Pizza"
   | "Plane"
+  | "Plug"
+  | "PocketKnife"
+  | "Popcorn"
   | "RotateCcw"
+  | "School"
+  | "Ship"
   | "Shirt"
   | "ShoppingBag"
   | "ShoppingCart"
+  | "Skull"
   | "Smile"
   | "Sofa"
+  | "SprayCan"
+  | "Sprout"
   | "Stethoscope"
+  | "Syringe"
+  | "Tent"
+  | "Ticket"
+  | "ToyBrick"
   | "Train"
   | "Truck"
   | "Tv"
+  | "Umbrella"
   | "UtensilsCrossed"
+  | "WashingMachine"
   | "Wifi"
   | "Wine"
   | "Wrench";
