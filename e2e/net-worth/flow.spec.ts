@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../fixtures";
 
 /** Painted rectangles of every flow label chip, plus the diagram's own bounds. */
 async function labelBoxes(page: Page) {
@@ -25,8 +26,8 @@ for (const dir of ["ltr", "rtl"] as const) {
   for (const width of [960, 640]) {
     test(`flow labels never overlap or clip at card ${width}px, ${dir}`, async ({ page }) => {
       await page.setViewportSize({ width: width + 64, height: 1200 });
-      await page.goto(`/e2e/net-worth/?width=${width}&scenario=itemized`);
-      await page.evaluate((direction) => (document.documentElement.dir = direction), dir);
+      await page.goto(`/e2e/net-worth/?width=${width}&scenario=itemized&dir=${dir}`);
+      await expect(page.locator("html")).toHaveAttribute("dir", dir);
       const card = page.getByRole("main", { name: "Net worth card" });
       await card.getByRole("button", { name: "Fluss anzeigen" }).click();
 
@@ -84,4 +85,12 @@ test("showcase fans Investments in by account", async ({ page }) => {
     await expect(card.getByRole("button", { name: `${account} — `, exact: false })).toBeVisible();
   }
   await expect(card.getByText("401(k)", { exact: true })).toBeVisible();
+});
+
+test("selecting the showcase scenario seeds its accounts", async ({ page }) => {
+  await page.goto("/e2e/net-worth/?language=en&locale=en-US");
+  await page.getByLabel("Scenario").selectOption("showcase");
+  const card = page.getByRole("main", { name: "Net worth card" });
+  await card.getByRole("button", { name: "Show flow" }).click();
+  await expect(card.getByRole("button", { name: /^401\(k\) — / })).toBeVisible();
 });

@@ -153,28 +153,36 @@ function showcase(): { data: ParsedNetWorth; history: ParsedHistoryPoint[] } {
   };
 }
 
-if (new URLSearchParams(location.search).get("scenario") === "showcase") {
-  // The flow reads accounts and their current valuations through React Query.
-  queryClient.setQueryDefaults([QueryKeys.ACCOUNTS], { staleTime: Infinity });
-  queryClient.setQueryDefaults([QueryKeys.CURRENT_VALUATION], { staleTime: Infinity });
+// The flow reads accounts and their current valuations through React Query.
+// There is no backend here, so every scenario gets them from the cache: the
+// showcase household's accounts, or none (the flow then shows Investments as
+// one node). A cache miss would call the desktop adapter and throw.
+queryClient.setQueryDefaults([QueryKeys.ACCOUNTS], { staleTime: Infinity });
+queryClient.setQueryDefaults([QueryKeys.CURRENT_VALUATION], { staleTime: Infinity });
+
+function seedAccounts(scenario: string) {
+  const accounts = scenario === "showcase" ? SHOWCASE_ACCOUNTS : [];
   queryClient.setQueryData(
     [QueryKeys.ACCOUNTS, false],
-    SHOWCASE_ACCOUNTS.map(({ id, name }) => ({ id, name, isActive: true })),
+    accounts.map(({ id, name }) => ({ id, name, isActive: true })),
   );
+  if (accounts.length === 0) return;
   queryClient.setQueryData(
     [
       QueryKeys.CURRENT_VALUATION,
-      `accounts:${SHOWCASE_ACCOUNTS.map(({ id }) => id).join(",")}`,
+      `accounts:${accounts.map(({ id }) => id).join(",")}`,
       "with-accounts",
     ],
     {
-      accounts: SHOWCASE_ACCOUNTS.map(({ id, value }) => ({
+      accounts: accounts.map(({ id, value }) => ({
         accountId: id,
         investmentMarketValueBase: value,
       })),
     },
   );
 }
+
+seedAccounts(new URLSearchParams(location.search).get("scenario") ?? "growth");
 
 function Fixture() {
   const params = new URLSearchParams(location.search);
@@ -235,6 +243,9 @@ function Fixture() {
     );
     current.assets.total = current.assets.breakdown.reduce((sum, item) => sum + item.value, 0);
     current.netWorth = current.assets.total - current.liabilities.total;
+    // The latest history point is today's snapshot, so the changes match it.
+    for (const item of current.assets.breakdown) points[1].breakdown[item.category] = item.value;
+    points[1].netWorth = current.netWorth;
   } else if (scenario === "assets-only") {
     current.liabilities = { total: 0, breakdown: [] };
     current.netWorth = current.assets.total;
@@ -282,7 +293,10 @@ function Fixture() {
             <select
               aria-label="Scenario"
               value={scenario}
-              onChange={(e) => setScenario(e.target.value)}
+              onChange={(e) => {
+                seedAccounts(e.target.value);
+                setScenario(e.target.value);
+              }}
             >
               {[
                 "growth",
@@ -357,9 +371,7 @@ function Fixture() {
           aria-label="Net worth card"
           style={{ padding: 16, width: width === "auto" ? undefined : Number(width) + 32 }}
         >
-          {/* The flow diagram reads accounts through React Query; with no backend
-              here those reads fail and it shows the flat Investments node, except
-              in the showcase scenario, which seeds them. */}
+          {/* The flow diagram reads accounts through React Query, seeded above. */}
           <QueryClientProvider client={queryClient}>
             <BreakdownTable
               data={current}
