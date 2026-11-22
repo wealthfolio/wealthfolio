@@ -1,6 +1,6 @@
 import i18n from "i18next";
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
 import {
   isTauri,
@@ -29,6 +29,8 @@ interface PermissionDialogState {
   onCancel?: () => void;
 }
 
+const UNINSTALL_ADDON_KEY = [QueryKeys.INSTALLED_ADDONS, "uninstall"] as const;
+
 interface ViewPermissionDialogState {
   open: boolean;
   addon?: InstalledAddon;
@@ -40,6 +42,28 @@ export function useAddonActions() {
   const [isLoading, setIsLoading] = useState(false);
   const [togglingAddonId, setTogglingAddonId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  // Kept in the app-wide mutation cache, so leaving the page and coming back
+  // during a removal keeps the guard and, while still listed, shows it as running.
+  const uninstallMutation = useMutation({
+    mutationKey: UNINSTALL_ADDON_KEY,
+    mutationFn: (addonId: string) => uninstallAddon(addonId),
+    onSuccess: async (_result, addonId) => {
+      // Drop the add-on from the list before the removal stops counting as
+      // running: a list fetch started before the removal, or a failed refetch,
+      // would otherwise show its card with Delete enabled again.
+      await queryClient.cancelQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
+      queryClient.setQueryData<InstalledAddon[]>([QueryKeys.INSTALLED_ADDONS], (addons) =>
+        addons?.filter((addon) => addon.metadata.id !== addonId),
+      );
+      void queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
+    },
+    networkMode: "always",
+  });
+  const uninstallingAddonIds = useMutationState({
+    filters: { mutationKey: UNINSTALL_ADDON_KEY, status: "pending" },
+    select: (mutation) => mutation.state.variables as string,
+  });
 
   // Permission dialog state
   const [permissionDialog, setPermissionDialog] = useState<PermissionDialogState>({
@@ -312,14 +336,20 @@ export function useAddonActions() {
   };
 
   const handleUninstallAddon = async (addonId: string) => {
+    // Read the cache, not render state: a second call can come before the re-render.
+    const isRunning = queryClient.isMutating({
+      mutationKey: UNINSTALL_ADDON_KEY,
+      predicate: (mutation) => mutation.state.variables === addonId,
+    });
+    if (isRunning) return;
     try {
-      const addon = installedAddons.find((a) => a.metadata.id === addonId);
+      // The cache, not this render's list: a stale card may call this after removal.
+      const addon = queryClient
+        .getQueryData<InstalledAddon[]>([QueryKeys.INSTALLED_ADDONS])
+        ?.find((a) => a.metadata.id === addonId);
       if (!addon) return;
 
-      await uninstallAddon(addonId);
-
-      // Invalidate and refetch installed addons query
-      queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
+      await uninstallMutation.mutateAsync(addonId);
 
       toast({
         title: i18n.t("common:notifications.addon_uninstalled"),
@@ -399,6 +429,7 @@ export function useAddonActions() {
     isLoading,
     isLoadingAddons,
     togglingAddonId,
+    uninstallingAddonIds,
     permissionDialog,
     viewPermissionDialog,
 
