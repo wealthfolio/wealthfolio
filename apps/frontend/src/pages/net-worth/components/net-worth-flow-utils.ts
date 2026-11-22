@@ -38,7 +38,20 @@ export interface FlowTotalNode {
   color: string;
 }
 
-export type FlowNode = FlowLeafNode | FlowCategoryNode | FlowTotalNode;
+export type FlowNode = (FlowLeafNode | FlowCategoryNode | FlowTotalNode) & {
+  /**
+   * The node's own figure, for labels. Recharts replaces `value` on the node it
+   * renders with the larger of its incoming and outgoing link totals (Assets
+   * reads as the debts total when debts exceed assets), so `value` is layout only.
+   */
+  amount: number;
+};
+
+/** Omit applied to each node kind separately, so each keeps its own fields. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+/** A node before `amount` is filled in from its `value`. */
+type FlowNodeInput = DistributiveOmit<FlowNode, "amount">;
 
 export interface FlowLink {
   source: number;
@@ -131,7 +144,7 @@ export function buildNetWorthFlowGraph(
 
   const nodes: FlowNode[] = [];
   const links: FlowLink[] = [];
-  const push = (node: FlowNode) => nodes.push(node) - 1;
+  const push = (node: FlowNodeInput) => nodes.push({ ...node, amount: node.value }) - 1;
 
   const categoryLinks: { index: number; value: number; color: string; categoryKey: string }[] = [];
 
@@ -295,4 +308,58 @@ export function buildNetWorthFlowGraph(
   }
 
   return { nodes, links };
+}
+
+/**
+ * Minimum vertical distance guaranteed between the tops of two adjacent nodes
+ * in the same column — a floor independent of either node's value. This is
+ * `nodePadding`, and it's what makes label collisions structurally
+ * impossible rather than something detected and patched after layout: a
+ * two-line label (name + amount) needs ~24-26px, so leaving this much room
+ * around every node means a leaf's label always has a fully clear row, no
+ * matter how small the ribbon feeding it is. Mobile hides leaf/bucket labels
+ * entirely (see `showLabel`, net-worth-flow-diagram.tsx), so it only needs room for the sparser
+ * category/total labels.
+ */
+const ROW_PITCH_DESKTOP = 28;
+const ROW_PITCH_MOBILE = 14;
+
+/**
+ * A leaf label is a fixed-height box anchored at its node's TOP edge (see the
+ * `foreignObject` in `FlowNodeShape`), so the bottom-most node's label extends
+ * this far BELOW the node itself. The chart's bottom margin must reserve at
+ * least this much or that last label is clipped by the SVG viewport — which is
+ * exactly what happened: every row rendered correctly except the last, whose
+ * text was sliced in half.
+ *
+ * Kept as its own constant, and used for both the margin and the height
+ * budget, so the two cannot drift apart.
+ */
+export const LABEL_BOX_HEIGHT = 24;
+
+/**
+ * Height, row pitch and margins for a diagram whose leftmost column stacks
+ * `leadingCount` nodes. The height and `nodePadding` are derived together
+ * here so the label-collision guarantee (see `NetWorthFlowDiagram`) holds.
+ */
+export function flowDiagramLayout(leadingCount: number, isMobile: boolean) {
+  const rowPitch = isMobile ? ROW_PITCH_MOBILE : ROW_PITCH_DESKTOP;
+  // recharts' Sankey scales every node's thickness by ONE shared ratio,
+  // `(columnHeight - (n-1)*nodePadding) / sum(columnValues)`, taken as the
+  // min across all columns — so budgeting only just enough height for the
+  // pitch floor would starve every node's thickness to near-zero (the
+  // leftmost column has by far the most nodes to pad between). Reserve real
+  // room on top of the pitch floor so values still read as proportional
+  // ribbon thickness, not just as evenly-spaced hairlines.
+  const valueHeightBudget = isMobile ? 60 : 140;
+  // + LABEL_BOX_HEIGHT so the bottom margin below can reserve room for the last
+  // node's label without eating into the plotted area.
+  // Uncapped: a cap would let the padding alone, `(n-1)*rowPitch`, reach the
+  // plot height for a long enough column, flattening every ribbon to nothing.
+  const height =
+    Math.max(isMobile ? 260 : 300, leadingCount * rowPitch + valueHeightBudget) + LABEL_BOX_HEIGHT;
+  // bottom reserves a full label box: labels hang BELOW their node's top edge,
+  // so the last row is clipped without it.
+  const margin = { top: 8, right: 8, bottom: LABEL_BOX_HEIGHT, left: 8 };
+  return { height, rowPitch, margin };
 }

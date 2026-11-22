@@ -198,7 +198,12 @@ export function BreakdownTable({
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     {flowExpanded && (
-                      <NetWorthFlow data={data} currency={currency} onSelect={onSelect} />
+                      <NetWorthFlow
+                        data={data}
+                        currency={currency}
+                        isIncomplete={isIncomplete}
+                        onSelect={onSelect}
+                      />
                     )}
                   </CollapsibleContent>
                 </Collapsible>

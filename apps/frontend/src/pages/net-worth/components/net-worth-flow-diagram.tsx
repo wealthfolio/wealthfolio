@@ -13,6 +13,8 @@ import {
 } from "recharts";
 import {
   buildNetWorthFlowGraph,
+  flowDiagramLayout,
+  LABEL_BOX_HEIGHT,
   shortenLeafName,
   type FlowNode,
   type NetWorthFlowGraph,
@@ -26,32 +28,6 @@ import {
 
 const NODE_WIDTH = 8;
 const LABEL_GAP = 6;
-/**
- * Minimum vertical distance guaranteed between the tops of two adjacent nodes
- * in the same column — a floor independent of either node's value. This is
- * `nodePadding`, and it's what makes label collisions structurally
- * impossible rather than something detected and patched after layout: a
- * two-line label (name + amount) needs ~24-26px, so leaving this much room
- * around every node means a leaf's label always has a fully clear row, no
- * matter how small the ribbon feeding it is. Mobile hides leaf/bucket labels
- * entirely (see `showLabel`), so it only needs enough room for the sparser
- * category/total labels.
- */
-const ROW_PITCH_DESKTOP = 28;
-const ROW_PITCH_MOBILE = 14;
-
-/**
- * A leaf label is a fixed-height box anchored at its node's TOP edge (see the
- * `foreignObject` in `FlowNodeShape`), so the bottom-most node's label extends
- * this far BELOW the node itself. The chart's bottom margin must reserve at
- * least this much or that last label is clipped by the SVG viewport — which is
- * exactly what happened: every row rendered correctly except the last, whose
- * text was sliced in half.
- *
- * Kept as its own constant, and used for both the margin and the height
- * budget, so the two cannot drift apart.
- */
-const LABEL_BOX_HEIGHT = 24;
 
 interface NetWorthFlowDiagramProps {
   graph: NetWorthFlowGraph;
@@ -100,7 +76,7 @@ interface ShapeContext {
  * (rather than relying on empty space), so even a ribbon that happens to
  * pass close to the label gutter can never visually cut through it. The real
  * anti-overlap guarantee is structural, not visual: see `ROW_PITCH_DESKTOP`
- * and `diagramHeight` in `NetWorthFlowDiagram` — labels never collide
+ * and `flowDiagramLayout` (net-worth-flow-utils.ts) — labels never collide
  * because every node in a column is spaced at least one label-height apart
  * by construction, and `MAX_VISIBLE_LEAVES` (net-worth-flow-utils.ts) caps
  * how many individually-labeled leaves a category can have in the first
@@ -133,7 +109,7 @@ function FlowNodeShape({
   const showLabel = !ctx.isMobile || !isLeafOrBucket;
   const displayName = isLeafOrBucket ? shortenLeafName(node.name) : node.name;
 
-  const amountText = ctx.isBalanceHidden ? "••••" : ctx.formatAmount(node.value);
+  const amountText = ctx.isBalanceHidden ? "••••" : ctx.formatAmount(node.amount);
   const ariaLabel = selectable
     ? t("insights:networth.flow.node_aria", { name: node.name, amount: amountText })
     : undefined;
@@ -303,7 +279,7 @@ function leadingColumnNodeCount(graph: NetWorthFlowGraph): number {
  * (independent of any node's value, so the smallest leaf gets exactly as much
  * clearance as the largest), and the diagram's own height grows with the
  * leftmost column's node count so that pitch always fits inside it — see
- * `leadingColumnNodeCount` / `diagramHeight` below. A leaf that would need
+ * `leadingColumnNodeCount` / `flowDiagramLayout`. A leaf that would need
  * more rows than `MAX_VISIBLE_LEAVES` allows never reaches this component in
  * the first place; it's folded into its category's bucket node upstream in
  * `buildNetWorthFlowGraph`.
@@ -320,22 +296,8 @@ export function NetWorthFlowDiagram({
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const uid = `nwf-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
-  const rowPitch = isMobile ? ROW_PITCH_MOBILE : ROW_PITCH_DESKTOP;
   const leadingCount = useMemo(() => leadingColumnNodeCount(graph), [graph]);
-  // recharts' Sankey scales every node's thickness by ONE shared ratio,
-  // `(columnHeight - (n-1)*nodePadding) / sum(columnValues)`, taken as the
-  // min across all columns — so budgeting only just enough height for the
-  // pitch floor would starve every node's thickness to near-zero (the
-  // leftmost column has by far the most nodes to pad between). Reserve real
-  // room on top of the pitch floor so values still read as proportional
-  // ribbon thickness, not just as evenly-spaced hairlines.
-  const valueHeightBudget = isMobile ? 60 : 140;
-  // + LABEL_BOX_HEIGHT so the bottom margin below can reserve room for the last
-  // node's label without eating into the plotted area.
-  const diagramHeight = Math.min(
-    680 + LABEL_BOX_HEIGHT,
-    Math.max(isMobile ? 260 : 300, leadingCount * rowPitch + valueHeightBudget) + LABEL_BOX_HEIGHT,
-  );
+  const layout = flowDiagramLayout(leadingCount, isMobile);
 
   const categoryColors = useMemo(
     () =>
@@ -356,7 +318,7 @@ export function NetWorthFlowDiagram({
   };
 
   return (
-    <div className="w-full overflow-x-auto" style={{ height: diagramHeight }}>
+    <div className="w-full overflow-x-auto" style={{ height: layout.height }}>
       <ResponsiveContainer width="100%" height="100%" minWidth={320}>
         {/* The nodes are the diagram's Tab stops; Recharts' accessibility layer
             would add the whole SVG as another. */}
@@ -364,15 +326,13 @@ export function NetWorthFlowDiagram({
           accessibilityLayer={false}
           data={{ nodes: graph.nodes, links: graph.links }}
           nodeWidth={NODE_WIDTH}
-          nodePadding={rowPitch}
+          nodePadding={layout.rowPitch}
           linkCurvature={0.55}
           // Keep nodes in the graph's own order (each category's holdings next to
           // it) so ribbons from different categories do not cross.
           sort={false}
           iterations={32}
-          // bottom reserves a full label box: labels hang BELOW their node's top
-          // edge, so the last row is clipped without it.
-          margin={{ top: 8, right: 8, bottom: LABEL_BOX_HEIGHT, left: 8 }}
+          margin={layout.margin}
           node={(props: RechartsNodeProps) => <FlowNodeShape {...props} ctx={ctx} t={t} />}
           link={(props: RechartsLinkProps) => <FlowLinkShape {...props} ctx={ctx} />}
         >
@@ -400,6 +360,8 @@ export function NetWorthFlowDiagram({
 interface NetWorthFlowProps {
   data: ParsedNetWorth;
   currency: string;
+  /** Some valuations are missing, so the total is a known subtotal, not net worth. */
+  isIncomplete: boolean;
   onSelect: (selected: SelectedCategory) => void;
 }
 
@@ -408,7 +370,7 @@ interface NetWorthFlowProps {
  * graph and renders the diagram. Mounted only while expanded, so the account
  * valuations it reads are fetched only when someone opens the flow.
  */
-export function NetWorthFlow({ data, currency, onSelect }: NetWorthFlowProps) {
+export function NetWorthFlow({ data, currency, isIncomplete, onSelect }: NetWorthFlowProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
 
@@ -440,14 +402,17 @@ export function NetWorthFlow({ data, currency, onSelect }: NetWorthFlowProps) {
         data,
         {
           assets: t("insights:networth.breakdown_table.assets"),
-          netWorth: t("insights:networth.breakdown_table.net_worth"),
+          // Matches the breakdown table's own total row.
+          netWorth: t(
+            isIncomplete ? "common:known_subtotal" : "insights:networth.breakdown_table.net_worth",
+          ),
           debts: t("insights:networth.flow.debts_label"),
           otherHoldings: (count) => t("insights:networth.flow.other_holdings", { count }),
           unattributed: t("insights:networth.flow.unattributed"),
         },
         investmentAccounts,
       ),
-    [data, investmentAccounts, t],
+    [data, investmentAccounts, isIncomplete, t],
   );
 
   if (!graph) return null;
