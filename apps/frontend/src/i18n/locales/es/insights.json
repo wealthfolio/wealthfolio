@@ -141,7 +141,17 @@
     },
     "days_ago_one": "hace {{count}} d",
     "days_ago_other": "hace {{count}} d",
-    "days_ago_many": "hace {{count}} d"
+    "days_ago_many": "hace {{count}} d",
+    "flow": {
+      "show": "Mostrar flujo",
+      "hide": "Ocultar flujo",
+      "debts_label": "Deudas",
+      "other_holdings_one": "{{count}} posición menor",
+      "other_holdings_many": "{{count}} posiciones menores",
+      "other_holdings_other": "{{count}} posiciones menores",
+      "unattributed": "Otros",
+      "node_aria": "{{name}} — {{amount}}"
+    }
   },
   "highlights": {
     "movers": "Mayores movimientos",

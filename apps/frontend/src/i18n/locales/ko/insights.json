@@ -134,7 +134,15 @@
       "debt_added": "신규 부채",
       "per_month": "/월"
     },
-    "days_ago_other": "{{count}}일 전"
+    "days_ago_other": "{{count}}일 전",
+    "flow": {
+      "show": "흐름 보기",
+      "hide": "흐름 숨기기",
+      "debts_label": "부채",
+      "other_holdings_other": "소규모 보유 {{count}}개",
+      "unattributed": "기타",
+      "node_aria": "{{name}} — {{amount}}"
+    }
   },
   "highlights": {
     "movers": "주요 등락 종목",

@@ -200,6 +200,19 @@
       "since": "منذ {{date}}",
       "trailing_pace": " · {{multiple}}× متوسطك على مدى 12 شهرًا",
       "withdrawals": "السحوبات"
+    },
+    "flow": {
+      "show": "إظهار التدفق",
+      "hide": "إخفاء التدفق",
+      "debts_label": "الديون",
+      "other_holdings_zero": "{{count}} حيازة أصغر",
+      "other_holdings_one": "حيازة أصغر واحدة",
+      "other_holdings_two": "حيازتان أصغر",
+      "other_holdings_few": "{{count}} حيازات أصغر",
+      "other_holdings_many": "{{count}} حيازة أصغر",
+      "other_holdings_other": "{{count}} حيازة أصغر",
+      "unattributed": "أخرى",
+      "node_aria": "{{name}} — {{amount}}"
     }
   }
 }
