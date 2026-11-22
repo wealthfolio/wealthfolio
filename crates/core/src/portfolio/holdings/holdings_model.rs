@@ -195,6 +195,8 @@ pub struct HoldingListInstrument {
     #[serde(rename = "quoteMode")]
     pub quote_mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub preferred_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub isin: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exchange_mic: Option<String>,
@@ -264,6 +266,7 @@ impl From<Holding> for HoldingListItem {
                 name: instrument.name,
                 currency: instrument.currency,
                 quote_mode: instrument.pricing_mode,
+                preferred_provider: instrument.preferred_provider,
                 isin,
                 exchange_mic: instrument.exchange_mic,
                 instrument_type: instrument.instrument_type,
@@ -318,4 +321,47 @@ fn holding_metadata_isin(metadata: Option<&Value>) -> Option<String> {
         .map(str::trim)
         .filter(|isin| !isin.is_empty())
         .map(ToOwned::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_instrument_serializes_the_preferred_provider_when_present() {
+        let mut holding: Holding = serde_json::from_value(serde_json::json!({
+            "id": "account-1-asset-135762",
+            "accountId": "account-1",
+            "holdingType": "security",
+            "instrument": {
+                "id": "asset-135762",
+                "symbol": "135762",
+                "currency": "INR",
+                "pricingMode": "MARKET",
+                "preferredProvider": "AMFI"
+            },
+            "quantity": "1",
+            "contractMultiplier": "1",
+            "localCurrency": "INR",
+            "baseCurrency": "INR",
+            "marketValue": { "local": "1", "base": "1" },
+            "asOfDate": "2026-11-22"
+        }))
+        .expect("valid holding fixture");
+
+        let with_provider = serde_json::to_value(HoldingListItem::from(holding.clone()))
+            .expect("list item serializes");
+        assert_eq!(with_provider["instrument"]["preferredProvider"], "AMFI");
+
+        holding
+            .instrument
+            .as_mut()
+            .expect("instrument")
+            .preferred_provider = None;
+        let without_provider =
+            serde_json::to_value(HoldingListItem::from(holding)).expect("list item serializes");
+        assert!(without_provider["instrument"]
+            .get("preferredProvider")
+            .is_none());
+    }
 }

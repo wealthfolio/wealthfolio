@@ -19,6 +19,8 @@ interface TickerAvatarProps {
   src?: string;
   exchangeMic?: string | null;
   instrumentType?: string | null;
+  /** Label shown instead of the symbol's first characters when no logo loads. */
+  fallbackLabel?: string;
   className?: string;
   imageClassName?: string;
 }
@@ -31,6 +33,7 @@ export const TickerAvatar = ({
   src,
   exchangeMic,
   instrumentType,
+  fallbackLabel,
   className = "size-8",
   imageClassName = "object-cover p-0",
 }: TickerAvatarProps) => {
@@ -58,7 +61,8 @@ export const TickerAvatar = ({
       ? (override.ref?.sha256 ?? "")
       : "";
   const chainKey = `${customKey}\n${bundledLogoUrls.join("\n")}`;
-  const fallbackAvatarLabel = baseSymbol ? getFallbackAvatarLabel(baseSymbol) : "•";
+  const fallbackAvatarLabel =
+    fallbackLabel || (baseSymbol ? getFallbackAvatarLabel(baseSymbol) : "•");
 
   // Index of the candidate currently shown; restarts from 0 whenever the chain changes
   const [failed, setFailed] = useState({ chainKey, index: 0 });

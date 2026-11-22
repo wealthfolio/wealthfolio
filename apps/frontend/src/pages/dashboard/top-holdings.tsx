@@ -35,6 +35,37 @@ const MAX_DISPLAYED_HOLDINGS = 7;
 const MAX_STACKED_AVATARS = 5;
 const PERFORMANCE_MODE_KEY = "dashboard-holdings-widget-performance-mode";
 type PerformanceMode = "daily" | "unrealized" | "pnl" | "return";
+const AMFI_PROVIDER_ID = "AMFI";
+const MAX_FUND_INITIALS = 4;
+
+interface SchemeFundLabels {
+  name: string;
+  initials?: string;
+}
+
+function getSchemeFundLabels({ instrument }: Holding): SchemeFundLabels | undefined {
+  // The provider can also be selected for an exchange-listed asset in the editor.
+  if (
+    instrument?.preferredProvider !== AMFI_PROVIDER_ID ||
+    instrument.exchangeMic ||
+    !/^\d+$/.test(instrument.symbol)
+  ) {
+    return undefined;
+  }
+  const storedName = instrument.name ?? "";
+  const name = storedName.trim();
+  if (!name) return undefined;
+
+  const [fundName] = storedName.split(" - ", 1);
+  const initials: string[] = [];
+  for (const [, letter] of fundName.matchAll(/(?:^|\s)(\p{L})/gu)) {
+    const uppercase = letter.toUpperCase();
+    // Keep one letter per word when uppercase expands, as with ß.
+    initials.push(/^\p{L}$/u.test(uppercase) ? uppercase : letter);
+    if (initials.length === MAX_FUND_INITIALS) break;
+  }
+  return { name, initials: initials.join("") || undefined };
+}
 
 interface TopHoldingsProps {
   holdings: Holding[];
@@ -66,8 +97,8 @@ function HoldingRow({
   const symbol = holding.instrument?.symbol ?? holding.id;
   const parsedOption = parseOccSymbol(symbol);
   const symbolLabel = parsedOption ? parsedOption.underlying : symbol.split(".")[0];
-  const nameLabel = holding.instrument?.name?.trim() || symbolLabel;
-  const title = showName ? nameLabel : symbolLabel;
+  const schemeFund = getSchemeFundLabels(holding);
+  const title = (showName ? holding.instrument?.name?.trim() : schemeFund?.name) || symbolLabel;
   const subtitle = parsedOption
     ? formatOptionSubtitle(parsedOption, holding.instrument?.currency ?? holding.localCurrency, {
         ...amountFormatting,
@@ -108,10 +139,16 @@ function HoldingRow({
         exchangeMic={holding.instrument?.exchangeMic}
         instrumentType={holding.instrument?.instrumentType}
         assetId={holding.instrument?.id}
+        fallbackLabel={schemeFund?.initials}
         className="size-8 shrink-0"
       />
       <ItemContent className="min-w-0 gap-0">
-        <ItemTitle className="block w-full truncate text-base font-semibold">{title}</ItemTitle>
+        <ItemTitle
+          dir="auto"
+          className="block w-full truncate text-base font-semibold rtl:text-right"
+        >
+          {title}
+        </ItemTitle>
         <ItemDescription className="line-clamp-none truncate text-sm text-nowrap">
           {subtitle}
         </ItemDescription>
@@ -171,6 +208,7 @@ function StackedAvatars({ holdings, totalRemaining, to }: StackedAvatarsProps) {
                 exchangeMic={holding.instrument?.exchangeMic}
                 instrumentType={holding.instrument?.instrumentType}
                 assetId={holding.instrument?.id}
+                fallbackLabel={getSchemeFundLabels(holding)?.initials}
                 className="ring-background size-8 ring-2"
               />
             </div>

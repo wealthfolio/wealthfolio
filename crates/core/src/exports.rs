@@ -628,6 +628,7 @@ mod tests {
                 name: Some("Apple Inc.".to_string()),
                 currency: "USD".to_string(),
                 quote_mode: "MARKET".to_string(),
+                preferred_provider: None,
                 isin: Some("US0378331005".to_string()),
                 exchange_mic: Some("XNAS".to_string()),
                 instrument_type: None,
