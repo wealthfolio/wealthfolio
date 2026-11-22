@@ -107,6 +107,12 @@ describe("TickerAvatar", () => {
     expect(screen.getByTitle("ABCDE")).toHaveTextContent("ABCD");
   });
 
+  it("shows a given fallback label instead of the symbol's characters", () => {
+    render(<TickerAvatar symbol="135762" fallbackLabel="ACF" />);
+
+    expect(screen.getByTitle("135762")).toHaveTextContent(/^ACF$/);
+  });
+
   it("shows the bundled logo when no override exists", async () => {
     const view = render(<TickerAvatar symbol="AAPL" />);
 

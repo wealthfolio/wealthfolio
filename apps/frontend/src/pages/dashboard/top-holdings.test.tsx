@@ -16,8 +16,8 @@ vi.mock("@/components/holding-performance-percent", () => ({
   HoldingPerformancePercent: () => <span>performance</span>,
 }));
 
-vi.mock("@/components/ticker-avatar", () => ({
-  TickerAvatar: ({ symbol }: { symbol: string }) => <span>{symbol}</span>,
+vi.mock("@/lib/asset-logo-registry", () => ({
+  useAssetLogoOverride: () => ({}),
 }));
 
 const privacy = vi.hoisted(() => ({ isBalanceHidden: false }));
@@ -58,6 +58,36 @@ const longQuantityHolding = {
   asOfDate: "2026-08-13",
 } satisfies Holding;
 
+const AXIS_FUND_NAME = "Axis Children's Fund - Direct Plan - Growth Option";
+
+function securityHolding(
+  id: string,
+  instrument: Partial<NonNullable<Holding["instrument"]>>,
+  marketValue = 100,
+): Holding {
+  return {
+    ...longQuantityHolding,
+    id,
+    quantity: 1,
+    marketValue: { local: marketValue, base: marketValue },
+    instrument: {
+      id: `asset-${id}`,
+      symbol: id,
+      currency: "INR",
+      quoteMode: "MARKET",
+      ...instrument,
+    },
+  };
+}
+
+function renderCard(holdings: Holding[]) {
+  return render(
+    <MemoryRouter>
+      <TopHoldings holdings={holdings} isLoading={false} baseCurrency="INR" />
+    </MemoryRouter>,
+  );
+}
+
 describe("TopHoldings", () => {
   beforeEach(() => {
     privacy.isBalanceHidden = false;
@@ -84,5 +114,69 @@ describe("TopHoldings", () => {
 
     expect(screen.queryByText("123,456,789 shares")).not.toBeInTheDocument();
     expect(screen.getByText("•••• shares")).toBeInTheDocument();
+  });
+
+  it("labels an AMFI scheme-code fund by its name and initials in symbol mode", () => {
+    renderCard([securityHolding("135762", { name: AXIS_FUND_NAME, preferredProvider: "AMFI" })]);
+
+    expect(screen.getByText(AXIS_FUND_NAME)).toHaveAttribute("dir", "auto");
+    expect(screen.queryByText("135762")).not.toBeInTheDocument();
+    expect(screen.getByTitle("135762")).toHaveTextContent(/^ACF$/);
+  });
+
+  it("keeps other holdings' symbols, including numeric exchange tickers", () => {
+    renderCard([
+      securityHolding("7203", {
+        name: "Toyota Motor Corp",
+        exchangeMic: "XTKS",
+        preferredProvider: "AMFI",
+      }),
+      securityHolding("VFIAX", { name: "Vanguard 500 Index Fund Admiral" }, 200),
+      securityHolding("AXISCF", { name: AXIS_FUND_NAME, preferredProvider: "AMFI" }, 100),
+    ]);
+
+    expect(screen.getAllByText("7203")).toHaveLength(2);
+    expect(screen.getByText("VFIAX")).toBeInTheDocument();
+    expect(screen.getByText("AXISCF")).toBeInTheDocument();
+    expect(screen.getByTitle("7203")).toHaveTextContent(/^7203$/);
+    expect(screen.getByTitle("VFIAX")).toHaveTextContent(/^VFIA$/);
+    expect(screen.getByTitle("AXISCF")).toHaveTextContent(/^AXIS$/);
+  });
+
+  it("keeps the scheme code for an AMFI fund with no stored name", () => {
+    renderCard([securityHolding("135762", { name: "  ", preferredProvider: "AMFI" })]);
+
+    expect(screen.getByText("135762")).toBeInTheDocument();
+    expect(screen.getByTitle("135762")).toHaveTextContent(/^1357$/);
+  });
+
+  it.each(["2030 - Direct Plan", " - Direct Plan"])(
+    "keeps the digits in the avatar when %j yields no initials",
+    (name) => {
+      renderCard([securityHolding("135762", { name, preferredProvider: "AMFI" })]);
+
+      expect(screen.getByText(name.trim())).toBeInTheDocument();
+      expect(screen.getByTitle("135762")).toHaveTextContent(/^1357$/);
+    },
+  );
+
+  it("shows up to four Unicode initials in the stacked avatars", () => {
+    const holdings = Array.from({ length: 9 }, (_, index) =>
+      securityHolding(`STOCK${index}`, { name: `Stock ${index}` }, 1000 - index),
+    );
+    holdings.push(
+      securityHolding(
+        "120503",
+        { name: "ßeta 30 Épargne (Growth) 𐐨ther Delta Fonds", preferredProvider: "AMFI" },
+        1,
+      ),
+    );
+
+    renderCard(holdings);
+
+    expect(
+      screen.queryByText("ßeta 30 Épargne (Growth) 𐐨ther Delta Fonds"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTitle("120503")).toHaveTextContent(/^ßÉ𐐀D$/);
   });
 });
