@@ -611,20 +611,20 @@ product shows when the inputs are imperfect.
   is a fact the reader and the health check can act on. Chart consumers skip
   unavailable days rather than plotting a partial value.
 - **A position no quote prices yet is worth its book cost.** Until the first
-  quote on or before the day, a held position is valued at the book cost the
-  day reports for it (below: at its acquisition rates, else its total at the
-  day's rate), so its market value equals its cost basis and the day stays
-  `Complete`. Buying it, or receiving it in a transfer that flows at cost
-  (rules R2.4), is then no loss, and its first quote is one gain or loss
-  instead of a fall to zero and a rebound. The valuer reports a `MissingQuote`
-  diagnostic for the position; the health check finds the same gap on its own,
-  from the holdings and the quotes' dates, and keeps reporting it. The stand-in
-  is a cost, not a price, so it has limits: capitalised fees read as a loss
-  only once a quote arrives, an event that changes cost without cash (a
-  notional distribution) moves the value, and a position whose cost is only
-  partly known is valued at the part that is. An option contract is not valued
-  this way: its cost would outlive its expiry, which the engine does not know.
-  Fixtures: EDGE-QT-03, PERF-TWR-03, PERF-HOLD-03.
+  quote on or before the day, a held position is valued at the book cost the day
+  reports for it (below: at its acquisition rates, else its total at the day's
+  rate), so its market value equals its cost basis and the day stays `Complete`.
+  Buying it, or receiving it in a transfer that flows at cost (rules R2.4), is
+  then no loss, and its first quote is one gain or loss instead of a fall to
+  zero and a rebound. The valuer reports a `MissingQuote` diagnostic for the
+  position; the health check finds the same gap on its own, from the holdings
+  and the quotes' dates, and keeps reporting it. The stand-in is a cost, not a
+  price, so it has limits: capitalised fees read as a loss only once a quote
+  arrives, an event that changes cost without cash (a notional distribution)
+  moves the value, and a position whose cost is only partly known is valued at
+  the part that is. An option contract is not valued this way: its cost would
+  outlive its expiry, which the engine does not know. Fixtures: EDGE-QT-03,
+  PERF-TWR-03, PERF-HOLD-03.
 - **A day is `PartialUnpriced`** when some held position has no quote and
   nothing to stand in for it: no cost, no rate for that cost, or an option
   contract. It contributes zero to market value, the day's returns are computed
