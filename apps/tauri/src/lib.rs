@@ -152,6 +152,48 @@ mod mobile {
 
     /// Performs async setup on mobile without blocking the main thread.
     pub fn setup(handle: AppHandle) {
+        #[cfg(target_os = "ios")]
+        if let Some(window) = handle.get_webview_window("main") {
+            let result = window.with_webview(|webview| {
+                use objc2::{msg_send, rc::Retained, runtime::AnyObject, MainThreadMarker};
+                use objc2_foundation::NSProcessInfo;
+                use objc2_ui_kit::{
+                    UIDevice, UIScrollView, UIScrollViewContentInsetAdjustmentBehavior,
+                    UIUserInterfaceIdiom,
+                };
+
+                // The viewport gap has only been reproduced on an iPhone with iOS 18.
+                let process = NSProcessInfo::processInfo();
+                if process.operatingSystemVersion().majorVersion != 18
+                    || process.isiOSAppOnMac()
+                    || process.isMacCatalystApp()
+                {
+                    return;
+                }
+                let Some(main_thread) = MainThreadMarker::new() else {
+                    return;
+                };
+                if UIDevice::currentDevice(main_thread).userInterfaceIdiom()
+                    != UIUserInterfaceIdiom::Phone
+                {
+                    return;
+                }
+
+                // viewport-fit=cover and CSS safe-area insets already position the
+                // content. UIKit's automatic insets can leave a gap below the page.
+                // SAFETY: Tauri supplies a live WKWebView on the main thread.
+                #[allow(unsafe_code)]
+                let scroll_view: Retained<UIScrollView> =
+                    unsafe { msg_send![webview.inner().cast::<AnyObject>(), scrollView] };
+                scroll_view.setContentInsetAdjustmentBehavior(
+                    UIScrollViewContentInsetAdjustmentBehavior::Never,
+                );
+            });
+            if let Err(error) = result {
+                log::warn!("Failed to configure iOS WebView insets: {error}");
+            }
+        }
+
         tauri::async_runtime::spawn(async move {
             let startup = handle.state::<profile_startup::ProfileStartup>();
             match startup.initialize(&handle).await {
