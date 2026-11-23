@@ -140,6 +140,7 @@ export interface TestSourceResult {
   currency?: string | null;
   date?: string | null;
   error?: string | null;
+  errorCode?: string | null;
   rawResponse?: string | null;
   detectedElements?: DetectedHtmlElement[] | null;
   detectedTables?: DetectedHtmlTable[] | null;

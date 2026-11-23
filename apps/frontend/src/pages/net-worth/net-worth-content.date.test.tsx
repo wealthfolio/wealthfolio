@@ -14,6 +14,9 @@ vi.mock("@/hooks/use-alternative-assets", () => queryMocks);
 vi.mock("@/hooks/use-portfolio-allocations", () => ({
   usePortfolioAllocations: () => ({ allocations: undefined }),
 }));
+vi.mock("@/hooks/use-health", () => ({
+  useHealthStatus: () => ({ data: undefined, isLoading: false }),
+}));
 vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
 vi.mock("@/lib/net-worth-category-label", () => ({
   getNetWorthCategoryLabel: (_t: unknown, _category: string, name: string) => name,
@@ -33,8 +36,16 @@ vi.mock("@/pages/holdings/components/allocation-detail-sheet", () => ({
 }));
 vi.mock("./components/breakdown-table", () => ({ BreakdownTable: () => <div /> }));
 vi.mock("./components/category-detail-sheet", () => ({ CategoryDetailSheet: () => null }));
-vi.mock("./components/net-worth-attention", () => ({ NetWorthAttention: () => null }));
-vi.mock("./components/momentum-card", () => ({ MomentumCard: () => null }));
+vi.mock("./components/net-worth-attention", () => ({
+  NetWorthAttention: ({ hasIncompleteValuation }: { hasIncompleteValuation: boolean }) => (
+    <output data-testid="valuation-attention">{String(hasIncompleteValuation)}</output>
+  ),
+}));
+vi.mock("./components/momentum-card", () => ({
+  MomentumCard: ({ momentum }: { momentum: unknown }) => (
+    <output data-testid="momentum">{JSON.stringify(momentum)}</output>
+  ),
+}));
 vi.mock("./components/velocity-card", () => ({
   VelocityCard: ({ trailingYearMonthly }: { trailingYearMonthly?: number }) => (
     <span data-testid="trailing-average">{trailingYearMonthly ?? "none"}</span>
@@ -71,7 +82,15 @@ vi.mock("@wealthfolio/ui", async () => {
       formatDecimal: (value: number) =>
         new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value),
     }),
-    usePersistentState: () => useState(intervalMocks.period),
+    usePersistentState: (key: string, initial: unknown) =>
+      useState(() => {
+        const stored = localStorage.getItem(key);
+        return stored
+          ? JSON.parse(stored)
+          : key.endsWith("interval")
+            ? intervalMocks.period
+            : initial;
+      }),
     useDateFormatting: () => ({ formatCalendarDate: () => "" }),
   };
 });
@@ -106,6 +125,7 @@ function latestEnabledHistoryCalls(count: number) {
 
 describe("NetWorthContent current-date queries", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-15T12:00:00+08:00"));
     settingsMock.timezone = "Asia/Shanghai";
@@ -127,9 +147,65 @@ describe("NetWorthContent current-date queries", () => {
 
   afterEach(() => {
     cleanup();
+    localStorage.clear();
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it.each([
+    { current: "unavailable", history: "complete", attention: true },
+    { current: "partialUnpriced", history: "complete", attention: true },
+    { current: "complete", history: "unavailable", attention: true },
+    { current: "complete", history: "complete", attention: false },
+    { current: undefined, history: undefined, attention: false },
+  ])(
+    "routes current $current / historical $history valuation issues to the attention card",
+    ({ current, history, attention }) => {
+      queryMocks.useNetWorth.mockReturnValue({
+        data: {
+          netWorth: 100,
+          assets: { total: 100, breakdown: [] },
+          liabilities: { total: 0, breakdown: [] },
+          currency: "USD",
+          staleAssets: [],
+          valueStatus: current,
+        },
+        isLoading: false,
+      });
+      queryMocks.useNetWorthHistory.mockReturnValue({
+        data: [{ date: "2026-09-15", netWorth: 100, valueStatus: history }],
+        isLoading: false,
+      });
+      render(<NetWorthContent />);
+      expect(screen.getByTestId("valuation-attention")).toHaveTextContent(String(attention));
+      expect(screen.queryByText("common:valuation_incomplete")).not.toBeInTheDocument();
+      expect(screen.queryByText("common:valuation_history_incomplete")).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps a calendar year's momentum separate from the extended prior-year history fetch", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "year", year: 2025 }));
+    const history = [
+      { date: "2024-01-01", netWorth: 100 },
+      { date: "2024-12-31", netWorth: 200 },
+      { date: "2025-01-01", netWorth: 200 },
+      { date: "2025-12-31", netWorth: 200 },
+    ];
+    queryMocks.useNetWorthHistory.mockImplementation(({ startDate }) => ({
+      data: history.filter((point) => point.date >= startDate!),
+      isLoading: false,
+    }));
+    render(<NetWorthContent />);
+    expect(latestEnabledHistoryCalls(2)).toEqual([
+      { startDate: "2025-01-01", endDate: "2025-12-31", enabled: true },
+      { startDate: "2024-01-01", endDate: "2025-12-31", enabled: true },
+    ]);
+    expect(JSON.parse(screen.getByTestId("momentum").textContent!)).toMatchObject({
+      currentChange: 0,
+      priorChange: 100,
+      beatBy: -100,
+    });
   });
 
   it.each([

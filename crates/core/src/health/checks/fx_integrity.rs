@@ -24,8 +24,8 @@ pub struct FxPairInfo {
     pub from_currency: String,
     /// To currency (base currency)
     pub to_currency: String,
-    /// Market value of holdings using this pair (in base currency)
-    pub affected_mv: f64,
+    /// Market value of holdings using this pair in base currency; unknown if any value is missing.
+    pub affected_mv: Option<f64>,
     /// Latest quote timestamp (None if no quote exists)
     pub latest_quote_time: Option<DateTime<Utc>>,
 }
@@ -125,11 +125,11 @@ impl FxIntegrityCheck {
 
         // Track issues by type
         let mut missing_pairs: Vec<&FxPairInfo> = Vec::new();
-        let mut missing_mv = 0.0;
+        let mut missing_mv = Some(0.0);
         let mut stale_warning_pairs: Vec<&FxPairInfo> = Vec::new();
-        let mut stale_warning_mv = 0.0;
+        let mut stale_warning_mv = Some(0.0);
         let mut stale_error_pairs: Vec<&FxPairInfo> = Vec::new();
-        let mut stale_error_mv = 0.0;
+        let mut stale_error_mv = Some(0.0);
 
         for pair in fx_pairs {
             match pair.latest_quote_time {
@@ -137,29 +137,31 @@ impl FxIntegrityCheck {
                     let age = fx_market_open_duration(quote_time, ctx.now);
                     if age > critical_age {
                         stale_error_pairs.push(pair);
-                        stale_error_mv += pair.affected_mv;
+                        stale_error_mv = stale_error_mv
+                            .zip(pair.affected_mv)
+                            .map(|(total, value)| total + value);
                     } else if age > warning_age {
                         stale_warning_pairs.push(pair);
-                        stale_warning_mv += pair.affected_mv;
+                        stale_warning_mv = stale_warning_mv
+                            .zip(pair.affected_mv)
+                            .map(|(total, value)| total + value);
                     }
                 }
                 None => {
                     // No rate exists at all
                     missing_pairs.push(pair);
-                    missing_mv += pair.affected_mv;
+                    missing_mv = missing_mv
+                        .zip(pair.affected_mv)
+                        .map(|(total, value)| total + value);
                 }
             }
         }
 
         // Emit issue for missing FX pairs (Error level)
         if !missing_pairs.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                missing_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = missing_mv.and_then(|value| ctx.affected_mv_pct(value));
 
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Error
@@ -207,8 +209,9 @@ impl FxIntegrityCheck {
                         "Missing exchange rate",
                         "No exchange rate is on record for these currency pairs, so holdings in \
                          those currencies can't be converted to your base currency.",
+                        NavigateAction::to_general_settings(),
                     )])
-                    .navigate_action(NavigateAction::to_market_data())
+                    .navigate_action(NavigateAction::to_general_settings())
                     .affected_items(affected_items)
                     .data_hash(data_hash)
                     .build(),
@@ -217,13 +220,9 @@ impl FxIntegrityCheck {
 
         // Emit issue for critically stale FX rates (Error level)
         if !stale_error_pairs.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                stale_error_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = stale_error_mv.and_then(|value| ctx.affected_mv_pct(value));
 
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Error
@@ -270,6 +269,7 @@ impl FxIntegrityCheck {
                         "Outdated exchange rate",
                         "These exchange rates are more than 3 days old, so currency conversions \
                          for the affected holdings may be inaccurate.",
+                        NavigateAction::to_market_data(),
                     )])
                     .navigate_action(NavigateAction::to_market_data())
                     .affected_items(affected_items)
@@ -280,13 +280,9 @@ impl FxIntegrityCheck {
 
         // Emit issue for slightly stale FX rates (Warning level)
         if !stale_warning_pairs.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                stale_warning_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = stale_warning_mv.and_then(|value| ctx.affected_mv_pct(value));
 
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Warning
@@ -333,6 +329,7 @@ impl FxIntegrityCheck {
                         "Exchange rate update needed",
                         "These exchange rates haven't been refreshed recently; conversions for the \
                          affected holdings may drift until they are updated.",
+                        NavigateAction::to_market_data(),
                     )])
                     .navigate_action(NavigateAction::to_market_data())
                     .affected_items(affected_items)
@@ -345,9 +342,8 @@ impl FxIntegrityCheck {
     }
 }
 
-/// Builds a structured diagnostic for an FX issue: one evidence row per pair
-/// (pair, rate freshness, affected market value) plus a navigation action to the
-/// market-data settings where rates are managed.
+/// Builds structured FX diagnostics with per-pair evidence and the appropriate
+/// settings action for the issue.
 impl FxIntegrityCheck {
     /// One issue for every pair whose directions disagree.
     pub fn analyze_conflicts(&self, conflicts: &[FxConflictInfo]) -> Vec<HealthIssue> {
@@ -359,7 +355,7 @@ impl FxIntegrityCheck {
             .iter()
             .map(|c| format!("{}:{}:{}:{}", c.pair_id, c.days, c.first_day, c.last_day))
             .collect();
-        let data_hash = compute_data_hash(&pair_ids, Severity::Warning, 0.0);
+        let data_hash = compute_data_hash(&pair_ids, Severity::Warning, Some(0.0));
         let affected_items: Vec<AffectedItem> = conflicts
             .iter()
             .map(|c| {
@@ -410,6 +406,7 @@ fn fx_diagnostic(
     code: &str,
     title: &str,
     explanation: &str,
+    navigate_action: NavigateAction,
 ) -> HealthDiagnostic {
     let mut diagnostic =
         HealthDiagnostic::new(code, title, explanation).domain(DiagnosticDomain::Fx);
@@ -419,15 +416,15 @@ fn fx_diagnostic(
             None => "no rate on record".to_string(),
         };
         let label = format!("{} → {}", pair.from_currency, pair.to_currency);
-        let value = format!(
-            "{rate_state} · affects ~{:.0} in base currency",
-            pair.affected_mv
-        );
+        let value = match pair.affected_mv {
+            Some(value) => format!("{rate_state} · affects ~{value:.0} in base currency"),
+            None => format!("{rate_state} · affected value in base currency is unknown"),
+        };
         diagnostic = diagnostic
             .entity(HealthEntityRef::new("currencyPair", pair.pair_id.clone()).label(label.clone()))
             .evidence(Evidence::new(label, value));
     }
-    diagnostic.navigate(true, NavigateAction::to_market_data())
+    diagnostic.navigate(true, navigate_action)
 }
 
 impl Default for FxIntegrityCheck {
@@ -453,7 +450,7 @@ impl HealthCheck for FxIntegrityCheck {
 }
 
 /// Computes a data hash for issue identity and change detection.
-fn compute_data_hash(pair_ids: &[String], severity: Severity, mv_pct: f64) -> String {
+fn compute_data_hash(pair_ids: &[String], severity: Severity, mv_pct: Option<f64>) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -464,7 +461,10 @@ fn compute_data_hash(pair_ids: &[String], severity: Severity, mv_pct: f64) -> St
         id.hash(&mut hasher);
     }
     severity.as_str().hash(&mut hasher);
-    ((mv_pct * 100.0) as u32).hash(&mut hasher);
+    match mv_pct {
+        Some(pct) => ((pct * 100.0) as u32).hash(&mut hasher),
+        None => "unknown".hash(&mut hasher),
+    }
 
     format!("{:x}", hasher.finish())
 }
@@ -519,7 +519,7 @@ mod tests {
             pair_id: "EUR:USD".to_string(),
             from_currency: "EUR".to_string(),
             to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
+            affected_mv: Some(10_000.0),
             latest_quote_time: None,
         }];
 
@@ -529,16 +529,53 @@ mod tests {
         assert_eq!(issues[0].category, HealthCategory::FxIntegrity);
 
         // The old unimplemented FX fetch fix action must not be shown; the issue
-        // routes to market-data settings and carries a MISSING_FX_RATE diagnostic
+        // routes to exchange-rate entry in General settings and carries a MISSING_FX_RATE diagnostic
         // with per-pair evidence.
         assert!(issues[0].fix_action.is_none());
-        assert!(issues[0].navigate_action.is_some());
+        assert_eq!(
+            issues[0].navigate_action,
+            Some(NavigateAction::to_general_settings())
+        );
         let diagnostics = issues[0].diagnostics.as_ref().expect("fx diagnostics");
         assert_eq!(diagnostics[0].code, "MISSING_FX_RATE");
+        assert_eq!(
+            diagnostics[0].actions[0].action,
+            crate::health::model::ActionRef::Navigate {
+                action: NavigateAction::to_general_settings(),
+            }
+        );
         assert!(diagnostics[0]
             .evidence
             .iter()
             .any(|e| e.label.contains("EUR → USD")));
+    }
+
+    #[test]
+    fn missing_fx_reports_unknown_impact_without_relabeling_local_values() {
+        let ctx = HealthContext::new(HealthConfig::default(), "CAD", 100_000.0);
+        let mut pair = FxPairInfo {
+            pair_id: "USD:CAD".into(),
+            from_currency: "USD".into(),
+            to_currency: "CAD".into(),
+            affected_mv: None,
+            latest_quote_time: None,
+        };
+        let check = FxIntegrityCheck::new();
+        let unknown = check.analyze(std::slice::from_ref(&pair), &ctx);
+        assert_eq!(unknown.len(), 1);
+        assert_eq!(unknown[0].affected_count, 1);
+        assert_eq!(unknown[0].affected_mv_pct, None);
+        assert_eq!(unknown[0].severity, Severity::Error);
+        assert!(unknown[0].diagnostics.as_ref().unwrap()[0].evidence[0]
+            .value
+            .contains("unknown"));
+
+        pair.affected_mv = Some(0.0);
+        let zero = check.analyze(&[pair], &ctx);
+        assert_eq!(zero[0].affected_mv_pct, Some(0.0));
+        assert!(zero[0].diagnostics.as_ref().unwrap()[0].evidence[0]
+            .value
+            .contains("affects ~0"));
     }
 
     #[test]
@@ -551,18 +588,35 @@ mod tests {
             at("2026-10-28T12:00:00Z"),
         );
 
-        let stale_time = ctx.now - Duration::hours(48);
-        let pairs = vec![FxPairInfo {
-            pair_id: "EUR:USD".to_string(),
-            from_currency: "EUR".to_string(),
-            to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
-            latest_quote_time: Some(stale_time),
-        }];
+        for (hours, severity) in [(48, Severity::Warning), (168, Severity::Error)] {
+            let stale_time = ctx.now - Duration::hours(hours);
+            let pairs = vec![FxPairInfo {
+                pair_id: "EUR:USD".to_string(),
+                from_currency: "EUR".to_string(),
+                to_currency: "USD".to_string(),
+                affected_mv: Some(10_000.0),
+                latest_quote_time: Some(stale_time),
+            }];
 
-        let issues = check.analyze(&pairs, &ctx);
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].severity, Severity::Warning);
+            let issues = check.analyze(&pairs, &ctx);
+            assert_eq!(issues.len(), 1);
+            assert_eq!(issues[0].severity, severity);
+            assert_eq!(
+                issues[0].navigate_action,
+                Some(NavigateAction::to_market_data())
+            );
+            assert_eq!(
+                issues[0]
+                    .diagnostics
+                    .as_ref()
+                    .expect("stale-rate diagnostic")[0]
+                    .actions[0]
+                    .action,
+                crate::health::model::ActionRef::Navigate {
+                    action: NavigateAction::to_market_data()
+                }
+            );
+        }
     }
 
     #[test]
@@ -580,7 +634,7 @@ mod tests {
             pair_id: "EUR:USD".to_string(),
             from_currency: "EUR".to_string(),
             to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
+            affected_mv: Some(10_000.0),
             latest_quote_time: Some(fresh_time),
         }];
 
@@ -598,7 +652,7 @@ mod tests {
             pair_id: "EUR:USD".to_string(),
             from_currency: "EUR".to_string(),
             to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
+            affected_mv: Some(10_000.0),
             latest_quote_time: Some(at(latest_rate)),
         }];
         FxIntegrityCheck::new().analyze(&pairs, &ctx)

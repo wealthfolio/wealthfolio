@@ -8,11 +8,15 @@ import { useHapticFeedback } from "@/hooks";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAlternativeAssetHolding, useAlternativeHoldings } from "@/hooks/use-alternative-assets";
 import { useHoldings } from "@/hooks/use-holdings";
+import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useQuoteHistory } from "@/hooks/use-quote-history";
 import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
 import { useAssetTaxonomyAssignments, useTaxonomy } from "@/hooks/use-taxonomies";
-import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
+import {
+  accountSupportsActivityType,
+  getActivityRestrictionLevel,
+} from "@/lib/activity-restrictions";
 import { generateId } from "@/lib/id";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -105,10 +109,10 @@ const parseJsonField = (value: unknown): unknown => {
 
 interface AssetDetailData {
   numShares: number;
-  marketValue: number;
-  costBasis: number;
-  averagePrice: number;
-  portfolioPercent: number;
+  marketValue: number | null;
+  costBasis: number | null;
+  averagePrice: number | null;
+  portfolioPercent: number | null;
   todaysReturn: number | null;
   todaysReturnPercent: number | null;
   unrealizedPnl: number | null;
@@ -333,16 +337,18 @@ export const AssetProfilePage = () => {
     isError: isAssetProfileError,
   } = useAssetProfile(assetId);
 
+  const holdingsQuery = useHoldings({ type: "all" }, { includeClosed: true });
   const {
     holdings: allHoldings,
     isLoading: isHoldingLoading,
     isError: isHoldingError,
-  } = useHoldings({ type: "all" }, { includeClosed: true });
+    isComplete: holdingsComplete,
+  } = holdingsQuery;
 
   const holding = useMemo<Holding | null>(() => {
     if (!assetId) return null;
-    return getAssetProfileHolding(allHoldings, assetId);
-  }, [allHoldings, assetId]);
+    return holdingsComplete ? getAssetProfileHolding(allHoldings, assetId) : null;
+  }, [allHoldings, assetId, holdingsComplete]);
 
   const {
     data: quoteHistory,
@@ -606,6 +612,16 @@ export const AssetProfilePage = () => {
   });
 
   const { accounts } = useAccounts({ filterActive: false });
+  const sourceHolding = (location.state as { holding?: Holding } | null)?.holding;
+  const sellAccountId =
+    sourceHolding?.instrument?.id === assetId
+      ? accounts.find(
+          (account) =>
+            account.id === sourceHolding.accountId &&
+            !account.isArchived &&
+            accountSupportsActivityType(account, "SELL"),
+        )?.id
+      : undefined;
 
   const activityFormAccounts = useMemo<AccountSelectOption[]>(
     () =>
@@ -616,6 +632,7 @@ export const AssetProfilePage = () => {
           label: account.name,
           currency: account.currency,
           accountType: account.accountType,
+          group: account.group,
           restrictionLevel: getActivityRestrictionLevel(account),
         })),
     [accounts],
@@ -710,6 +727,7 @@ export const AssetProfilePage = () => {
   }, [holding, assetProfile, assetId, baseCurrency]);
 
   const symbolHolding = useMemo((): AssetDetailData | null => {
+    if (!holdingsComplete) return null;
     const instrument = holding?.instrument;
     const asset = assetProfile;
     const hasAssetHistory = assetLots.length > 0 || assetActivities.length > 0 || quote != null;
@@ -736,9 +754,9 @@ export const AssetProfilePage = () => {
     const costUnits =
       optionSpec && contractMultiplier > 0 ? quantity * contractMultiplier : quantity;
     const averageCostPrice =
-      holding?.costBasis?.local && costUnits !== 0
+      holding?.costBasis?.local != null && costUnits !== 0
         ? Number(holding.costBasis.local) / costUnits
-        : 0;
+        : null;
 
     const quoteData = quote
       ? {
@@ -770,29 +788,10 @@ export const AssetProfilePage = () => {
     // Closed positions use the engine's income too, including reclassifications
     // and rejected-activity filtering. Raw dividend rows cannot reproduce it.
     const income = holding?.income?.local != null ? Number(holding.income.local) : null;
-    const realizedLots = assetLots.filter(
-      (lot) => lot.source === "TRANSACTION_LOT" && lot.valuationRealizedPnl != null,
-    );
-    const realizedPnlFromLots = realizedLots.reduce(
-      (sum, lot) => sum + Number(lot.valuationRealizedPnl ?? 0),
-      0,
-    );
-    const realizedCostBasisFromLots = realizedLots.reduce(
-      (sum, lot) => sum + Number(lot.valuationDisposalCostBasis ?? 0),
-      0,
-    );
     const realizedPnl =
-      holding?.realizedGain?.local != null
-        ? Number(holding.realizedGain.local)
-        : realizedLots.length > 0
-          ? realizedPnlFromLots
-          : null;
+      holding?.realizedGain?.local != null ? Number(holding.realizedGain.local) : null;
     const realizedPnlPercent =
-      holding?.realizedGainPct != null
-        ? Number(holding.realizedGainPct)
-        : realizedLots.length > 0 && realizedCostBasisFromLots > 0
-          ? realizedPnlFromLots / realizedCostBasisFromLots
-          : null;
+      holding?.realizedGainPct != null ? Number(holding.realizedGainPct) : null;
     const hasOpenTransactionLotWithBase = assetLots.some(
       (lot) => lot.source === "TRANSACTION_LOT" && !lot.isClosed && lot.costBasisBase != null,
     );
@@ -808,35 +807,19 @@ export const AssetProfilePage = () => {
         ? Number(holding.unrealizedGain.base) -
           Number(holding.unrealizedGain.local) * Number(holding.fxRate)
         : null;
-    const totalPnl =
-      holding?.totalGain?.local != null ? Number(holding.totalGain.local) : realizedPnl;
-    const totalPnlPercent =
-      holding?.totalGainPct != null ? Number(holding.totalGainPct) : realizedPnlPercent;
+    const totalPnl = holding?.totalGain?.local != null ? Number(holding.totalGain.local) : null;
+    const totalPnlPercent = holding?.totalGainPct != null ? Number(holding.totalGainPct) : null;
     const totalReturn =
-      holding?.totalReturn?.local != null
-        ? Number(holding.totalReturn.local)
-        : totalPnl != null && income != null
-          ? totalPnl + income
-          : null;
-    const fallbackReturnBasis =
-      holding?.returnBasis?.base != null
-        ? Number(holding.returnBasis.base)
-        : realizedCostBasisFromLots;
-    const canUseFallbackTotalReturnPercent =
-      holding == null && displayCurrency.toUpperCase() === baseCurrency.toUpperCase();
+      holding?.totalReturn?.local != null ? Number(holding.totalReturn.local) : null;
     const totalReturnPercent =
-      holding?.totalReturnPct != null
-        ? Number(holding.totalReturnPct)
-        : totalReturn != null && fallbackReturnBasis > 0 && canUseFallbackTotalReturnPercent
-          ? totalReturn / fallbackReturnBasis
-          : null;
+      holding?.totalReturnPct != null ? Number(holding.totalReturnPct) : null;
 
     return {
       numShares: quantity,
-      marketValue: Number(holding?.marketValue.local ?? 0),
-      costBasis: Number(holding?.costBasis?.local ?? 0),
-      averagePrice: Number(averageCostPrice),
-      portfolioPercent: Number(holding?.weight ?? 0),
+      marketValue: holding?.marketValue.local ?? null,
+      costBasis: holding?.costBasis?.local ?? null,
+      averagePrice: averageCostPrice,
+      portfolioPercent: holding?.weight ?? null,
       todaysReturn: todaysReturn != null ? Number(todaysReturn) : null,
       todaysReturnPercent: todaysReturnPercent != null ? Number(todaysReturnPercent) : null,
       unrealizedPnl:
@@ -862,6 +845,7 @@ export const AssetProfilePage = () => {
     };
   }, [
     holding,
+    holdingsComplete,
     quote,
     quoteHistory,
     assetActivities,
@@ -1410,6 +1394,15 @@ export const AssetProfilePage = () => {
                             label: t("asset:loanActions.edit_details"),
                             onClick: () => altAssetActions.openEditDetails(),
                           },
+                          ...(altAssetActions.exportLoanSchedule
+                            ? [
+                                {
+                                  icon: Icons.Download,
+                                  label: t("asset:loanExport.action"),
+                                  onClick: () => void altAssetActions.exportLoanSchedule?.(),
+                                },
+                              ]
+                            : []),
                         ],
                       },
                       {
@@ -1482,7 +1475,7 @@ export const AssetProfilePage = () => {
                               label: t("asset:profile.sell"),
                               onClick: () =>
                                 navigate(
-                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=SELL`,
+                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=SELL${sellAccountId ? `&account=${encodeURIComponent(sellAccountId)}` : ""}`,
                                 ),
                             },
                             {
@@ -1565,7 +1558,7 @@ export const AssetProfilePage = () => {
       >
         <div className="group/asset-header flex items-center gap-2" data-tauri-drag-region="true">
           {isAltAsset && altHolding ? (
-            <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-full">
+            <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full md:size-9">
               <AlternativeAssetIcon kind={altHolding.kind} size={20} />
             </div>
           ) : (
@@ -1582,7 +1575,8 @@ export const AssetProfilePage = () => {
                 }
                 instrumentType={holding?.instrument?.instrumentType ?? assetProfile?.instrumentType}
                 assetId={assetProfile?.id ?? assetId}
-                className="size-9"
+                // A step larger on phones, next to the two-line name.
+                className="size-10 md:size-9"
                 onEdit={() => setLogoDialogOpen(true)}
               />
             )
@@ -1591,11 +1585,11 @@ export const AssetProfilePage = () => {
             {/* Provider names read in their own direction, so a clipped one keeps its start. */}
             <h1
               dir="auto"
-              className="truncate text-base leading-tight font-semibold md:text-lg rtl:text-right"
+              className="text-base leading-tight font-semibold break-words max-md:line-clamp-2 md:truncate md:text-lg rtl:text-right"
             >
               {assetProfile?.name ?? holding?.instrument?.name ?? assetId ?? "-"}
             </h1>
-            <p className="text-muted-foreground flex items-center gap-1.5 text-xs leading-tight md:text-sm">
+            <p className="text-muted-foreground flex items-center gap-1 text-xs leading-tight md:gap-1.5 md:text-sm">
               {isAltAsset && altHolding ? (
                 (altHolding.metadata?.sub_type ?? altHolding.metadata?.liability_type) ===
                 "mortgage" ? (
@@ -1615,9 +1609,13 @@ export const AssetProfilePage = () => {
                             variant="ghost"
                             size="icon"
                             className={cn(
-                              "ms-1 h-5 w-5 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity]",
-                              "md:ms-0 md:w-0 md:opacity-0 md:focus-visible:ms-1 md:focus-visible:w-5 md:focus-visible:opacity-100 md:group-hover/asset-header:ms-1 md:group-hover/asset-header:w-5 md:group-hover/asset-header:opacity-100",
-                              symbolCopied && "opacity-100 md:ms-1 md:w-5 md:opacity-100",
+                              // The touch minimum would make this 44px and push the line apart; a
+                              // 20×24px target is enough for a secondary action.
+                              "ms-1 h-6 w-5 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity] pointer-coarse:min-h-0 pointer-coarse:min-w-0 max-lg:min-h-0 max-lg:min-w-0 pointer-fine:md:h-5",
+                              // Hidden until hover only for a mouse; touch screens always show it.
+                              "pointer-fine:md:ms-0 pointer-fine:md:w-0 pointer-fine:md:opacity-0 md:focus-visible:ms-1 md:focus-visible:w-5 md:focus-visible:opacity-100 md:group-hover/asset-header:ms-1 md:group-hover/asset-header:w-5 md:group-hover/asset-header:opacity-100",
+                              symbolCopied &&
+                                "opacity-100 pointer-fine:md:ms-1 pointer-fine:md:w-5 pointer-fine:md:opacity-100",
                             )}
                             aria-label={`${t("ui:dataGrid.copy")} ${displayedSymbol}`}
                             onClick={() => void handleCopySymbol()}
@@ -1635,7 +1633,10 @@ export const AssetProfilePage = () => {
                   </span>
                   {(assetProfile?.quoteCcy ?? profile?.currency) && (
                     <>
-                      <span className="bg-muted-foreground/40 h-3 w-px rounded-full" />
+                      <span aria-hidden="true" className="pe-0.5 md:hidden">
+                        ·
+                      </span>
+                      <span className="bg-muted-foreground/40 hidden h-3 w-px rounded-full md:block" />
                       {assetProfile?.quoteCcy ?? profile?.currency}
                     </>
                   )}
@@ -1646,6 +1647,7 @@ export const AssetProfilePage = () => {
         </div>
       </PageHeader>
       <PageContent>
+        <HoldingsScopeNotice {...holdingsQuery} />
         <AssetHealthBanner
           context={healthContext}
           isManualPricingMode={isManualPricingMode}
@@ -1750,7 +1752,7 @@ export const AssetProfilePage = () => {
                   quoteHistory={quoteHistory ?? []}
                   averageCost={
                     symbolHolding && symbolHolding.numShares > 0
-                      ? symbolHolding.averagePrice
+                      ? (symbolHolding.averagePrice ?? undefined)
                       : undefined
                   }
                   className={`col-span-1 ${symbolHolding ? "md:col-span-2" : "md:col-span-3"}`}
@@ -1786,7 +1788,7 @@ export const AssetProfilePage = () => {
                   quoteHistory={quoteHistory ?? []}
                   averageCost={
                     symbolHolding && symbolHolding.numShares > 0
-                      ? symbolHolding.averagePrice
+                      ? (symbolHolding.averagePrice ?? undefined)
                       : undefined
                   }
                   className={`col-span-1 ${symbolHolding ? "md:col-span-2" : "md:col-span-3"}`}

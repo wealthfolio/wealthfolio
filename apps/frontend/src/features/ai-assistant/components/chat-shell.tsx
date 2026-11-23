@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AssistantRuntimeProvider, useThreadRuntime } from "@assistant-ui/react";
+import { AssistantRuntimeProvider, useAui } from "@assistant-ui/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -44,6 +44,13 @@ import {
   RecordActivityToolUI,
   RecordActivitiesToolUI,
   ValuationToolUI,
+  ListSpendingEventsToolUI,
+  SpendingBudgetToolUI,
+  SpendingContextToolUI,
+  SpendingEventsToolUI,
+  SpendingInsightToolUI,
+  SpendingReportToolUI,
+  SpendingTransactionsToolUI,
 } from "./tool-uis";
 import { ChatModelProvider, useChatModelContext } from "../hooks/use-chat-model-context";
 import { useChatRuntime } from "../hooks/use-chat-runtime";
@@ -83,11 +90,11 @@ function Sidebar({ collapsed }: { collapsed?: boolean }) {
   return (
     <aside
       className={cn(
-        "bg-muted/30 flex h-full flex-col border-e transition-all duration-200",
+        "bg-muted/30 flex h-full flex-col border-e transition-all duration-200 motion-reduce:transition-opacity",
         collapsed ? "w-0 overflow-hidden opacity-0" : "w-65 opacity-100",
       )}
     >
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 scrollbar-thin overflow-y-auto p-3">
         <ThreadList />
       </div>
     </aside>
@@ -107,17 +114,14 @@ function MobileSidebar() {
         <Icons.PanelLeft className="size-4" />
         <span className="sr-only">{t("ai:shell.toggleMenu")}</span>
       </SheetTrigger>
-      <SheetContent
-        side="inline-start"
-        className="flex w-70 flex-col gap-0 px-0 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(var(--inset-bottom),0.75rem)]"
-      >
+      <SheetContent side="inline-start" className="flex w-70 flex-col gap-0 px-0 py-3">
         <SheetHeader className="sr-only">
           <SheetTitle>{t("ai:shell.conversations")}</SheetTitle>
         </SheetHeader>
         <div className="flex h-14 items-center border-b px-4">
           <span className="font-semibold">{t("ai:shell.conversations")}</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto p-3">
           <ThreadList />
         </div>
       </SheetContent>
@@ -194,7 +198,7 @@ const consumedPromptKeys = new Set<string>();
 function InitialPromptSender() {
   const location = useLocation();
   const navigate = useNavigate();
-  const threadRuntime = useThreadRuntime();
+  const aui = useAui();
 
   useEffect(() => {
     const prompt = (location.state as { aiPrompt?: string } | null)?.aiPrompt;
@@ -202,8 +206,8 @@ function InitialPromptSender() {
     consumedPromptKeys.add(location.key);
     // Clear navigation state first so a refresh or back nav won't resend.
     navigate(location.pathname, { replace: true, state: null });
-    threadRuntime.append(prompt);
-  }, [location, navigate, threadRuntime]);
+    aui.thread.append(prompt);
+  }, [location, navigate, aui]);
 
   return null;
 }
@@ -264,6 +268,13 @@ function ChatShellInner({ className }: ChatShellProps) {
         <AssetClassificationToolUI />
         <ListCategorizationContextToolUI />
         <CategorizationProposalsToolUI />
+        <SpendingContextToolUI />
+        <ListSpendingEventsToolUI />
+        <SpendingInsightToolUI />
+        <SpendingReportToolUI />
+        <SpendingTransactionsToolUI />
+        <SpendingBudgetToolUI />
+        <SpendingEventsToolUI />
 
         <InitialPromptSender />
 

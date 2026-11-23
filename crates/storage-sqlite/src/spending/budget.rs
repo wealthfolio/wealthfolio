@@ -6,7 +6,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -219,12 +218,6 @@ fn rollover_target_type_from_str(value: &str) -> BudgetRolloverTargetType {
     }
 }
 
-fn sum_amount_strings(left: &str, right: &str) -> String {
-    let left = left.parse::<Decimal>().unwrap_or(Decimal::ZERO);
-    let right = right.parse::<Decimal>().unwrap_or(Decimal::ZERO);
-    (left + right).normalize().to_string()
-}
-
 impl From<BudgetGroupDB> for BudgetGroup {
     fn from(db: BudgetGroupDB) -> Self {
         Self {
@@ -297,9 +290,7 @@ impl BudgetRepositoryTrait for BudgetRepository {
         self.writer
             .exec_tx(move |tx| {
                 use wealthfolio_spending::budget::{
-                    service::{
-                        canonical_review_state, default_assignment_inputs, default_group_inputs,
-                    },
+                    service::{canonical_review_state, default_group_inputs, OTHER_GROUP_KEY},
                     BudgetOperation::*,
                 };
                 let current = budget_state_tx(tx)?;
@@ -313,14 +304,15 @@ impl BudgetRepositoryTrait for BudgetRepository {
                     .into());
                 }
                 // Pure reads may have synthesized missing groups. Materialize only
-                // absent defaults during this explicit budget write, never on preview.
+                // the required Other group during this explicit write, never on preview.
                 let missing = default_group_inputs()
                     .into_iter()
                     .filter(|g| {
-                        !current.groups.iter().any(|existing| {
-                            Some(existing.id.as_str()) == g.id.as_deref()
-                                || Some(existing.key.as_str()) == g.key.as_deref()
-                        })
+                        g.key.as_deref() == Some(OTHER_GROUP_KEY)
+                            && !current.groups.iter().any(|existing| {
+                                Some(existing.id.as_str()) == g.id.as_deref()
+                                    || Some(existing.key.as_str()) == g.key.as_deref()
+                            })
                     })
                     .collect();
                 upsert_system_groups_tx(tx, missing)?;
@@ -351,25 +343,10 @@ impl BudgetRepositoryTrait for BudgetRepository {
                         id,
                         reassign_to_group_id,
                     } => {
-                        let reassignments = current
-                            .group_assignments
-                            .into_iter()
-                            .filter(|a| a.group_id == id)
-                            .map(|a| NewBudgetGroupAssignment {
-                                id: Some(a.id),
-                                group_id: reassign_to_group_id.clone(),
-                                taxonomy_id: a.taxonomy_id,
-                                category_id: a.category_id,
-                            })
-                            .collect();
-                        delete_group_and_reassign_tx(
-                            tx,
-                            &id,
-                            &reassign_to_group_id,
-                            reassignments,
-                        )?;
+                        delete_group_and_reassign_tx(tx, &id, &reassign_to_group_id)?;
                     }
                     AssignCategory {
+                        taxonomy_id,
                         category_id,
                         group_id,
                     } => {
@@ -378,7 +355,7 @@ impl BudgetRepositoryTrait for BudgetRepository {
                             vec![NewBudgetGroupAssignment {
                                 id: None,
                                 group_id,
-                                taxonomy_id: "spending_categories".into(),
+                                taxonomy_id,
                                 category_id,
                             }],
                             0,
@@ -425,15 +402,7 @@ impl BudgetRepositoryTrait for BudgetRepository {
                         upsert_rollover_setting_tx(tx, setting)?;
                     }
                     RemoveRollover { id } => delete_rollover_setting_tx(tx, &id)?,
-                    ResetGroups => {
-                        let groups = upsert_system_groups_tx(tx, default_group_inputs())?;
-                        let map = groups.into_iter().map(|g| (g.key, g.id)).collect();
-                        upsert_group_assignments_with_system_flag_tx(
-                            tx,
-                            default_assignment_inputs(&map),
-                            1,
-                        )?;
-                    }
+                    ResetGroups => reset_groups_tx(tx)?,
                 }
                 Ok(())
             })
@@ -482,18 +451,18 @@ impl BudgetRepositoryTrait for BudgetRepository {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    async fn delete_group_and_reassign(
-        &self,
-        id: &str,
-        reassign_to_group_id: &str,
-        reassignments: Vec<NewBudgetGroupAssignment>,
-    ) -> Result<()> {
+    async fn delete_group_and_reassign(&self, id: &str, reassign_to_group_id: &str) -> Result<()> {
         let id = id.to_string();
         let reassign_to_group_id = reassign_to_group_id.to_string();
         self.writer
-            .exec_tx(move |tx| {
-                delete_group_and_reassign_tx(tx, &id, &reassign_to_group_id, reassignments)
-            })
+            .exec_tx(move |tx| delete_group_and_reassign_tx(tx, &id, &reassign_to_group_id))
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn reset_groups(&self) -> Result<()> {
+        self.writer
+            .exec_tx(reset_groups_tx)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
@@ -773,101 +742,88 @@ fn delete_group_and_reassign_tx(
     tx: &mut DbWriteTx<'_>,
     id: &str,
     reassign_to_group_id: &str,
-    reassignments: Vec<NewBudgetGroupAssignment>,
 ) -> wealthfolio_core::Result<()> {
-    let id = id.to_string();
-    let reassign_to_group_id = reassign_to_group_id.to_string();
-    let now = chrono::Utc::now().to_rfc3339();
-    {
-        for assignment in reassignments {
-            let NewBudgetGroupAssignment {
-                id,
-                group_id,
-                taxonomy_id,
-                category_id,
-            } = assignment;
-            let id = id.unwrap_or_else(|| budget_group_assignment_id(&taxonomy_id, &category_id));
-            let row = NewBudgetGroupAssignmentDB {
-                id,
-                group_id,
-                taxonomy_id,
-                category_id,
-                is_system: 0,
-                created_at: now.clone(),
-                updated_at: now.clone(),
-            };
-            let inserted = diesel::insert_into(budget_group_assignments::table)
-                .values(&row)
-                .on_conflict((
-                    budget_group_assignments::taxonomy_id,
-                    budget_group_assignments::category_id,
-                ))
-                .do_update()
-                .set((
-                    budget_group_assignments::group_id.eq(&row.group_id),
-                    budget_group_assignments::updated_at.eq(&row.updated_at),
-                ))
-                .returning(BudgetGroupAssignmentDB::as_returning())
-                .get_result(tx.conn())
-                .map_err(StorageError::from)?;
-            tx.update(&inserted)?;
-        }
+    use wealthfolio_spending::budget::service::{merged_group_buffers, validate_group_deletion};
+    let current = budget_state_tx(tx)?;
+    let invalid = |error: anyhow::Error| {
+        wealthfolio_core::errors::ValidationError::InvalidInput(error.to_string())
+    };
+    validate_group_deletion(&current, id, reassign_to_group_id).map_err(invalid)?;
+    let merged =
+        merged_group_buffers(&current.targets, id, reassign_to_group_id).map_err(invalid)?;
 
-        let source_buffers = budget_targets::table
-            .filter(budget_targets::target_type.eq("group_buffer"))
-            .filter(budget_targets::group_id.eq(&id))
-            .load::<BudgetTargetDB>(tx.conn())
-            .map_err(StorageError::from)?;
-
-        for source in source_buffers {
-            let destination = budget_targets::table
-                .filter(budget_targets::target_type.eq("group_buffer"))
-                .filter(budget_targets::period_key.eq(&source.period_key))
-                .filter(budget_targets::group_id.eq(&reassign_to_group_id))
-                .first::<BudgetTargetDB>(tx.conn())
-                .optional()
-                .map_err(StorageError::from)?;
-
-            if let Some(mut destination) = destination {
-                destination.amount = sum_amount_strings(&destination.amount, &source.amount);
-                destination.updated_at = now.clone();
-                diesel::update(budget_targets::table.find(&destination.id))
-                    .set((
-                        budget_targets::amount.eq(&destination.amount),
-                        budget_targets::updated_at.eq(&destination.updated_at),
-                    ))
-                    .execute(tx.conn())
-                    .map_err(StorageError::from)?;
-                tx.update(&destination)?;
-
-                diesel::delete(budget_targets::table.find(&source.id))
-                    .execute(tx.conn())
-                    .map_err(StorageError::from)?;
-                tx.delete::<BudgetTargetDB>(source.id);
-            } else {
-                let mut moved = source;
-                moved.group_id = Some(reassign_to_group_id.clone());
-                moved.updated_at = now.clone();
-                diesel::update(budget_targets::table.find(&moved.id))
-                    .set((
-                        budget_targets::group_id.eq(&moved.group_id),
-                        budget_targets::updated_at.eq(&moved.updated_at),
-                    ))
-                    .execute(tx.conn())
-                    .map_err(StorageError::from)?;
-                tx.update(&moved)?;
-            }
-        }
-
-        let affected = diesel::delete(budget_groups::table.find(&id))
-            .execute(tx.conn())
-            .map_err(StorageError::from)?;
-        if affected > 0 {
-            tx.delete::<BudgetGroupDB>(id.clone());
-        }
-        Ok(())
+    // Resolve assignments here rather than accepting a list read before the
+    // transaction. Preserve both their identity and taxonomy, including savings.
+    let assignments = current
+        .group_assignments
+        .into_iter()
+        .filter(|a| a.group_id == id)
+        .map(|a| NewBudgetGroupAssignment {
+            id: Some(a.id),
+            group_id: reassign_to_group_id.to_string(),
+            taxonomy_id: a.taxonomy_id,
+            category_id: a.category_id,
+        })
+        .collect();
+    upsert_group_assignments_with_system_flag_tx(tx, assignments, 0)?;
+    for target in merged {
+        upsert_target_tx(tx, target)?;
     }
+    for target in current
+        .targets
+        .into_iter()
+        .filter(|t| t.group_id.as_deref() == Some(id))
+    {
+        delete_target_tx(tx, &target.id)?;
+    }
+    diesel::delete(budget_groups::table.find(id))
+        .execute(tx.conn())
+        .map_err(StorageError::from)?;
+    tx.delete::<BudgetGroupDB>(id.to_string());
+    Ok(())
 }
+
+/// Reset is an explicit user write. Publish restored definitions and assignments
+/// even when they match untouched seeds (normally omitted from the outbox), so a
+/// previous delete of the same stable identity is superseded on other devices.
+fn reset_groups_tx(tx: &mut DbWriteTx<'_>) -> wealthfolio_core::Result<()> {
+    use wealthfolio_spending::budget::service::{default_assignment_inputs, default_group_inputs};
+    let groups = upsert_system_groups_tx(tx, default_group_inputs())?;
+    let map = groups
+        .iter()
+        .map(|g| (g.key.clone(), g.id.clone()))
+        .collect();
+    let assignments =
+        upsert_group_assignments_with_system_flag_tx(tx, default_assignment_inputs(&map), 1)?;
+    let group_ids = groups.into_iter().map(|g| g.id).collect::<Vec<_>>();
+    let assignment_ids = assignments.into_iter().map(|a| a.id).collect::<Vec<_>>();
+    for group in budget_groups::table
+        .filter(budget_groups::id.eq_any(group_ids))
+        .load::<BudgetGroupDB>(tx.conn())
+        .map_err(StorageError::from)?
+    {
+        if !crate::sync::SyncOutboxModel::should_sync_outbox(&group, SyncOperation::Update) {
+            tx.queue_outbox(crate::sync::outbox_request_for_model(
+                &group,
+                SyncOperation::Update,
+            )?);
+        }
+    }
+    for assignment in budget_group_assignments::table
+        .filter(budget_group_assignments::id.eq_any(assignment_ids))
+        .load::<BudgetGroupAssignmentDB>(tx.conn())
+        .map_err(StorageError::from)?
+    {
+        if !crate::sync::SyncOutboxModel::should_sync_outbox(&assignment, SyncOperation::Update) {
+            tx.queue_outbox(crate::sync::outbox_request_for_model(
+                &assignment,
+                SyncOperation::Update,
+            )?);
+        }
+    }
+    Ok(())
+}
+
 fn upsert_system_groups_tx(
     tx: &mut DbWriteTx<'_>,
     groups: Vec<NewBudgetGroup>,
@@ -925,11 +881,20 @@ fn upsert_system_groups_tx(
     }
     .map(|rows| rows.into_iter().map(Into::into).collect())
 }
-fn upsert_target_tx(
+pub(crate) fn upsert_target_tx(
     tx: &mut DbWriteTx<'_>,
     target: NewBudgetTarget,
 ) -> wealthfolio_core::Result<BudgetTarget> {
-    let now = chrono::Utc::now().to_rfc3339();
+    let row = upsert_target_row(tx.conn(), target, &chrono::Utc::now().to_rfc3339())?;
+    project_category_target(tx, &row, SyncOperation::Update)?;
+    Ok(row.into())
+}
+
+pub(crate) fn upsert_target_row(
+    conn: &mut SqliteConnection,
+    target: NewBudgetTarget,
+    now: &str,
+) -> wealthfolio_core::Result<BudgetTargetDB> {
     let NewBudgetTarget {
         id,
         period_key,
@@ -957,8 +922,8 @@ fn upsert_target_tx(
         category_id,
         group_id,
         amount,
-        created_at: now.clone(),
-        updated_at: now,
+        created_at: now.to_string(),
+        updated_at: now.to_string(),
     };
     {
         let existing_id = if row.target_type == "category" {
@@ -968,7 +933,7 @@ fn upsert_target_tx(
                 .filter(budget_targets::taxonomy_id.eq(&row.taxonomy_id))
                 .filter(budget_targets::category_id.eq(&row.category_id))
                 .select(budget_targets::id)
-                .first::<String>(tx.conn())
+                .first::<String>(conn)
                 .optional()
                 .map_err(StorageError::from)?
         } else {
@@ -977,7 +942,7 @@ fn upsert_target_tx(
                 .filter(budget_targets::period_key.eq(&row.period_key))
                 .filter(budget_targets::group_id.eq(&row.group_id))
                 .select(budget_targets::id)
-                .first::<String>(tx.conn())
+                .first::<String>(conn)
                 .optional()
                 .map_err(StorageError::from)?
         };
@@ -987,35 +952,73 @@ fn upsert_target_tx(
                     budget_targets::amount.eq(&row.amount),
                     budget_targets::updated_at.eq(&row.updated_at),
                 ))
-                .execute(tx.conn())
+                .execute(conn)
                 .map_err(StorageError::from)?;
             budget_targets::table
                 .find(&existing_id)
-                .first::<BudgetTargetDB>(tx.conn())
+                .first::<BudgetTargetDB>(conn)
                 .map_err(StorageError::from)?
         } else {
             diesel::insert_into(budget_targets::table)
                 .values(&row)
                 .returning(BudgetTargetDB::as_returning())
-                .get_result(tx.conn())
+                .get_result(conn)
                 .map_err(StorageError::from)?
         };
-        tx.update(&result)?;
         Ok(result)
     }
-    .map(Into::into)
 }
-fn delete_target_tx(tx: &mut DbWriteTx<'_>, id: &str) -> wealthfolio_core::Result<()> {
+pub(crate) fn delete_target_tx(tx: &mut DbWriteTx<'_>, id: &str) -> wealthfolio_core::Result<()> {
     let id = id.to_string();
     {
+        let existing = budget_targets::table
+            .find(&id)
+            .first::<BudgetTargetDB>(tx.conn())
+            .optional()
+            .map_err(StorageError::from)?;
         let affected = diesel::delete(budget_targets::table.find(&id))
             .execute(tx.conn())
             .map_err(StorageError::from)?;
         if affected > 0 {
-            tx.delete::<BudgetTargetDB>(id.clone());
+            if let Some(row) = existing {
+                project_category_target(tx, &row, SyncOperation::Delete)?;
+            }
         }
         Ok(())
     }
+}
+
+fn project_category_target(
+    tx: &mut DbWriteTx<'_>,
+    row: &BudgetTargetDB,
+    op: SyncOperation,
+) -> wealthfolio_core::Result<()> {
+    let sources = if let (Some(tax), Some(cat)) = (&row.taxonomy_id, &row.category_id) {
+        super::category_merge::observed_budget_merges(tx.conn(), tax, cat)?
+    } else {
+        Vec::new()
+    };
+    if sources.is_empty() {
+        if op == SyncOperation::Delete {
+            tx.delete::<BudgetTargetDB>(row.id.clone());
+        } else {
+            tx.update(row)?;
+        }
+    } else {
+        let mut payload = if op == SyncOperation::Delete {
+            serde_json::json!({"id":row.id,"taxonomy_id":row.taxonomy_id,"category_id":row.category_id})
+        } else {
+            serde_json::to_value(row)?
+        };
+        payload["merge_sources"] = serde_json::to_value(sources)?;
+        tx.queue_outbox(crate::sync::OutboxWriteRequest::new(
+            SyncEntity::BudgetTarget,
+            &row.id,
+            op,
+            payload,
+        ));
+    }
+    Ok(())
 }
 fn upsert_rollover_setting_tx(
     tx: &mut DbWriteTx<'_>,
@@ -1171,7 +1174,7 @@ fn copy_period_targets_tx(
                 .execute(tx.conn())
                 .map_err(StorageError::from)?;
             for row in &to_delete {
-                tx.delete::<BudgetTargetDB>(row.id.clone());
+                project_category_target(tx, row, SyncOperation::Delete)?;
             }
         }
 
@@ -1203,7 +1206,7 @@ fn copy_period_targets_tx(
                 .optional()
                 .map_err(StorageError::from)?;
             if let Some(row) = inserted {
-                tx.update(&row)?;
+                project_category_target(tx, &row, SyncOperation::Update)?;
             }
         }
 
@@ -1219,30 +1222,632 @@ fn copy_period_targets_tx(
 fn budget_state_tx(
     tx: &mut DbWriteTx<'_>,
 ) -> wealthfolio_core::Result<wealthfolio_spending::budget::BudgetSnapshotState> {
+    budget_state(tx.conn())
+}
+
+pub(crate) fn budget_state(
+    conn: &mut SqliteConnection,
+) -> wealthfolio_core::Result<wealthfolio_spending::budget::BudgetSnapshotState> {
     Ok(wealthfolio_spending::budget::BudgetSnapshotState {
         groups: budget_groups::table
-            .load::<BudgetGroupDB>(tx.conn())
+            .load::<BudgetGroupDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)
             .collect(),
         group_assignments: budget_group_assignments::table
-            .load::<BudgetGroupAssignmentDB>(tx.conn())
+            .load::<BudgetGroupAssignmentDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)
             .collect(),
         targets: budget_targets::table
-            .load::<BudgetTargetDB>(tx.conn())
+            .load::<BudgetTargetDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)
             .collect(),
         rollover_settings: budget_rollover_settings::table
-            .load::<BudgetRolloverSettingDB>(tx.conn())
+            .load::<BudgetRolloverSettingDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)
             .collect(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer, TestDir};
+    use rust_decimal::Decimal;
+    use wealthfolio_spending::budget::{BudgetOperation, BudgetSnapshotState};
+
+    const SOURCE: &str = "8cbd26c8-e3b2-4176-8c61-e5c11e10b808";
+    const DESTINATION: &str = "3ff71753-5dd5-4372-9ca2-63d8d9a04851";
+    const OTHER: &str = "6e25d097-0c73-4521-9407-d47e8dfb73e2";
+
+    fn setup() -> (BudgetRepository, TestDir) {
+        let dir = TestDir::new();
+        let path = init(&dir.path().to_string_lossy()).unwrap();
+        run_migrations(&path).unwrap();
+        let pool = create_pool(&path).unwrap();
+        let writer = spawn_writer(pool.as_ref().clone()).unwrap();
+        (BudgetRepository::new(pool, writer), dir)
+    }
+
+    async fn state(repo: &BudgetRepository) -> BudgetSnapshotState {
+        BudgetSnapshotState {
+            groups: repo.list_groups().await.unwrap(),
+            group_assignments: repo.list_group_assignments().await.unwrap(),
+            targets: repo.list_targets().await.unwrap(),
+            rollover_settings: repo.list_rollover_settings().await.unwrap(),
+        }
+    }
+
+    async fn buffer(repo: &BudgetRepository, group: &str, period: &str, amount: &str) {
+        repo.upsert_target(NewBudgetTarget {
+            id: None,
+            period_key: period.into(),
+            target_type: BudgetTargetType::GroupBuffer,
+            taxonomy_id: None,
+            category_id: None,
+            group_id: Some(group.into()),
+            amount: amount.into(),
+        })
+        .await
+        .unwrap();
+    }
+
+    fn effective(targets: &[BudgetTarget], group: &str, period: &str) -> Decimal {
+        targets
+            .iter()
+            .find(|t| t.group_id.as_deref() == Some(group) && t.period_key == period)
+            .or_else(|| {
+                targets
+                    .iter()
+                    .find(|t| t.group_id.as_deref() == Some(group) && t.period_key == "default")
+            })
+            .map(|t| t.amount.parse().unwrap())
+            .unwrap_or(Decimal::ZERO)
+    }
+
+    #[tokio::test]
+    async fn deleting_group_preserves_effective_monthly_buffers() {
+        // Includes source-only/destination-only overrides, explicit zeroes,
+        // missing defaults, no targets, and amounts that cannot use binary floats.
+        for (source_default, destination_default) in [
+            (Some("100"), Some("200")),
+            (Some("0.100000000000000001"), Some("0.200000000000000002")),
+            (None, Some("200")),
+            (Some("100"), None),
+            (None, None),
+        ] {
+            let (repo, _dir) = setup();
+            if let Some(amount) = source_default {
+                buffer(&repo, SOURCE, "default", amount).await;
+            }
+            if let Some(amount) = destination_default {
+                buffer(&repo, DESTINATION, "default", amount).await;
+            }
+            for (group, month, amount) in [
+                (SOURCE, "2026-03", "50"),
+                (DESTINATION, "2026-04", "25"),
+                (SOURCE, "2026-05", "0"),
+                (DESTINATION, "2026-06", "0"),
+                (SOURCE, "2026-07", "0.123456789123456789"),
+                (DESTINATION, "2026-07", "0.987654321987654321"),
+            ] {
+                buffer(&repo, group, month, amount).await;
+            }
+            let before = repo.list_targets().await.unwrap();
+            repo.delete_group_and_reassign(SOURCE, DESTINATION)
+                .await
+                .unwrap();
+            let after = repo.list_targets().await.unwrap();
+            for month in [
+                "default", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07",
+                "2030-01",
+            ] {
+                assert_eq!(
+                    effective(&after, DESTINATION, month),
+                    effective(&before, SOURCE, month) + effective(&before, DESTINATION, month),
+                    "{month}: defaults {source_default:?}, {destination_default:?}"
+                );
+            }
+            assert!(after.iter().all(|t| t.group_id.as_deref() != Some(SOURCE)));
+        }
+    }
+    #[tokio::test]
+    async fn reviewed_deletion_merges_both_override_sides_and_preserves_assignments() {
+        let (repo, _dir) = setup();
+        buffer(&repo, SOURCE, "default", "100").await;
+        buffer(&repo, DESTINATION, "default", "200").await;
+        buffer(&repo, SOURCE, "2026-03", "50").await;
+        buffer(&repo, DESTINATION, "2026-04", "0").await;
+        // Category targets and savings goal rollovers belong to categories,
+        // regardless of their containing group.
+        let goal_rollover = repo
+            .upsert_rollover_setting(NewBudgetRolloverSetting {
+                id: None,
+                target_type: BudgetRolloverTargetType::Category,
+                taxonomy_id: Some("savings_categories".into()),
+                category_id: Some("cat_savings".into()),
+                group_id: None,
+                enabled: true,
+                start_month: "2026-01".into(),
+                starting_balance: "25".into(),
+            })
+            .await
+            .unwrap();
+        let mut assignments = Vec::new();
+        for (taxonomy, category) in [
+            ("spending_categories", "cat_gifts"),
+            ("savings_categories", "cat_savings"),
+        ] {
+            assignments.push(
+                repo.upsert_group_assignment(NewBudgetGroupAssignment {
+                    id: None,
+                    group_id: SOURCE.into(),
+                    taxonomy_id: taxonomy.into(),
+                    category_id: category.into(),
+                })
+                .await
+                .unwrap(),
+            );
+        }
+        repo.apply_reviewed(
+            state(&repo).await,
+            BudgetOperation::DeleteGroup {
+                id: SOURCE.into(),
+                reassign_to_group_id: DESTINATION.into(),
+            },
+        )
+        .await
+        .unwrap();
+        let after = state(&repo).await;
+        assert_eq!(
+            effective(&after.targets, DESTINATION, "2026-03"),
+            Decimal::from(250)
+        );
+        assert_eq!(
+            effective(&after.targets, DESTINATION, "2026-04"),
+            Decimal::from(100)
+        );
+        for assignment in assignments {
+            let moved = after
+                .group_assignments
+                .iter()
+                .find(|a| a.id == assignment.id)
+                .unwrap();
+            assert_eq!(moved.group_id, DESTINATION);
+            assert_eq!(moved.taxonomy_id, assignment.taxonomy_id);
+        }
+        assert_eq!(
+            serde_json::to_value(&after.rollover_settings).unwrap(),
+            serde_json::json!([goal_rollover])
+        );
+        // A subsequent reviewed write cannot recreate the deleted default.
+        repo.apply_reviewed(
+            after,
+            BudgetOperation::UpdateGroup {
+                id: DESTINATION.into(),
+                changes: UpdateBudgetGroup {
+                    name: Some("Destination".into()),
+                    ..Default::default()
+                },
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!repo
+            .list_groups()
+            .await
+            .unwrap()
+            .iter()
+            .any(|g| g.id == SOURCE));
+    }
+
+    #[tokio::test]
+    async fn deletion_rechecks_current_constraints_and_rolls_back_all_writes() {
+        for reviewed in [false, true] {
+            for scenario in [
+                "other",
+                "missing_source",
+                "missing_destination",
+                "same",
+                "source_enabled",
+                "source_disabled",
+                "destination_enabled",
+                "invalid_amount",
+                "overflow",
+                "precision_loss",
+            ] {
+                let (repo, _dir) = setup();
+                buffer(&repo, SOURCE, "default", "100").await;
+                buffer(&repo, DESTINATION, "default", "200").await;
+                if scenario.contains("enabled") || scenario == "source_disabled" {
+                    repo.upsert_rollover_setting(NewBudgetRolloverSetting {
+                        id: None,
+                        target_type: BudgetRolloverTargetType::Group,
+                        taxonomy_id: None,
+                        category_id: None,
+                        group_id: Some(
+                            if scenario == "destination_enabled" {
+                                DESTINATION
+                            } else {
+                                SOURCE
+                            }
+                            .into(),
+                        ),
+                        enabled: scenario != "source_disabled",
+                        start_month: "2026-01".into(),
+                        starting_balance: "25".into(),
+                    })
+                    .await
+                    .unwrap();
+                }
+                if ["invalid_amount", "overflow", "precision_loss"].contains(&scenario) {
+                    buffer(
+                        &repo,
+                        SOURCE,
+                        "default",
+                        if scenario == "overflow" || scenario == "precision_loss" {
+                            "79228162514264337593543950335"
+                        } else {
+                            "bad"
+                        },
+                    )
+                    .await;
+                }
+                if scenario == "precision_loss" {
+                    buffer(&repo, DESTINATION, "default", "0.1").await;
+                }
+                let (source, destination) = match scenario {
+                    "other" => (OTHER, DESTINATION),
+                    "missing_source" => ("missing", DESTINATION),
+                    "missing_destination" => (SOURCE, "missing"),
+                    "same" => (SOURCE, SOURCE),
+                    _ => (SOURCE, DESTINATION),
+                };
+                let before = state(&repo).await;
+                let sync =
+                    crate::sync::AppSyncRepository::new(repo.pool.clone(), repo.writer.clone());
+                let before_events = sync.list_pending_outbox(1000).unwrap().len();
+                let result = if reviewed {
+                    repo.apply_reviewed(
+                        before.clone(),
+                        BudgetOperation::DeleteGroup {
+                            id: source.into(),
+                            reassign_to_group_id: destination.into(),
+                        },
+                    )
+                    .await
+                } else {
+                    repo.delete_group_and_reassign(source, destination).await
+                };
+                assert!(result.is_err(), "{scenario}, reviewed={reviewed}");
+                assert_eq!(
+                    serde_json::to_value(before).unwrap(),
+                    serde_json::to_value(state(&repo).await).unwrap()
+                );
+                assert_eq!(sync.list_pending_outbox(1000).unwrap().len(), before_events);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn deletion_moves_assignments_from_current_writer_state() {
+        let (repo, _dir) = setup();
+        let reviewed = state(&repo).await;
+        let assignment = repo
+            .upsert_group_assignment(NewBudgetGroupAssignment {
+                id: None,
+                group_id: SOURCE.into(),
+                taxonomy_id: "spending_categories".into(),
+                category_id: "cat_food".into(),
+            })
+            .await
+            .unwrap();
+        assert!(
+            repo.apply_reviewed(
+                reviewed,
+                BudgetOperation::DeleteGroup {
+                    id: SOURCE.into(),
+                    reassign_to_group_id: DESTINATION.into(),
+                }
+            )
+            .await
+            .is_err(),
+            "stale reviewed state must fail"
+        );
+        repo.delete_group_and_reassign(SOURCE, DESTINATION)
+            .await
+            .unwrap();
+        assert_eq!(
+            repo.list_group_assignments()
+                .await
+                .unwrap()
+                .iter()
+                .find(|a| a.id == assignment.id)
+                .unwrap()
+                .group_id,
+            DESTINATION
+        );
+    }
+
+    #[tokio::test]
+    async fn deletion_and_explicit_reset_converge_through_sync_with_reused_identities() {
+        let (repo, _dir) = setup();
+        let (peer, _peer_dir) = setup();
+        let sync = crate::sync::AppSyncRepository::new(repo.pool.clone(), repo.writer.clone());
+        let peer_sync = crate::sync::AppSyncRepository::new(peer.pool.clone(), peer.writer.clone());
+        let mut seq = 0;
+        for reviewed in [false, true] {
+            repo.delete_group_and_reassign(SOURCE, DESTINATION)
+                .await
+                .unwrap();
+            let events = sync.list_pending_outbox(1000).unwrap();
+            let batch = events
+                .iter()
+                .map(|event| {
+                    seq += 1;
+                    (
+                        event.entity,
+                        event.entity_id.clone(),
+                        event.op,
+                        event.event_id.clone(),
+                        event.client_timestamp.clone(),
+                        seq,
+                        serde_json::from_str(&event.payload).unwrap(),
+                    )
+                })
+                .collect();
+            peer_sync
+                .apply_remote_events_lww_batch(batch)
+                .await
+                .unwrap();
+            sync.mark_outbox_sent(events.into_iter().map(|e| e.event_id).collect())
+                .await
+                .unwrap();
+            assert!(!peer
+                .list_groups()
+                .await
+                .unwrap()
+                .iter()
+                .any(|g| g.id == SOURCE));
+            let deleted_at = peer_sync
+                .get_entity_metadata(SyncEntity::BudgetGroup, SOURCE)
+                .unwrap()
+                .unwrap()
+                .last_client_timestamp;
+            if reviewed {
+                repo.apply_reviewed(state(&repo).await, BudgetOperation::ResetGroups)
+                    .await
+                    .unwrap();
+            } else {
+                repo.reset_groups().await.unwrap();
+            }
+            let events = sync.list_pending_outbox(1000).unwrap();
+            assert!(
+                events.iter().any(|e| e.entity == SyncEntity::BudgetGroup
+                    && e.entity_id == SOURCE
+                    && e.op == SyncOperation::Update),
+                "restored untouched system row must supersede its delete"
+            );
+            let batch = events
+                .iter()
+                .map(|event| {
+                    seq += 1;
+                    (
+                        event.entity,
+                        event.entity_id.clone(),
+                        event.op,
+                        event.event_id.clone(),
+                        event.client_timestamp.clone(),
+                        seq,
+                        serde_json::from_str(&event.payload).unwrap(),
+                    )
+                })
+                .collect();
+            peer_sync
+                .apply_remote_events_lww_batch(batch)
+                .await
+                .unwrap();
+            sync.mark_outbox_sent(events.into_iter().map(|e| e.event_id).collect())
+                .await
+                .unwrap();
+            assert_eq!(repo.list_groups().await.unwrap().len(), 6);
+            assert_eq!(peer.list_groups().await.unwrap().len(), 6);
+            assert_eq!(
+                peer.list_groups()
+                    .await
+                    .unwrap()
+                    .iter()
+                    .find(|g| g.key == "giving")
+                    .unwrap()
+                    .id,
+                SOURCE
+            );
+            seq += 1;
+            assert!(
+                !peer_sync
+                    .apply_remote_event_lww(
+                        SyncEntity::BudgetGroup,
+                        SOURCE.into(),
+                        SyncOperation::Delete,
+                        Uuid::now_v7().to_string(),
+                        deleted_at,
+                        seq,
+                        serde_json::json!({"id": SOURCE})
+                    )
+                    .await
+                    .unwrap(),
+                "an older delete cannot clobber Reset"
+            );
+            let own = state(&repo).await;
+            let remote = state(&peer).await;
+            use wealthfolio_spending::budget::service::canonical_review_state;
+            assert_eq!(
+                serde_json::to_value(canonical_review_state(own)).unwrap(),
+                serde_json::to_value(canonical_review_state(remote)).unwrap()
+            );
+            assert!(
+                peer_sync.list_pending_outbox(1000).unwrap().is_empty(),
+                "sync replay must not echo"
+            );
+        }
+    }
+    #[tokio::test]
+    async fn deletion_without_source_buffers_keeps_destination_overrides() {
+        for empty in [false, true] {
+            let (repo, _dir) = setup();
+            if empty {
+                repo.writer
+                    .exec(|conn| {
+                        diesel::delete(
+                            budget_group_assignments::table
+                                .filter(budget_group_assignments::group_id.eq(SOURCE)),
+                        )
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                        Ok(())
+                    })
+                    .await
+                    .unwrap();
+            }
+            buffer(&repo, DESTINATION, "default", "200").await;
+            buffer(&repo, DESTINATION, "2026-03", "0").await;
+            repo.delete_group_and_reassign(SOURCE, DESTINATION)
+                .await
+                .unwrap();
+            let targets = repo.list_targets().await.unwrap();
+            assert_eq!(effective(&targets, DESTINATION, "2026-03"), Decimal::ZERO);
+            assert_eq!(
+                effective(&targets, DESTINATION, "2026-04"),
+                Decimal::from(200)
+            );
+            assert_eq!(targets.len(), 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_storage_delete_and_reset_are_atomic_including_outbox() {
+        use diesel::connection::SimpleConnection;
+        for reset in [false, true] {
+            let (repo, _dir) = setup();
+            buffer(&repo, SOURCE, "default", "100").await;
+            if reset {
+                repo.delete_group_and_reassign(SOURCE, DESTINATION)
+                    .await
+                    .unwrap();
+            }
+            let before = state(&repo).await;
+            let sync = crate::sync::AppSyncRepository::new(repo.pool.clone(), repo.writer.clone());
+            let count = sync.list_pending_outbox(1000).unwrap().len();
+            repo.writer.exec(move |conn| {
+                conn.batch_execute(if reset {
+                    "CREATE TRIGGER fail_reset BEFORE UPDATE ON budget_group_assignments BEGIN SELECT RAISE(ABORT, 'injected reset failure'); END;"
+                } else {
+                    "CREATE TRIGGER fail_delete BEFORE DELETE ON budget_groups BEGIN SELECT RAISE(ABORT, 'injected delete failure'); END;"
+                }).map_err(StorageError::from)?;
+                Ok(())
+            }).await.unwrap();
+            let result = if reset {
+                repo.reset_groups().await
+            } else {
+                repo.delete_group_and_reassign(SOURCE, DESTINATION).await
+            };
+            assert!(result.is_err());
+            assert_eq!(
+                serde_json::to_value(before).unwrap(),
+                serde_json::to_value(state(&repo).await).unwrap()
+            );
+            assert_eq!(sync.list_pending_outbox(1000).unwrap().len(), count);
+        }
+    }
+    #[tokio::test]
+    async fn reset_preserves_an_existing_group_identity_for_a_default_key() {
+        let (repo, _dir) = setup();
+        repo.delete_group_and_reassign(SOURCE, DESTINATION)
+            .await
+            .unwrap();
+        let replacement = repo
+            .create_group(NewBudgetGroup {
+                id: None,
+                key: Some("giving".into()),
+                name: "My giving".into(),
+                color: None,
+                icon: None,
+                sort_order: None,
+                is_system: false,
+            })
+            .await
+            .unwrap();
+        repo.reset_groups().await.unwrap();
+        let groups = repo.list_groups().await.unwrap();
+        assert_eq!(groups.len(), 6);
+        assert_eq!(
+            groups.iter().find(|g| g.key == "giving").unwrap().id,
+            replacement.id
+        );
+        assert!(!groups.iter().any(|g| g.id == SOURCE));
+        assert_eq!(
+            repo.list_group_assignments()
+                .await
+                .unwrap()
+                .iter()
+                .find(|a| a.category_id == "cat_gifts")
+                .unwrap()
+                .group_id,
+            replacement.id
+        );
+    }
+    #[tokio::test]
+    async fn custom_group_deletions_remain_permanent_during_sync_replay() {
+        let (repo, _dir) = setup();
+        let sync = crate::sync::AppSyncRepository::new(repo.pool.clone(), repo.writer.clone());
+        let id = Uuid::now_v7().to_string();
+        let payload = serde_json::json!({ "id": id, "key": "custom_sync_test", "name": "Custom", "color": null,
+            "icon": null, "sort_order": 10, "is_system": 0, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z" });
+        for (op, event, date, data, expected) in [
+            (
+                SyncOperation::Create,
+                "custom-create",
+                "2026-01-01T00:00:00Z",
+                payload.clone(),
+                true,
+            ),
+            (
+                SyncOperation::Delete,
+                "custom-delete",
+                "2026-01-02T00:00:00Z",
+                serde_json::json!({"id": id}),
+                true,
+            ),
+            (
+                SyncOperation::Update,
+                "custom-stale",
+                "2026-01-03T00:00:00Z",
+                payload,
+                false,
+            ),
+        ] {
+            assert_eq!(
+                sync.apply_remote_event_lww(
+                    SyncEntity::BudgetGroup,
+                    id.clone(),
+                    op,
+                    event.into(),
+                    date.into(),
+                    1,
+                    data
+                )
+                .await
+                .unwrap(),
+                expected
+            );
+        }
+        assert!(!repo.list_groups().await.unwrap().iter().any(|g| g.id == id));
+    }
 }

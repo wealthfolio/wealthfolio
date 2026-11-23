@@ -4,6 +4,7 @@ import {
 } from "./alternative-assets/hooks/use-loan-actions";
 import HistoryChart from "@/components/history-chart-symbol";
 import { useLoanCalculation } from "./alternative-assets/hooks/use-loan-calculation";
+import { useLoanScheduleExport } from "./alternative-assets/hooks/use-loan-schedule-export";
 import { useAlternativeHoldings, useLinkedLiabilities } from "@/hooks/use-alternative-assets";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { AlternativeAssetHolding, Asset, DateRange, Quote, TimePeriod } from "@/lib/types";
@@ -34,6 +35,7 @@ import {
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -47,7 +49,10 @@ import {
 } from "./alternative-assets";
 import { LoanHistory } from "./alternative-assets/components/loan-history";
 import { MortgageOverview, LoanOverview } from "./alternative-assets/components/loan-overview";
-import { useAlternativeAssetMutations } from "./alternative-assets/hooks/use-alternative-asset-mutations";
+import {
+  invalidateAlternativeAssetQueries,
+  useAlternativeAssetMutations,
+} from "./alternative-assets/hooks/use-alternative-asset-mutations";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { LinkedLiabilitiesSection } from "./linked-liabilities-card";
 import type { LoanSetup } from "@/adapters/shared/alternative-assets";
@@ -100,11 +105,12 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
     return allHoldings.find((h) => h.id === holding.linkedAssetId);
   }, [holding.linkedAssetId, allHoldings]);
 
-  // Quote mutations for history grid
-  const { saveQuoteMutation, deleteQuoteMutation, invalidateQuoteQueries } = useQuoteMutations(
-    assetId,
-    { invalidateOnSuccess: false },
-  );
+  // Quote mutations for history grid. The grid refreshes once all its edits
+  // are saved, as any other change to an alternative asset does.
+  const queryClient = useQueryClient();
+  const { saveQuoteMutation, deleteQuoteMutation } = useQuoteMutations(assetId, {
+    invalidateOnSuccess: false,
+  });
 
   // Loan-specific computations (used in history tab and handlers)
   const metadata = useMemo(() => holding.metadata || {}, [holding.metadata]);
@@ -360,7 +366,7 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
         currency={holding.currency}
         onSaveQuote={(quote: Quote) => saveQuoteMutation.mutateAsync(quote)}
         onDeleteQuote={(id: string) => deleteQuoteMutation.mutateAsync(id)}
-        onPersistComplete={invalidateQuoteQueries}
+        onPersistComplete={() => invalidateAlternativeAssetQueries(queryClient)}
       />
     </div>
   );
@@ -716,6 +722,7 @@ export function useAlternativeAssetActions({
 }: AlternativeAssetActionsProps) {
   const { t } = useTranslation();
   const loan = useLoanActions(holding, quoteHistory);
+  const exportLoanSchedule = useLoanScheduleExport(holding, loan.calculation);
   // Modal state
   const [updateValuationOpen, setUpdateValuationOpen] = useState(false);
   const [editDetailsOpen, setEditDetailsOpen] = useState(false);
@@ -884,6 +891,7 @@ export function useAlternativeAssetActions({
   return {
     loanActions: loan.actions,
     loanAvailability: loan.availability,
+    exportLoanSchedule,
     openUpdateValuation: () =>
       holding?.kind.toLowerCase() === "liability"
         ? loan.actions.confirmBalance()

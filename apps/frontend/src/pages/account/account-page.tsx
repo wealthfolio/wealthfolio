@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
@@ -102,6 +103,7 @@ import {
 import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
+import { isContributionLimitCurrent } from "@/pages/settings/contribution-limits/contribution-limit-dates";
 import { AccountContributionLimit } from "./account-contribution-limit";
 import { AccountHeaderDetails } from "./account-header-details";
 import AccountHoldings from "./account-holdings";
@@ -230,7 +232,6 @@ const AccountPage = () => {
     account,
     AccountPurpose.CONTRIBUTION_LIMITS,
   );
-  const currentContributionYear = today.getFullYear();
 
   const { data: contributionLimits, isLoading: isContributionLimitsLoading } = useQuery<
     ContributionLimit[],
@@ -241,8 +242,13 @@ const AccountPage = () => {
     enabled: supportsContributionLimits,
   });
 
+  // Match the deposit service's UTC fallback when the setting is unset.
+  const contributionTimezone = appTimezone ?? "UTC";
+  const contributionToday = formatZonedDateKey(new Date(), contributionTimezone);
   const currentContributionLimit = contributionLimits?.find(
-    (limit) => limit.accountIds?.includes(id) && limit.contributionYear === currentContributionYear,
+    (limit) =>
+      limit.accountIds?.includes(id) &&
+      isContributionLimitCurrent(limit, contributionToday, contributionTimezone),
   );
   const showContributionLimitCard =
     supportsContributionLimits && (isContributionLimitsLoading || !!currentContributionLimit);
@@ -514,6 +520,7 @@ const AccountPage = () => {
 
     return {
       ...currentValuation,
+      valueStatus: currentAccountValuation.accountValueStatus ?? currentValuation.valueStatus,
       accountCurrency: currentAccountValuation.accountCurrency,
       baseCurrency: currentAccountValuation.baseCurrency,
       cashBalance: currentAccountValuation.cashBalance,
@@ -615,9 +622,10 @@ const AccountPage = () => {
 
   const frontendGainLossAmount = performancePeriodPnl(accountPerformance);
   const frontendSummaryReturn = performanceSummaryReturn(accountPerformance);
-  const allTimeReturnAmount = metricsValuation
-    ? metricsValuation.totalValue - metricsValuation.netContribution
-    : null;
+  const allTimeReturnAmount =
+    metricsValuation && isValuationComplete(metricsValuation.valueStatus)
+      ? metricsValuation.totalValue - metricsValuation.netContribution
+      : null;
   const allTimeSimpleReturn = simpleReturnFromNetContribution(
     allTimeReturnAmount,
     metricsValuation?.netContribution,
@@ -643,7 +651,9 @@ const AccountPage = () => {
   const displayedValuationNotices =
     currentAccountValuation?.warnings ?? liveCurrentValuation?.summary.warnings;
   const isCurrentValuationUnavailable =
-    !isCurrentValuationLoading && !currentAccountValuation && Boolean(currentValuationError);
+    !isCurrentValuationLoading &&
+    (!isValuationComplete(currentAccountValuation?.accountValueStatus) ||
+      (!currentAccountValuation && Boolean(currentValuationError)));
   const performanceCurrency = accountPerformance?.scope.currency ?? baseCurrency;
   const gainLossCurrencyToDisplay =
     selectedIntervalCode === "ALL" && !isHoldingsMode
@@ -656,14 +666,13 @@ const AccountPage = () => {
     if (!valuationHistory) return [];
     // A day the engine could not fully convert carries a partial value; it
     // is not plotted rather than drawn as if it were complete.
-    return valuationHistory
-      .filter((valuation) => valuation.valueStatus !== "unavailable")
-      .map((valuation: AccountValuation) => ({
-        date: valuation.valuationDate,
-        totalValue: valuation.totalValue,
-        netContribution: valuation.netContribution,
-        currency: valuation.accountCurrency,
-      }));
+    return valuationHistory.map((valuation: AccountValuation) => ({
+      isUnavailable: !isValuationComplete(valuation.valueStatus),
+      date: valuation.valuationDate,
+      totalValue: valuation.totalValue,
+      netContribution: valuation.netContribution,
+      currency: valuation.accountCurrency,
+    }));
   }, [valuationHistory]);
 
   const isLoading = isAccountsLoading || isValuationHistoryLoading;
@@ -1077,7 +1086,13 @@ const AccountPage = () => {
                             )}
                           </p>
                           {!hasPerformanceError && (
-                            <div className="flex items-center gap-2 text-sm">
+                            // One line tall in every state: the animated gain is taller than
+                            // a line of text, so loading it in place of N/A, or hiding
+                            // balances, would move the page below.
+                            <div
+                              data-testid="account-gain-row"
+                              className="flex h-5 items-center gap-2 text-sm"
+                            >
                               {gainLossAmountToDisplay == null ? (
                                 <span className="text-muted-foreground text-sm font-light">
                                   {t("account:not_available")}
@@ -1233,7 +1248,13 @@ const AccountPage = () => {
       {/* Holdings Edit Mode Sheet for manual HOLDINGS-mode accounts */}
       {account && canEditHoldingsDirectly && (
         <Sheet open={isEditingHoldings} onOpenChange={setIsEditingHoldings}>
-          <SheetContent side="inline-end" className="flex h-full w-full flex-col p-0 sm:max-w-2xl">
+          <SheetContent
+            side={isMobile ? "bottom" : "inline-end"}
+            className={cn(
+              "flex h-full flex-col p-0",
+              isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-2xl",
+            )}
+          >
             <SheetHeader className="border-b px-6 py-4">
               <SheetTitle>{t("account:update_holdings_title")}</SheetTitle>
               <SheetDescription>

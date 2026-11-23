@@ -535,6 +535,7 @@ pub fn sync_entity_from_remote(entity: &str) -> Option<SyncEntity> {
         "ai_message" => Some(SyncEntity::AiMessage),
         "ai_thread_tag" => Some(SyncEntity::AiThreadTag),
         "contribution_limit" => Some(SyncEntity::ContributionLimit),
+        "contribution_limit_v2" => Some(SyncEntity::ContributionLimitV2),
         "platform" => Some(SyncEntity::Platform),
         "snapshot" => Some(SyncEntity::Snapshot),
         "custom_provider" => Some(SyncEntity::CustomProvider),
@@ -695,6 +696,14 @@ mod tests {
         assert_eq!(
             sync_entity_from_remote("app_preference"),
             Some(SyncEntity::AppPreference)
+        );
+    }
+
+    #[test]
+    fn versioned_contribution_limit_wire_entity_is_recognized() {
+        assert_eq!(
+            sync_entity_from_remote("contribution_limit_v2"),
+            Some(SyncEntity::ContributionLimitV2)
         );
     }
 

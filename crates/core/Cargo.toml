@@ -11,7 +11,7 @@ repository = "https://github.com/wealthfolio/wealthfolio"
 default = []
 
 [dependencies]
-argon2 = { version = "0.5", features = ["std"] }
+argon2 = "0.6"
 fs2 = "0.4"
 subtle = "2"
 zeroize = { workspace = true }
@@ -21,9 +21,6 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 diesel = { workspace = true }
-diesel_migrations = { workspace = true }
-rusqlite = { workspace = true }
-r2d2 = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
@@ -43,18 +40,16 @@ wealthfolio-portfolio-engine = { workspace = true }
 # Additional dependencies not in workspace
 regex = "1.10"
 rand = { workspace = true }
-rand_distr = "0.4"
+rand_distr = "0.6"
 rayon = "1"
-dashmap = "6.1"
-serde_with = "3"
 urlencoding = "2"
 csv = "1.4.0"
-chardetng = "0.1"
+chardetng = "1.0"
 encoding_rs = "0.8"
 zip = "9.2.1"
 jsonpath-rust = "0.7"
-scraper = "0.22"
-sha2 = "0.10"
+scraper = "0.27"
+sha2 = "0.11"
 base64 = "0.22"
 hex = "0.4"
 chrono-tz = "0.10"
@@ -63,7 +58,6 @@ url = "2"
 [dev-dependencies]
 tempfile = "3"
 proptest = "1.4"
-insta = { version = "1", features = ["yaml"] }
 serde_yaml = "0.9"
 
 [lints]

@@ -57,6 +57,8 @@ interface AdvancedOptionsSectionProps<TFieldValues extends FieldValues = FieldVa
   title?: string;
   /** Render inside a dashed-border container with a leading "+" affordance */
   dashed?: boolean;
+  /** Render only the fields, without the collapsible header (e.g. inside a phone screen) */
+  bare?: boolean;
   /** Extra content rendered inside the collapsible below the advanced grid (e.g. Notes) */
   children?: ReactNode;
 }
@@ -81,6 +83,7 @@ export function AdvancedOptionsSection<TFieldValues extends FieldValues = FieldV
   variant = "desktop",
   title,
   dashed = false,
+  bare = false,
   children,
 }: AdvancedOptionsSectionProps<TFieldValues>) {
   const { t } = useTranslation(["activity"]);
@@ -139,6 +142,159 @@ export function AdvancedOptionsSection<TFieldValues extends FieldValues = FieldV
     return null;
   }
 
+  const content = (
+    <>
+      {hasAdvancedFields && (
+        <div
+          className={isMobile ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}
+        >
+          {/* Currency Field */}
+          {showCurrency && currencyName && (
+            <FormField
+              control={control}
+              name={currencyName}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("activity:form.currency")}</FormLabel>
+                  <FormControl>
+                    <CurrencyInput
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      placeholder={t("activity:form.placeholder_select_currency")}
+                      className="w-full"
+                      data-testid="advanced-currency-input"
+                    />
+                  </FormControl>
+                  {prioritizedCurrencies.length > 1 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {prioritizedCurrencies.map((currency, index) => (
+                        <button
+                          key={currency}
+                          type="button"
+                          onClick={() => field.onChange(currency)}
+                          className={`rounded px-2 py-0.5 text-xs transition-colors ${
+                            field.value === currency
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                          }`}
+                          title={
+                            index === 0 && assetCurrency === currency
+                              ? t("activity:form.currency_hint_asset")
+                              : index <= 1 && accountCurrency === currency
+                                ? t("activity:form.currency_hint_account")
+                                : t("activity:form.currency_hint_base")
+                          }
+                        >
+                          {currency}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* FX Rate Field */}
+          {showFxRate && fxRateName && (
+            <FormField
+              control={control}
+              name={fxRateName}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("activity:form.label_fx_rate")}</FormLabel>
+                  <FormControl>
+                    <MoneyInput
+                      ref={field.ref}
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={(value, isUserEdit) => {
+                        // A programmatic null reset must not echo back as undefined,
+                        // which would restore the controller's saved default rate.
+                        if (isUserEdit) field.onChange(value ?? null);
+                      }}
+                      placeholder="1.0000"
+                      maxDecimalPlaces={6}
+                      className="w-full"
+                      data-testid="fx-rate-input"
+                    />
+                  </FormControl>
+                  {fromCurrency && accountCurrency && fromCurrency !== accountCurrency && (
+                    <FormDescription className="text-xs">
+                      {t("activity:form.fx_conversion", {
+                        from: fromCurrency,
+                        rate: fxRateDisplay,
+                        to: accountCurrency,
+                      })}
+                    </FormDescription>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* Subtype Field */}
+          {showSubtype && subtypeName && availableSubtypes.length > 0 && (
+            <FormField
+              control={control}
+              name={subtypeName}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("activity:form.subtype")}</FormLabel>
+                  <FormControl>
+                    <Select
+                      items={[
+                        {
+                          value: "__none__",
+                          label: (
+                            <span className="text-muted-foreground">
+                              {t("activity:form.subtype_none")}
+                            </span>
+                          ),
+                        },
+                        ...availableSubtypes.map((subtype) => ({
+                          value: subtype,
+                          label: localizeActivitySubtypeName(t, subtype),
+                        })),
+                      ]}
+                      onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                      value={field.value ?? "__none__"}
+                    >
+                      <SelectTrigger
+                        aria-label={t("activity:form.subtype")}
+                        data-testid="subtype-select"
+                      >
+                        <SelectValue placeholder={t("activity:form.placeholder_select_subtype")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">
+                          <span className="text-muted-foreground">
+                            {t("activity:form.subtype_none")}
+                          </span>
+                        </SelectItem>
+                        {availableSubtypes.map((subtype) => (
+                          <SelectItem key={subtype} value={subtype}>
+                            {localizeActivitySubtypeName(t, subtype)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
+      )}
+      {children}
+    </>
+  );
+
+  if (bare) return <div className="space-y-4">{content}</div>;
+
   return (
     <Collapsible
       open={isOpen}
@@ -168,160 +324,7 @@ export function AdvancedOptionsSection<TFieldValues extends FieldValues = FieldV
           className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-4 pt-2 pb-2">
-        {hasAdvancedFields && (
-          <div
-            className={
-              isMobile ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"
-            }
-          >
-            {/* Currency Field */}
-            {showCurrency && currencyName && (
-              <FormField
-                control={control}
-                name={currencyName}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("activity:form.currency")}</FormLabel>
-                    <FormControl>
-                      <CurrencyInput
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                        placeholder={t("activity:form.placeholder_select_currency")}
-                        className="w-full"
-                        data-testid="advanced-currency-input"
-                      />
-                    </FormControl>
-                    {prioritizedCurrencies.length > 1 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {prioritizedCurrencies.map((currency, index) => (
-                          <button
-                            key={currency}
-                            type="button"
-                            onClick={() => field.onChange(currency)}
-                            className={`rounded px-2 py-0.5 text-xs transition-colors ${
-                              field.value === currency
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                            }`}
-                            title={
-                              index === 0 && assetCurrency === currency
-                                ? t("activity:form.currency_hint_asset")
-                                : index <= 1 && accountCurrency === currency
-                                  ? t("activity:form.currency_hint_account")
-                                  : t("activity:form.currency_hint_base")
-                            }
-                          >
-                            {currency}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            {/* FX Rate Field */}
-            {showFxRate && fxRateName && (
-              <FormField
-                control={control}
-                name={fxRateName}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("activity:form.label_fx_rate")}</FormLabel>
-                    <FormControl>
-                      <MoneyInput
-                        ref={field.ref}
-                        name={field.name}
-                        value={field.value}
-                        onValueChange={(value, isUserEdit) => {
-                          // A programmatic null reset must not echo back as undefined,
-                          // which would restore the controller's saved default rate.
-                          if (isUserEdit) field.onChange(value ?? null);
-                        }}
-                        placeholder="1.0000"
-                        maxDecimalPlaces={6}
-                        className="w-full"
-                        data-testid="fx-rate-input"
-                      />
-                    </FormControl>
-                    {fromCurrency && accountCurrency && fromCurrency !== accountCurrency && (
-                      <FormDescription className="text-xs">
-                        {t("activity:form.fx_conversion", {
-                          from: fromCurrency,
-                          rate: fxRateDisplay,
-                          to: accountCurrency,
-                        })}
-                      </FormDescription>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            {/* Subtype Field */}
-            {showSubtype && subtypeName && availableSubtypes.length > 0 && (
-              <FormField
-                control={control}
-                name={subtypeName}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("activity:form.subtype")}</FormLabel>
-                    <FormControl>
-                      <Select
-                        items={[
-                          {
-                            value: "__none__",
-                            label: (
-                              <span className="text-muted-foreground">
-                                {t("activity:form.subtype_none")}
-                              </span>
-                            ),
-                          },
-                          ...availableSubtypes.map((subtype) => ({
-                            value: subtype,
-                            label: localizeActivitySubtypeName(t, subtype),
-                          })),
-                        ]}
-                        onValueChange={(value) =>
-                          field.onChange(value === "__none__" ? null : value)
-                        }
-                        value={field.value ?? "__none__"}
-                      >
-                        <SelectTrigger
-                          aria-label={t("activity:form.subtype")}
-                          data-testid="subtype-select"
-                        >
-                          <SelectValue
-                            placeholder={t("activity:form.placeholder_select_subtype")}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">
-                            <span className="text-muted-foreground">
-                              {t("activity:form.subtype_none")}
-                            </span>
-                          </SelectItem>
-                          {availableSubtypes.map((subtype) => (
-                            <SelectItem key={subtype} value={subtype}>
-                              {localizeActivitySubtypeName(t, subtype)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-          </div>
-        )}
-        {children}
-      </CollapsibleContent>
+      <CollapsibleContent className="space-y-4 pt-2 pb-2">{content}</CollapsibleContent>
     </Collapsible>
   );
 }

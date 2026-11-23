@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 const api = `${BASE_URL}/api/v1`;
@@ -54,7 +54,7 @@ async function createHoldings(page: Page) {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
         expect(holdingsResponse.ok()).toBeTruthy();
-        return ((await holdingsResponse.json()) as unknown[]).length;
+        return ((await holdingsResponse.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )

@@ -625,6 +625,10 @@ impl DatabaseRuntime {
 
         init.context.backup_scheduler = self.backup_scheduler.clone();
         let context = Arc::new(init.context);
+        // A fresh context's binding is unset, so this cannot fail.
+        let _ = context
+            .portfolio_job_binding
+            .set((handle.clone(), Arc::downgrade(&context)));
         if let Some(registry) = &self.profile_registry {
             context
                 .connect_service()

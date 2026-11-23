@@ -1,13 +1,24 @@
 import { ActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
+import { logger } from "@/adapters";
 import { toast } from "sonner";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
-import { render, screen, waitFor } from "@/test/render";
+import { render as renderWithFormatting, screen, waitFor } from "@/test/render";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { Activity, type ReactNode, type RefObject } from "react";
+import { Activity, type ReactElement, type ReactNode, type RefObject } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import { MobileActivityForm } from "../mobile-activity-form";
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderWithFormatting(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
 
 // The type step scrolls its options, and the scroll area needs a
 // ResizeObserver jsdom does not provide.
@@ -23,8 +34,23 @@ beforeAll(() => {
 });
 
 vi.mock("@wealthfolio/ui/components/ui/sheet", () => ({
-  Sheet: ({ children, open }: { children: ReactNode; open?: boolean }) =>
-    open ? <>{children}</> : null,
+  Sheet: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: ReactNode;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) =>
+    open ? (
+      <>
+        <button type="button" onClick={() => onOpenChange?.(false)}>
+          Close sheet
+        </button>
+        {children}
+      </>
+    ) : null,
   SheetContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SheetDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
   SheetFooter: ({ children }: { children: ReactNode }) => <footer>{children}</footer>,
@@ -52,6 +78,8 @@ vi.mock("../mobile-details-step", async () => {
           data-testid="details-step"
           data-editing={String(!!isEditing)}
           data-quote-ccy={form.getValues("symbolQuoteCcy")}
+          data-fee={String(form.getValues("fee"))}
+          data-tax={String(form.getValues("tax"))}
         >
           {activityType ?? "no-type"}
           <input aria-label="Record notes" {...form.register("comment")} />
@@ -61,6 +89,39 @@ vi.mock("../mobile-details-step", async () => {
           >
             Correct record date
           </button>
+          <button
+            type="button"
+            onClick={() => form.setValue("fee", undefined, { shouldDirty: true })}
+          >
+            Clear fee
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue("feeLines", [], { shouldDirty: true });
+              form.setValue("taxLines", [], { shouldDirty: true });
+            }}
+          >
+            Remove fee and tax lines
+          </button>
+          {[false, true].map((unfinished) => (
+            <button
+              key={String(unfinished)}
+              type="button"
+              onClick={() => {
+                form.setValue("fee", 5, { shouldDirty: true });
+                form.setValue("feeLines", [{ label: unfinished ? "" : "Commission", amount: 5 }], {
+                  shouldDirty: true,
+                });
+                form.setValue("tax", 2, { shouldDirty: true });
+                form.setValue("taxLines", [{ label: "Stamp duty", amount: 2 }], {
+                  shouldDirty: true,
+                });
+              }}
+            >
+              {unfinished ? "Enter an unfinished fee line" : "Enter fee and tax lines"}
+            </button>
+          ))}
           <button
             type="button"
             onClick={() => {
@@ -77,6 +138,39 @@ vi.mock("../mobile-details-step", async () => {
           >
             Enter a trade with its own total
           </button>
+          {[
+            { label: "Enter a dividend before tax", grossAmount: 100, tax: 15, fee: 0, amount: 85 },
+            {
+              label: "Enter a tax above the dividend",
+              grossAmount: 10,
+              tax: 15,
+              fee: 0,
+              amount: 0,
+            },
+            {
+              label: "Enter charges above the interest",
+              grossAmount: 10,
+              tax: 5,
+              fee: 10,
+              amount: 0,
+            },
+          ].map(({ label, grossAmount, tax, fee, amount }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                form.setValue("accountId", "acc_1");
+                form.setValue("currency", "USD");
+                if (activityType === ActivityType.DIVIDEND) form.setValue("assetId", "AAPL");
+                form.setValue("grossAmount", grossAmount);
+                form.setValue("tax", tax);
+                form.setValue("fee", fee);
+                form.setValue("amount", amount);
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       );
     },
@@ -363,6 +457,308 @@ describe("a trade total typed on a phone screen left for another tab", () => {
   });
 });
 
+describe("fee and tax lines on a phone edit", () => {
+  const buyWithLines = {
+    ...activity(ActivityType.BUY),
+    assetId: "AAPL",
+    assetSymbol: "AAPL",
+    quantity: "2",
+    unitPrice: "25",
+    amount: "61.49",
+    fee: "9.99",
+    tax: "1.5",
+    metadata: {
+      charges: [
+        { category: "fee", label: "Commission", amount: "8.00" },
+        { category: "fee", label: "Exchange fee", amount: "1.99" },
+        { category: "tax", label: "Stamp duty", amount: "1.50" },
+      ],
+    },
+  };
+
+  it("saves the lines it opened with", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm(buyWithLines);
+
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          id: "act_1",
+          metadata: {
+            charges: [
+              { category: "fee", label: "Commission", amount: "8" },
+              { category: "fee", label: "Exchange fee", amount: "1.99" },
+              { category: "tax", label: "Stamp duty", amount: "1.5" },
+            ],
+          },
+        }),
+      ),
+    );
+    const sent = noopMutation.mutateAsync.mock.calls[0][0] as Record<string, unknown>;
+    for (const field of ["feeLines", "taxLines", "hadChargeLines", "chargeLinesLocked"]) {
+      expect(sent).not.toHaveProperty(field);
+    }
+  });
+
+  it("clears the lines once all are removed", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm(buyWithLines);
+
+    await user.click(screen.getByRole("button", { name: "Remove fee and tax lines" }));
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", metadata: { charges: null } }),
+      ),
+    );
+  });
+
+  it("sends no lines for a type without a lines editor", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "5" });
+
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    expect(noopMutation.mutateAsync.mock.calls[0][0]).not.toHaveProperty("metadata");
+  });
+
+  it("preserves a stored dividend's locked fee when opening it", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({
+      ...buyWithLines,
+      activityType: ActivityType.DIVIDEND,
+      amount: "100",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    expect(noopMutation.mutateAsync.mock.calls[0][0]).toMatchObject({
+      activityType: ActivityType.DIVIDEND,
+      fee: 9.99,
+      tax: 1.5,
+    });
+    expect(noopMutation.mutateAsync.mock.calls[0][0]).not.toHaveProperty("metadata");
+  });
+});
+
+describe("phone charge lines after changing type", () => {
+  it("closes without discarding when only dividend was selected", async () => {
+    const close = vi.fn();
+    render(<MobileActivityForm accounts={accounts} open onClose={close} />);
+    await userEvent.click(screen.getByRole("radio", { name: /Dividend/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Close sheet" }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  });
+
+  const startBuy = async () => {
+    renderForm({
+      accountId: "acc_1",
+      currency: "USD",
+      amount: "100",
+      assetId: "AAPL",
+      assetSymbol: "AAPL",
+      quantity: "2",
+      unitPrice: "25",
+    });
+    await userEvent.click(screen.getByRole("radio", { name: /Buy/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Next/i }));
+  };
+
+  it("discards an unfinished fee line and its hidden fee when switching to dividend", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    await startBuy();
+    await userEvent.click(screen.getByRole("button", { name: "Enter an unfinished fee line" }));
+    await userEvent.click(screen.getByRole("button", { name: /Back/i }));
+    await userEvent.click(screen.getByRole("radio", { name: /Dividend/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Next/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    expect(noopMutation.mutateAsync.mock.calls[0][0]).toMatchObject({
+      activityType: ActivityType.DIVIDEND,
+      fee: 0,
+      tax: 2,
+      metadata: { charges: [{ category: "tax", label: "Stamp duty", amount: "2" }] },
+    });
+  });
+
+  it("drops trade lines when switching to deposit without submitting metadata", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    await startBuy();
+    await userEvent.click(screen.getByRole("button", { name: "Enter fee and tax lines" }));
+    await userEvent.click(screen.getByRole("button", { name: /Back/i }));
+    await userEvent.click(screen.getByRole("radio", { name: /Deposit/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Next/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    expect(noopMutation.mutateAsync.mock.calls[0][0]).toMatchObject({
+      activityType: ActivityType.DEPOSIT,
+      fee: 5,
+    });
+    expect(noopMutation.mutateAsync.mock.calls[0][0]).not.toHaveProperty("metadata");
+  });
+
+  it("keeps compatible fee and tax lines when switching from buy to sell", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    await startBuy();
+    await userEvent.click(screen.getByRole("button", { name: "Enter fee and tax lines" }));
+    await userEvent.click(screen.getByRole("button", { name: /Back/i }));
+    await userEvent.click(screen.getByRole("radio", { name: /Sell/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Next/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    expect(noopMutation.mutateAsync.mock.calls[0][0]).toMatchObject({
+      activityType: ActivityType.SELL,
+      fee: 5,
+      tax: 2,
+      metadata: {
+        charges: [
+          { category: "fee", label: "Commission", amount: "5" },
+          { category: "tax", label: "Stamp duty", amount: "2" },
+        ],
+      },
+    });
+  });
+});
+
+describe("saved charges on a phone edit", () => {
+  it("opens a saved 0 fee and tax empty and still saves them as 0", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "0", tax: "0" });
+
+    const details = screen.getByTestId("details-step");
+    expect(details).toHaveAttribute("data-fee", "undefined");
+    expect(details).toHaveAttribute("data-tax", "undefined");
+
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", amount: 100, fee: 0 }),
+      ),
+    );
+  });
+
+  it("saves a cleared fee as 0", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "5" });
+
+    await user.click(screen.getByRole("button", { name: "Clear fee" }));
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", amount: 100, fee: 0 }),
+      ),
+    );
+  });
+
+  it("saves an external transfer's cleared fee as 0", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({
+      ...activity(ActivityType.TRANSFER_OUT),
+      amount: "100",
+      fee: "5",
+      metadata: { flow: { is_external: true } },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clear fee" }));
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", activityType: ActivityType.TRANSFER_OUT, fee: 0 }),
+      ),
+    );
+  });
+
+  it("leaves both legs' fees as stored when a securities transfer's fee is cleared", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    render(
+      <MobileActivityForm
+        accounts={[...accounts, { value: "acc_2", label: "Other account", currency: "USD" }]}
+        open
+        onClose={vi.fn()}
+        activity={{
+          id: "pair-out",
+          activityType: ActivityType.TRANSFER_OUT,
+          accountId: "acc_1",
+          counterpartAccountId: "acc_2",
+          currency: "USD",
+          assetId: "asset-aapl",
+          assetSymbol: "AAPL",
+          quantity: "2",
+          unitPrice: "100",
+          fee: "5",
+          transferOutId: "pair-out",
+          transferInId: "pair-in",
+          date: new Date("2026-01-18T00:00:00Z"),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Clear fee" }));
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    const { updates } = noopMutation.mutateAsync.mock.calls[0][0];
+    expect(updates.map((leg: { id: string }) => leg.id)).toEqual(["pair-out", "pair-in"]);
+    for (const leg of updates) expect(leg.fee).toBeUndefined();
+  });
+
+  it("opens a saved charge with its value", () => {
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "1.5", tax: "2" });
+
+    const details = screen.getByTestId("details-step");
+    expect(details).toHaveAttribute("data-fee", "1.5");
+    expect(details).toHaveAttribute("data-tax", "2");
+  });
+});
+
+describe("income entered before tax on a phone", () => {
+  async function enterIncome(type: RegExp, button: string) {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<MobileActivityForm accounts={accounts} open onClose={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: type }));
+    await user.click(screen.getByRole("button", { name: /Next/i }));
+    await user.click(await screen.findByRole("button", { name: button }));
+    await user.click(screen.getByRole("button", { name: "Add Activity" }));
+  }
+
+  it("saves the received amount and not the amount before tax", async () => {
+    await enterIncome(/^Dividend\b/i, "Enter a dividend before tax");
+
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    const saved = noopMutation.mutateAsync.mock.calls[0][0];
+    expect(saved).toMatchObject({ activityType: ActivityType.DIVIDEND, amount: 85, tax: 15 });
+    expect(saved).not.toHaveProperty("grossAmount");
+  });
+
+  it("is refused when the tax is more than the amount before tax", async () => {
+    await enterIncome(/^Dividend\b/i, "Enter a tax above the dividend");
+
+    // The details step stays open instead of saving.
+    expect(await screen.findByTestId("details-step")).toBeInTheDocument();
+    expect(noopMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("is refused when interest's tax and fee together are more than it", async () => {
+    await enterIncome(/^Interest\b/i, "Enter charges above the interest");
+
+    expect(await screen.findByTestId("details-step")).toBeInTheDocument();
+    expect(noopMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
 it("keeps a mobile edit open without a failure toast when split review is cancelled", async () => {
   const previousCalls = noopMutation.mutateAsync.mock.calls.length;
   noopMutation.mutateAsync.mockRejectedValueOnce(new ActivityEditCancelled());
@@ -383,4 +779,22 @@ it("keeps a mobile edit open without a failure toast when split review is cancel
   expect(close).not.toHaveBeenCalled();
   expect(screen.getByTestId("details-step")).toBeInTheDocument();
   errorToast.mockRestore();
+});
+
+it("logs why a mobile save failed without the values entered", async () => {
+  noopMutation.mutateAsync.mockReset().mockRejectedValue(new Error("Save rejected"));
+  const logError = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+  const user = userEvent.setup();
+  renderForm({ ...activity(ActivityType.DEPOSIT), amount: "1234.56", fee: "7.89" });
+  await user.type(screen.getByLabelText("Record notes"), "Private note");
+  await user.click(screen.getByRole("button", { name: "Update Activity" }));
+
+  await waitFor(() => expect(logError).toHaveBeenCalled());
+  const logged = logError.mock.calls.map(([message]) => message).join("\n");
+  expect(logged).toContain("Save rejected");
+  expect(logged).toContain(ActivityType.DEPOSIT);
+  for (const entered of ["1234.56", "7.89", "Private note", "acc_1"]) {
+    expect(logged).not.toContain(entered);
+  }
+  logError.mockRestore();
 });

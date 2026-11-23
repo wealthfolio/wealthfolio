@@ -42,6 +42,9 @@ pub struct ActivityDraftRow {
     pub validation: ValidationResult,
     pub errors: Vec<String>,
     pub resolved_asset: Option<ResolvedAsset>,
+    /// Search results for a symbol that matched none of them exactly.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbol_candidates: Vec<ResolvedAsset>,
     pub available_subtypes: Vec<SubtypeOption>,
 }
 
@@ -133,6 +136,7 @@ impl RecordActivities {
                         validation: output.validation,
                         errors: row_errors,
                         resolved_asset: output.resolved_asset,
+                        symbol_candidates: output.symbol_candidates,
                         available_subtypes: output.available_subtypes,
                     });
                 }
@@ -176,6 +180,7 @@ impl RecordActivities {
                         },
                         errors: vec![e.to_string()],
                         resolved_asset: None,
+                        symbol_candidates: Vec::new(),
                         available_subtypes: Vec::new(),
                     });
                 }

@@ -1,9 +1,10 @@
-import { expect, Page, test } from "@playwright/test";
-import { createAccount, gotoActivities, loginIfNeeded, waitForSyncToast } from "./helpers";
+import { expect, Page, test } from "./fixtures";
+import { createAccount, uniqueName } from "./api";
+import { gotoActivities, loginIfNeeded, waitForSyncToast } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
-const ACCOUNT_NAME = "Bulk Holdings Test";
+const ACCOUNT_NAME = uniqueName("Bulk Holdings Test");
 const ACCOUNT_CURRENCY = "USD";
 
 /** Search for a symbol in an open ticker search popover, wait for results, and click the match. */
@@ -41,7 +42,7 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
   test("1. Login and create test account", async () => {
     test.setTimeout(120000);
     await loginIfNeeded(page);
-    await createAccount(page, ACCOUNT_NAME, ACCOUNT_CURRENCY, "Transactions");
+    await createAccount(page, { name: ACCOUNT_NAME, currency: ACCOUNT_CURRENCY });
   });
 
   test("2. Add holdings and submit", async () => {
@@ -54,12 +55,12 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
     await page.getByTestId("add-activities-button").click();
     await page.waitForTimeout(300);
     await page.getByTestId("transfer-holdings-action").click();
-    await expect(page.getByRole("heading", { name: "Add Existing Holdings" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: /Add existing holdings/i })).toBeVisible({
       timeout: 5000,
     });
 
     // ── Select account ──
-    const dialog = page.getByRole("dialog", { name: "Add Existing Holdings" });
+    const dialog = page.getByRole("dialog", { name: /Add existing holdings/i });
     await dialog.getByRole("combobox").first().click();
     await page.waitForTimeout(300);
     const accountOption = page.getByRole("option", { name: ACCOUNT_NAME }).first();
@@ -147,7 +148,7 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
     await confirmBtn.click();
 
     await expect(page.getByText(/Holdings saved/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole("heading", { name: "Add Existing Holdings" })).not.toBeVisible({
+    await expect(page.getByRole("heading", { name: /Add existing holdings/i })).not.toBeVisible({
       timeout: 5000,
     });
 

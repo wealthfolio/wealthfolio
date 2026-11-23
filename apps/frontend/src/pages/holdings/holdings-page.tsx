@@ -1,4 +1,5 @@
 import { Button } from "@wealthfolio/ui/components/ui/button";
+import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
   Empty,
@@ -19,12 +20,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useAccountScopeStore } from "@/lib/account-scope-store";
 import { useHoldingsWithClosedProbe } from "@/hooks/use-holdings";
 import { usePortfolios } from "@/hooks/use-portfolios";
-import {
-  useAlternativeHoldings,
-  useDeleteAlternativeAsset,
-  useLinkLiability,
-  useUnlinkLiability,
-} from "@/hooks/use-alternative-assets";
+import { useAlternativeHoldings } from "@/hooks/use-alternative-assets";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
   AccountPurpose,
@@ -65,15 +61,13 @@ import {
   AssetDetailsSheet,
   UpdateValuationModal,
   toLinkedLiability,
+  useAlternativeAssetMutations,
   type AssetDetailsSheetAsset,
   type LinkableAsset,
   type LinkedLiability,
 } from "@/pages/asset/alternative-assets";
-import { updateAlternativeAssetMetadata } from "@/adapters";
 import { ClassificationSheet } from "@/components/classification/classification-sheet";
 import { useUpdatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
-import { useQueryClient } from "@tanstack/react-query";
-import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 
@@ -86,7 +80,6 @@ export const HoldingsPage = () => {
   // Health-center deep-links (e.g. /holdings?filter=negative|unclassified).
   const healthFilter = searchParams.get("filter");
   const healthContext = searchParams.get("healthContext");
-  const queryClient = useQueryClient();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
@@ -124,13 +117,11 @@ export const HoldingsPage = () => {
   );
 
   const includeClosed = effectiveVisibilityFilters.includes("closed");
-  const { holdings, isLoading, hasHiddenClosedPositions } = useHoldingsWithClosedProbe(
-    accountFilter,
-    {
+  const { holdings, isLoading, isComplete, incompleteAccounts, isError, hasHiddenClosedPositions } =
+    useHoldingsWithClosedProbe(accountFilter, {
       includeClosed,
       probeClosedWhenEmpty: showClosedPositions,
-    },
-  );
+    });
   const { data: portfolios = [] } = usePortfolios();
   const { data: alternativeHoldings, isLoading: isAlternativeHoldingsLoading } =
     useAlternativeHoldings();
@@ -150,14 +141,11 @@ export const HoldingsPage = () => {
   // Alternative asset action state
   const [editAsset, setEditAsset] = useState<AssetDetailsSheetAsset | null>(null);
   const [updateValueAsset, setUpdateValueAsset] = useState<AlternativeAssetHolding | null>(null);
-  const [isSavingDetails, setIsSavingDetails] = useState(false);
 
-  // Delete mutation
-  const { mutate: deleteAsset, isPending: isDeleting } = useDeleteAlternativeAsset();
-
-  // Linking mutations
-  const linkLiabilityMutation = useLinkLiability();
-  const unlinkLiabilityMutation = useUnlinkLiability();
+  const { deleteMutation, updateMetadataMutation, linkLiabilityMutation, unlinkLiabilityMutation } =
+    useAlternativeAssetMutations();
+  const { mutate: deleteAsset, isPending: isDeleting } = deleteMutation;
+  const { mutateAsync: saveAssetDetails, isPending: isSavingDetails } = updateMetadataMutation;
 
   // State for chained liability creation (when creating property with mortgage checkbox)
   const [pendingLiabilityLink, setPendingLiabilityLink] = useState<string | null>(null);
@@ -244,18 +232,9 @@ export const HoldingsPage = () => {
       notes?: string | null,
       loan?: LoanSetup,
     ) => {
-      setIsSavingDetails(true);
-      try {
-        await updateAlternativeAssetMetadata(assetId, metadata, name, notes, loan);
-        // Invalidate queries to refresh the list and the asset detail page
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] });
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
-      } finally {
-        setIsSavingDetails(false);
-      }
+      await saveAssetDetails({ assetId, metadata, name, notes, loan });
     },
-    [queryClient],
+    [saveAssetDetails],
   );
 
   // Handler to delete an asset
@@ -368,7 +347,7 @@ export const HoldingsPage = () => {
       if (!editAsset) return;
       await linkLiabilityMutation.mutateAsync({
         liabilityId: mortgageId,
-        targetAssetId: editAsset.id,
+        request: { targetAssetId: editAsset.id },
       });
     },
     [editAsset, linkLiabilityMutation],
@@ -435,7 +414,8 @@ export const HoldingsPage = () => {
     hasHiddenClosedPositions || (holdings.length > 0 && filteredHoldings.length === 0);
 
   // Empty state checks
-  const hasNoInvestments = !isDataLoading && holdings.length === 0 && !hasHiddenClosedPositions;
+  const hasNoInvestments =
+    isComplete && !isDataLoading && holdings.length === 0 && !hasHiddenClosedPositions;
   const hasNoAssets = !isDataLoading && assetsHoldings.length === 0;
   const hasNoLiabilities = !isDataLoading && liabilitiesHoldings.length === 0;
   const hasMobileInvestmentsToolbar =
@@ -550,6 +530,8 @@ export const HoldingsPage = () => {
           <div className="hidden md:block">
             <HoldingsTable
               holdings={filteredHoldings ?? []}
+              accountFilter={accountFilter}
+              accounts={accounts}
               isLoading={isDataLoading}
               visibilityFilters={effectiveVisibilityFilters}
               setVisibilityFilters={handleVisibilityFiltersChange}
@@ -764,6 +746,12 @@ export const HoldingsPage = () => {
 
   return (
     <>
+      <HoldingsScopeNotice
+        isComplete={isComplete}
+        isLoading={isLoading}
+        isError={isError}
+        incompleteAccounts={incompleteAccounts}
+      />
       <SwipablePage views={views} defaultView="investments" />
 
       {/* Alternative Asset Quick Add Modal */}

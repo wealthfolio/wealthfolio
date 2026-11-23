@@ -10,7 +10,6 @@ mod models;
 use std::sync::RwLock;
 use std::time::Duration;
 
-use crate::SymbolResolver;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use lazy_static::lazy_static;
@@ -87,10 +86,9 @@ pub struct YahooProvider {
 impl YahooProvider {
     /// Create a new Yahoo Finance provider.
     pub async fn new() -> Result<Self, MarketDataError> {
-        let client = wealthfolio_http::client_builder()
+        let client = crate::provider::http_client_builder()
             .https_only(true)
             .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -384,16 +382,6 @@ impl YahooProvider {
     // Quote Fetching
     // ========================================================================
 
-    /// Get the currency: prefer exchange metadata, fall back to asset's quote_ccy.
-    fn get_currency(&self, context: &QuoteContext) -> String {
-        let chain = ResolverChain::new();
-        chain
-            .get_currency(&"YAHOO".into(), context)
-            .or_else(|| context.currency_hint.clone())
-            .map(|c| c.to_string())
-            .unwrap_or_else(|| "USD".to_string())
-    }
-
     /// Convert chrono DateTime<Utc> to time::OffsetDateTime for the Yahoo API.
     fn chrono_to_offset_datetime(dt: DateTime<Utc>) -> OffsetDateTime {
         OffsetDateTime::from_unix_timestamp(dt.timestamp())
@@ -532,7 +520,7 @@ impl YahooProvider {
             .metadata()
             .ok()
             .and_then(|m| m.currency)
-            .unwrap_or_else(|| self.get_currency(context));
+            .unwrap_or_else(|| ResolverChain::new().quote_currency(&"YAHOO".into(), context));
 
         let yahoo_quote = response.last_quote().map_err(|e| {
             warn!("No quotes returned for {}: {}", symbol, e);
@@ -599,7 +587,7 @@ impl YahooProvider {
         let currency = price
             .currency
             .clone()
-            .unwrap_or_else(|| self.get_currency(context));
+            .unwrap_or_else(|| ResolverChain::new().quote_currency(&"YAHOO".into(), context));
 
         let close = price
             .regular_market_price
@@ -736,12 +724,12 @@ impl YahooProvider {
 
         Ok(AssetProfile {
             source: Some("YAHOO".to_string()),
-            name: Some(format_name(
+            name: format_name(
                 Some(&item.long_name),
                 &item.quote_type,
                 Some(&item.short_name),
                 symbol,
-            )),
+            ),
             quote_type: Some(item.quote_type.to_uppercase()),
             // Search carries no currency, but it does name the exchange.
             exchange: Some(item.exchange.clone()),
@@ -820,7 +808,7 @@ impl YahooProvider {
 
         let profile = AssetProfile {
             source: Some("YAHOO".to_string()),
-            name: Some(name),
+            name,
             quote_type: price
                 .and_then(|p| p.quote_type.clone())
                 .map(|t| t.to_uppercase()),
@@ -1018,7 +1006,7 @@ impl MarketDataProvider for YahooProvider {
             .metadata()
             .ok()
             .and_then(|m| m.currency)
-            .unwrap_or_else(|| self.get_currency(context));
+            .unwrap_or_else(|| ResolverChain::new().quote_currency(&"YAHOO".into(), context));
 
         match response.quotes() {
             Ok(yahoo_quotes) => {
@@ -1175,12 +1163,15 @@ impl MarketDataProvider for YahooProvider {
 // ============================================================================
 
 /// Clean up fund names by removing common prefixes.
+///
+/// `None` when Yahoo has no name beyond the symbol itself, so that enrichment
+/// keeps the asset's stored name instead of replacing it with the ticker.
 fn format_name(
     long_name: Option<&str>,
     quote_type: &str,
     short_name: Option<&str>,
     symbol: &str,
-) -> String {
+) -> Option<String> {
     let mut name = long_name.unwrap_or("").to_string();
 
     if !name.is_empty() {
@@ -1209,16 +1200,20 @@ fn format_name(
     if quote_type.to_uppercase() == "FUTURE" {
         if let Some(sn) = short_name {
             if let Some(base) = sn.len().checked_sub(7).and_then(|end| sn.get(..end)) {
-                return base.to_string();
+                return Some(base.to_string());
             }
         }
     }
 
-    if name.is_empty() {
-        short_name.unwrap_or(symbol).to_string()
-    } else {
-        name
+    // A blank or symbol-only candidate is no name; try the short name next.
+    let is_name = |candidate: &str| {
+        let trimmed = candidate.trim();
+        !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case(symbol.trim())
+    };
+    if is_name(&name) {
+        return Some(name);
     }
+    short_name.filter(|sn| is_name(sn)).map(str::to_string)
 }
 
 /// Convert snake_case sector to Title Case.
@@ -1312,32 +1307,73 @@ mod tests {
                 "ETF",
                 None,
                 "IVV"
-            ),
-            "iShares Core S&P 500"
+            )
+            .as_deref(),
+            Some("iShares Core S&P 500")
         );
 
         // Test HTML entity replacement
         assert_eq!(
-            format_name(Some("Apple Inc &amp; Co"), "EQUITY", None, "AAPL"),
-            "Apple Inc & Co"
+            format_name(Some("Apple Inc &amp; Co"), "EQUITY", None, "AAPL").as_deref(),
+            Some("Apple Inc & Co")
         );
 
         // Test fallback to short_name
         assert_eq!(
-            format_name(None, "EQUITY", Some("AAPL Inc"), "AAPL"),
-            "AAPL Inc"
+            format_name(None, "EQUITY", Some("AAPL Inc"), "AAPL").as_deref(),
+            Some("AAPL Inc")
         );
 
-        // Test fallback to symbol
-        assert_eq!(format_name(None, "EQUITY", None, "AAPL"), "AAPL");
+        // No name beyond the symbol: none, so enrichment keeps the stored name
+        assert_eq!(format_name(None, "MUTUALFUND", None, "0P00036T6I.BO"), None);
+        assert_eq!(
+            format_name(Some(""), "MUTUALFUND", Some(""), "0P00036T6I.BO"),
+            None
+        );
+        assert_eq!(
+            format_name(None, "MUTUALFUND", Some("0P00036T6I.BO"), "0P00036T6I.BO"),
+            None
+        );
+        assert_eq!(
+            format_name(Some("0p00036t6i.bo "), "MUTUALFUND", None, "0P00036T6I.BO"),
+            None
+        );
+
+        // An unusable long name falls back to a usable short name
+        assert_eq!(
+            format_name(Some("ACME"), "EQUITY", Some("Acme Inc"), "ACME").as_deref(),
+            Some("Acme Inc")
+        );
+        assert_eq!(
+            format_name(Some("  "), "EQUITY", Some("Acme Inc"), "ACME").as_deref(),
+            Some("Acme Inc")
+        );
+    }
+
+    /// Yahoo's quoteSummary for 0P00036T6I.BO (a WhiteOak Capital fund) has
+    /// null names. Reporting the symbol as the name would let enrichment
+    /// replace the name the user gave the asset.
+    #[tokio::test]
+    async fn profile_without_a_yahoo_name_has_no_name() {
+        let provider = YahooProvider::new().await.unwrap();
+        let json = r#"{"price": {"quoteType": "MUTUALFUND", "longName": null,
+            "shortName": null, "currency": "INR", "exchange": "BSE"}}"#;
+        let result: YahooQuoteSummaryResult = serde_json::from_str(json).unwrap();
+
+        let profile = provider
+            .map_quote_summary_to_profile("0P00036T6I.BO", &result)
+            .unwrap();
+
+        assert_eq!(profile.name, None);
+        assert_eq!(profile.quote_type.as_deref(), Some("MUTUALFUND"));
     }
 
     #[test]
     fn test_format_name_future_non_ascii_short_name() {
         // 15 bytes, with byte 8 (seven from the end) inside the second 'é'
         assert_eq!(
-            format_name(None, "FUTURE", Some("Café Déc 2024"), "KC=F"),
-            "Café Déc 2024"
+            format_name(None, "FUTURE", Some("Café Déc 2024"), "KC=F").as_deref(),
+            Some("Café Déc 2024")
         );
     }
 
@@ -1398,43 +1434,6 @@ mod tests {
         );
     }
 
-    fn create_test_context() -> QuoteContext {
-        use crate::models::InstrumentId;
-
-        QuoteContext {
-            instrument: InstrumentId::Equity {
-                ticker: Arc::from("AAPL"),
-                mic: None,
-            },
-            identifiers: Default::default(),
-            overrides: None,
-            currency_hint: Some(Cow::Borrowed("USD")),
-            preferred_provider: None,
-            bond_metadata: None,
-            custom_provider_code: None,
-        }
-    }
-
-    fn create_test_fx_context(
-        currency_hint: Option<&'static str>,
-        quote: &'static str,
-    ) -> QuoteContext {
-        use crate::models::InstrumentId;
-
-        QuoteContext {
-            instrument: InstrumentId::Fx {
-                base: Cow::Borrowed("EUR"),
-                quote: Cow::Borrowed(quote),
-            },
-            identifiers: Default::default(),
-            overrides: None,
-            currency_hint: currency_hint.map(Cow::Borrowed),
-            preferred_provider: None,
-            bond_metadata: None,
-            custom_provider_code: None,
-        }
-    }
-
     #[test]
     fn test_extract_symbol_equity() {
         let instrument = ProviderInstrument::EquitySymbol {
@@ -1479,58 +1478,6 @@ mod tests {
             }
             _ => panic!("Expected FxPair"),
         }
-    }
-
-    #[test]
-    fn test_get_currency_with_hint() {
-        let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
-        };
-        let context = create_test_context();
-        assert_eq!(provider.get_currency(&context), "USD");
-    }
-
-    #[test]
-    fn test_get_currency_prefers_resolver_over_hint() {
-        let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
-        };
-        // FX resolver returns the quote currency ("CAD"), which takes priority over hint
-        let context = create_test_fx_context(Some("TWD"), "CAD");
-        assert_eq!(provider.get_currency(&context), "CAD");
-    }
-
-    #[test]
-    fn test_get_currency_falls_back_to_hint_when_resolver_empty() {
-        let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
-        };
-        // No MIC → resolver returns None for equities, so hint wins
-        let context = create_test_context();
-        assert_eq!(provider.get_currency(&context), "USD");
-    }
-
-    #[test]
-    fn test_get_currency_xlon_prefers_exchange_metadata() {
-        use crate::models::InstrumentId;
-        // BATS@XLON: asset has quote_ccy="GBP" but Yahoo prices are in pence.
-        // get_currency() must return "GBp" from exchange metadata, not "GBP" from hint.
-        let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
-        };
-        let context = QuoteContext {
-            instrument: InstrumentId::Equity {
-                ticker: Arc::from("BATS"),
-                mic: Some("XLON".into()),
-            },
-            identifiers: Default::default(),
-            currency_hint: Some(Cow::Borrowed("GBP")),
-            overrides: None,
-            preferred_provider: None,
-            bond_metadata: None,
-            custom_provider_code: None,
-        };
-        assert_eq!(provider.get_currency(&context), "GBp");
     }
 
     #[test]

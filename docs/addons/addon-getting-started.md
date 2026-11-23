@@ -366,9 +366,11 @@ function HelloWorldPage({ ctx }: { ctx: AddonContext }) {
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-semibold">
-                          {account.balance.toLocaleString()}
+                          {account.accountType}
                         </div>
-                        <div className="text-sm text-muted-foreground">Balance</div>
+                        <div className="text-sm text-muted-foreground">
+                          {account.trackingMode}
+                        </div>
                       </div>
                     </div>
                   </div>

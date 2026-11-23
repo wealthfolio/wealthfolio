@@ -15,6 +15,8 @@ function scopeButton(label: string) {
 
 it("names the scope that locks each prerequisite", () => {
   renderSelector([
+    "accounts:read",
+    "accounts:write",
     "activities:draft",
     "activities:write",
     "classification:suggest",
@@ -26,6 +28,7 @@ it("names the scope that locks each prerequisite", () => {
   ]);
 
   const locks: [string, string][] = [
+    ["Accounts \\(read\\)", "Required by Accounts — write"],
     ["Activities — draft", "Required by Activities — commit/write"],
     ["Asset classification — suggest", "Required by Asset classification — apply/write"],
     ["Holdings & value \\(read\\)", "Required by Market data — write"],
@@ -36,4 +39,12 @@ it("names the scope that locks each prerequisite", () => {
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", title);
   }
+});
+
+it("locks holdings read for holdings writes", () => {
+  renderSelector(["holdings:read", "holdings:write", "market-data:write"]);
+
+  const button = scopeButton("Holdings & value \\(read\\)");
+  expect(button).toBeDisabled();
+  expect(button).toHaveAttribute("title", "Required by Holdings — write");
 });

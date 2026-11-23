@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import type { ActivityDetails } from "@/lib/types";
 import type { AccountSelectOption } from "./forms/fields";
 import {
   ACTIVITY_FORM_CONFIG,
@@ -15,6 +16,7 @@ interface ActivityFormRendererProps {
   onCancel?: () => void;
   isLoading?: boolean;
   isEditing?: boolean;
+  originalActivity?: Partial<ActivityDetails>;
 }
 
 /**
@@ -30,6 +32,7 @@ export function ActivityFormRenderer({
   onCancel,
   isLoading,
   isEditing,
+  originalActivity,
 }: ActivityFormRendererProps) {
   const { t } = useTranslation();
   if (!selectedType) {
@@ -67,6 +70,7 @@ export function ActivityFormRenderer({
       onCancel={onCancel}
       isLoading={isLoading}
       isEditing={isEditing}
+      originalActivity={originalActivity}
     />
   );
 }

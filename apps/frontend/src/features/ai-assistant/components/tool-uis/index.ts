@@ -23,6 +23,17 @@ import { ListCategorizationContextToolUI } from "./list-categorization-context-t
 import { PerformanceToolUI } from "./performance-tool-ui";
 import { RecordActivityToolUI } from "./record-activity-tool-ui";
 import { RecordActivitiesToolUI } from "./record-activities-tool-ui";
+import {
+  SpendingBudgetToolUI,
+  SpendingEventsToolUI,
+  SpendingTransactionsToolUI,
+} from "./spending-detail-tool-uis";
+import {
+  ListSpendingEventsToolUI,
+  SpendingContextToolUI,
+  SpendingInsightToolUI,
+  SpendingReportToolUI,
+} from "./spending-summary-tool-uis";
 import { ValuationToolUI } from "./valuation-tool-ui";
 
 /**
@@ -47,6 +58,13 @@ export const toolUIs = {
   record_activity: RecordActivityToolUI,
   record_activities: RecordActivitiesToolUI,
   search_activities: ActivitiesToolUI,
+  get_spending_context: SpendingContextToolUI,
+  list_spending_events: ListSpendingEventsToolUI,
+  get_spending_insight: SpendingInsightToolUI,
+  get_spending_report: SpendingReportToolUI,
+  search_spending_transactions: SpendingTransactionsToolUI,
+  get_budget: SpendingBudgetToolUI,
+  get_event_spending_summaries: SpendingEventsToolUI,
 } as const;
 
 export type ToolUIName = keyof typeof toolUIs;
@@ -70,6 +88,13 @@ export {
   RecordActivityToolUI,
   RecordActivitiesToolUI,
   ValuationToolUI,
+  ListSpendingEventsToolUI,
+  SpendingBudgetToolUI,
+  SpendingContextToolUI,
+  SpendingEventsToolUI,
+  SpendingInsightToolUI,
+  SpendingReportToolUI,
+  SpendingTransactionsToolUI,
 };
 
 // Re-export shared components

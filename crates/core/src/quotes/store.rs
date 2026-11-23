@@ -54,6 +54,20 @@ pub trait QuoteStore: Send + Sync {
         ))
     }
 
+    /// Every stored quote of one asset within the optional day bounds, one row
+    /// per source and day, with the currency each row was stored with (no
+    /// best-source selection). Newest day first.
+    fn all_sources_in_range(
+        &self,
+        _asset_id: &str,
+        _start: Option<NaiveDate>,
+        _end: Option<NaiveDate>,
+    ) -> Result<Vec<Quote>> {
+        Err(crate::errors::Error::Repository(
+            "Reading every quote source is not supported by this store".into(),
+        ))
+    }
+
     /// Replace provider rows and update sync state in one transaction.
     async fn replace_provider_history(
         &self,

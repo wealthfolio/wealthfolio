@@ -52,3 +52,13 @@ it("keeps calendar endpoints across DST in the app timezone", () => {
   expect(reportRange.end.toISOString()).toBe("2025-03-11T03:59:59.999Z");
   expect(reportRange.days).toBe(3);
 });
+
+it("excludes the preceding day when the selected day skips midnight", () => {
+  const range = spendingRangeFromParams(
+    new URLSearchParams({ spendingFrom: "2026-03-29", spendingTo: "2026-03-31" }),
+  )!;
+  const reportRange = spendingRangeToReportsRange(range, "Asia/Beirut");
+  const precedingExpense = new Date("2026-03-28T21:30:00.000Z");
+  expect(reportRange.start.toISOString()).toBe("2026-03-28T22:00:00.000Z");
+  expect(precedingExpense.getTime()).toBeLessThan(reportRange.start.getTime());
+});

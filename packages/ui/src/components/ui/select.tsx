@@ -1,12 +1,144 @@
 import { Select as SelectPrimitive } from "@base-ui/react/select";
+import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Command, CommandGroup, CommandItem, CommandList } from "./command";
 import { usePortalScopeProps } from "./portal-scope";
 import { Icons } from "./icons";
+import { SheetScreen, useInSheetNavigation } from "./sheet-navigation";
+
+interface ScreenItem {
+  value: unknown;
+  label: React.ReactNode;
+  disabled?: boolean;
+  /** Shown before the label on a phone screen, e.g. an icon tile. */
+  icon?: React.ReactNode;
+  /** Shown muted after the label on a phone screen, e.g. a currency. */
+  meta?: React.ReactNode;
+}
+
+interface ScreenGroup {
+  heading?: React.ReactNode;
+  items: ScreenItem[];
+}
+
+type SelectItems = SelectPrimitive.Root.Props<unknown>["items"];
+
+/**
+ * The options of `items` in their groups (`{ value: heading, items }`), or null
+ * when there are none to list. Ungrouped options share one group without a heading.
+ */
+function itemsToGroups(items: SelectItems): ScreenGroup[] | null {
+  if (!items) return null;
+  if (!Array.isArray(items)) {
+    const list = Object.entries(items as Record<string, React.ReactNode>).map(([value, label]) => ({ value, label }));
+    return list.length > 0 ? [{ items: list }] : null;
+  }
+  const groups: ScreenGroup[] = [];
+  for (const item of items as readonly (ScreenItem | { value?: React.ReactNode; items: ScreenItem[] })[]) {
+    if ("items" in item && Array.isArray(item.items)) {
+      groups.push({ heading: item.value as React.ReactNode, items: [...item.items] });
+      continue;
+    }
+    const last = groups.at(-1);
+    if (last && last.heading === undefined) last.items.push(item as ScreenItem);
+    else groups.push({ items: [item as ScreenItem] });
+  }
+  return groups.some((group) => group.items.length > 0) ? groups : null;
+}
+
+/** The trigger's own name: its form label, else its aria-label. */
+function triggerTitle(trigger: HTMLElement | null) {
+  if (!trigger) return "";
+  const label = (trigger as HTMLButtonElement).labels?.[0]?.textContent?.trim();
+  return label || trigger.getAttribute("aria-label") || "";
+}
+
+const SelectScreenContext = React.createContext<React.RefObject<HTMLElement | null> | null>(null);
 
 // Pass `items` (an array of `{ value, label }` or a value-to-label record) so
-// `SelectValue` shows the selected item's label rather than its raw value.
-const Select = SelectPrimitive.Root;
+// `SelectValue` shows the selected item's label rather than its raw value. In a
+// phone form's sheet those items open as a screen of that sheet instead of a popup.
+const Select = ((props: SelectPrimitive.Root.Props<unknown, boolean | undefined>) => {
+  const inSheetNavigation = useInSheetNavigation();
+  const groups = itemsToGroups(props.items);
+  if (!inSheetNavigation || !groups || props.multiple) return <SelectPrimitive.Root {...props} />;
+  return <SelectScreenRoot {...props} groups={groups} />;
+}) as typeof SelectPrimitive.Root;
+
+function SelectScreenRoot({
+  groups,
+  value,
+  defaultValue,
+  onValueChange,
+  open: _open,
+  onOpenChange,
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<unknown, boolean | undefined> & { groups: ScreenGroup[] }) {
+  const triggerRef = React.useRef<HTMLElement | null>(null);
+  const [screenOpen, setScreenOpen] = React.useState(false);
+  const [title, setTitle] = React.useState("");
+  const [uncontrolledValue, setUncontrolledValue] = React.useState(defaultValue);
+  const current = value !== undefined ? value : uncontrolledValue;
+
+  const choose = (next: unknown) => {
+    setUncontrolledValue(next);
+    (onValueChange as ((value: unknown) => void) | undefined)?.(next);
+    setScreenOpen(false);
+  };
+
+  return (
+    <SelectScreenContext.Provider value={triggerRef}>
+      {/* The popup never opens: a request to open shows the screen instead. */}
+      <SelectPrimitive.Root
+        {...props}
+        value={current}
+        open={false}
+        onOpenChange={(open) => {
+          if (!open) return;
+          setTitle(triggerTitle(triggerRef.current));
+          setScreenOpen(true);
+        }}
+      >
+        {children}
+      </SelectPrimitive.Root>
+      <SheetScreen
+        open={screenOpen}
+        onOpenChange={(open) => {
+          setScreenOpen(open);
+          (onOpenChange as ((open: boolean) => void) | undefined)?.(open);
+        }}
+        title={title}
+      >
+        <Command className="h-auto min-h-0 flex-1 rounded-none bg-transparent">
+          <CommandList className="max-h-none min-h-0 flex-1">
+            {groups.map((group, groupIndex) => (
+              <CommandGroup key={groupIndex} heading={group.heading}>
+                {group.items.map((item, index) => (
+                  <CommandItem
+                    key={index}
+                    value={`item-${groupIndex}-${index}`}
+                    disabled={item.disabled}
+                    onSelect={() => choose(item.value)}
+                    className="flex items-center gap-2"
+                  >
+                    {item.icon}
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.meta ? <span className="text-muted-foreground shrink-0 text-sm">{item.meta}</span> : null}
+                    {Object.is(item.value, current) ? (
+                      <Icons.Check data-slot="command-item-check" className="text-muted-foreground h-4 w-4 shrink-0" />
+                    ) : null}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </SheetScreen>
+    </SelectScreenContext.Provider>
+  );
+}
 
 function SelectGroup(props: SelectPrimitive.Group.Props) {
   return <SelectPrimitive.Group data-slot="select-group" {...props} />;
@@ -20,9 +152,15 @@ interface SelectTriggerProps extends Omit<SelectPrimitive.Trigger.Props, "classN
   className?: string;
 }
 
-function SelectTrigger({ className, children, ...props }: SelectTriggerProps) {
+function SelectTrigger({ className, children, ref, ...props }: SelectTriggerProps) {
+  const screenTriggerRef = React.useContext(SelectScreenContext);
   return (
     <SelectPrimitive.Trigger
+      ref={(node: HTMLButtonElement | null) => {
+        if (screenTriggerRef) screenTriggerRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      }}
       data-slot="select-trigger"
       className={cn(
         "border-(color:--field-border) shadow-(--field-glow) bg-input-bg dark:bg-input/30 focus-visible:outline-solid focus-visible:outline-ring data-placeholder:text-muted-foreground h-input-height aria-invalid:outline-destructive aria-invalid:border-destructive dark:hover:bg-input/50 rounded-(--control-radius) flex w-full items-center justify-between gap-2 whitespace-nowrap border px-3 py-2 text-sm outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -32,7 +170,11 @@ function SelectTrigger({ className, children, ...props }: SelectTriggerProps) {
     >
       {children}
       <SelectPrimitive.Icon className="flex shrink-0 opacity-50">
-        <Icons.ChevronDown className="h-4 w-4" />
+        {screenTriggerRef ? (
+          <Icons.ChevronRight className="h-4 w-4 rtl:rotate-180" />
+        ) : (
+          <Icons.ChevronDown className="h-4 w-4" />
+        )}
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );

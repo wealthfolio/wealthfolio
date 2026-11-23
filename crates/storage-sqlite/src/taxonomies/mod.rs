@@ -8,5 +8,6 @@ pub use model::{
     AssetTaxonomyAssignmentDB, CategoryDB, NewAssetTaxonomyAssignmentDB, NewCategoryDB,
     NewTaxonomyDB, TaxonomyDB,
 };
+pub(crate) use repository::category_references;
 pub use repository::TaxonomyRepository;
 pub use sync::CustomTaxonomyPayload;

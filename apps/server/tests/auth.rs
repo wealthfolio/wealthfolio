@@ -1,14 +1,13 @@
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::net::SocketAddr;
 
-use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
+use argon2::{Argon2, PasswordHasher};
 use axum::{
     body::{to_bytes, Body},
     extract::ConnectInfo,
     http::{header, Method, Request},
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use rand::{rngs::OsRng, RngCore};
 use tempfile::tempdir;
 use tower::ServiceExt;
 use wealthfolio_server::{api::app_router, build_state, config::Config};
@@ -18,15 +17,14 @@ async fn build_test_router(password: &str) -> axum::Router {
     std::env::set_var("WF_DATA_DIR", "");
     std::env::set_var("WF_DB_PATH", tmp.path().join("test.db"));
 
-    let salt = SaltString::generate(&mut OsRng);
     let password_hash = Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .unwrap()
         .to_string();
     std::env::set_var("WF_AUTH_PASSWORD_HASH", password_hash);
 
     let mut secret_bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut secret_bytes);
+    rand::fill(&mut secret_bytes);
     let secret_b64 = BASE64.encode(secret_bytes);
     std::env::set_var("WF_SECRET_KEY", secret_b64);
     std::env::set_var("WF_CORS_ALLOW_ORIGINS", "http://localhost:3000");

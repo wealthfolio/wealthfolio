@@ -5,6 +5,7 @@ import * as React from "react";
 import { buttonVariants } from "./button-variants";
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "./portal-scope";
+import { OverlayViewport, overlayContentStyle } from "./overlay-viewport";
 
 function AlertDialog(props: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
@@ -41,18 +42,21 @@ interface AlertDialogContentProps extends Omit<AlertDialogPrimitive.Popup.Props,
   className?: string;
 }
 
-function AlertDialogContent({ className, ...props }: AlertDialogContentProps) {
+function AlertDialogContent({ className, style, ...props }: AlertDialogContentProps) {
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
-      <AlertDialogPrimitive.Popup
-        data-slot="alert-dialog-content"
-        className={cn(
-          "bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 sm:rounded-(--dialog-radius) border-(color:--overlay-border) shadow-(--overlay-shadow) max-sm:shadow-(--popup-shadow) fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-var(--inset-bottom,env(safe-area-inset-bottom,0px))-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border p-6 outline-none duration-100 max-sm:bottom-[calc(var(--inset-bottom,env(safe-area-inset-bottom,0px))+1rem)] max-sm:end-4 max-sm:start-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl [&>*]:min-w-0",
-          className,
-        )}
-        {...props}
-      />
+      <OverlayViewport>
+        <AlertDialogPrimitive.Popup
+          data-slot="alert-dialog-content"
+          className={cn(
+            "pointer-events-auto max-h-[min(100%,var(--overlay-max-height,100%))] bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 sm:rounded-(--dialog-radius) border-(color:--overlay-border) shadow-(--overlay-shadow) max-sm:shadow-(--popup-shadow) fixed left-[50%] top-[50%] z-50 grid [--overlay-max-height:calc(100%-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border p-6 outline-none duration-100 max-sm:bottom-4 max-sm:end-4 max-sm:start-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl [&>*]:min-w-0",
+            className,
+          )}
+          {...props}
+          style={overlayContentStyle(style)}
+        />
+      </OverlayViewport>
     </AlertDialogPortal>
   );
 }

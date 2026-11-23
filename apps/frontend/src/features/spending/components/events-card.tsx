@@ -4,7 +4,13 @@ import { Link } from "react-router-dom";
 
 import type { Activity } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
-import { Icons, PrivacyAmount, Skeleton, useDateFormatting } from "@wealthfolio/ui";
+import {
+  Icons,
+  PrivacyAmount,
+  Skeleton,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
 import { getVisibleSpendingAmount } from "../lib/constants";
@@ -33,6 +39,7 @@ export function EventsCard({
 }) {
   const formatting = useDateFormatting();
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const eventSummaryRequest = useMemo(
     () => ({ startDate: eventSummaryStartDate, endDate: eventSummaryEndDate }),
     [eventSummaryEndDate, eventSummaryStartDate],
@@ -315,7 +322,10 @@ export function EventsCard({
                 >
                   {compareMultiple >= 1 ? "↑" : "↓"}{" "}
                   {t("spending:eventsCard.vsTypical", {
-                    multiple: compareMultiple.toFixed(1),
+                    multiple: numbers.formatDecimal(compareMultiple, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    }),
                     days: totalDays,
                   })}
                 </span>

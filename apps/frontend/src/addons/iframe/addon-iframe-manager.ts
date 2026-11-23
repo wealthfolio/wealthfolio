@@ -11,6 +11,7 @@ import {
 } from "@/addons/addons-runtime-context";
 import { loadAddonAsset, logger } from "@/adapters";
 import { generateId, generateSecureUuid } from "@/lib/id";
+import { BackendError } from "@/lib/backend-error";
 import { toast } from "sonner";
 import { collectAddonThemeSnapshot, type AddonThemeSnapshot } from "./addon-sandbox-theme";
 import {
@@ -355,6 +356,8 @@ export const ALLOWED_API_METHODS = new Set([
   "assets.updateProfile",
   "assets.updateQuoteMode",
   "alternativeAssets.getAll",
+  "allocationTargets.getAll",
+  "allocationTargets.getDrift",
   "quotes.update",
   "quotes.getHistory",
   "performance.calculateHistory",
@@ -1212,6 +1215,7 @@ export class AddonIframeManager {
   ) {
     this.post(runtime, "rpcResponse", {
       error: formatUnknownError(error),
+      errorCode: error instanceof BackendError ? error.errorCode : undefined,
       ok,
       requestId,
       result,

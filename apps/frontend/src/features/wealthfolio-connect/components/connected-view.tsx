@@ -7,7 +7,7 @@ import { DeviceSyncSection } from "@/features/devices-sync";
 import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import { formatDate } from "@/lib/utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ActionConfirm, useDateFormatting, Spinner } from "@wealthfolio/ui";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui/components/ui/avatar";
@@ -17,16 +17,12 @@ import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/car
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
-import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { useCallback, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { hasBrokerSync, isSubscriptionStatusActive } from "../lib/plan-capabilities";
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
-import {
-  listBrokerAccounts,
-  listBrokerConnections,
-  syncBrokerData,
-} from "../services/broker-service";
+import { listBrokerAccounts, listBrokerConnections } from "../services/broker-service";
+import { useSyncBrokerData } from "../hooks/use-sync-broker-data";
 import type { BrokerAccount, BrokerConnection } from "../types";
 import { BrokerageLogo } from "./brokerage-logo";
 import { PortalLink } from "./portal-link";
@@ -379,19 +375,7 @@ export function ConnectedView() {
 
   // Sync accounts to local database
   // Sync runs in background, global event listener handles toasts and query invalidation
-  const syncToLocalMutation = useMutation({
-    mutationFn: syncBrokerData,
-    onSuccess: () => {
-      toast.loading(t("connect:sync.syncingBrokerData"), { id: "broker-sync-start" });
-    },
-    onError: (error) => {
-      toast.error(
-        t("connect:sync.startFailed", {
-          error: error instanceof Error ? error.message : t("connect:errors.unknown"),
-        }),
-      );
-    },
-  });
+  const syncToLocalMutation = useSyncBrokerData();
 
   // Handlers
   const handleSignOut = useCallback(async () => {

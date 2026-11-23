@@ -6,6 +6,7 @@ import { API_PREFIX, invoke, logger } from "./core";
 import { notifyUnauthorized } from "@/lib/auth-token";
 import type { Settings, UpdateInfo } from "@/lib/types";
 import type { AppInfo, PlatformInfo, BackupImportPreview } from "../types";
+import { invokeTimeoutMs } from "../invoke-timeout";
 export type { BackupImportPreview } from "../types";
 
 // ============================================================================
@@ -35,7 +36,7 @@ export const isAutoUpdateCheckEnabled = async (): Promise<boolean> => {
     return await invoke<boolean>("is_auto_update_check_enabled");
   } catch (_error) {
     logger.error("Error checking auto-update setting.");
-    return true; // Default to enabled
+    return false; // Skip automatic checks rather than run one the user may have turned off
   }
 };
 
@@ -90,30 +91,45 @@ export const exportDatabaseBackup = async (
   ) {
     throw new Error("Use HTTPS to export a password-protected backup.");
   }
-  const response = await profileFetch(
-    `${API_PREFIX}/utilities/database/backups/${encodeURIComponent(filename)}/export`,
-    {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "X-Wealthfolio-Backup": "1" },
-      body: JSON.stringify({ password, unencrypted }),
-      signal,
-    },
+  // Preserve caller cancellation as well as the deadline without requiring
+  // AbortSignal.any, which is newer than some supported browser runtimes.
+  const controller = new AbortController();
+  const cancel = () => controller.abort(signal?.reason);
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
+  const timer = setTimeout(
+    () => controller.abort(new DOMException("Backup export timed out", "TimeoutError")),
+    invokeTimeoutMs("export_database_backup"),
   );
-  if (response.status === 401) {
-    notifyUnauthorized();
+  try {
+    const response = await profileFetch(
+      `${API_PREFIX}/utilities/database/backups/${encodeURIComponent(filename)}/export`,
+      {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-Wealthfolio-Backup": "1" },
+        body: JSON.stringify({ password, unencrypted }),
+        signal: controller.signal,
+      },
+    );
+    if (response.status === 401) {
+      notifyUnauthorized();
+    }
+    const result = await response
+      .json()
+      .catch(() => ({ message: "Backup export timed out or failed" }));
+    if (!response.ok) throw new Error(result.message || "Backup export failed");
+    const link = document.createElement("a");
+    link.href = `${API_PREFIX}/utilities/database/exports/${encodeURIComponent(result.id)}?profileScope=${encodeURIComponent(profileScope())}`;
+    link.download = result.filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    return true;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
   }
-  const result = await response
-    .json()
-    .catch(() => ({ message: "Backup export timed out or failed" }));
-  if (!response.ok) throw new Error(result.message || "Backup export failed");
-  const link = document.createElement("a");
-  link.href = `${API_PREFIX}/utilities/database/exports/${encodeURIComponent(result.id)}?profileScope=${encodeURIComponent(profileScope())}`;
-  link.download = result.filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  return true;
 };
 
 export interface DatabaseEncryptionStatus {

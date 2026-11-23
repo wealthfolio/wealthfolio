@@ -24,6 +24,7 @@ import {
   exportDatabaseBackup,
   inspectDatabaseBackup,
   inspectSavedDatabaseBackup,
+  isAutoUpdateCheckEnabled,
   restoreDatabaseBackupImport,
 } from "./settings";
 
@@ -117,4 +118,9 @@ it("inspects a managed snapshot by identifier and discards cancelled results", a
 it("confirms the immutable native import ID", async () => {
   await restoreDatabaseBackupImport("validated");
   expect(mocks.invoke).toHaveBeenCalledWith("restore_database_backup_import", { id: "validated" });
+});
+
+it("skips automatic update checks when the setting can't be read", async () => {
+  mocks.invoke.mockRejectedValueOnce("Failed to check auto-update setting: database is locked");
+  expect(await isAutoUpdateCheckEnabled()).toBe(false);
 });

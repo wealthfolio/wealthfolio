@@ -530,14 +530,14 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
             )
             .await
             {
-                error!("Chat stream error: {}", e);
+                error!("Chat stream failed ({})", e.code());
                 let _ = tx
                     .send(AiStreamEvent::error(
                         &thread_id_clone,
                         &run_id_clone,
                         None,
                         e.code(),
-                        &e.to_string(),
+                        &e.public_error().message,
                     ))
                     .await;
             }

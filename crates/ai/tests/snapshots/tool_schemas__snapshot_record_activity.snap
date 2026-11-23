@@ -37,6 +37,9 @@ expression: snapshot
       "currency": {
         "type": "string"
       },
+      "exchangeMic": {
+        "type": "string"
+      },
       "fee": {
         "type": "number"
       },

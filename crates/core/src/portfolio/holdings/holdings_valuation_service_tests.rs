@@ -517,20 +517,18 @@ mod tests {
             quantity,
             local_currency: local_currency.to_string(),
             base_currency: base_currency.to_string(),
-            cost_basis: cost_basis_local.map(|cb_local| MonetaryValue {
-                local: cb_local,
-                base: dec!(0.0),
-            }), // Base will be calculated
+            cost_basis: cost_basis_local.map(|cb_local| MonetaryValue::new(cb_local, None)),
             instrument,
             asset_kind: None,
             open_date: None,
             lots: None,
             contract_multiplier: Decimal::ONE,
-            weight: dec!(0.0),
+            weight: Some(dec!(0.0)),
             as_of_date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(), // Placeholder
-            market_value: MonetaryValue::zero(),                      // To be calculated
+            market_value: MonetaryValue::unavailable(),               // To be calculated
             price: None,                                              // To be calculated
             purchase_price: None,
+            translate_observed_basis: true,
             fx_rate: None,             // To be calculated
             unrealized_gain: None,     // To be calculated
             unrealized_gain_pct: None, // To be calculated
@@ -560,18 +558,18 @@ mod tests {
         match value {
             Some(mv) => {
                 assert!(
-                    (mv.local - expected_local).abs() < tolerance,
+                    (mv.local.unwrap() - expected_local).abs() < tolerance,
                     "{}: Local value mismatch. Expected {}, Got {}",
                     message,
                     expected_local,
-                    mv.local
+                    mv.local.unwrap()
                 );
                 assert!(
-                    (mv.base - expected_base).abs() < tolerance,
+                    (mv.base.unwrap() - expected_base).abs() < tolerance,
                     "{}: Base value mismatch. Expected {}, Got {}",
                     message,
                     expected_base,
-                    mv.base
+                    mv.base.unwrap()
                 );
             }
             None => panic!("{}: MonetaryValue was None", message),
@@ -619,6 +617,53 @@ mod tests {
 
     // --- Test Cases ---
     const TOLERANCE: Decimal = dec!(0.0001);
+
+    #[tokio::test]
+    async fn captured_fx_keeps_observed_basis_and_market_value_in_one_rate_context() {
+        let (live_fx, quotes, valuation) = setup_test_env();
+        live_fx.add_rate("USD", "CAD", dec!(3));
+        quotes.add_quote_pair("AAPL", create_quote("2025-01-15", dec!(110), "USD"), None);
+        let mut holdings = vec![create_holding(
+            "observed",
+            HoldingType::Security,
+            "AAPL",
+            dec!(1),
+            "USD",
+            "CAD",
+            Some(dec!(40)),
+            None,
+        )];
+        holdings[0].cost_basis = Some(MonetaryValue::new(dec!(40), dec!(80)));
+        let day = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
+        let captured = Arc::new(
+            crate::fx::currency_converter::CurrencyConverter::new(vec![ExchangeRate {
+                id: "captured".into(),
+                from_currency: "USD".into(),
+                to_currency: "CAD".into(),
+                rate: dec!(2),
+                source: "MANUAL".into(),
+                timestamp: day.and_hms_opt(0, 0, 0).unwrap().and_utc(),
+            }])
+            .unwrap(),
+        );
+        valuation
+            .calculate_with_captured_fx(&mut holdings, captured, day)
+            .await
+            .unwrap();
+        assert_eq!(
+            holdings[0].market_value,
+            MonetaryValue::new(dec!(110), dec!(220))
+        );
+        assert_eq!(
+            holdings[0].cost_basis,
+            Some(MonetaryValue::new(dec!(40), dec!(80)))
+        );
+        assert_eq!(
+            holdings[0].unrealized_gain,
+            Some(MonetaryValue::new(dec!(70), dec!(140)))
+        );
+        assert_eq!(live_fx.latest_rate_call_count("USD", "CAD"), 0);
+    }
 
     #[tokio::test]
     async fn test_security_valuation_base_currency() {
@@ -1070,7 +1115,7 @@ mod tests {
             Some("Transferred security"),
         )];
         // A TRANSFER_IN lot keeps the base cost recorded at the historical FX rate.
-        holdings[0].cost_basis.as_mut().unwrap().base = dec!(726.61);
+        holdings[0].cost_basis.as_mut().unwrap().base = Some(dec!(726.61));
 
         valuation_service
             .calculate_holdings_live_valuation(&mut holdings)
@@ -1108,7 +1153,7 @@ mod tests {
             Some(dec!(1000.0)),
             Some("Apple Inc."),
         )];
-        holdings[0].cost_basis.as_mut().unwrap().base = dec!(1000.0);
+        holdings[0].cost_basis.as_mut().unwrap().base = Some(dec!(1000.0));
 
         let result = valuation_service
             .calculate_holdings_live_valuation(&mut holdings)
@@ -1146,7 +1191,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn missing_historical_base_cost_basis_falls_back_to_current_fx() {
+    async fn observed_native_cost_is_translated_at_current_fx() {
         let (fx_service, market_data_service, valuation_service) = setup_test_env();
         fx_service.add_rate("USD", "EUR", dec!(0.8));
 
@@ -1830,8 +1875,8 @@ mod tests {
         let h_missing = holdings.iter().find(|h| h.id == "h_missing").unwrap();
         assert_eq!(
             h_missing.market_value,
-            MonetaryValue::zero(),
-            "Missing holding market value should be zero"
+            MonetaryValue::unavailable(),
+            "Missing quotes must leave market value unavailable"
         );
         assert!(
             h_missing.price.is_none(),
@@ -1934,7 +1979,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fx_service_error_fallback() {
+    async fn fx_failure_preserves_local_values_without_fabricating_base_values() {
         let (fx_service, market_data_service, valuation_service) = setup_test_env();
 
         // Set USD->CAD rate lookup to fail
@@ -1974,72 +2019,29 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        // Security - FX rate fallback to 1.0
-        let h_sec = holdings.iter().find(|h| h.id == "h_usd").unwrap();
-        assert_decimal_approx(
-            h_sec.fx_rate,
-            dec!(1.0),
-            TOLERANCE,
-            "Security FX Rate Fallback",
+        let security = holdings.iter().find(|h| h.id == "h_usd").unwrap();
+        assert_eq!(security.fx_rate, None);
+        assert_eq!(security.market_value, MonetaryValue::new(dec!(2000), None));
+        assert_eq!(
+            security.cost_basis,
+            Some(MonetaryValue::new(dec!(1800), None))
         );
-        assert_monetary_value_approx(
-            Some(&h_sec.market_value),
-            dec!(2000.0),
-            dec!(2000.0),
-            TOLERANCE,
-            "Security Market Value Fallback",
-        ); // Base uses fallback rate
-        assert_monetary_value_approx(
-            h_sec.cost_basis.as_ref(),
-            dec!(1800.0),
-            dec!(1800.0),
-            TOLERANCE,
-            "Security Cost Basis Fallback",
-        ); // Base uses fallback rate
-        assert_monetary_value_approx(
-            h_sec.unrealized_gain.as_ref(),
-            dec!(200.0),
-            dec!(200.0),
-            TOLERANCE,
-            "Security Unrealized Gain Fallback",
+        assert_eq!(
+            security.unrealized_gain,
+            Some(MonetaryValue::new(dec!(200), None))
         );
-        assert_monetary_value_approx(
-            h_sec.prev_close_value.as_ref(),
-            dec!(1900.0),
-            dec!(1900.0),
-            TOLERANCE,
-            "Security Prev Close Fallback",
+        assert_eq!(
+            security.prev_close_value,
+            Some(MonetaryValue::new(dec!(1900), None))
         );
-        assert_monetary_value_approx(
-            h_sec.day_change.as_ref(),
-            dec!(100.0),
-            dec!(100.0),
-            TOLERANCE,
-            "Security Day Change Fallback",
+        assert_eq!(
+            security.day_change,
+            Some(MonetaryValue::new(dec!(100), None))
         );
-
-        // Cash - FX rate fallback to 1.0
-        let h_cash = holdings.iter().find(|h| h.id == "h_cash_usd").unwrap();
-        assert_decimal_approx(
-            h_cash.fx_rate,
-            dec!(1.0),
-            TOLERANCE,
-            "Cash FX Rate Fallback",
-        );
-        assert_monetary_value_approx(
-            Some(&h_cash.market_value),
-            dec!(500.0),
-            dec!(500.0),
-            TOLERANCE,
-            "Cash Market Value Fallback",
-        );
-        assert_monetary_value_approx(
-            h_cash.cost_basis.as_ref(),
-            dec!(500.0),
-            dec!(500.0),
-            TOLERANCE,
-            "Cash Cost Basis Fallback",
-        );
+        let cash = holdings.iter().find(|h| h.id == "h_cash_usd").unwrap();
+        assert_eq!(cash.fx_rate, None);
+        assert_eq!(cash.market_value, MonetaryValue::new(dec!(500), None));
+        assert_eq!(cash.cost_basis, Some(MonetaryValue::new(dec!(500), None)));
     }
 
     #[tokio::test]
@@ -2231,14 +2233,17 @@ mod tests {
         // All valuation fields should remain default/None as instrument is required for lookup
         assert_eq!(
             holding.market_value,
-            MonetaryValue::zero(),
+            MonetaryValue::unavailable(),
             "MV No Instrument"
         );
         assert!(holding.price.is_none(), "Price No Instrument");
         assert!(holding.fx_rate.is_none(), "FX Rate No Instrument");
         // Cost basis remains as it was initially set, but base is not calculated
-        assert_eq!(holding.cost_basis.as_ref().unwrap().local, dec!(100.0));
-        assert_eq!(holding.cost_basis.as_ref().unwrap().base, dec!(0.0));
+        assert_eq!(
+            holding.cost_basis.as_ref().unwrap().local.unwrap(),
+            dec!(100.0)
+        );
+        assert_eq!(holding.cost_basis.as_ref().unwrap().base, None);
         assert!(
             holding.unrealized_gain.is_none(),
             "Unrealized No Instrument"

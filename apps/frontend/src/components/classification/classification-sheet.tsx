@@ -1,3 +1,5 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -43,6 +45,7 @@ export function ClassificationSheet({
   onOpenChange,
 }: ClassificationSheetProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   // Asset classification sheet — restrict to asset-scoped taxonomies.
   const { data: taxonomies, isLoading } = useTaxonomies({ scope: "asset" });
 
@@ -72,7 +75,13 @@ export function ClassificationSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="flex h-full w-full flex-col sm:max-w-lg">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "flex h-full flex-col",
+          isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-lg",
+        )}
+      >
         <SheetHeader className="shrink-0 pb-4">
           <div className="flex items-center gap-3">
             {assetSymbol && (

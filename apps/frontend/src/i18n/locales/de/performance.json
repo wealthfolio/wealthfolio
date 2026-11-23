@@ -72,9 +72,6 @@
     "return": "Rendite",
     "time_weighted_return": "Zeitgewichtete Rendite",
     "time_weighted_short": "Zeitgewichtet",
-    "twr_short": "TWR",
-    "annualized_twr": "Annualisierter TWR",
-    "ann_twr_short": "Ann. TWR",
     "money_weighted_return": "Geldgewichtete Rendite",
     "money_weighted_short": "Geldgewichtet",
     "mwr_short": "MWR",
@@ -82,12 +79,9 @@
     "ann_mwr_short": "Ann. MWR",
     "value_return": "Wertrendite",
     "value_return_short": "Wertrendite",
-    "value_short": "Wert",
     "price_return": "Kursrendite",
     "price_return_short": "Kursrendite",
-    "price_short": "Kurs",
     "volatility": "Volatilität",
-    "vol_short": "Vol",
     "max_drawdown": "Max. Drawdown",
     "max_drawdown_short": "Max. Drawdown",
     "drawdown_short": "Drawdown",
@@ -95,11 +89,6 @@
     "annualized_short": "Annualisiert",
     "gain_loss": "Gewinn / Verlust",
     "gain_loss_info": "Gesamtgewinn oder -verlust über den ausgewählten Zeitraum. Öffnen Sie die Kennzahl für Attributionsdetails."
-  },
-  "section": {
-    "returns": "Renditen",
-    "risk": "Risiko",
-    "total": "Gesamt"
   },
   "help": {
     "aria_label": "Erläuterungen zu Performance-Kennzahlen",
@@ -149,5 +138,13 @@
     "holdings_volatility": "Volatilität der Kontowertänderungen. Sie basiert auf täglichen Bewertungen ohne Bereinigung um Ein- oder Auszahlungen und zeigt, wie stark der Marktwert schwankt.",
     "holdings_max_drawdown": "Größter Rückgang des Kontowerts vom Höchst- zum Tiefststand. Er basiert auf täglichen Bewertungen ohne Bereinigung um Ein- oder Auszahlungen."
   },
-  "compare_over_time": "Kontoentwicklung im Zeitverlauf vergleichen"
+  "compare_over_time": "Kontoentwicklung im Zeitverlauf vergleichen",
+  "series_table": {
+    "label": "Verglichene Reihen",
+    "name": "Name",
+    "show_all": "Alle anzeigen ({{count}})",
+    "show_less": "Weniger anzeigen",
+    "hide_on_chart": "{{name}} im Diagramm ausblenden",
+    "show_on_chart": "{{name}} im Diagramm anzeigen"
+  }
 }

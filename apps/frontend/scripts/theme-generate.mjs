@@ -25,10 +25,11 @@ const previewTokensPath = resolve(frontend, "src/components/theme-preview-tokens
 const formatOptions = JSON.parse(await readFile(resolve(frontend, "../../.oxfmtrc.json"), "utf8"));
 
 export const baseTheme = "classic";
-// The picker's order; themes not listed follow alphabetically.
+// The picker's order; themes not listed follow alphabetically. Signature, the
+// default for new profiles, leads; Classic stays the base whatever its position.
 export const themeOrder = [
-  "classic",
   "signature",
+  "classic",
   "ember",
   "cupertino",
   "newspaper",
@@ -339,7 +340,7 @@ export interface ThemeDefinition {
   mode?: ${suggestedModes.map((mode) => JSON.stringify(mode)).join(" | ")};
 }
 
-/** In picker order; the first is Classic, the base every theme inherits from. */
+/** In picker order. Classic is the base every theme inherits from. */
 export const themes: readonly ThemeDefinition[] = ${JSON.stringify(entries)};
 `;
 }

@@ -3,12 +3,12 @@
 use crate::limits::{MAX_DATABASE_IMAGE_BYTES, MAX_ENCRYPTED_BACKUP_BYTES};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chacha20poly1305::{
-    aead::{Aead, AeadInPlace, KeyInit, Payload},
+    aead::{Aead, AeadInOut, KeyInit, Payload},
     XChaCha20Poly1305, XNonce,
 };
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use hkdf::Hkdf;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -61,7 +61,7 @@ impl Drop for MasterKey {
 impl MasterKey {
     pub fn generate() -> Self {
         let mut bytes = [0; 32];
-        OsRng.fill_bytes(&mut bytes);
+        UnwrapErr(SysRng).fill_bytes(&mut bytes);
         Self(bytes)
     }
     pub fn load(store: &dyn SecretStore, user_id: &str) -> Result<Option<Self>> {
@@ -186,13 +186,13 @@ fn derive(key: &[u8], context: &[u8]) -> [u8; 32] {
 }
 fn seal(key: &[u8; 32], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
     let mut nonce = [0; 24];
-    OsRng.fill_bytes(&mut nonce);
+    UnwrapErr(SysRng).fill_bytes(&mut nonce);
     let cipher = XChaCha20Poly1305::new(key.into());
     let mut out = nonce.to_vec();
     out.extend(
         cipher
             .encrypt(
-                XNonce::from_slice(&nonce),
+                &XNonce::from(nonce),
                 Payload {
                     msg: plaintext,
                     aad,
@@ -208,7 +208,7 @@ fn open(key: &[u8; 32], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
     }
     XChaCha20Poly1305::new(key.into())
         .decrypt(
-            XNonce::from_slice(&ciphertext[..24]),
+            &XNonce::try_from(&ciphertext[..24]).map_err(|_| BackupError::Invalid)?,
             Payload {
                 msg: &ciphertext[24..],
                 aad,
@@ -220,7 +220,7 @@ fn open(key: &[u8; 32], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
 /// 256 random bits, grouped for transcription, with a version and checksum.
 pub fn generate_recovery_code() -> String {
     let mut bytes = [0; 32];
-    OsRng.fill_bytes(&mut bytes);
+    UnwrapErr(SysRng).fill_bytes(&mut bytes);
     let encoded = hex(&bytes);
     let checksum = hex(&Sha256::digest(bytes));
     let groups: Vec<_> = encoded
@@ -440,7 +440,7 @@ pub fn encrypt_database_reader(
     drop(database);
     let mut output = gzip.finish()?.0;
     let mut nonce = [0; 24];
-    OsRng.fill_bytes(&mut nonce);
+    UnwrapErr(SysRng).fill_bytes(&mut nonce);
     let prefix = MAGIC.len() + nonce.len();
     let compressed_len = output.len();
     // Reserve once and shift in the same allocation instead of copying full-size buffers.
@@ -450,7 +450,7 @@ pub fn encrypt_database_reader(
     output[..MAGIC.len()].copy_from_slice(MAGIC);
     output[MAGIC.len()..prefix].copy_from_slice(&nonce);
     let tag = XChaCha20Poly1305::new((&derive(&master.0, &aad)).into())
-        .encrypt_in_place_detached(XNonce::from_slice(&nonce), &aad, &mut output[prefix..])
+        .encrypt_inout_detached(&XNonce::from(nonce), &aad, (&mut output[prefix..]).into())
         .map_err(|_| BackupError::Authentication)?;
     output.extend_from_slice(&tag);
     if output.len() > MAX_ENCRYPTED_BACKUP_BYTES {
@@ -1096,5 +1096,42 @@ mod tests {
             decrypt_database(&master, &header.context, &encrypted).unwrap(),
             expected
         );
+    }
+    #[test]
+    fn golden_backup_key_derivation_and_trusted_envelope() {
+        // Today's outputs for fixed synthetic inputs; recovery packages are pinned above by
+        // the frozen fixture. Never regenerate these to make an upgrade pass.
+        const ROOT: &str = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+        const USER: &str = "6f1d2c3b-4a59-4e68-8f7a-0b1c2d3e4f50";
+        const KEY_ID: &str = "0e9a8b7c-6d5e-4f30-9a1b-2c3d4e5f6a7b";
+        const TEAM: &str = "team-golden";
+        let master: [u8; 32] = std::array::from_fn(|i| 0x80 + i as u8);
+
+        let database_aad = backup_aad(&BackupContext {
+            format: 1,
+            user_id: USER.into(),
+            key_id: KEY_ID.into(),
+            backup_id: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            hex(&derive(&master, &database_aad)),
+            "08339665ceabff095f03fb50b00b043301c19eb78e46385e19441c003f17df80"
+        );
+        let trusted_aad = context(&["trusted", "1", USER, TEAM, "3", KEY_ID]);
+        assert_eq!(
+            hex(&derive(&decode_key(ROOT).unwrap(), &trusted_aad)),
+            "7e29aeb4f614ed0531b7bf9a2cb5ab647b48e397f6fd848287c47564396746ac"
+        );
+
+        // The backup master key wrapped for a trusted device under the sync root key.
+        let envelope = TrustedEnvelope {
+            format: 1,
+            team_id: TEAM.into(),
+            sync_key_version: 3,
+            ciphertext: "Im5rYIY2IQ3IM1aGtPACxxO2SdcQ6y08SKWtSButh2FYN19A/LHDpxvH+njJA7CKjYHNo7aUUSu240pazjdrFvHUmsod5tTT".into(),
+        };
+        let unwrapped = unwrap_trusted(&envelope, ROOT, USER, KEY_ID, TEAM, 3).unwrap();
+        assert_eq!(unwrapped.0, master);
     }
 }

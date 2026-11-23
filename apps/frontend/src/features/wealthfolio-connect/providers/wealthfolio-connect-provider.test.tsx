@@ -3,6 +3,9 @@ import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
+import { BackendError } from "@/lib/backend-error";
+import { invoke as webInvoke } from "../../../adapters/web/core";
+import { installProfileSession } from "@/features/profiles/session";
 import { usePostLoginConnectSync } from "../hooks/use-post-login-connect-sync";
 import { WealthfolioConnectProvider, useWealthfolioConnect } from "./wealthfolio-connect-provider";
 
@@ -142,6 +145,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -177,24 +181,50 @@ describe("Cloud session lifecycle", () => {
     },
   );
 
-  it("requires explicit confirmation before replacing a Connect account", async () => {
-    mocks.store.mockRejectedValueOnce(new Error("CONNECT_REBIND_REQUIRED"));
-    const { result } = await setup();
-    let login!: Promise<void>;
-    await act(async () => {
-      login = result.current.signInWithEmail("B", "password");
-    });
-    await screen.findByRole("dialog");
-    expect(mocks.store).toHaveBeenCalledTimes(1);
-    expect(result.current.isConnected).toBe(false);
-    expect(result.current.postLoginSyncRequest).toBeNull();
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "connect:rebind.confirm" }));
-      await login;
-    });
-    expect(mocks.store).toHaveBeenLastCalledWith("B", true);
-    expect(result.current.user?.id).toBe("B");
-  });
+  it.each(["legacy desktop", "web envelope"])(
+    "requires explicit confirmation before replacing a Connect account (%s)",
+    async (runtime) => {
+      if (runtime === "web envelope") {
+        installProfileSession({ profileId: "test", scopeId: "scope-test" });
+        vi.stubGlobal(
+          "fetch",
+          vi.fn().mockResolvedValue(
+            new Response(
+              JSON.stringify({
+                code: 403,
+                errorCode: "CONNECT_REBIND_REQUIRED",
+                message: "FAKE-KEY-2531 /private/portfolio.db",
+              }),
+              { status: 403, headers: { "Content-Type": "application/json" } },
+            ),
+          ),
+        );
+        mocks.store.mockImplementationOnce((refreshToken: string) =>
+          webInvoke("store_sync_session", { refreshToken }),
+        );
+      } else {
+        mocks.store.mockRejectedValueOnce(
+          "CONNECT_REBIND_REQUIRED: Confirm changing this profile's Connect account or team.",
+        );
+      }
+      const { result } = await setup();
+      let login!: Promise<void>;
+      await act(async () => {
+        login = result.current.signInWithEmail("B", "password");
+      });
+      await screen.findByRole("dialog");
+      expect(document.body.textContent).not.toContain("FAKE-KEY");
+      expect(mocks.store).toHaveBeenCalledTimes(1);
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.postLoginSyncRequest).toBeNull();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "connect:rebind.confirm" }));
+        await login;
+      });
+      expect(mocks.store).toHaveBeenLastCalledWith("B", true);
+      expect(result.current.user?.id).toBe("B");
+    },
+  );
 
   it("canceling an account change preserves the current connection", async () => {
     const { result } = await setup();
@@ -384,6 +414,38 @@ describe("Cloud session lifecycle", () => {
     expect(result.current.userInfo?.team?.subscription_status).toBe("canceled");
     expect(result.current.error).toBeNull();
     expect(result.current.isConnected).toBe(true);
+  });
+
+  it("backs off after the web server reports a Connect rate limit", async () => {
+    const now = performance.now();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(now);
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+    const profile = result.current.userInfo;
+
+    installProfileSession({ profileId: "test", scopeId: "scope-test" });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ code: 429, errorCode: "RATE_LIMITED", message: "FAKE-KEY-2531" }),
+            { status: 429, headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+    );
+    mocks.getUserInfo.mockImplementationOnce(() => webInvoke("get_user_info"));
+    await act(() => result.current.refetchUserInfo());
+    expect(result.current.userInfo).toBe(profile);
+    expect(result.current.error).not.toContain("FAKE-KEY");
+
+    const calls = mocks.getUserInfo.mock.calls.length;
+    clock.mockReturnValue(now + 59_999);
+    await act(() => result.current.refetchUserInfo());
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
+    vi.unstubAllGlobals();
   });
 
   it("keeps the profile when a local session check fails during cooldown", async () => {
@@ -724,15 +786,18 @@ it("keeps configured credentials unavailable while offline and restores them on 
   expect(result.current.isConnected).toBe(true);
   expect(result.current.isSessionUnavailable).toBe(false);
 });
-it("offers explicit reconnection when saved credentials need binding confirmation", async () => {
-  mocks.configured = true;
-  mocks.restore.mockRejectedValue(new Error("CONNECT_REBIND_REQUIRED"));
-  const { result } = await setup();
-  expect(result.current.isSessionUnavailable).toBe(false);
-  expect(result.current.isConnected).toBe(false);
-  expect(mocks.clear).not.toHaveBeenCalled();
-  expect(mocks.store).not.toHaveBeenCalled();
-});
+it.each([new Error("CONNECT_REBIND_REQUIRED"), new BackendError("CONNECT_REBIND_REQUIRED")])(
+  "offers explicit reconnection when saved credentials need binding confirmation (%s)",
+  async (error) => {
+    mocks.configured = true;
+    mocks.restore.mockRejectedValue(error);
+    const { result } = await setup();
+    expect(result.current.isSessionUnavailable).toBe(false);
+    expect(result.current.isConnected).toBe(false);
+    expect(mocks.clear).not.toHaveBeenCalled();
+    expect(mocks.store).not.toHaveBeenCalled();
+  },
+);
 it("does not show signed-out status when the credential status check also fails", async () => {
   mocks.getStatus.mockRejectedValue(new Error("backend unavailable"));
   const { result } = await setup();
@@ -751,4 +816,81 @@ it("coalesces repeated offline retry triggers", async () => {
   });
   expect(mocks.restore).toHaveBeenCalledOnce();
   await act(async () => restored.reject(new Error("still offline")));
+});
+
+it("shares pending profile refreshes without discarding their result", async () => {
+  const { result } = await setup();
+  await act(() => result.current.signInWithEmail("A", "password"));
+  await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+  const before = mocks.getUserInfo.mock.calls.length;
+  const pending = deferred<ReturnType<typeof info>>();
+  mocks.getUserInfo.mockImplementation(() => pending.promise);
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  act(() => window.dispatchEvent(new Event("focus")));
+  await waitFor(() => expect(mocks.getUserInfo).toHaveBeenCalledTimes(before + 1));
+  let joined!: Promise<void>;
+  act(() => {
+    document.dispatchEvent(new Event("visibilitychange"));
+    joined = result.current.refetchUserInfo();
+  });
+  expect(mocks.getUserInfo).toHaveBeenCalledTimes(before + 1);
+  await act(async () => {
+    pending.resolve(info("A", "canceled"));
+    await joined;
+  });
+  expect(result.current.userInfo?.team?.subscription_status).toBe("canceled");
+  expect(result.current.isLoadingUserInfo).toBe(false);
+});
+
+it("pauses hidden profile polling and refreshes once on return", async () => {
+  const { result } = await setup();
+  await act(() => result.current.signInWithEmail("A", "password"));
+  await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+  const before = mocks.getUserInfo.mock.calls.length;
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  // Reinstall the interval in this timer environment by restoring the session.
+  mocks.restore.mockResolvedValue({ accessToken: "access", refreshToken: "refresh" });
+  await act(() => result.current.retrySession());
+  const afterRestore = mocks.getUserInfo.mock.calls.length;
+  await act(() => vi.advanceTimersByTimeAsync(180_000));
+  expect(mocks.getUserInfo).toHaveBeenCalledTimes(afterRestore);
+  visibility.mockReturnValue("visible");
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  expect(mocks.getUserInfo).toHaveBeenCalledTimes(afterRestore + 1);
+  expect(afterRestore).toBeGreaterThanOrEqual(before);
+});
+
+it("replaces an invalidated pending refresh when translation changes", async () => {
+  const hook = await setup();
+  await act(() => hook.result.current.signInWithEmail("A", "password"));
+  await waitFor(() => expect(hook.result.current.userInfo?.id).toBe("A"));
+  const before = mocks.getUserInfo.mock.calls.length;
+  const pending = deferred<ReturnType<typeof info>>();
+  mocks.getUserInfo
+    .mockImplementationOnce(() => pending.promise)
+    .mockResolvedValueOnce(info("A", "canceled"));
+  let first!: Promise<void>;
+  act(() => {
+    first = hook.result.current.refetchUserInfo();
+  });
+  await waitFor(() => expect(mocks.getUserInfo).toHaveBeenCalledTimes(before + 1));
+  const previousTranslation = mocks.t;
+  try {
+    mocks.t = (key: string) => key;
+    hook.rerender();
+    await waitFor(() => expect(mocks.getUserInfo).toHaveBeenCalledTimes(before + 2));
+    await waitFor(() =>
+      expect(hook.result.current.userInfo?.team?.subscription_status).toBe("canceled"),
+    );
+    expect(hook.result.current.isLoadingUserInfo).toBe(false);
+    await act(async () => {
+      pending.resolve(info("A", "active"));
+      await first;
+    });
+    expect(hook.result.current.userInfo?.team?.subscription_status).toBe("canceled");
+    expect(hook.result.current.isLoadingUserInfo).toBe(false);
+  } finally {
+    mocks.t = previousTranslation;
+  }
 });

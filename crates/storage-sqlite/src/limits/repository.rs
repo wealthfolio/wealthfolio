@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -49,6 +50,72 @@ impl ContributionLimitRepository {
 
 #[async_trait]
 impl ContributionLimitRepositoryTrait for ContributionLimitRepository {
+    fn get_excluded_activity_ids(&self, limit_id: &str) -> Result<HashSet<String>> {
+        let mut conn = get_connection(&self.pool)?;
+        let stored = contribution_limits::table
+            .find(limit_id)
+            .select(contribution_limits::excluded_activity_ids)
+            .first::<Option<String>>(&mut conn)
+            .map_err(StorageError::from)?;
+        stored
+            .map(|value| {
+                serde_json::from_str(&value).map_err(|_| {
+                    StorageError::SerializationError(
+                        "Invalid contribution limit exclusions".to_string(),
+                    )
+                    .into()
+                })
+            })
+            .unwrap_or_else(|| Ok(HashSet::new()))
+    }
+
+    async fn set_activity_excluded(
+        &self,
+        limit_id: &str,
+        activity_id: &str,
+        excluded: bool,
+    ) -> Result<()> {
+        let limit_id = limit_id.to_string();
+        let activity_id = activity_id.to_string();
+        self.writer
+            .exec_tx(move |tx| -> Result<()> {
+                let current = contribution_limits::table
+                    .find(&limit_id)
+                    .first::<ContributionLimitDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                let mut ids: BTreeSet<String> = current
+                    .excluded_activity_ids
+                    .map(|value| serde_json::from_str(&value))
+                    .transpose()
+                    .map_err(|_| {
+                        StorageError::SerializationError(
+                            "Invalid contribution limit exclusions".to_string(),
+                        )
+                    })?
+                    .unwrap_or_default();
+                if excluded {
+                    ids.insert(activity_id);
+                } else {
+                    ids.remove(&activity_id);
+                }
+                let stored = serde_json::to_string(&ids).map_err(|_| {
+                    StorageError::SerializationError(
+                        "Could not serialize contribution limit exclusions".to_string(),
+                    )
+                })?;
+                let updated = diesel::update(contribution_limits::table.find(&limit_id))
+                    .set((
+                        contribution_limits::excluded_activity_ids.eq(stored),
+                        contribution_limits::updated_at.eq(chrono::Utc::now().naive_utc()),
+                    ))
+                    .get_result::<ContributionLimitDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                tx.update(&updated)?;
+                Ok(())
+            })
+            .await
+    }
+
     fn get_contribution_limit(&self, id_param: &str) -> Result<ContributionLimit> {
         self.get_contribution_limit_impl(id_param)
     }
@@ -73,6 +140,7 @@ impl ContributionLimitRepositoryTrait for ContributionLimitRepository {
                     contribution_limits::account_ids.eq(new_limit_owned.account_ids),
                     contribution_limits::start_date.eq(new_limit_owned.start_date),
                     contribution_limits::end_date.eq(new_limit_owned.end_date),
+                    contribution_limits::is_recurring.eq(new_limit_owned.is_recurring),
                     contribution_limits::created_at.eq(chrono::Utc::now().naive_utc()),
                     contribution_limits::updated_at.eq(chrono::Utc::now().naive_utc()),
                 );
@@ -107,6 +175,7 @@ impl ContributionLimitRepositoryTrait for ContributionLimitRepository {
                         contribution_limits::account_ids.eq(updated_limit_owned.account_ids),
                         contribution_limits::start_date.eq(updated_limit_owned.start_date),
                         contribution_limits::end_date.eq(updated_limit_owned.end_date),
+                        contribution_limits::is_recurring.eq(updated_limit_owned.is_recurring),
                         contribution_limits::updated_at.eq(chrono::Utc::now().naive_utc()),
                     ))
                     .get_result::<ContributionLimitDB>(tx.conn())

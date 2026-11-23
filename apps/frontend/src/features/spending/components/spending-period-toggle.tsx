@@ -1,6 +1,6 @@
 /**
  * Canonical period toggle for spending surfaces that need named comparison
- * periods (This month / Last month / 3M / 6M / YTD / 1Y). Used by the Insights page
+ * periods (1W / This month / 3M / 6M / YTD / 1Y). Used by the Insights page
  * and any future page that compares period-over-period totals.
  *
  * Why this exists: prior to this primitive each surface inlined its own
@@ -29,6 +29,7 @@ function useSpendingPeriodLabels(): Record<ReportsPeriod, ReactNode> {
   const { t } = useTranslation();
   return useMemo(
     () => ({
+      "1W": "1W",
       MTD: (
         <>
           <span className="hidden sm:inline">{t("spending:period.thisMonth")}</span>
@@ -72,7 +73,10 @@ export function SpendingPeriodToggle({
     <AnimatedToggleGroup
       variant={variant}
       size={size}
-      items={REPORTS_PERIODS.map((p) => ({ value: p, label: labels[p] }))}
+      items={REPORTS_PERIODS.filter((p) => p !== "LAST_MONTH").map((p) => ({
+        value: p,
+        label: labels[p],
+      }))}
       value={value}
       onValueChange={onValueChange}
       className={className}
@@ -85,6 +89,10 @@ interface SpendingPeriodSelectorProps {
   onValueChange: (next: ReportsPeriod) => void;
   customMonth: string | null;
   customRange?: DateRange;
+  customYear?: number | null;
+  maxYear?: number;
+  onCustomYearChange?: (year: number | null) => void;
+  selectionLabel?: string;
   maxMonth: string;
   onCustomMonthChange: (monthKey: string | null) => void;
   onCustomRangeChange?: (range: DateRange | undefined) => void;
@@ -102,6 +110,10 @@ export function SpendingPeriodSelector({
   onValueChange,
   customMonth,
   customRange,
+  customYear,
+  maxYear,
+  onCustomYearChange,
+  selectionLabel,
   maxMonth,
   onCustomMonthChange,
   onCustomRangeChange,
@@ -131,6 +143,10 @@ export function SpendingPeriodSelector({
       <SpendingDatePicker
         customMonth={customMonth}
         customRange={customRange}
+        customYear={customYear}
+        maxYear={maxYear}
+        onCustomYearChange={onCustomYearChange}
+        selectionLabel={selectionLabel}
         maxMonth={maxMonth}
         onCustomMonthChange={onCustomMonthChange}
         onCustomRangeChange={onCustomRangeChange}

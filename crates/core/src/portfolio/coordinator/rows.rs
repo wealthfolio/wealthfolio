@@ -142,6 +142,8 @@ pub fn stored_disposals(rows: &[LotDisposal]) -> Vec<KernelDisposal> {
                 proceeds_base: decimal(&d.proceeds_base),
                 cost_basis_base: decimal(&d.cost_basis_base),
                 realized_pnl_base: decimal(&d.realized_pnl_base),
+                proceeds_base_known: d.proceeds_base_known.unwrap_or(false),
+                cost_basis_base_known: d.cost_basis_base_known.unwrap_or(false),
                 currency: Currency::parse(&d.currency)?,
                 fx_rate_to_base: decimal(&d.fx_rate_to_base),
             })

@@ -343,6 +343,11 @@ fn default_is_active() -> bool {
     true
 }
 
+/// Why a save that would put an alternative asset in an account is refused.
+pub const ALTERNATIVE_ASSET_NOT_IN_ACCOUNT: &str = "Properties, vehicles, collectibles, precious \
+metals, liabilities and other personal assets count toward net worth on their own and can't be \
+held in an account. To hold a custom asset in an account, add it as an investment.";
+
 impl AssetKind {
     /// Returns the database string representation (SCREAMING_SNAKE_CASE).
     pub const fn as_db_str(&self) -> &'static str {
@@ -564,6 +569,18 @@ impl Asset {
             }
             InstrumentType::Fx => {
                 let symbol = self.instrument_symbol.as_ref()?;
+                // Providers list a crypto-based pair (BTC/USD) as crypto
+                // (Yahoo: BTC-USD), not as a currency pair (BTCUSD=X). A pair
+                // the user pointed at their own scraper keeps the pair symbol
+                // (BTCUSD) its URL templates were written for.
+                if crate::fx::is_crypto_currency(symbol)
+                    && crate::assets::custom_provider_code(self).is_none()
+                {
+                    return Some(InstrumentId::Crypto {
+                        base: Arc::from(symbol.as_str()),
+                        quote: Cow::Owned(self.quote_ccy.clone()),
+                    });
+                }
                 Some(InstrumentId::Fx {
                     base: Cow::Owned(symbol.clone()),
                     quote: Cow::Owned(self.quote_ccy.clone()),
@@ -682,6 +699,10 @@ pub struct NewAsset {
 
     // Instrument identity (for market assets)
     pub instrument_type: Option<InstrumentType>,
+    /// Instrument label as the caller supplied it (e.g. "MUTUALFUND"), before it
+    /// collapses into `instrument_type`. Classifies the created asset; not stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instrument_type_label: Option<String>,
     pub instrument_symbol: Option<String>,
     pub instrument_exchange_mic: Option<String>,
 
@@ -736,7 +757,14 @@ impl NewAsset {
         let readable_name = format!("{}/{} Exchange Rate", base_upper, quote_upper);
         let display = format!("{}/{}", base_upper, quote_upper);
 
-        let provider_config = if provider == "YAHOO" {
+        // A crypto-based pair gets no saved currency-pair symbol: its provider
+        // symbol comes from the crypto rules (see `to_instrument_id`).
+        let crypto_pair = crate::fx::is_crypto_currency(&base_upper);
+
+        let provider_config = if crypto_pair && (provider == "YAHOO" || provider == "ALPHA_VANTAGE")
+        {
+            Some(serde_json::json!({ "preferred_provider": provider }))
+        } else if provider == "YAHOO" {
             Some(serde_json::json!({
                 "preferred_provider": "YAHOO",
                 "overrides": {
@@ -894,6 +922,7 @@ impl From<ProviderProfile> for NewAsset {
             quote_mode: QuoteMode::Market,
             quote_ccy: canonical.quote_ccy.unwrap_or(profile.currency),
             instrument_type: Some(InstrumentType::Equity), // Default; caller can override
+            instrument_type_label: None,
             instrument_symbol: canonical.instrument_symbol,
             instrument_exchange_mic: canonical.instrument_exchange_mic,
             provider_config,
@@ -918,9 +947,31 @@ pub struct UpdateAssetProfile {
     pub quote_ccy: Option<String>,
     pub instrument_type: Option<InstrumentType>,
     pub instrument_symbol: Option<String>,
-    pub instrument_exchange_mic: Option<String>,
+    /// Absent keeps the exchange, `null` clears it, a MIC sets it.
+    #[serde(
+        default,
+        deserialize_with = "deserialize_exchange_mic_update",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub instrument_exchange_mic: Option<Option<String>>,
     pub provider_config: Option<Value>,
     pub metadata: Option<Value>,
+}
+
+fn deserialize_exchange_mic_update<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(Some)
+}
+
+/// The result of previewing an asset profile update.
+#[derive(Debug, Clone)]
+pub struct AssetProfileUpdatePreview {
+    /// The profile `update_asset_profile` would store.
+    pub profile: UpdateAssetProfile,
+    /// Another asset that already has the updated identity; the update would
+    /// be refused.
+    pub conflicting_asset: Option<Asset>,
 }
 
 /// Optional asset metadata that can be passed during activity creation.
@@ -1213,7 +1264,9 @@ impl UpdateAssetProfile {
             quote_ccy: Some(asset.quote_ccy.clone()),
             instrument_type: asset.instrument_type.clone(),
             instrument_symbol: asset.instrument_symbol.clone(),
-            instrument_exchange_mic: asset.instrument_exchange_mic.clone(),
+            // Omitted when the snapshot has none, so a metadata write never
+            // clears an exchange stored since.
+            instrument_exchange_mic: asset.instrument_exchange_mic.clone().map(Some),
             provider_config: asset.provider_config.clone(),
             metadata: Some(metadata),
         }

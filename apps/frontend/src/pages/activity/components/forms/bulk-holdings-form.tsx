@@ -1,9 +1,11 @@
 import { AccountSelector } from "@/components/account-selector";
+import { accountPickerItems } from "@/components/account-picker-items";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import TickerSearchInput from "@/components/ticker-search";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import { quoteModeFromSearchResult } from "@/lib/asset-utils";
-import { AccountPurpose, QuoteMode } from "@/lib/constants";
+import { AccountPurpose, accountSupportsPurpose, QuoteMode } from "@/lib/constants";
 import { Account, SymbolSearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -16,8 +18,18 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormRowGroup,
+  FormRowLabel,
+  FormRowValue,
+  formRowClassName,
+  formRowValueClassName,
   MoneyInput,
   QuantityInput,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   useAmountFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -52,6 +64,14 @@ interface BulkHoldingsFormProps {
   defaultAccount?: Account | null;
 }
 
+// A phone form row holding an input: the 44px input sets its height, so the row
+// drops its own vertical padding.
+const inputRowClassName = cn(formRowClassName, "focus-within:bg-accent/40 py-0");
+
+// A number typed at the end of a phone form row, without field chrome.
+const rowInputClassName =
+  "ms-auto h-auto min-w-0 flex-1 border-0 bg-transparent p-0 text-end text-base shadow-none focus-visible:outline-none dark:bg-transparent";
+
 // Memoized row component to prevent unnecessary re-renders
 const HoldingRow = memo(
   ({
@@ -78,6 +98,7 @@ const HoldingRow = memo(
     const { t } = useTranslation(["activity"]);
     const { control, setValue, getValues } = useFormContext<BulkHoldingsFormValues>();
     const amountFormatting = useAmountFormatting();
+    const isMobile = useIsMobileViewport();
     // The holdings are recorded in the form's currency.
     const currency = useWatch({ control, name: "currency" });
 
@@ -205,7 +226,7 @@ const HoldingRow = memo(
           setValue(`holdings.${index}.assetKind`, "", { shouldDirty: true });
         }
 
-        setFocus(`holdings.${index}.sharesOwned`);
+        requestAnimationFrame(() => setFocus(`holdings.${index}.sharesOwned`));
       },
       [index, setFocus, setValue],
     );
@@ -222,6 +243,102 @@ const HoldingRow = memo(
       onSelectRow(field.id);
     }, [field.id, onSelectRow]);
 
+    const tickerField = (
+      <FormField
+        control={control}
+        name={`holdings.${index}.ticker`}
+        render={({ field: tickerField }) => (
+          <TickerSearchInput
+            ref={tickerField.ref}
+            onSelectResult={(symbol: string, searchResult) => {
+              tickerField.onChange(symbol);
+              handleAssetSelect(symbol, searchResult);
+            }}
+            value={tickerField.value}
+            placeholder={t("activity:search_ticker_placeholder")}
+            className={
+              isMobile
+                ? cn(formRowClassName, "justify-between")
+                : "focus:border-input focus:bg-background bg-muted/40 border-border/40 h-9 truncate rounded-md border text-sm focus:border"
+            }
+            data-testid={`bulk-holding-ticker-${index}`}
+          />
+        )}
+      />
+    );
+
+    // Phones: each holding is a card of rows, as the Spending form lays out its fields.
+    if (isMobile) {
+      return (
+        // Each row sits in a wrapper: a row's own style drops borders, which would
+        // also drop the group's dividers between rows.
+        <FormRowGroup>
+          <div>{tickerField}</div>
+          <div>
+            <div className={inputRowClassName}>
+              <label htmlFor={`bulk-holding-shares-${field.id}`} className="shrink-0">
+                {t("activity:form.bulk_col_shares")}
+              </label>
+              <FormField
+                control={control}
+                name={`holdings.${index}.sharesOwned`}
+                render={({ field: sharesField }) => (
+                  <QuantityInput
+                    id={`bulk-holding-shares-${field.id}`}
+                    {...sharesField}
+                    placeholder="0"
+                    className={rowInputClassName}
+                    onKeyDown={handleSharesKeyDown}
+                    data-testid={`bulk-holding-shares-${index}`}
+                  />
+                )}
+              />
+            </div>
+          </div>
+          <div>
+            <div className={inputRowClassName}>
+              <label htmlFor={`bulk-holding-cost-${field.id}`} className="shrink-0">
+                {t("activity:form.bulk_col_average_cost")}
+              </label>
+              <FormField
+                control={control}
+                name={`holdings.${index}.averageCost`}
+                render={({ field: priceField }) => (
+                  <MoneyInput
+                    id={`bulk-holding-cost-${field.id}`}
+                    {...priceField}
+                    placeholder="0"
+                    className={rowInputClassName}
+                    onKeyDown={handleCostKeyDown}
+                    data-testid={`bulk-holding-cost-${index}`}
+                  />
+                )}
+              />
+            </div>
+          </div>
+          <div>
+            <div className={formRowClassName}>
+              <FormRowLabel>{t("activity:total_value")}</FormRowLabel>
+              <FormRowValue className={cn(totalValue > 0 && "text-foreground")}>
+                {amountFormatting.formatAmount(totalValue, currency)}
+              </FormRowValue>
+            </div>
+          </div>
+          {canRemove && (
+            <div>
+              <button
+                type="button"
+                onClick={handleRemoveClick}
+                className={cn(formRowClassName, "text-destructive justify-center")}
+              >
+                {t("common:remove")}
+              </button>
+            </div>
+          )}
+        </FormRowGroup>
+      );
+    }
+
     return (
       <div
         className={cn(
@@ -233,55 +350,30 @@ const HoldingRow = memo(
         {/* Ticker Input */}
         <div className="col-span-2 sm:col-span-5">
           <div className="flex min-w-0 items-center gap-2">
-            <TickerAvatar
-              symbol={canonicalSymbol || ticker}
-              exchangeMic={exchangeMic || undefined}
-              instrumentType={instrumentType || undefined}
-              assetId={assetId || undefined}
-              className="shrink-0"
-            />
-            <div className="min-w-0 flex-1">
-              <FormField
-                control={control}
-                name={`holdings.${index}.ticker`}
-                render={({ field: tickerField }) => (
-                  <TickerSearchInput
-                    ref={tickerField.ref}
-                    onSelectResult={(symbol: string, searchResult) => {
-                      tickerField.onChange(symbol);
-                      handleAssetSelect(symbol, searchResult);
-                    }}
-                    value={tickerField.value}
-                    placeholder={t("activity:search_ticker_placeholder")}
-                    className="focus:border-input focus:bg-background bg-muted/40 border-border/40 h-9 truncate rounded-md border text-sm focus:border"
-                    data-testid={`bulk-holding-ticker-${index}`}
-                  />
-                )}
+            {(canonicalSymbol || ticker) && (
+              <TickerAvatar
+                symbol={canonicalSymbol || ticker}
+                exchangeMic={exchangeMic || undefined}
+                instrumentType={instrumentType || undefined}
+                assetId={assetId || undefined}
+                className="shrink-0"
               />
-            </div>
-            {/* Delete button inline with ticker on mobile */}
-            {canRemove && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleRemoveClick}
-                aria-label={t("common:remove")}
-                className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-6 w-6 shrink-0 p-0 sm:hidden"
-              >
-                <Icons.Trash className="h-3 w-3" />
-              </Button>
             )}
+            <div className="min-w-0 flex-1">{tickerField}</div>
           </div>
         </div>
 
         {/* Shares Input */}
         <div className="col-start-1 sm:col-span-1">
+          <label htmlFor={`bulk-holding-shares-${field.id}`} className="sr-only">
+            {t("activity:form.bulk_col_shares")}
+          </label>
           <FormField
             control={control}
             name={`holdings.${index}.sharesOwned`}
             render={({ field: sharesField }) => (
               <QuantityInput
+                id={`bulk-holding-shares-${field.id}`}
                 {...sharesField}
                 placeholder={t("activity:form.bulk_placeholder_shares")}
                 className="focus:border-input focus:bg-background bg-muted/40 border-border/40 h-9 rounded-md border text-sm focus:border"
@@ -294,11 +386,15 @@ const HoldingRow = memo(
 
         {/* Average Cost Input */}
         <div className="sm:col-span-2">
+          <label htmlFor={`bulk-holding-cost-${field.id}`} className="sr-only">
+            {t("activity:form.bulk_col_average_cost")}
+          </label>
           <FormField
             control={control}
             name={`holdings.${index}.averageCost`}
             render={({ field: priceField }) => (
               <MoneyInput
+                id={`bulk-holding-cost-${field.id}`}
                 {...priceField}
                 placeholder={t("activity:form.bulk_placeholder_avg_cost")}
                 className="focus:border-input focus:bg-background bg-muted/40 border-border/40 h-9 rounded-md border text-sm focus:border"
@@ -344,7 +440,8 @@ const HoldingRow = memo(
 HoldingRow.displayName = "HoldingRow";
 
 export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldingsFormProps) => {
-  const { t } = useTranslation(["activity"]);
+  const { t } = useTranslation(["activity", "dashboard"]);
+  const isMobile = useIsMobileViewport();
   const { control, setFocus } = useFormContext<BulkHoldingsFormValues>();
   const { fields, append, remove } = useFieldArray({
     control,
@@ -359,6 +456,31 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
       accounts.find((acc) => acc.id === selectedAccountId) ??
       (defaultAccount?.id === selectedAccountId ? defaultAccount : null),
     [accounts, defaultAccount, selectedAccountId],
+  );
+
+  // The accounts AccountSelector offers here, for the phone's account screen.
+  const holdingsAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (acc) =>
+          acc.trackingMode === "TRANSACTIONS" &&
+          accountSupportsPurpose(acc, AccountPurpose.HOLDINGS),
+      ),
+    [accounts],
+  );
+  // The form's own account stays listed even when it falls outside that filter,
+  // such as an inactive account whose page opened this form.
+  const phoneAccounts = useMemo(
+    () =>
+      selectedAccount && !holdingsAccounts.some((acc) => acc.id === selectedAccount.id)
+        ? [selectedAccount, ...holdingsAccounts]
+        : holdingsAccounts,
+    [holdingsAccounts, selectedAccount],
+  );
+  const ungroupedLabel = t("dashboard:uncategorized");
+  const accountItems = useMemo(
+    () => accountPickerItems(phoneAccounts, ungroupedLabel),
+    [phoneAccounts, ungroupedLabel],
   );
 
   // Handle account selection with improved focus management
@@ -418,6 +540,138 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
     setSelectedRowId(id);
   }, []);
 
+  const accountField = (
+    <FormField
+      control={control}
+      name="accountId"
+      render={({ field }) =>
+        isMobile ? (
+          <FormItem className="gap-0">
+            <FormLabel className="sr-only">{t("activity:field_account")}</FormLabel>
+            <Select
+              items={accountItems}
+              value={field.value}
+              onValueChange={(accountId) => {
+                const account = phoneAccounts.find((acc) => acc.id === accountId);
+                if (!account) return;
+                field.onChange(account.id);
+                handleAccountSelect(account);
+              }}
+            >
+              <FormControl>
+                <SelectTrigger ref={field.ref} className={formRowClassName}>
+                  <FormRowLabel>{t("activity:field_account")}</FormRowLabel>
+                  <SelectValue
+                    className={formRowValueClassName}
+                    placeholder={t("activity:select_account_placeholder")}
+                  />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {phoneAccounts.map((acc) => (
+                  <SelectItem key={acc.id} value={acc.id}>
+                    {acc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage className="px-4 pb-2" />
+          </FormItem>
+        ) : (
+          <FormItem>
+            <FormLabel>{t("activity:field_account")}</FormLabel>
+            <FormControl>
+              <AccountSelector
+                ref={field.ref}
+                selectedAccount={selectedAccount}
+                setSelectedAccount={(account) => {
+                  field.onChange(account?.id || "");
+                  handleAccountSelect(account);
+                }}
+                variant="form"
+                filterActive={true}
+                trackingModes={["TRANSACTIONS"]}
+                accountPurpose={AccountPurpose.HOLDINGS}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )
+      }
+    />
+  );
+
+  const dateField = (
+    <FormField
+      control={control}
+      name="activityDate"
+      render={({ field }) => (
+        <FormItem
+          className={cn(
+            "flex flex-col",
+            isMobile && "min-h-14 flex-row flex-wrap items-center gap-x-3 gap-y-0 px-4",
+          )}
+        >
+          <FormLabel className={cn(isMobile && "shrink-0 text-base font-normal")}>
+            {t("activity:form.label_acquisition_date")}
+          </FormLabel>
+          <FormControl>
+            <DatePickerInput
+              value={field.value}
+              onChange={field.onChange}
+              appearance={isMobile ? "row" : "field"}
+              className={cn(isMobile && "ms-auto min-w-0")}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
+  const holdingRows = fields.map((field, index) => (
+    <HoldingRow
+      key={field.id}
+      index={index}
+      field={field as BulkHoldingRow}
+      onRemove={removeRow}
+      onAddRow={addRow}
+      isLast={index === fields.length - 1}
+      isSelected={selectedRowId === field.id}
+      onSelectRow={handleRowSelect}
+      setFocus={setFocus}
+      canRemove={fields.length > 1}
+    />
+  ));
+
+  const addRowButton = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={addRow}
+      className="border-muted-foreground/25 text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground h-10 w-full border border-dashed"
+      data-testid="bulk-holdings-add-row"
+    >
+      <Icons.PlusCircle className="me-2 h-4 w-4" />
+      {t("activity:add_another_holding")}
+    </Button>
+  );
+
+  // Phones: the account and date as one card of rows, then a card per holding.
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        <FormRowGroup>
+          {accountField}
+          {dateField}
+        </FormRowGroup>
+        {holdingRows}
+        {addRowButton}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Holdings Table */}
@@ -425,44 +679,8 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
         <CardContent className="space-y-4 pt-4">
           {/* Account and Date Selection */}
           <div className="grid grid-cols-1 gap-4 pb-4 sm:grid-cols-2">
-            <FormField
-              control={control}
-              name="accountId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("activity:field_account")}</FormLabel>
-                  <FormControl>
-                    <AccountSelector
-                      ref={field.ref}
-                      selectedAccount={selectedAccount}
-                      setSelectedAccount={(account) => {
-                        field.onChange(account?.id || "");
-                        handleAccountSelect(account);
-                      }}
-                      variant="form"
-                      filterActive={true}
-                      trackingModes={["TRANSACTIONS"]}
-                      accountPurpose={AccountPurpose.HOLDINGS}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={control}
-              name="activityDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("activity:form.label_acquisition_date")}</FormLabel>
-                  <FormControl>
-                    <DatePickerInput value={field.value} onChange={field.onChange} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {accountField}
+            {dateField}
           </div>
 
           {/* Table Header */}
@@ -475,37 +693,10 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
           </div>
 
           {/* Table Rows - Virtualization candidate for large lists */}
-          <div className="max-h-96 space-y-1 overflow-y-auto">
-            {fields.map((field, index) => (
-              <HoldingRow
-                key={field.id}
-                index={index}
-                field={field as BulkHoldingRow}
-                onRemove={removeRow}
-                onAddRow={addRow}
-                isLast={index === fields.length - 1}
-                isSelected={selectedRowId === field.id}
-                onSelectRow={handleRowSelect}
-                setFocus={setFocus}
-                canRemove={fields.length > 1}
-              />
-            ))}
-          </div>
+          <div className="max-h-96 space-y-1 overflow-y-auto">{holdingRows}</div>
 
           {/* Add Row Button */}
-          <div className="pt-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={addRow}
-              className="border-muted-foreground/25 text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground h-10 w-full border border-dashed"
-              data-testid="bulk-holdings-add-row"
-            >
-              <Icons.PlusCircle className="me-2 h-4 w-4" />
-              {t("activity:add_another_holding")}
-            </Button>
-          </div>
+          <div className="pt-3">{addRowButton}</div>
         </CardContent>
       </Card>
     </div>

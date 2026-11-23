@@ -1,4 +1,6 @@
 {
+  "scope_updating": "一部の口座の計算が完了していません。完了すると合計が表示されます。",
+  "scope_unavailable": "一部の口座の保有資産を取得できません。合計は不完全です。",
   "holdings": "保有資産",
   "insights": "分析",
   "my_holdings": "保有資産",

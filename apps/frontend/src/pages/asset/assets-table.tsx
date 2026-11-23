@@ -1,7 +1,7 @@
 import { profilePreferenceKey } from "@/hooks/use-persistent-state";
 import { usesLegacyPreferences } from "@/features/profiles/session";
 import { ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { createContext, useContext, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -40,7 +40,7 @@ import { getNoQuoteReasonText, isStaleQuote, ParsedAsset } from "./asset-utils";
 interface AssetsTableProps {
   assets: ParsedAsset[];
   latestQuotes?: Record<string, LatestQuoteSnapshot>;
-  heldAssetIds: Set<string>;
+  heldAssetIds: Set<string> | null;
   isLoading?: boolean;
   onEdit: (asset: ParsedAsset) => void;
   onDelete: (asset: ParsedAsset) => void;
@@ -48,6 +48,100 @@ interface AssetsTableProps {
   onRefetchQuotes: (asset: ParsedAsset) => void;
   isUpdatingQuotes?: boolean;
   isRefetchingQuotes?: boolean;
+}
+
+interface QuoteState {
+  latestQuotes: Record<string, LatestQuoteSnapshot>;
+  isUpdatingQuotes?: boolean;
+  isRefetchingQuotes?: boolean;
+}
+
+// DataTable renders each `cell` as a component, so new columns remount every cell: an open
+// row menu closes and a focused button loses focus. Cells read the quotes and the running
+// quote actions from here, so the columns stay the same when these change.
+const QuoteStateContext = createContext<QuoteState>({ latestQuotes: {} });
+
+function LatestQuoteCell({ asset }: { asset: ParsedAsset }) {
+  const { latestQuotes } = useContext(QuoteStateContext);
+  const formatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+  const { t } = useTranslation();
+  const { settings } = useSettingsContext();
+  const baseCurrency = settings?.baseCurrency ?? "USD";
+  const snapshot = latestQuotes[asset.id];
+  const quote = snapshot?.quote;
+  const stale = isStaleQuote(snapshot, asset);
+  const noQuoteReason = getNoQuoteReasonText(snapshot, asset);
+
+  if (!quote) {
+    return (
+      <div className="text-end">
+        <div className="flex items-center justify-end gap-1.5">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Icons.AlertTriangle
+                  className="text-warning h-3.5 w-3.5"
+                  aria-label={noQuoteReason}
+                />
+              }
+            />
+            <TooltipContent>{noQuoteReason}</TooltipContent>
+          </Tooltip>
+          <span className="text-muted-foreground text-sm">{t("asset:table.no_quotes")}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-end">
+      <div className="flex items-center justify-end gap-1.5">
+        {stale ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Icons.AlertTriangle
+                  className="text-warning h-3.5 w-3.5"
+                  aria-label={t("asset:table.quote_behind_aria")}
+                />
+              }
+            />
+            <TooltipContent>{t("asset:table.quote_behind_tooltip")}</TooltipContent>
+          </Tooltip>
+        ) : null}
+        <span className="font-semibold tabular-nums">
+          {formatting.formatPrice(quote.close, quote.currency ?? asset.quoteCcy ?? baseCurrency)}
+        </span>
+      </div>
+      <div className="text-muted-foreground text-2xs">
+        {formatDate(quote.timestamp, dateFormatting)}
+      </div>
+    </div>
+  );
+}
+
+function QuoteMenuItems({
+  asset,
+  onUpdateQuotes,
+  onRefetchQuotes,
+}: {
+  asset: ParsedAsset;
+  onUpdateQuotes: (asset: ParsedAsset) => void;
+  onRefetchQuotes: (asset: ParsedAsset) => void;
+}) {
+  const { t } = useTranslation();
+  const { isUpdatingQuotes, isRefetchingQuotes } = useContext(QuoteStateContext);
+  return (
+    <>
+      <DropdownMenuItem onClick={() => onUpdateQuotes(asset)} disabled={isUpdatingQuotes}>
+        {t("asset:table.update_quotes")}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => onRefetchQuotes(asset)} disabled={isRefetchingQuotes}>
+        {t("asset:table.refetch_price_history")}
+      </DropdownMenuItem>
+    </>
+  );
 }
 
 export function AssetsTable({
@@ -65,8 +159,6 @@ export function AssetsTable({
   const formatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
-  const { settings } = useSettingsContext();
-  const baseCurrency = settings?.baseCurrency ?? "USD";
   const navigate = useNavigate();
 
   const PRICE_STALE_OPTIONS = useMemo(
@@ -220,6 +312,7 @@ export function AssetsTable({
         cell: () => null,
         enableHiding: false,
         filterFn: (row, id, value) => {
+          if (row.getValue(id) == null) return true;
           const filterValue = value as string[];
           const cellValue = row.getValue(id);
           return filterValue.includes(cellValue as string);
@@ -235,65 +328,7 @@ export function AssetsTable({
           />
         ),
         size: 130,
-        cell: ({ row }) => {
-          const asset = row.original;
-          const snapshot = latestQuotes[asset.id];
-          const quote = snapshot?.quote;
-          const stale = isStaleQuote(snapshot, asset);
-          const noQuoteReason = getNoQuoteReasonText(snapshot, asset);
-
-          if (!quote) {
-            return (
-              <div className="text-end">
-                <div className="flex items-center justify-end gap-1.5">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Icons.AlertTriangle
-                          className="text-warning h-3.5 w-3.5"
-                          aria-label={noQuoteReason}
-                        />
-                      }
-                    />
-                    <TooltipContent>{noQuoteReason}</TooltipContent>
-                  </Tooltip>
-                  <span className="text-muted-foreground text-sm">
-                    {t("asset:table.no_quotes")}
-                  </span>
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div className="text-end">
-              <div className="flex items-center justify-end gap-1.5">
-                {stale ? (
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Icons.AlertTriangle
-                          className="text-warning h-3.5 w-3.5"
-                          aria-label={t("asset:table.quote_behind_aria")}
-                        />
-                      }
-                    />
-                    <TooltipContent>{t("asset:table.quote_behind_tooltip")}</TooltipContent>
-                  </Tooltip>
-                ) : null}
-                <span className="font-semibold tabular-nums">
-                  {formatting.formatPrice(
-                    quote.close,
-                    quote.currency ?? asset.quoteCcy ?? baseCurrency,
-                  )}
-                </span>
-              </div>
-              <div className="text-muted-foreground text-2xs">
-                {formatDate(quote.timestamp, dateFormatting)}
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }) => <LatestQuoteCell asset={row.original} />,
       },
       {
         id: "actions",
@@ -304,7 +339,9 @@ export function AssetsTable({
           const asset = row.original;
           return (
             <div className="flex justify-end">
-              <DropdownMenu>
+              {/* Rows are keyed by position: keyed by the asset, an open menu never
+                  acts on another security that a refetch moves into its row. */}
+              <DropdownMenu key={asset.id}>
                 <DropdownMenuTrigger
                   render={
                     <button
@@ -321,18 +358,11 @@ export function AssetsTable({
                     {t("asset:table.edit")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => onUpdateQuotes(asset)}
-                    disabled={isUpdatingQuotes}
-                  >
-                    {t("asset:table.update_quotes")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onRefetchQuotes(asset)}
-                    disabled={isRefetchingQuotes}
-                  >
-                    {t("asset:table.refetch_price_history")}
-                  </DropdownMenuItem>
+                  <QuoteMenuItems
+                    asset={asset}
+                    onUpdateQuotes={onUpdateQuotes}
+                    onRefetchQuotes={onRefetchQuotes}
+                  />
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
@@ -347,20 +377,7 @@ export function AssetsTable({
         },
       },
     ],
-    [
-      baseCurrency,
-      dateFormatting,
-      formatting,
-      latestQuotes,
-      onDelete,
-      onEdit,
-      onRefetchQuotes,
-      onUpdateQuotes,
-      isRefetchingQuotes,
-      isUpdatingQuotes,
-      navigate,
-      t,
-    ],
+    [dateFormatting, formatting, onDelete, onEdit, onRefetchQuotes, onUpdateQuotes, navigate, t],
   );
 
   // Build filter options from assets (quoteMode)
@@ -407,13 +424,18 @@ export function AssetsTable({
     [kindOptions, quoteModeOptions, HOLDING_STATUS_OPTIONS, PRICE_STALE_OPTIONS, t],
   );
 
+  const quoteState = useMemo(
+    () => ({ latestQuotes, isUpdatingQuotes, isRefetchingQuotes }),
+    [latestQuotes, isUpdatingQuotes, isRefetchingQuotes],
+  );
+
   // Add computed field for stale status to enable filtering
   const assetsWithStaleFlag = useMemo(
     () =>
       assets.map((asset) => ({
         ...asset,
         isStale: isStaleQuote(latestQuotes[asset.id], asset) ? "true" : "false",
-        holdingStatus: heldAssetIds.has(asset.id) ? "true" : "false",
+        holdingStatus: heldAssetIds == null ? null : heldAssetIds.has(asset.id) ? "true" : "false",
       })),
     [assets, latestQuotes, heldAssetIds],
   );
@@ -473,24 +495,26 @@ export function AssetsTable({
   }
 
   return (
-    <DataTable
-      data={assetsWithStaleFlag}
-      columns={columns}
-      searchBy="symbol"
-      filters={filters}
-      defaultColumnVisibility={{
-        quoteCcy: false,
-        isStale: false,
-        holdingStatus: false,
-        assetSubClass: false,
-        quoteMode: false,
-        kind: false,
-      }}
-      defaultColumnFilters={[{ id: "holdingStatus", value: ["true"] }]}
-      defaultSorting={[{ id: "symbol", desc: false }]}
-      storageKey={profilePreferenceKey("securities-table-v5")}
-      fallbackStorageKey={usesLegacyPreferences() ? "securities-table-v5" : undefined}
-      scrollable
-    />
+    <QuoteStateContext value={quoteState}>
+      <DataTable
+        data={assetsWithStaleFlag}
+        columns={columns}
+        searchBy="symbol"
+        filters={filters}
+        defaultColumnVisibility={{
+          quoteCcy: false,
+          isStale: false,
+          holdingStatus: false,
+          assetSubClass: false,
+          quoteMode: false,
+          kind: false,
+        }}
+        defaultColumnFilters={[{ id: "holdingStatus", value: ["true"] }]}
+        defaultSorting={[{ id: "symbol", desc: false }]}
+        storageKey={profilePreferenceKey("securities-table-v5")}
+        fallbackStorageKey={usesLegacyPreferences() ? "securities-table-v5" : undefined}
+        scrollable
+      />
+    </QuoteStateContext>
   );
 }

@@ -73,9 +73,6 @@
     "return": "Rentabilidade",
     "time_weighted_return": "Rentabilidade ponderada por tempo",
     "time_weighted_short": "Ponderada por tempo",
-    "twr_short": "TWR",
-    "annualized_twr": "TWR anualizada",
-    "ann_twr_short": "TWR an.",
     "money_weighted_return": "Rentabilidade ponderada pelo capital",
     "money_weighted_short": "Ponderada por dinheiro",
     "mwr_short": "MWR",
@@ -83,12 +80,9 @@
     "ann_mwr_short": "MWR an.",
     "value_return": "Rentabilidade por valor",
     "value_return_short": "Rent. por valor",
-    "value_short": "Valor",
     "price_return": "Rentabilidade por preço",
     "price_return_short": "Rent. por preço",
-    "price_short": "Preço",
     "volatility": "Volatilidade",
-    "vol_short": "Vol",
     "max_drawdown": "Queda máxima",
     "max_drawdown_short": "Queda máx.",
     "drawdown_short": "Queda",
@@ -96,11 +90,6 @@
     "annualized_short": "Anualizada",
     "gain_loss": "Ganho / perda",
     "gain_loss_info": "Ganho ou perda total durante o período selecionado. Abra a métrica para ver os detalhes de atribuição."
-  },
-  "section": {
-    "returns": "Rentabilidades",
-    "risk": "Risco",
-    "total": "Total"
   },
   "help": {
     "aria_label": "Explicações das métricas de desempenho",
@@ -150,5 +139,13 @@
     "holdings_volatility": "Volatilidade das variações do valor da conta. Baseia-se nas avaliações diárias sem ajustes por depósitos ou levantamentos. Reflete a dimensão das oscilações do valor de mercado.",
     "holdings_max_drawdown": "Maior queda do valor da conta entre um pico e um mínimo. Baseia-se nas avaliações diárias sem ajustes por depósitos ou levantamentos."
   },
-  "compare_over_time": "Comparar o desempenho das contas ao longo do tempo"
+  "compare_over_time": "Comparar o desempenho das contas ao longo do tempo",
+  "series_table": {
+    "label": "Séries comparadas",
+    "name": "Nome",
+    "show_all": "Mostrar tudo ({{count}})",
+    "show_less": "Mostrar menos",
+    "hide_on_chart": "Ocultar {{name}} no gráfico",
+    "show_on_chart": "Mostrar {{name}} no gráfico"
+  }
 }

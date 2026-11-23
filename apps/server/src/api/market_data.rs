@@ -23,46 +23,32 @@ async fn reset_provider_history(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Path(asset_id): Path<String>,
 ) -> ApiResult<Json<wealthfolio_core::quotes::ResetProviderHistoryResult>> {
-    // Dropping the HTTP future must not drop committed work's recalculation event.
-    let result = tokio::spawn(async move {
-        let result = state.quote_service.reset_provider_history(&asset_id).await;
-        if result.is_ok() {
-            state
-                .domain_event_sink
-                .emit(DomainEvent::PriceHistoryChanged);
-        }
-        result
-    })
-    .await
-    .map_err(|_| {
-        crate::error::ApiError::Internal(
-            "Reset completion could not be confirmed. Reload quotes before retrying.".into(),
-        )
-    })??;
+    // Dropping the HTTP future must not drop committed work's recalculation
+    // event, which the quote service emits after the reset.
+    let result =
+        tokio::spawn(async move { state.quote_service.reset_provider_history(&asset_id).await })
+            .await
+            .map_err(|_| {
+                crate::error::ApiError::Internal(
+                    "Reset completion could not be confirmed. Reload quotes before retrying."
+                        .into(),
+                )
+            })??;
     Ok(Json(result))
 }
 
 async fn reset_all_provider_history(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<wealthfolio_core::quotes::ResetAllProviderHistoryResult>> {
-    let result = tokio::spawn(async move {
-        let result = state.quote_service.reset_all_provider_history().await;
-        if result
-            .as_ref()
-            .is_ok_and(|result| !result.results.is_empty())
-        {
-            state
-                .domain_event_sink
-                .emit(DomainEvent::PriceHistoryChanged);
-        }
-        result
-    })
-    .await
-    .map_err(|_| {
-        crate::error::ApiError::Internal(
-            "Reset completion could not be confirmed. Reload quotes before retrying.".into(),
-        )
-    })??;
+    let result =
+        tokio::spawn(async move { state.quote_service.reset_all_provider_history().await })
+            .await
+            .map_err(|_| {
+                crate::error::ApiError::Internal(
+                    "Reset completion could not be confirmed. Reload quotes before retrying."
+                        .into(),
+                )
+            })??;
     Ok(Json(result))
 }
 
@@ -168,6 +154,8 @@ async fn update_quote(
     // Ensure asset_id matches path parameter
     quote.asset_id = symbol;
     state.quote_service.update_quote(quote).await?;
+    // A new value can end a stale valuation in Health Center.
+    state.health_service.clear_cache().await;
     // Manual quote update - no market sync needed, but force full recalculation
     // so historical valuations are recomputed with the updated quotes
     enqueue_portfolio_job(
@@ -186,6 +174,8 @@ async fn delete_quote(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
     state.quote_service.delete_quote(&id).await?;
+    // Removing a value can make an asset's valuation stale in Health Center.
+    state.health_service.clear_cache().await;
     // Manual quote deletion - no market sync needed, but force full recalculation
     // so historical valuations are recomputed without the deleted quotes
     enqueue_portfolio_job(

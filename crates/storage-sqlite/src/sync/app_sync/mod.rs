@@ -13,6 +13,7 @@ pub use model::{
     SyncOutboxEventDB, SyncTableStateDB,
 };
 pub(crate) use outbox_projector::{flush_projected_outbox, ProjectedChange};
+pub(crate) use repository::stamp_category_merge_write;
 pub use repository::{
     AppSyncRepository, OutboxWriteRequest, SyncLocalDataSummary, SyncTableRowCount,
 };

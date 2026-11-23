@@ -3,8 +3,8 @@
 #[cfg(test)]
 mod tests {
     use crate::accounts::{
-        normalize_account_number, Account, AccountAccountingSettings, NewAccount, TrackingMode,
-        ACCOUNT_NUMBER_MAX_CHARS,
+        normalize_account_number, Account, AccountAccountingSettings, AccountUpdate, NewAccount,
+        TrackingMode, ACCOUNT_NUMBER_MAX_CHARS,
     };
     use chrono::NaiveDateTime;
 
@@ -222,6 +222,25 @@ mod tests {
         assert!(err
             .to_string()
             .contains("Credit card accounts cannot use HOLDINGS tracking mode"));
+    }
+
+    #[test]
+    fn account_update_group_distinguishes_omitted_null_and_name() {
+        let base = serde_json::json!({
+            "name": "Brokerage", "accountType": "SECURITIES",
+            "isDefault": false, "isActive": true
+        });
+        let read = |value| {
+            serde_json::from_value::<AccountUpdate>(value)
+                .unwrap()
+                .group
+        };
+        assert_eq!(read(base.clone()), None);
+        let mut with_group = base;
+        with_group["group"] = serde_json::Value::Null;
+        assert_eq!(read(with_group.clone()), Some(None));
+        with_group["group"] = serde_json::json!("Retirement");
+        assert_eq!(read(with_group), Some(Some("Retirement".to_string())));
     }
 
     // ==================== Account Number Tests ====================

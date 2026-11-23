@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use argon2::{
-    password_hash::{Error as PasswordHashError, PasswordHash, PasswordVerifier},
+    password_hash::{phc::PasswordHash, Error as PasswordHashError, PasswordVerifier},
     Argon2,
 };
 use axum::{
@@ -220,7 +220,7 @@ impl AuthManager {
         Argon2::default()
             .verify_password(candidate.as_bytes(), &parsed)
             .map_err(|err| match err {
-                PasswordHashError::Password => AuthError::InvalidCredentials,
+                PasswordHashError::PasswordInvalid => AuthError::InvalidCredentials,
                 other => AuthError::Internal(format!("Password verification failed: {other}")),
             })
     }
@@ -506,7 +506,7 @@ pub(crate) async fn require_backup_session(
     let needs_refresh = claims.sid.is_empty() || auth.should_refresh(&claims);
     let session = if claims.sid.is_empty() {
         // Concurrent refreshes of one legacy cookie must retain one identity.
-        format!("{:x}", sha2::Sha256::digest(token.as_bytes()))
+        hex::encode(sha2::Sha256::digest(token.as_bytes()))
     } else {
         claims.sid.clone()
     };
@@ -667,5 +667,60 @@ mod tests {
     fn never_with_https_header() {
         let mgr = make_manager(CookieSecurePolicy::Never);
         assert!(!mgr.should_secure_cookie(&headers_with_proto("https")));
+    }
+
+    // Golden vectors: produced today from a fixed synthetic WF_SECRET_KEY. Existing databases,
+    // secrets.json files and password hashes depend on them, so a dependency upgrade must
+    // reproduce them exactly. Never regenerate these values to make an upgrade pass.
+    const GOLDEN_SECRET_KEY: &str = "CzBVep/E6Q4zWH2ix+wRNluApcrvFDleg6jN8hc8YYY=";
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    #[test]
+    fn golden_keys_derived_from_secret_key() {
+        let master = decode_secret_key(GOLDEN_SECRET_KEY).unwrap();
+        let (jwt_key, secrets_key) = derive_keys(&master);
+        assert_eq!(
+            hex(&jwt_key),
+            "0825b47988ad0e531ade9f71d7137a785d65ad0a80a4c2c2d0eeed3d87134b4d"
+        );
+        assert_eq!(
+            hex(&secrets_key),
+            "ddb041db149be5cc0fca55ee729fe8a7d6b0ae42ea6c407faa8b6e8fe51e2f29"
+        );
+        assert_eq!(
+            hex(&derive_database_key(&master)),
+            "372d954aff0b15ec76c3c0f8265e024a1a5004a7c938fc91ad44a62644a5d8a6"
+        );
+        let profile = uuid::Uuid::parse_str("3f2b8c1e-5d4a-4b6c-9e7f-1a2b3c4d5e6f").unwrap();
+        assert_eq!(
+            hex(&derive_profile_database_key(&master, profile)),
+            "012e39074d51d515327044fa7ad93cbe125c8bbc3e61a22e3b476a0a0417734b"
+        );
+    }
+
+    #[test]
+    fn golden_password_hash_verifies_and_wrong_password_is_unauthorized() {
+        // The default parameters of the argon2 CLI the README documents (m=4096, t=3, p=1).
+        let manager = AuthManager::new(&AuthConfig {
+            password_hash: Some(
+                "$argon2id$v=19$m=4096,t=3,p=1$d2VhbHRoZm9saW8tc2FsdA$H+IzgsqdErEeLxJGkDfCqgOLLhq9LURZCFy+YZAygFg"
+                    .into(),
+            ),
+            jwt_secret: vec![0u8; 32],
+            access_token_ttl: Duration::from_secs(3600),
+            cookie_secure: CookieSecurePolicy::Auto,
+        })
+        .unwrap();
+        manager
+            .verify_password("correct horse battery staple")
+            .unwrap();
+        let error = manager
+            .verify_password("correct horse battery stapler")
+            .unwrap_err();
+        assert!(matches!(error, AuthError::InvalidCredentials), "{error:?}");
+        assert_eq!(error.into_response().status(), StatusCode::UNAUTHORIZED);
     }
 }

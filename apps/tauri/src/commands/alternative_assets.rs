@@ -4,8 +4,11 @@
 //! All business logic lives in the core service - these commands only handle:
 //! - String ↔ typed value conversion
 //! - Error formatting for the frontend
+//! - Health Center cache clearing
+//!
+//! No write here starts a portfolio job: stored account values leave
+//! alternative assets out, and net worth reads their values directly.
 
-use crate::events::{emit_portfolio_trigger_recalculate, PortfolioRequestPayload};
 use crate::profiles::ProfileAccess;
 use chrono::NaiveDate;
 use log::error;
@@ -18,8 +21,8 @@ use wealthfolio_core::assets::{
     LinkLiabilityRequest as CoreLinkRequest, UpdateAssetDetailsRequest as CoreUpdateDetailsRequest,
     UpdateValuationRequest as CoreValuationRequest,
 };
+use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::portfolio::net_worth::{NetWorthHistoryPoint, NetWorthResponse};
-use wealthfolio_core::quotes::MarketSyncMode;
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,6 +174,8 @@ pub async fn create_alternative_asset(
             error!("Failed to create alternative asset: {}", e);
             format!("Failed to create asset: {}", e)
         })?;
+    // A value dated long ago shows as stale in Health Center.
+    context.health_service().clear_cache().await;
 
     Ok(CreateAlternativeAssetResponse {
         asset_id: response.asset_id,
@@ -211,6 +216,8 @@ pub async fn update_alternative_asset_valuation(
             error!("Failed to update valuation: {}", e);
             format!("Failed to update valuation: {}", e)
         })?;
+    // A new value can end a stale valuation in Health Center.
+    context.health_service().clear_cache().await;
 
     Ok(UpdateValuationResponse {
         quote_id: response.quote_id,
@@ -280,7 +287,10 @@ pub async fn delete_alternative_asset(
         .map_err(|e| {
             error!("Failed to delete alternative asset: {}", e);
             format!("Failed to delete asset: {}", e)
-        })
+        })?;
+    // The asset's issues in Health Center go with it.
+    context.health_service().clear_cache().await;
+    Ok(())
 }
 
 /// Links a liability to a target asset.
@@ -427,7 +437,6 @@ pub async fn apply_loan_action(
     asset_id: String,
     action: wealthfolio_core::assets::loan::LoanAction,
     state: ProfileAccess,
-    handle: tauri::AppHandle,
 ) -> Result<(), String> {
     let context = state.context()?;
     let result = context
@@ -435,15 +444,10 @@ pub async fn apply_loan_action(
         .apply_loan_action(&asset_id, action)
         .await
         .map_err(|e| e.to_string())?;
-    // Recorded balances change valuations, as a manual quote save does.
+    // Recorded balances are the loan's values: a new one can end a stale
+    // valuation in Health Center, and removing one can start it.
     if result.balances_changed {
-        tauri::async_runtime::spawn(async move {
-            let payload = PortfolioRequestPayload::builder()
-                .account_ids(None)
-                .market_sync_mode(MarketSyncMode::None)
-                .build();
-            emit_portfolio_trigger_recalculate(&handle, payload, &context);
-        });
+        context.health_service().clear_cache().await;
     }
     Ok(())
 }

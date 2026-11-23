@@ -73,9 +73,6 @@
     "return": "Rendimento",
     "time_weighted_return": "Rendimento ponderato nel tempo",
     "time_weighted_short": "Ponderato nel tempo",
-    "twr_short": "TWR",
-    "annualized_twr": "TWR annualizzato",
-    "ann_twr_short": "TWR ann.",
     "money_weighted_return": "Rendimento ponderato per il capitale",
     "money_weighted_short": "Ponderato per il capitale",
     "mwr_short": "MWR",
@@ -83,12 +80,9 @@
     "ann_mwr_short": "MWR ann.",
     "value_return": "Rendimento da valore",
     "value_return_short": "Rend. da valore",
-    "value_short": "Valore",
     "price_return": "Rendimento da prezzo",
     "price_return_short": "Rend. da prezzo",
-    "price_short": "Prezzo",
     "volatility": "Volatilità",
-    "vol_short": "Vol",
     "max_drawdown": "Drawdown massimo",
     "max_drawdown_short": "Drawdown max.",
     "drawdown_short": "Drawdown",
@@ -96,11 +90,6 @@
     "annualized_short": "Annualizzato",
     "gain_loss": "Guadagno / perdita",
     "gain_loss_info": "Guadagno o perdita totale nel periodo selezionato. Apri la metrica per i dettagli di attribuzione."
-  },
-  "section": {
-    "returns": "Rendimenti",
-    "risk": "Rischio",
-    "total": "Totale"
   },
   "help": {
     "aria_label": "Spiegazioni delle metriche di performance",
@@ -150,5 +139,13 @@
     "holdings_volatility": "Volatilità delle variazioni del valore del conto. Si basa sulle valutazioni giornaliere senza rettifiche per versamenti o prelievi. Riflette l’entità delle oscillazioni del valore di mercato.",
     "holdings_max_drawdown": "Maggiore calo del valore del conto dal picco al minimo. Si basa sulle valutazioni giornaliere senza rettifiche per versamenti o prelievi."
   },
-  "compare_over_time": "Confronta l’andamento della performance dei conti"
+  "compare_over_time": "Confronta l’andamento della performance dei conti",
+  "series_table": {
+    "label": "Serie confrontate",
+    "name": "Nome",
+    "show_all": "Mostra tutto ({{count}})",
+    "show_less": "Mostra meno",
+    "hide_on_chart": "Nascondi {{name}} nel grafico",
+    "show_on_chart": "Mostra {{name}} nel grafico"
+  }
 }

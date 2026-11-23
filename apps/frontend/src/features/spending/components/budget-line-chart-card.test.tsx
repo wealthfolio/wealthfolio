@@ -24,7 +24,18 @@ const food: BudgetCategoryRow = {
   rolloverEnabled: false,
 };
 
-function setup() {
+const savingsGoal: BudgetCategoryRow = {
+  ...food,
+  taxonomyId: "savings_categories",
+  categoryId: "cat_savings",
+  name: "Savings",
+  target: 400,
+  actual: 350,
+  remaining: 50,
+  overspent: false,
+};
+
+function setup(allocations: BudgetCategoryRow[] = [food]) {
   return render(
     <MemoryRouter>
       <FormattingProvider locale="en-US" timezone="UTC">
@@ -40,7 +51,7 @@ function setup() {
           spent={1234.5}
           currency="USD"
           historicalDailyAvg={0}
-          allocations={[food]}
+          allocations={allocations}
           spendingBreakdown={[{ categoryId: "food", amount: 1234.5, count: 3 }]}
           categoriesMeta={
             new Map([["food", { name: "Food", color: null, icon: null, parentId: null }]])
@@ -82,6 +93,18 @@ describe("BudgetLineChartCard with Hide Balance", () => {
   });
 });
 
+describe("BudgetLineChartCard spending rings", () => {
+  it("rings only expense categories, not savings goals", () => {
+    setup([food, savingsGoal]);
+
+    expect(screen.getAllByRole("link", { name: /\$/ })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /\$235/ })).toHaveAttribute(
+      "title",
+      "Food: 1,234.50 / 1,000.00",
+    );
+  });
+});
+
 describe("BudgetLineChartCard", () => {
   it.each([
     ["JPY", 1234, 1000, "food: 1,234 / 1,000"],
@@ -103,7 +126,13 @@ describe("BudgetLineChartCard", () => {
             spent={spent}
             currency={currency}
             historicalDailyAvg={0}
-            allocations={[{ categoryId: "food", target } as BudgetCategoryRow]}
+            allocations={[
+              {
+                taxonomyId: "spending_categories",
+                categoryId: "food",
+                target,
+              } as BudgetCategoryRow,
+            ]}
             spendingBreakdown={[{ categoryId: "food", amount: spent, count: 1 }]}
             categoriesMeta={new Map()}
             monthByDay={[]}

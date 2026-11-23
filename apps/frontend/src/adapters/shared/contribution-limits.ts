@@ -1,5 +1,10 @@
 // Contribution Limits Commands
-import type { ContributionLimit, NewContributionLimit, DepositsCalculation } from "@/lib/types";
+import type {
+  ContributionLimit,
+  ContributionLimitDetails,
+  NewContributionLimit,
+  DepositsCalculation,
+} from "@/lib/types";
 
 import { invoke } from "./platform";
 
@@ -26,4 +31,18 @@ export const deleteContributionLimit = async (id: string): Promise<void> => {
 
 export const calculateDepositsForLimit = async (limitId: string): Promise<DepositsCalculation> => {
   return invoke<DepositsCalculation>("calculate_deposits_for_contribution_limit", { limitId });
+};
+
+export const getContributionLimitDetails = async (
+  limitId: string,
+): Promise<ContributionLimitDetails> => {
+  return invoke<ContributionLimitDetails>("get_contribution_limit_details", { limitId });
+};
+
+export const setContributionActivityExcluded = async (
+  limitId: string,
+  activityId: string,
+  excluded: boolean,
+): Promise<void> => {
+  return invoke<void>("set_contribution_activity_excluded", { limitId, activityId, excluded });
 };

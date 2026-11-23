@@ -100,7 +100,7 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
     }
     while low < high {
         let middle = low + (high - low) / 2;
-        if evaluate(middle).as_ref().is_some_and(&settled) {
+        if evaluate(middle).as_ref().is_some_and(settled) {
             high = middle;
         } else {
             low = middle + 1;

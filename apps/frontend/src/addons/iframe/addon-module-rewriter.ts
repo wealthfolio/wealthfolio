@@ -1,4 +1,4 @@
-import { parse } from "es-module-lexer/js";
+import { parse } from "es-module-lexer/minimal/js";
 
 export type ModuleSpecifierResolver = (importerPath: string, specifier: string) => string;
 export type StaticSpecifierEligibility = (specifier: string) => boolean;
@@ -10,7 +10,7 @@ interface SourceEdit {
 }
 
 // es-module-lexer declares ImportType in its types but does not export it from
-// the CSP-safe `/js` runtime build. Keep these values aligned with its public
+// the CSP-safe `/minimal/js` runtime build. Keep these values aligned with its public
 // ImportType enum and handle only syntax whose semantics this loader supports.
 const IMPORT_TYPE = {
   STATIC: 1,

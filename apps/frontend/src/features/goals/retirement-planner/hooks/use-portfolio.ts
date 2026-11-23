@@ -4,6 +4,7 @@ import { getAccounts, getCurrentValuation } from "@/adapters";
 import { useHoldings } from "@/hooks/use-holdings";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Holding } from "@/lib/types";
+import { sumAmounts } from "@/lib/monetary-value";
 
 export function usePortfolioData(accountIds?: string[]) {
   const accountsQuery = useQuery({
@@ -33,6 +34,7 @@ export function usePortfolioData(accountIds?: string[]) {
   const {
     holdings: holdingsForAccounts,
     isLoading: isHoldingsLoading,
+    isUpdating: holdingsUpdating,
     error: holdingsError,
   } = useHoldings({ type: "accounts", accountIds: activeAccountIds });
 
@@ -43,8 +45,8 @@ export function usePortfolioData(accountIds?: string[]) {
       const existing = bySymbol.get(key);
       if (existing) {
         existing.marketValue = {
-          local: existing.marketValue.local + h.marketValue.local,
-          base: existing.marketValue.base + h.marketValue.base,
+          local: sumAmounts([existing.marketValue.local, h.marketValue.local]),
+          base: sumAmounts([existing.marketValue.base, h.marketValue.base]),
         };
         existing.quantity = existing.quantity + h.quantity;
       } else {
@@ -64,7 +66,11 @@ export function usePortfolioData(accountIds?: string[]) {
     accounts,
     activeAccounts,
     totalValue,
-    isLoading: accountsQuery.isLoading || currentValuationQuery.isLoading || isHoldingsLoading,
+    isLoading:
+      accountsQuery.isLoading ||
+      currentValuationQuery.isLoading ||
+      isHoldingsLoading ||
+      holdingsUpdating,
     error: currentValuationQuery.error || holdingsError,
   };
 }

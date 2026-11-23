@@ -345,7 +345,6 @@ export function unitPriceMoved(now: number, calculatedWith: number): boolean {
   return Math.abs(now - calculatedWith) > Math.abs(calculatedWith) * PRICE_MOVE_THRESHOLD;
 }
 
-/** Cash not yet recorded, keyed by the account it would arrive in. */
 /** What one change places in each account: positive increases, negative reductions. */
 export interface RowPlacementLedger {
   byAccount: ReadonlyMap<string, number>;

@@ -80,7 +80,8 @@ services:
 
       # Required when auth is enabled — set to your app's origin, e.g. https://wealthfolio.example.com
       WF_CORS_ALLOW_ORIGINS: "${WF_CORS_ALLOW_ORIGINS:-}"
-      WF_REQUEST_TIMEOUT_MS: "${WF_REQUEST_TIMEOUT_MS:-30000}"
+      # Empty uses the shared timeout matrix; overrides apply to routine routes.
+      WF_REQUEST_TIMEOUT_MS: "${WF_REQUEST_TIMEOUT_MS:-}"
     healthcheck:
       test:
         ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8088/api/v1/healthz"]

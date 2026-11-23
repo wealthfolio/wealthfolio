@@ -10,6 +10,7 @@ expression: result
         "currency": "USD",
         "id": "acc-1",
         "isActive": true,
+        "isArchived": false,
         "isDefault": false,
         "name": "Brokerage",
         "trackingMode": "TRANSACTIONS"
@@ -19,6 +20,7 @@ expression: result
         "currency": "EUR",
         "id": "acc-2",
         "isActive": true,
+        "isArchived": false,
         "isDefault": false,
         "name": "Savings",
         "trackingMode": "TRANSACTIONS"

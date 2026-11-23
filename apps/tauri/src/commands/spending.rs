@@ -28,6 +28,32 @@ use wealthfolio_spending::settings::{SpendingSettings, SpendingSettingsUpdate};
 
 const MAX_BULK_CATEGORY_ASSIGNMENTS: usize = 1_000;
 
+#[tauri::command]
+pub async fn review_category_merge(
+    state: ProfileAccess,
+    request: wealthfolio_spending::category_merge::CategoryMergeRequest,
+) -> Result<wealthfolio_spending::category_merge::CategoryMergeReview, String> {
+    let context = state.context()?;
+    context
+        .category_merge_service()
+        .review(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn merge_category(
+    state: ProfileAccess,
+    request: wealthfolio_spending::category_merge::CategoryMergeCommit,
+) -> Result<(), String> {
+    let context = state.context()?;
+    context
+        .category_merge_service()
+        .commit(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Fire-and-forget auto-categorize for direct (user-initiated) triggers:
 /// settings changes that broaden the spending scope, and rule mutations that
 /// could re-classify existing uncategorized activities. `only_uncategorized=true`
@@ -740,6 +766,7 @@ pub async fn delete_budget_group(
 
 #[tauri::command]
 pub async fn assign_category_to_group(
+    taxonomy_id: Option<String>,
     category_id: String,
     group_id: String,
     period_key: Option<String>,
@@ -750,7 +777,14 @@ pub async fn assign_category_to_group(
     let timezone = context.get_timezone();
     context
         .budget_service()
-        .assign_category_to_group(category_id, group_id, period_key, &base_currency, &timezone)
+        .assign_category_to_group(
+            taxonomy_id,
+            category_id,
+            group_id,
+            period_key,
+            &base_currency,
+            &timezone,
+        )
         .await
         .map_err(|e| format!("Failed to assign category to group: {}", e))
 }

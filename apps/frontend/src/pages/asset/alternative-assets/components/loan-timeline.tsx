@@ -165,7 +165,10 @@ export function LoanTimeline({
       <AmountDisplay value={event.amount} currency={currency} />
     ) : event.type === "renewal" && event.annualRate != null ? (
       <>
-        {`${formatting.formatDecimal(event.annualRate, { maximumFractionDigits: 2 })}%`}
+        {formatting.formatDecimal(event.annualRate / 100, {
+          style: "percent",
+          maximumFractionDigits: 2,
+        })}
         {event.paymentAmount != null && (
           <>
             {" · "}

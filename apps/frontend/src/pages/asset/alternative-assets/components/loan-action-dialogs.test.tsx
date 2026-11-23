@@ -1,10 +1,15 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@/test/render";
-import { describe, expect, it, vi } from "vitest";
+import { addDays, subDays } from "date-fns";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
-import { LoanBalanceEventDialog, RecalculateScheduleDialog } from "./loan-action-dialogs";
+import {
+  CloseLoanDialog,
+  LoanBalanceEventDialog,
+  RecalculateScheduleDialog,
+} from "./loan-action-dialogs";
 
 const adapters = vi.hoisted(() => ({ payments: vi.fn(), recalculate: vi.fn() }));
 vi.mock("@/adapters", () => ({
@@ -17,6 +22,7 @@ const props = {
   mode: "extra_repayment" as const,
   currentBalance: 1000,
   currency: "USD",
+  today: formatDateISO(new Date()),
   onOpenChange: vi.fn(),
   onSubmit: vi.fn().mockResolvedValue(undefined),
 };
@@ -62,13 +68,16 @@ describe("extra repayment validation", () => {
     render(
       <LoanBalanceEventDialog
         {...props}
-        onSubmit={vi.fn().mockRejectedValue(new Error("Balance changed"))}
+        onSubmit={vi.fn().mockRejectedValue(new Error("FAKE-KEY-2531 /private/portfolio.db"))}
       />,
     );
     const input = screen.getByLabelText("Repayment Amount");
     fireEvent.change(input, { target: { value: "100" } });
     fireEvent.click(screen.getByRole("button", { name: "Record Repayment" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Balance changed"));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Enter valid loan details."),
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("FAKE-KEY");
     fireEvent.change(input, { target: { value: "50" } });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -80,9 +89,7 @@ describe("extra repayment validation", () => {
       <LoanBalanceEventDialog {...props} confirmations={[balance("2020-01-01")]} />,
     );
     expect(screen.queryByText(/takes priority/)).not.toBeInTheDocument();
-    rerender(
-      <LoanBalanceEventDialog {...props} confirmations={[balance(formatDateISO(new Date()))]} />,
-    );
+    rerender(<LoanBalanceEventDialog {...props} confirmations={[balance(props.today)]} />);
     expect(screen.getByText(/takes priority/)).toHaveTextContent("500,000");
   });
 });
@@ -101,6 +108,7 @@ describe("recalculating the schedule", () => {
         assetId="loan"
         metadata={{}}
         quoteHistory={[]}
+        today={formatDateISO(new Date())}
         onSubmit={vi.fn()}
       />,
       {
@@ -130,12 +138,62 @@ describe("balance correction replacement", () => {
       <LoanBalanceEventDialog
         {...props}
         mode="balance_correction"
-        confirmations={[quote(formatDateISO(new Date()))]}
+        confirmations={[quote(props.today)]}
       />,
     );
     expect(screen.getByText(/This replaces/)).toHaveTextContent(
       "Deleting it later will not restore the previous balance",
     );
     expect(screen.getByText(/This replaces/)).toHaveTextContent("0.00");
+  });
+});
+
+// The backend values a loan as of today in the settings timezone, which can be a
+// day behind or ahead of the browser's date.
+describe("dates in the settings timezone", () => {
+  const browserToday = new Date(2026, 10, 2, 12);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(browserToday);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("dates a balance confirmed today on the settings day when the browser is a day ahead", async () => {
+    const today = formatDateISO(subDays(browserToday, 1));
+    const onSubmit = vi.fn<(date: Date, amount: number) => Promise<void>>();
+    render(
+      <LoanBalanceEventDialog
+        {...props}
+        mode="balance_correction"
+        today={today}
+        onSubmit={onSubmit}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Current Balance"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm balance" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(formatDateISO(onSubmit.mock.calls[0][0])).toBe(today);
+  });
+
+  it("accepts the settings day when the browser is a day behind", async () => {
+    const today = formatDateISO(addDays(browserToday, 1));
+    const onSubmit = vi.fn<(date: Date) => Promise<void>>();
+    render(
+      <CloseLoanDialog
+        open
+        onOpenChange={vi.fn()}
+        onSubmit={onSubmit}
+        originationDate={null}
+        today={today}
+      />,
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close Loan" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(formatDateISO(onSubmit.mock.calls[0][0])).toBe(today);
   });
 });

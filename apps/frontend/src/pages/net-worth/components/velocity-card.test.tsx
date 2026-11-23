@@ -20,7 +20,7 @@ vi.mock("@/components/dashboard-card", () => ({
   ),
 }));
 
-vi.mock("./compact-amount", () => ({
+vi.mock("@/components/financial/compact-amount", () => ({
   CompactAmount: ({ value }: { value: number }) => <span>{value}</span>,
 }));
 

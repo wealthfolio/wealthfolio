@@ -13,8 +13,8 @@ mod holdings_phase;
 use log::{debug, info};
 
 use super::models::{
-    BrokerSyncStatusDetail, NewAccountInfo, SyncActivitiesResponse, SyncHoldingsResponse,
-    SyncResult,
+    BrokerConnection, BrokerSyncStatusDetail, NewAccountInfo, SyncActivitiesResponse,
+    SyncHoldingsResponse, SyncResult,
 };
 use super::progress::SyncProgressReporter;
 use super::traits::{
@@ -158,11 +158,20 @@ impl<P: SyncProgressReporter> SyncOrchestrator<P> {
     /// This is the main entry point for broker synchronization.
     /// Always emits sync-start and sync-complete/error events.
     pub async fn sync_all(&self, api_client: &dyn BrokerApiClient) -> Result<SyncResult, String> {
+        self.sync_all_with_connections(api_client, None).await
+    }
+
+    /// Reuse connections already fetched by the caller for this sync run.
+    pub async fn sync_all_with_connections(
+        &self,
+        api_client: &dyn BrokerApiClient,
+        connections: Option<Vec<BrokerConnection>>,
+    ) -> Result<SyncResult, String> {
         info!("Starting broker data sync...");
         self.progress_reporter.report_sync_start();
 
         // Run the sync and ensure we always emit completion event
-        let result = self.sync_all_internal(api_client).await;
+        let result = self.sync_all_internal(api_client, connections).await;
 
         match &result {
             Ok(sync_result) => {
@@ -190,12 +199,16 @@ impl<P: SyncProgressReporter> SyncOrchestrator<P> {
     async fn sync_all_internal(
         &self,
         api_client: &dyn BrokerApiClient,
+        connections: Option<Vec<BrokerConnection>>,
     ) -> Result<SyncResult, String> {
         // Step 1: Sync connections (platforms)
-        let connections = api_client
-            .list_connections()
-            .await
-            .map_err(|e| e.to_string())?;
+        let connections = match connections {
+            Some(connections) => connections,
+            None => api_client
+                .list_connections()
+                .await
+                .map_err(|e| e.to_string())?,
+        };
 
         let connections_result = self
             .sync_service
@@ -505,6 +518,7 @@ mod tests {
     #[derive(Default)]
     struct MockBrokerApiClient {
         broker_accounts: Vec<BrokerAccount>,
+        connection_calls: Mutex<usize>,
         activity_pages: Mutex<Vec<PaginatedUniversalActivity>>,
         activity_calls: Mutex<Vec<BrokerTrackingMode>>,
         activity_contexts: Mutex<Vec<BrokerAccountContext>>,
@@ -514,6 +528,7 @@ mod tests {
     #[async_trait]
     impl BrokerApiClient for MockBrokerApiClient {
         async fn list_connections(&self) -> Result<Vec<BrokerConnection>> {
+            *self.connection_calls.lock().unwrap() += 1;
             Ok(Vec::new())
         }
 
@@ -785,6 +800,19 @@ mod tests {
             Arc::new(NoOpProgressReporter),
             SyncConfig::default(),
         )
+    }
+
+    #[tokio::test]
+    async fn sync_reuses_connections_from_the_protected_request() {
+        let service = Arc::new(MockSyncService::default());
+        let api = MockBrokerApiClient::default();
+        orchestrator(service.clone())
+            .sync_all_with_connections(&api, Some(vec![]))
+            .await
+            .unwrap();
+        assert_eq!(*api.connection_calls.lock().unwrap(), 0);
+        orchestrator(service).sync_all(&api).await.unwrap();
+        assert_eq!(*api.connection_calls.lock().unwrap(), 1);
     }
 
     #[tokio::test]

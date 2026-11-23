@@ -69,7 +69,7 @@
   "other_sources_count_one": "mais {{count}} fonte",
   "other_sources_count_other": "mais {{count}} fontes",
   "other_sources_count_many": "mais {{count}} fontes",
-  "percent_of_total": "{{percent}}% do total",
+  "percent_of_total": "{{percent}} do total",
   "view_combined": "Combinado",
   "view_by_account": "Por conta",
   "monthly_income": "Rendimentos mensais",

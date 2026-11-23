@@ -68,7 +68,7 @@
   "other": "その他",
   "other_sources_count_one": "その他{{count}}件",
   "other_sources_count_other": "その他{{count}}件",
-  "percent_of_total": "全体の{{percent}}%",
+  "percent_of_total": "全体の{{percent}}",
   "view_combined": "合算",
   "view_by_account": "口座別",
   "monthly_income": "月次の収入",

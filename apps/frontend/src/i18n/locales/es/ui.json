@@ -111,6 +111,9 @@
     "search": "Buscar ...",
     "reset": "Restablecer",
     "columns": "Columnas",
+    "moveColumnUp": "Subir {{column}}",
+    "moveColumnDown": "Bajar {{column}}",
+    "resetColumnOrder": "Restablecer orden de columnas",
     "sortAsc": "Asc",
     "sortDesc": "Desc",
     "hide": "Ocultar"
@@ -118,6 +121,8 @@
   "datePicker": {
     "dateLabel": "Fecha",
     "pick": "Elige una fecha",
+    "time": "Hora",
+    "done": "Listo",
     "previousMonth": "Mes anterior",
     "nextMonth": "Mes siguiente",
     "chooseMonth": "Elegir mes",
@@ -208,6 +213,7 @@
     "typeToSearch": "Escribe para buscar"
   },
   "sheet": {
+    "back": "Atrás",
     "close": "Cerrar"
   },
   "page": {

@@ -1,4 +1,3 @@
-import { ApplicationShell } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { useMemo } from "react";
@@ -159,7 +158,7 @@ export default function SettingsLayout() {
 
   if (isCompact && isMainSettingsPage) {
     return (
-      <ApplicationShell className="settings-root app-shell h-screen overflow-x-hidden">
+      <div className="settings-root h-screen w-full overflow-x-hidden">
         {/* Mobile Settings List View (carded list with dividers) */}
         <div className="scan-hide-target w-full max-w-full overflow-x-hidden">
           <div className="bg-background/95 supports-backdrop-filter:bg-background/60 pt-safe sticky top-0 z-10 border-b backdrop-blur">
@@ -202,12 +201,12 @@ export default function SettingsLayout() {
             ))}
           </div>
         </div>
-      </ApplicationShell>
+      </div>
     );
   }
 
   return (
-    <ApplicationShell className="settings-root app-shell h-screen overflow-x-hidden">
+    <div className="settings-root h-screen w-full overflow-x-hidden">
       <div className="scan-hide-target pt-safe w-full max-w-full overflow-x-hidden scroll-smooth lg:flex lg:justify-start lg:pt-0">
         {/* At exactly 1024px the global `.flex { overflow-x: hidden }` rule still applies and
             would make this padded box the sidebar's sticky container, pinning the sidebar
@@ -222,8 +221,9 @@ export default function SettingsLayout() {
           <div className="lg:flex lg:gap-10">
             {/* Uncapped, the sidebar makes the page scroll past short content, taking a
                 self-scrolling table's header out of view (Securities). Fit it below its
-                sticky offset and let it scroll instead. */}
-            <aside className="hidden w-60 shrink-0 lg:sticky lg:top-24 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col lg:self-start lg:overflow-y-auto">
+                sticky offset and let it scroll instead, with a thin scrollbar where
+                platforms always draw one. */}
+            <aside className="hidden w-60 shrink-0 lg:sticky lg:top-24 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:scrollbar-thin lg:flex-col lg:self-start lg:overflow-y-auto">
               <div className="space-y-6">
                 {sections.map((section) => (
                   <div key={section.title} className="space-y-2">
@@ -241,6 +241,6 @@ export default function SettingsLayout() {
           </div>
         </div>
       </div>
-    </ApplicationShell>
+    </div>
   );
 }

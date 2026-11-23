@@ -16,7 +16,6 @@ export function AccountEditModal({ account, open, onClose }: AccountEditModalPro
   const defaultValues = {
     id: account?.id ?? undefined,
     name: account?.name ?? "",
-    balance: account?.balance ?? 0,
     accountType: (account?.accountType ?? "SECURITIES") as
       | "SECURITIES"
       | "CASH"
@@ -36,7 +35,7 @@ export function AccountEditModal({ account, open, onClose }: AccountEditModalPro
     <Dialog open={open} onOpenChange={onClose} useIsMobile={useIsMobileViewport}>
       <DialogContent
         data-testid="account-modal"
-        className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-230"
+        className="overflow-y-auto p-0 [--overlay-max-height:90vh] sm:max-w-230"
       >
         <AccountForm
           defaultValues={defaultValues}

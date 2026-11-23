@@ -53,7 +53,7 @@ export function ConnectNavItem({ collapsed }: ConnectNavItemProps) {
             className={cn(
               buttonVariants({ variant: isActive ? "secondary" : "ghost" }),
               cn(
-                "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+                "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300 motion-reduce:transition-colors",
                 collapsed ? "justify-center" : "justify-start",
               ),
             )}

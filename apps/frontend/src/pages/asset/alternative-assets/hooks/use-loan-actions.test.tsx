@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   apply: vi.fn<(assetId: string, action: unknown) => Promise<void>>(),
   create: vi.fn<(activity: Record<string, unknown>) => Promise<{ id: string }>>(),
   link: vi.fn<(activityId: string, link: unknown) => Promise<void>>(),
-  invalidateQuotes: vi.fn(),
   invalidateAssets: vi.fn(),
   toast: vi.fn(),
   balanceSheet: vi.fn<(props: ComponentProps<Dialogs["LoanBalanceEventDialog"]>) => void>(),
@@ -55,9 +54,6 @@ vi.mock("@/hooks/use-accounts", () => ({
   }),
 }));
 vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({ toast: mocks.toast }));
-vi.mock("../../hooks/use-quote-mutations", () => ({
-  useQuoteMutations: () => ({ invalidateQuoteQueries: mocks.invalidateQuotes }),
-}));
 vi.mock("./use-alternative-asset-mutations", () => ({
   invalidateAlternativeAssetQueries: mocks.invalidateAssets,
 }));
@@ -184,7 +180,6 @@ describe("loan actions are single backend calls", () => {
       },
     ]);
     expect(mocks.invalidateAssets).toHaveBeenCalled();
-    expect(mocks.invalidateQuotes).toHaveBeenCalled();
   });
 
   it("deletes a balance without a replacement", async () => {
@@ -212,7 +207,6 @@ describe("loan actions are single backend calls", () => {
     act(() => actions.editEvent(0));
     await expect(saveSheet({ ...extra, amount: 150 })).rejects.toBe("LOAN_EVENT_CHANGED");
     expect(mocks.invalidateAssets).toHaveBeenCalled();
-    expect(mocks.invalidateQuotes).toHaveBeenCalled();
   });
 
   it("names the edited event by position and stored value", async () => {

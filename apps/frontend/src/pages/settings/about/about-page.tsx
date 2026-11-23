@@ -137,13 +137,17 @@ export default function AboutSettingsPage() {
             <>
               <Separator />
 
-              <div className="grid gap-4">
+              <div className="grid min-w-0 grid-cols-1 gap-4">
                 <div className="space-y-1">
                   <p className="text-muted-foreground text-xs tracking-wide uppercase">
                     {t("settings:about_db_path")}
                   </p>
-                  <div className="flex items-center gap-2">
-                    <p className="bg-muted text-muted-foreground flex-1 truncate rounded-md px-3 py-2 font-mono text-xs">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p
+                      className="bg-muted text-muted-foreground min-w-0 flex-1 truncate rounded-md px-3 py-2 font-mono text-xs"
+                      dir={dbPath ? "ltr" : undefined}
+                      title={dbPath || undefined}
+                    >
                       {dbPath || t("settings:about_unavailable")}
                     </p>
                     <Button
@@ -161,8 +165,12 @@ export default function AboutSettingsPage() {
                   <p className="text-muted-foreground text-xs tracking-wide uppercase">
                     {t("settings:about_logs_directory")}
                   </p>
-                  <div className="flex items-center gap-2">
-                    <p className="bg-muted text-muted-foreground flex-1 truncate rounded-md px-3 py-2 font-mono text-xs">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p
+                      className="bg-muted text-muted-foreground min-w-0 flex-1 truncate rounded-md px-3 py-2 font-mono text-xs"
+                      dir={logsDir ? "ltr" : undefined}
+                      title={logsDir || undefined}
+                    >
                       {logsDir || t("settings:about_unavailable")}
                     </p>
                     <Button

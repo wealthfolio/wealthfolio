@@ -32,7 +32,7 @@ pub struct HealthContext {
     pub now: DateTime<Utc>,
 
     /// Total portfolio market value in base currency (for MV% calculations)
-    pub total_portfolio_value: f64,
+    pub total_portfolio_value: Option<f64>,
 }
 
 impl HealthContext {
@@ -40,13 +40,13 @@ impl HealthContext {
     pub fn new(
         config: HealthConfig,
         base_currency: impl Into<String>,
-        total_portfolio_value: f64,
+        total_portfolio_value: impl Into<Option<f64>>,
     ) -> Self {
         Self {
             config,
             base_currency: base_currency.into(),
             now: Utc::now(),
-            total_portfolio_value,
+            total_portfolio_value: total_portfolio_value.into(),
         }
     }
 
@@ -54,15 +54,26 @@ impl HealthContext {
     pub fn with_timestamp(
         config: HealthConfig,
         base_currency: impl Into<String>,
-        total_portfolio_value: f64,
+        total_portfolio_value: impl Into<Option<f64>>,
         now: DateTime<Utc>,
     ) -> Self {
         Self {
             config,
             base_currency: base_currency.into(),
             now,
-            total_portfolio_value,
+            total_portfolio_value: total_portfolio_value.into(),
         }
+    }
+
+    /// Unknown totals cannot establish a percentage or a value-based escalation.
+    pub fn affected_mv_pct(&self, affected_value: f64) -> Option<f64> {
+        self.total_portfolio_value.map(|total| {
+            if total > 0.0 {
+                affected_value / total
+            } else {
+                0.0
+            }
+        })
     }
 }
 
@@ -352,7 +363,7 @@ mod tests {
         let ctx = HealthContext::new(config.clone(), "USD", 100_000.0);
 
         assert_eq!(ctx.base_currency, "USD");
-        assert_eq!(ctx.total_portfolio_value, 100_000.0);
+        assert_eq!(ctx.total_portfolio_value, Some(100_000.0));
         assert_eq!(ctx.config, config);
     }
 

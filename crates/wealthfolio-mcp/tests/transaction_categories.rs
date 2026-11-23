@@ -460,7 +460,7 @@ async fn mcp_transport_exposes_tools_and_audits_redacted_prepare_and_commit() {
         .audit(audit.clone())
         .build_http_service(
             StreamableHttpServerConfig::default()
-                .with_stateful_mode(false)
+                .with_legacy_session_mode(false)
                 .with_json_response(true)
                 .with_sse_keep_alive(None),
         );

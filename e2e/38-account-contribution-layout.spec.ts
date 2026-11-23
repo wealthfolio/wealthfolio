@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test("account contribution details remain readable on phones, tablets and desktop", async ({
@@ -41,7 +41,7 @@ test("account contribution details remain readable on phones, tablets and deskto
           data: { filter: { type: "account", accountId: id }, includeClosed: true },
         });
         expect(holdings.ok()).toBe(true);
-        return (await holdings.json()).length;
+        return ((await holdings.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )

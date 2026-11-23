@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@/test/render";
-import { describe, expect, it, vi } from "vitest";
-import { RenewLoanDialog } from "./renew-loan-dialog";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { formatDateISO } from "@/lib/utils";
+import { RenewLoanDialog, type LoanRenewalInput } from "./renew-loan-dialog";
 
 const adapters = vi.hoisted(() => ({
   recalculate: vi.fn().mockResolvedValue(null),
@@ -59,10 +60,40 @@ const props = {
   quoteHistory: [],
   maturity: null,
   mortgage: true,
+  today: formatDateISO(new Date()),
   onSubmit: vi.fn(),
 };
 
 describe("renewal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("falls back to the settings day when the stored maturity is unreadable", async () => {
+    const today = "2026-03-01";
+    const onSubmit = vi
+      .fn<(renewal: LoanRenewalInput) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const client = new QueryClient();
+    render(
+      <RenewLoanDialog
+        {...props}
+        maturity={new Date("invalid")}
+        today={today}
+        onSubmit={onSubmit}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Renew mortgage" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(formatDateISO(onSubmit.mock.calls[0][0].effectiveDate)).toBe(today);
+  });
+
   it("estimates nothing without the loan's payments when reading them fails", async () => {
     adapters.payments.mockRejectedValueOnce(new Error("offline"));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -102,6 +133,7 @@ describe("renewal", () => {
         quoteHistory={[]}
         maturity={null}
         mortgage
+        today={formatDateISO(new Date())}
         onSubmit={vi.fn()}
       />,
       {

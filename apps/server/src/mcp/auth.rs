@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::extract::{Request, State};
-use axum::http::{header, StatusCode};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use subtle::ConstantTimeEq;
@@ -53,13 +53,7 @@ pub async fn require_pat(
     mut req: Request<Body>,
     next: Next,
 ) -> Response {
-    let presented = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "));
-
-    let Some(presented) = presented else {
+    let Some(presented) = bearer_pat(req.headers()) else {
         return unauthorized();
     };
     let Some(context) = authenticate(&auth.0, presented) else {
@@ -68,6 +62,18 @@ pub async fn require_pat(
 
     req.extensions_mut().insert(context);
     next.run(req).await
+}
+
+/// The bearer token, if it has the PAT shape. Only shape is checked here, so
+/// `/mcp` can reject requests that cannot authenticate before it opens a
+/// profile; [`require_pat`] still verifies the token.
+pub(crate) fn bearer_pat(headers: &HeaderMap) -> Option<&str> {
+    let presented = headers
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")?;
+    token_prefix(presented).map(|_| presented)
 }
 
 /// Validates the presented token and returns the auth context to inject.
@@ -139,7 +145,7 @@ fn touch_last_used(inner: &Inner, token_id: &str) {
 }
 
 /// 401 with a JSON-RPC-shaped body so MCP clients surface a useful error.
-fn unauthorized() -> Response {
+pub(crate) fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,
         [(header::CONTENT_TYPE, "application/json")],

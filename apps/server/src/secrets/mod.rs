@@ -10,7 +10,7 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
-use rand::{rngs::OsRng, RngCore};
+use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
 use serde::{Deserialize, Serialize};
 
 use wealthfolio_core::{
@@ -161,7 +161,7 @@ impl FileSecretStore {
         if let Some(key) = self.encryption_key {
             let serialized = serde_json::to_vec(&plain)?;
             let mut nonce_bytes = [0u8; 12];
-            OsRng.fill_bytes(&mut nonce_bytes);
+            UnwrapErr(SysRng).fill_bytes(&mut nonce_bytes);
             let cipher = ChaCha20Poly1305::new((&key).into());
             let nonce = Nonce::from(nonce_bytes);
             let ciphertext = cipher

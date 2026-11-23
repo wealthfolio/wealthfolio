@@ -71,10 +71,10 @@
     "clearCategory": "Clear category"
   },
   "activityTypes": {
-    "balanceTransferCashAdvance": "Balance Transfer / Cash Advance",
-    "charge": "Charge",
-    "interestCharge": "Interest Charge",
-    "refundCredit": "Refund / Credit",
+    "balanceTransferCashAdvance": "Cash Advance / Balance Transfer",
+    "charge": "Purchase",
+    "interestCharge": "Interest",
+    "refundCredit": "Refund",
     "reimbursementRefund": "Reimbursement / refund"
   },
   "rules": {
@@ -188,7 +188,8 @@
     "unlinkTransfer": "Unlink transfer",
     "linkTransfer": "Link transfer...",
     "deleteConfirmMany_one": "Are you sure you want to delete {{count}} transaction?",
-    "deleteConfirmMany_other": "Are you sure you want to delete {{count}} transactions?"
+    "deleteConfirmMany_other": "Are you sure you want to delete {{count}} transactions?",
+    "convertToTransfer": "Make it a transfer..."
   },
   "cashFlow": {
     "income": "Income",
@@ -251,6 +252,12 @@
     "filteredNet": "Filtered net"
   },
   "period": {
+    "month": "Month",
+    "year": "Year",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "previousYears": "Earlier years",
+    "nextYears": "Later years",
     "selectDates": "Select dates",
     "chooseCustomDates": "Choose custom dates",
     "chooseMonth": "Choose a month",
@@ -851,6 +858,9 @@
     "manage": "Manage →"
   },
   "cashForm": {
+    "none": "None",
+    "addExpense": "Add expense",
+    "addIncome": "Add income",
     "accountRequired": "Please select an account.",
     "pickDate": "Pick a date",
     "amountNonNegative": "Amount must be non-negative.",
@@ -868,6 +878,8 @@
     "spendingCategory": "Spending Category",
     "activityUpdated": "Activity updated.",
     "activityCreated": "Activity created.",
+    "expenseAdded": "Expense added.",
+    "incomeAdded": "Income added.",
     "saveFailed": "Failed to save activity: {{message}}",
     "editTitle": "Edit Transaction",
     "addTitle": "Add Transaction",
@@ -886,7 +898,30 @@
     "notesPayee": "Notes / Payee",
     "notesPlaceholder": "e.g., AMAZON*MARKETPLACE, STARBUCKS COFFEE",
     "updateTransaction": "Update Transaction",
-    "createTransaction": "Create Transaction"
+    "createTransaction": "Create Transaction",
+    "typeChange": {
+      "transferOut": "Counts as a transfer out. Until it's linked to the other account, reports still count it as spending.",
+      "transferIn": "Counts as a transfer in. Until it's linked to the other account, reports still count it as income.",
+      "cardPayment": "Counts as a payment: it lowers what you owe and isn't spending.",
+      "cardAdvance": "Counts as a cash advance or balance transfer: it adds to what you owe and isn't spending.",
+      "spending": "Counts as spending in your reports.",
+      "refund": "Counts as a refund, which lowers your spending.",
+      "income": "Counts as income in your reports.",
+      "none": "No longer counts as spending or income.",
+      "reversesBalance": "It also moves the balance the other way.",
+      "owesMore": "It now adds to what you owe.",
+      "owesLess": "It now lowers what you owe."
+    },
+    "linkRow": {
+      "paidFrom": "Paid from",
+      "receivedFrom": "Received from",
+      "sentTo": "Sent to",
+      "untracked": "An account I don't track",
+      "suggested": "Suggested: {{account}} · {{date}} · {{amount}}",
+      "link": "Link",
+      "hint": "Pick the other account to link both sides, or leave it as is.",
+      "savesFirst": "Picking an account saves this change first, then links both sides."
+    }
   },
   "txTab": {
     "duplicatedComment": "Duplicated",
@@ -927,6 +962,11 @@
     "deselectDay": "Deselect all transactions on {{date}}"
   },
   "tabContent": {
+    "comparePriorPeriod": "Compare to prior period",
+    "comparisonDays": "Day of period",
+    "comparisonWeeks": "Week of period",
+    "comparisonMonths": "Month of period",
+    "comparisonDifference": "Difference",
     "stageWhereLabel": "Where I am",
     "stageWhereSub": "Pace, budget & category breakdown",
     "stageChangedLabel": "What changed",
@@ -934,7 +974,7 @@
     "stageWhenLabel": "When & where",
     "stageWhenSub": "When you spend & spending events",
     "spendingAbovePrefix": "Spending is",
-    "pctAbove": "{{pct}}% above",
+    "pctAbove": "{{pct}} above",
     "thePriorPeriod": "the prior period.",
     "moreThan": "{{more}} more than {{prior}}",
     "uncategorizedCount_one": "{{count}} uncategorized transaction",
@@ -974,6 +1014,7 @@
     "fromPriorPeriod": "from prior period",
     "intervalMtd": "this month",
     "intervalLastMonth": "last month",
+    "interval1W": "past 7 days",
     "interval3M": "past 3 months",
     "interval6M": "past 6 months",
     "intervalYtd": "year to date",
@@ -998,9 +1039,15 @@
     "categoryCount_one": "{{count}} category",
     "categoryCount_other": "{{count}} categories",
     "groupRollover": "Group rollover",
+    "removeGroupRollover": "Remove rollover setting",
+    "removeGroupRolloverTitle": "Remove rollover setting for {{name}}?",
+    "removeGroupRolloverDescription": "This discards the saved starting balance and recalculates rollover balances for all months. Categories and budget targets are kept.",
     "on": "On",
     "off": "Off",
     "deleteGroup": "Delete group",
+    "deleteGroupDescription": "Its categories and monthly buffers will move to the selected group. This can't be undone.",
+    "deleteGroupRollover": "Remove this group's rollover setting before deleting it.",
+    "deleteGroupDestinationRollover": "Disable rollover on a destination group before moving budgets into it.",
     "deleteGroupTitle": "Delete {{name}}?",
     "deleteGroupWithCategories_one": "Its {{count}} category will be moved to another group. This can't be undone.",
     "deleteGroupWithCategories_other": "Its {{count}} categories will be moved to another group. This can't be undone.",
@@ -1024,6 +1071,7 @@
     "revertOverride": "Revert override",
     "monthOverrideRevert": "Month override · click to revert",
     "spentOf": "spent of",
+    "savedOf": "saved of",
     "ofGroup": "({{pct}} of group)",
     "rowOptions": "Row options",
     "moveToGroup": "Move to group",
@@ -1054,9 +1102,16 @@
     "totals": "Totals",
     "planned": "Planned",
     "actual": "Actual",
+    "saved": "Saved",
+    "savingsGoal": "Savings goal",
     "remaining": "Remaining",
     "unassigned": "Unassigned",
     "rolloverIn": "Rollover in",
+    "carriedIn": "carried in",
+    "left": "left",
+    "over": "over",
+    "toGo": "to go",
+    "ahead": "ahead",
     "dataUnavailable": "Budget data is not available",
     "migrationNeeded": "The current local database was created before the updated spending migration.",
     "addSource_one": "Add source ({{count}} available)",

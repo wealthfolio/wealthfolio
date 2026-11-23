@@ -3,11 +3,14 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CategorizationRule } from "../types/rule";
+import { FormattingProvider } from "@wealthfolio/ui";
 import { RuleItem } from "./rule-item";
 
-vi.mock("@wealthfolio/ui", () => {
+vi.mock("@wealthfolio/ui", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@wealthfolio/ui")>();
   const Passthrough = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return {
+    ...original,
     AlertDialog: Passthrough,
     AlertDialogAction: Passthrough,
     AlertDialogCancel: Passthrough,
@@ -111,4 +114,18 @@ describe("RuleItem amount condition display", () => {
     expect(screen.getByText("Amount greater than 100")).toBeInTheDocument();
     expect(screen.getByText("Unknown account")).toBeInTheDocument();
   });
+});
+
+it("uses the formatting region for rule amounts while the language stays English", () => {
+  render(
+    <FormattingProvider locale="ES">
+      <RuleItem
+        rule={rule({ amountOp: "eq", amountValue: 12345.67 })}
+        categoryMeta={{}}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    </FormattingProvider>,
+  );
+  expect(screen.getByText("Amount exactly 12.345,67")).toBeInTheDocument();
 });

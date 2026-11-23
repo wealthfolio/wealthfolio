@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { AccountScope, Holding } from "@/lib/types";
+import { AccountScope, HoldingsListResponse } from "@/lib/types";
 import { getHoldingsList } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
+import { isHoldingsScopeReady } from "@/lib/holdings-scope";
 
 interface UseHoldingsOptions {
   includeClosed?: boolean;
@@ -31,19 +32,36 @@ export function useHoldings(accountFilter: AccountScope, options: UseHoldingsOpt
   })();
   const isEnabled = hasValidScope && (options.enabled ?? true);
 
-  const {
-    data: holdings = [],
-    dataUpdatedAt,
-    isLoading,
-    isError,
-    error,
-  } = useQuery<Holding[], Error>({
+  const { data, dataUpdatedAt, isLoading, isFetching, isError, error } = useQuery<
+    HoldingsListResponse,
+    Error
+  >({
     queryKey: [QueryKeys.HOLDINGS, accountFilter, { includeClosed }],
     queryFn: () => getHoldingsList(accountFilter, { includeClosed }),
     enabled: isEnabled,
   });
 
-  return { holdings, dataUpdatedAt, isLoading, isError, error };
+  const holdings = data?.holdings ?? [];
+  const incompleteAccounts = data?.incompleteAccounts ?? [];
+  const isUnavailable =
+    isError || incompleteAccounts.some((account) => account.status === "unavailable");
+  // Accounts mid-calculation keep their last holdings in the response.
+  const isComplete =
+    data !== undefined && !isUnavailable && isHoldingsScopeReady(incompleteAccounts);
+  const isUpdating = incompleteAccounts.some((account) => account.status === "pending");
+  const scopeError = error ?? (isUnavailable ? new Error("Holdings are unavailable") : null);
+  return {
+    holdings,
+    incompleteAccounts,
+    isComplete,
+    isUpdating,
+    isUnavailable,
+    dataUpdatedAt,
+    isLoading,
+    isFetching,
+    isError: isUnavailable,
+    error: scopeError,
+  };
 }
 
 export function useHoldingsWithClosedProbe(
@@ -54,6 +72,7 @@ export function useHoldingsWithClosedProbe(
   const shouldProbeClosedPositions =
     options.probeClosedWhenEmpty &&
     !options.includeClosed &&
+    primaryQuery.isComplete &&
     !primaryQuery.isLoading &&
     primaryQuery.holdings.length === 0;
   const closedProbeQuery = useHoldings(accountFilter, {

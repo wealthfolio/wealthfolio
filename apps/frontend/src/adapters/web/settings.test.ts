@@ -20,6 +20,7 @@ import {
   getSettings,
   inspectDatabaseBackup,
   inspectSavedDatabaseBackup,
+  isAutoUpdateCheckEnabled,
   restoreDatabaseBackupImport,
   discardDatabaseBackupImport,
 } from "./settings";
@@ -29,10 +30,41 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   setUnauthorizedHandler(null);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+it.each(["caller", "deadline"])(
+  "keeps backup export cancellable by %s and clears its timer",
+  async (cause) => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    const fetch = vi.fn(
+      (_url, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal!.addEventListener("abort", () => reject(init.signal!.reason as Error), {
+            once: true,
+          });
+        }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const result = exportDatabaseBackup("backup.db", null, true, caller.signal);
+    const assertion = expect(result).rejects.toMatchObject({
+      name: cause === "caller" ? "AbortError" : "TimeoutError",
+    });
+    if (cause === "caller") caller.abort();
+    else {
+      await vi.advanceTimersByTimeAsync(1_919_999);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+    }
+    await assertion;
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
 
 it.each([401, 500])(
   "notifies the auth gate only for an unauthorized export: %s",
@@ -89,6 +121,20 @@ describe("web getSettings", () => {
 
     await expect(getSettings()).rejects.toThrow("Backend unavailable");
     expect(mocks.logger.error).toHaveBeenCalledWith("Error fetching settings.");
+  });
+});
+
+describe("web isAutoUpdateCheckEnabled", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("skips automatic checks when the setting can't be read", async () => {
+    // A reload or navigation cancels the read while the page's scripts still run.
+    mocks.invoke.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    expect(await isAutoUpdateCheckEnabled()).toBe(false);
+    expect(mocks.logger.error).toHaveBeenCalledWith("Error checking auto-update setting.");
   });
 });
 

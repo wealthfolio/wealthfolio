@@ -7,6 +7,7 @@ mod activities_service;
 mod activities_traits;
 mod activity_cash_migration;
 mod cash_balances;
+mod charges;
 mod compiler;
 mod conversion_pairs;
 mod csv_parser;
@@ -33,13 +34,16 @@ pub use activities_model::{
     ActivitySearchResponseMeta, ActivitySplitEffect, ActivityStatus, ActivityType, ActivityUpdate,
     ActivityUpdatePreview, ActivityUpsert, AssetResolutionInput, BrokerActivityProfileConfig,
     BrokerProfileScope, BrokerSyncProfileData, BulkUpsertResult, CashBalanceScope,
-    FieldMappingValue, ImportActivitiesResult, ImportActivitiesSummary, ImportAssetCandidate,
-    ImportAssetPreviewItem, ImportAssetPreviewStatus, ImportMapping, ImportMappingData,
-    ImportTemplate, ImportTemplateData, ImportTemplateScope, ImportedActivityIdentity, IncomeData,
-    InternalTransferPairRequest, InternalTransferPairResponse, LinkedTransfer, NewActivity,
-    PrepareActivitiesResult, PreviewedActivityUpdate, SaveBrokerSyncProfileRulesRequest, Sort,
-    TemplateKind, TransferMatchCandidate, TransferMatchCandidateRequest, UnlinkedTransfer,
-    UnlinkedTransfers, UnlinkedTransfersRequest,
+    ConvertToTransferRequest, FieldMappingValue, ImportActivitiesResult, ImportActivitiesSummary,
+    ImportAssetCandidate, ImportAssetPreviewItem, ImportAssetPreviewStatus, ImportMapping,
+    ImportMappingData, ImportTemplate, ImportTemplateData, ImportTemplateScope,
+    ImportedActivityIdentity, IncomeData, InternalTransferPairRequest,
+    InternalTransferPairResponse, LinkTransferPairsResult, LinkedTransfer, LinkedTransferPair,
+    NewActivity, PrepareActivitiesResult, PreviewedActivityUpdate,
+    SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind, TransferMatchCandidate,
+    TransferMatchCandidateRequest, TransferMatchReason, TransferMatchReview, TransferMatchWarning,
+    TransferPairLinkError, TransferPairLinkRequest, UnlinkedTransfer, UnlinkedTransfers,
+    UnlinkedTransfersRequest,
 };
 pub use activities_service::ActivityService;
 pub use activities_traits::{ActivityRepositoryTrait, ActivityServiceTrait};
@@ -51,11 +55,13 @@ pub use cash_balances::{
     application_order, running_cash_balances, shows_cash_balance, shows_running_cash_balance,
     ActivityCashBalance, CashLedgerActivity,
 };
+pub use charges::{ActivityCharge, ActivityChargeCategory, CHARGES_METADATA_KEY};
 pub use compiler::{ActivityCompiler, DefaultActivityCompiler};
 pub use conversion_pairs::{is_conversion_row, ConversionPair, ConversionPairResolution};
 pub use csv_parser::{parse_csv, ParseConfig, ParseError, ParsedCsvResult};
 pub use idempotency::{
-    compute_activity_idempotency_key, compute_idempotency_key, generate_manual_idempotency_key,
+    compute_activity_idempotency_key, compute_idempotency_key,
+    compute_source_record_idempotency_key, generate_manual_idempotency_key,
     idempotency_activity_type,
 };
 pub use import_run_model::{

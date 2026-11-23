@@ -229,3 +229,60 @@ npm run build
 
 This strategy ensures consistent UI/UX across the entire Wealthfolio ecosystem
 while maintaining developer efficiency and user experience.
+
+### Dialog and sheet safe areas
+
+`DialogContent`, `AlertDialogContent`, and `SheetContent` now render inside a
+shared viewport that excludes system bars and display cutouts. This includes
+physical right/left and logical inline-start/inline-end sheets. The popup keeps
+its own padding and flex/grid layout: `p-0` and custom footers remain supported.
+Portaled and nested dialogs each get their own safe viewport.
+
+Mobile dialogs fit their content by default, up to `90dvh` or the usable safe
+viewport, whichever is smaller. For forms with persistent actions, use a flex
+column with `shrink-0` header/footer and a `min-h-0 flex-auto overflow-y-auto`
+body. Set a maximum through `--overlay-max-height`; an explicit viewport height
+is appropriate for a workspace that needs it. Side drawers retain their
+full-height layout.
+
+Migration from per-screen safe-area padding:
+
+- Remove system-bar padding from the popup and its footer. Keep ordinary design
+  spacing such as `pb-4`; the shared viewport reserves the system space once.
+- Use `[--overlay-max-height:85dvh]` for a preferred maximum height, rather than
+  `max-h-[85dvh]`. Existing addon `max-h-*` classes retain their previous
+  behavior; migrating to the variable also constrains them to the safe viewport.
+  The shared maximum caps that preference to the usable viewport. A numeric or
+  CSS `style.maxHeight` is also capped, including Base UI state-dependent style
+  callbacks.
+- Remove manual status-bar padding from side-sheet headers and close buttons.
+- Intentionally full-screen surfaces can pass `safeArea={false}` to
+  `DialogContent` or `SheetContent`; they then own their own inset handling.
+
+Hosts can supply physical `--inset-top`, `--inset-right`, `--inset-bottom`, and
+`--inset-left` CSS variables. Each falls back to the matching browser
+`env(safe-area-inset-*, 0px)` value. Host CSS variables do not cross iframe
+documents; an addon remains bounded by its host-provided iframe viewport. The
+optional `--keyboard-inset-bottom` reserves keyboard coverage using the larger
+of the keyboard and system-bar insets. Android's existing bridge reports only
+the keyboard portion covering the WebView, so a host that already resizes it
+does not reserve the keyboard twice. Keyboard coverage changes overlay bounds
+without resizing the application's WebView or moving the main navigation.
+Android 10 and earlier use resize mode to enable compatible IME reporting;
+Android 11 and later retain the existing window input mode. Mobile dialogs now
+forward popup attributes, focus options and inline styles to their sheet popup,
+matching desktop dialogs. Popups scroll by default when height-constrained;
+compositions with their own scrolling body can still use `overflow-hidden`.
+Overlay surfaces intentionally stop at safe bounds, with the backdrop visible in
+the system-bar strips; they do not extend header gradients under those bars. The
+same normalized Android edge variables also supply shell/page top and side
+clearance, including navigation bars that move to a side in landscape. The
+shared frame also follows vertical `visualViewport` resize and scroll events.
+This keeps actions above the iOS keyboard when WKWebView leaves the layout
+viewport unchanged; visual and native keyboard coverage use the larger value.
+
+Button sizes keep a 44px minimum target on coarse-pointer devices and in compact
+layouts below 1024px. The viewport fallback covers older WebViews that report a
+mouse despite having a touchscreen. Calendar controls retain their cell-size
+bounds so seven columns still fit. Custom icon controls outside `Button` should
+provide the same touch clearance.

@@ -1,6 +1,7 @@
 use crate::assets::AssetKind;
 use crate::errors::Result;
 use crate::fx::currency::{normalize_amount, normalize_currency_code};
+use crate::fx::currency_converter::CurrencyConverter;
 use crate::fx::FxServiceTrait;
 use crate::portfolio::holdings::{Holding, HoldingType, MonetaryValue};
 use crate::quotes::{LatestQuotePair, QuoteServiceTrait};
@@ -16,9 +17,18 @@ use std::sync::{Arc, RwLock};
 #[async_trait]
 pub trait HoldingsValuationServiceTrait: Send + Sync {
     async fn calculate_holdings_live_valuation(&self, holdings: &mut [Holding]) -> Result<()>;
+    async fn calculate_with_captured_fx(
+        &self,
+        holdings: &mut [Holding],
+        _fx: Arc<CurrencyConverter>,
+        _day: NaiveDate,
+    ) -> Result<()> {
+        self.calculate_holdings_live_valuation(holdings).await
+    }
 }
 
-fn gain_pct_from_basis(amount: Decimal, basis: Decimal) -> Option<Decimal> {
+fn gain_pct_from_basis(amount: Option<Decimal>, basis: Option<Decimal>) -> Option<Decimal> {
+    let (amount, basis) = amount.zip(basis)?;
     let exposure = basis.abs();
     if exposure > Decimal::ZERO {
         Some((amount / exposure).round_dp(4))
@@ -34,6 +44,7 @@ pub struct HoldingsValuationService {
     fx_service: Arc<dyn FxServiceTrait>,
     quote_service: Arc<dyn QuoteServiceTrait>,
     timezone: Arc<RwLock<String>>,
+    captured_fx: Option<(Arc<CurrencyConverter>, NaiveDate)>,
 }
 
 impl HoldingsValuationService {
@@ -57,10 +68,14 @@ impl HoldingsValuationService {
             fx_service,
             quote_service,
             timezone,
+            captured_fx: None,
         }
     }
 
     fn today_in_user_timezone(&self) -> chrono::NaiveDate {
+        if let Some((_, day)) = &self.captured_fx {
+            return *day;
+        }
         let tz = parse_user_timezone_or_default(
             &self
                 .timezone
@@ -70,27 +85,38 @@ impl HoldingsValuationService {
         user_today(tz)
     }
 
-    // Private helper to get FX rate with logging and fallback
-    fn get_fx_rate_or_fallback(
+    fn get_fx_rate(
         &self,
         from_curr: &str,
         to_curr: &str,
         context_msg: &str,
-        fx_cache: &mut HashMap<(String, String), Decimal>,
-    ) -> Decimal {
+        fx_cache: &mut HashMap<(String, String), Option<Decimal>>,
+    ) -> Option<Decimal> {
         let cache_key = (from_curr.to_string(), to_curr.to_string());
         if let Some(rate) = fx_cache.get(&cache_key) {
             return *rate;
         }
 
-        let rate = match self.fx_service.get_latest_exchange_rate(from_curr, to_curr) {
-            Ok(rate) => rate,
+        let lookup = match &self.captured_fx {
+            Some((converter, day)) => {
+                let (from_factor, from) = normalize_amount(Decimal::ONE, from_curr);
+                let (to_factor, to) = normalize_amount(Decimal::ONE, to_curr);
+                converter
+                    .get_rate(from, to, *day)
+                    .map(|rate| rate * from_factor / to_factor)
+                    .map_err(crate::Error::from)
+            }
+            None => self.fx_service.get_latest_exchange_rate(from_curr, to_curr),
+        };
+        let rate = match lookup {
+            Ok(rate) if rate > Decimal::ZERO => Some(rate),
+            Ok(_) => None,
             Err(e) => {
                 warn!(
-                    "{}: Error getting FX rate {}->{}: {}. Using 1.0.",
+                    "{}: Error getting FX rate {}->{}: {}.",
                     context_msg, from_curr, to_curr, e
                 );
-                Decimal::ONE // Fallback
+                None
             }
         };
         fx_cache.insert(cache_key, rate);
@@ -131,6 +157,17 @@ impl HoldingsValuationService {
 
 #[async_trait]
 impl HoldingsValuationServiceTrait for HoldingsValuationService {
+    async fn calculate_with_captured_fx(
+        &self,
+        holdings: &mut [Holding],
+        fx: Arc<CurrencyConverter>,
+        day: NaiveDate,
+    ) -> Result<()> {
+        let mut valuation = self.clone();
+        valuation.captured_fx = Some((fx, day));
+        valuation.calculate_holdings_live_valuation(holdings).await
+    }
+
     async fn calculate_holdings_live_valuation(&self, holdings: &mut [Holding]) -> Result<()> {
         if holdings.is_empty() {
             return Ok(());
@@ -145,7 +182,7 @@ impl HoldingsValuationServiceTrait for HoldingsValuationService {
             self.fetch_batch_quote_data(holdings).await?;
 
         let today = self.today_in_user_timezone();
-        let mut fx_cache: HashMap<(String, String), Decimal> = HashMap::new();
+        let mut fx_cache: HashMap<(String, String), Option<Decimal>> = HashMap::new();
 
         for holding in holdings.iter_mut() {
             match holding.holding_type {
@@ -208,7 +245,7 @@ impl HoldingsValuationService {
         holding: &mut Holding,
         base_currency: &str,
         latest_quote_pairs: &HashMap<String, LatestQuotePair>,
-        fx_cache: &mut HashMap<(String, String), Decimal>,
+        fx_cache: &mut HashMap<(String, String), Option<Decimal>>,
     ) -> Result<()> {
         let instrument = match &holding.instrument {
             Some(inst) => inst,
@@ -228,18 +265,21 @@ impl HoldingsValuationService {
         let context_msg = format!("HoldingValuation [Security {} ({})]", symbol, asset_id);
 
         // --- Calculate FX Rate (Needed even for zero quantity) ---
-        let fx_rate_local_to_base = self.get_fx_rate_or_fallback(
+        let fx_rate_local_to_base = self.get_fx_rate(
             pos_currency,
             base_currency,
             &format!("{}: FX Local->Base", context_msg),
             fx_cache,
         );
-        holding.fx_rate = Some(fx_rate_local_to_base);
+        holding.fx_rate = fx_rate_local_to_base;
 
         // --- Calculate Base Cost Basis (If applicable) ---
         if let Some(cost_basis) = &mut holding.cost_basis {
-            if cost_basis.base.is_zero() && !cost_basis.local.is_zero() {
-                cost_basis.base = cost_basis.local * fx_rate_local_to_base;
+            if holding.translate_observed_basis && cost_basis.base.is_none() {
+                cost_basis.base = cost_basis
+                    .local
+                    .zip(fx_rate_local_to_base)
+                    .map(|(cost, rate)| cost * rate);
             }
         } else {
             warn!("{}: Cost basis local value missing...", context_msg);
@@ -270,8 +310,8 @@ impl HoldingsValuationService {
             holding.market_value = MonetaryValue::zero();
 
             if let Some(cost_basis) = &holding.cost_basis {
-                let neg_local = -cost_basis.local;
-                let neg_base = -cost_basis.base;
+                let neg_local = cost_basis.local.map(|cost| -cost);
+                let neg_base = cost_basis.base.map(|cost| -cost);
                 holding.unrealized_gain = Some(MonetaryValue {
                     local: neg_local,
                     base: neg_base,
@@ -306,7 +346,7 @@ impl HoldingsValuationService {
                 );
             }
 
-            let fx_rate_quote_to_base = self.get_fx_rate_or_fallback(
+            let fx_rate_quote_to_base = self.get_fx_rate(
                 normalized_quote_currency,
                 base_currency,
                 &format!("{}: FX Quote->Base", context_msg),
@@ -316,17 +356,19 @@ impl HoldingsValuationService {
             let market_value_quote_major =
                 normalized_price * quantity * holding.contract_multiplier;
 
-            let fx_rate_quote_to_local = self.get_fx_rate_or_fallback(
+            let fx_rate_quote_to_local = self.get_fx_rate(
                 normalized_quote_currency,
                 pos_currency,
                 &format!("{}: FX Quote->Local", context_msg),
                 fx_cache,
             );
-            let market_price_local = normalized_price * fx_rate_quote_to_local;
-            holding.price = Some(market_price_local);
+            let market_price_local = fx_rate_quote_to_local.map(|rate| normalized_price * rate);
+            holding.price = market_price_local;
 
-            let market_value_local = market_value_quote_major * fx_rate_quote_to_local;
-            let market_value_base = market_value_quote_major * fx_rate_quote_to_base;
+            let market_value_local =
+                fx_rate_quote_to_local.map(|rate| market_value_quote_major * rate);
+            let market_value_base =
+                fx_rate_quote_to_base.map(|rate| market_value_quote_major * rate);
 
             holding.market_value = MonetaryValue {
                 local: market_value_local,
@@ -336,8 +378,12 @@ impl HoldingsValuationService {
             if let Some(cost_basis) = &holding.cost_basis {
                 let cost_basis_base = cost_basis.base;
 
-                let unrealized_gain_local = market_value_local - cost_basis.local;
-                let unrealized_gain_base = market_value_base - cost_basis_base;
+                let unrealized_gain_local = market_value_local
+                    .zip(cost_basis.local)
+                    .map(|(value, cost)| value - cost);
+                let unrealized_gain_base = market_value_base
+                    .zip(cost_basis_base)
+                    .map(|(value, cost)| value - cost);
 
                 holding.unrealized_gain = Some(MonetaryValue {
                     local: unrealized_gain_local,
@@ -366,8 +412,10 @@ impl HoldingsValuationService {
                     let fx_rate_prev_quote_to_local = fx_rate_quote_to_local;
                     let fx_rate_prev_quote_to_base = fx_rate_quote_to_base;
 
-                    let prev_value_local = prev_value_quote_major * fx_rate_prev_quote_to_local;
-                    let prev_value_base = prev_value_quote_major * fx_rate_prev_quote_to_base;
+                    let prev_value_local =
+                        fx_rate_prev_quote_to_local.map(|rate| prev_value_quote_major * rate);
+                    let prev_value_base =
+                        fx_rate_prev_quote_to_base.map(|rate| prev_value_quote_major * rate);
 
                     holding.prev_close_value = Some(MonetaryValue {
                         local: prev_value_local,
@@ -375,19 +423,21 @@ impl HoldingsValuationService {
                     });
 
                     let day_change_quote_major = market_value_quote_major - prev_value_quote_major;
-                    let day_change_local = day_change_quote_major * fx_rate_prev_quote_to_local;
-                    let day_change_base = day_change_quote_major * fx_rate_prev_quote_to_base;
+                    let day_change_local =
+                        fx_rate_prev_quote_to_local.map(|rate| day_change_quote_major * rate);
+                    let day_change_base =
+                        fx_rate_prev_quote_to_base.map(|rate| day_change_quote_major * rate);
 
                     holding.day_change = Some(MonetaryValue {
                         local: day_change_local,
                         base: day_change_base,
                     });
 
-                    let prev_exposure_base = prev_value_base.abs();
-                    if prev_exposure_base != dec!(0) {
+                    let prev_exposure_base = prev_value_base.map(|value| value.abs());
+                    if let Some(exposure) = prev_exposure_base.filter(|value| !value.is_zero()) {
                         holding.day_change_pct =
-                            Some((day_change_base / prev_exposure_base).round_dp(4));
-                    } else if day_change_base != dec!(0) {
+                            day_change_base.map(|value| (value / exposure).round_dp(4));
+                    } else if day_change_base != Some(Decimal::ZERO) {
                         holding.day_change_pct = None;
                     } else {
                         holding.day_change_pct = Some(Decimal::ZERO);
@@ -415,7 +465,7 @@ impl HoldingsValuationService {
                 "{}: Quote pair data missing. Market valuation incomplete.",
                 context_msg
             );
-            holding.market_value = MonetaryValue::zero();
+            holding.market_value = MonetaryValue::unavailable();
             holding.price = None;
             holding.unrealized_gain = None;
             holding.unrealized_gain_pct = None;
@@ -446,7 +496,7 @@ impl HoldingsValuationService {
         holding: &mut Holding,
         base_currency: &str,
         latest_quote_pairs: &HashMap<String, LatestQuotePair>,
-        fx_cache: &mut HashMap<(String, String), Decimal>,
+        fx_cache: &mut HashMap<(String, String), Option<Decimal>>,
     ) -> Result<()> {
         let instrument = match &holding.instrument {
             Some(inst) => inst,
@@ -470,17 +520,22 @@ impl HoldingsValuationService {
         );
 
         // --- Calculate FX Rate ---
-        let fx_rate_local_to_base = self.get_fx_rate_or_fallback(
+        let fx_rate_local_to_base = self.get_fx_rate(
             pos_currency,
             base_currency,
             &format!("{}: FX Local->Base", context_msg),
             fx_cache,
         );
-        holding.fx_rate = Some(fx_rate_local_to_base);
+        holding.fx_rate = fx_rate_local_to_base;
 
         // --- Calculate Base Cost Basis (If applicable) ---
         if let Some(cost_basis) = &mut holding.cost_basis {
-            cost_basis.base = cost_basis.local * fx_rate_local_to_base;
+            if holding.translate_observed_basis && cost_basis.base.is_none() {
+                cost_basis.base = cost_basis
+                    .local
+                    .zip(fx_rate_local_to_base)
+                    .map(|(cost, rate)| cost * rate);
+            }
         }
 
         // --- Handle Zero Quantity ---
@@ -509,14 +564,14 @@ impl HoldingsValuationService {
                 );
             }
 
-            let fx_rate_quote_to_base = self.get_fx_rate_or_fallback(
+            let fx_rate_quote_to_base = self.get_fx_rate(
                 normalized_quote_currency,
                 base_currency,
                 &format!("{}: FX Quote->Base", context_msg),
                 fx_cache,
             );
 
-            let fx_rate_quote_to_local = self.get_fx_rate_or_fallback(
+            let fx_rate_quote_to_local = self.get_fx_rate(
                 normalized_quote_currency,
                 pos_currency,
                 &format!("{}: FX Quote->Local", context_msg),
@@ -530,10 +585,12 @@ impl HoldingsValuationService {
             // Vehicle/Collectible/Liability/Other: quote.close = unit value, quantity usually 1
             let market_value_quote_major = normalized_price * quantity;
 
-            let market_value_local = market_value_quote_major * fx_rate_quote_to_local;
-            let market_value_base = market_value_quote_major * fx_rate_quote_to_base;
-            let market_price_local = normalized_price * fx_rate_quote_to_local;
-            holding.price = Some(market_price_local);
+            let market_value_local =
+                fx_rate_quote_to_local.map(|rate| market_value_quote_major * rate);
+            let market_value_base =
+                fx_rate_quote_to_base.map(|rate| market_value_quote_major * rate);
+            let market_price_local = fx_rate_quote_to_local.map(|rate| normalized_price * rate);
+            holding.price = market_price_local;
 
             holding.market_value = MonetaryValue {
                 local: market_value_local,
@@ -546,10 +603,13 @@ impl HoldingsValuationService {
             let gain_calculated = if let Some(purchase_price) = holding.purchase_price {
                 // Gain = market_value - (quantity * purchase_price)
                 let total_cost_local = quantity * purchase_price;
-                let total_cost_base = total_cost_local * fx_rate_local_to_base;
+                let total_cost_base = fx_rate_local_to_base.map(|rate| total_cost_local * rate);
 
-                let unrealized_gain_local = market_value_local - total_cost_local;
-                let unrealized_gain_base = market_value_base - total_cost_base;
+                let unrealized_gain_local =
+                    market_value_local.map(|value| value - total_cost_local);
+                let unrealized_gain_base = market_value_base
+                    .zip(total_cost_base)
+                    .map(|(value, cost)| value - cost);
 
                 holding.unrealized_gain = Some(MonetaryValue {
                     local: unrealized_gain_local,
@@ -557,14 +617,18 @@ impl HoldingsValuationService {
                 });
 
                 holding.unrealized_gain_pct =
-                    gain_pct_from_basis(unrealized_gain_local, total_cost_local);
+                    gain_pct_from_basis(unrealized_gain_local, Some(total_cost_local));
                 true
             } else if let Some(cost_basis) = &holding.cost_basis {
                 // Fall back to lot-based cost basis calculation
                 let cost_basis_base = cost_basis.base;
 
-                let unrealized_gain_local = market_value_local - cost_basis.local;
-                let unrealized_gain_base = market_value_base - cost_basis_base;
+                let unrealized_gain_local = market_value_local
+                    .zip(cost_basis.local)
+                    .map(|(value, cost)| value - cost);
+                let unrealized_gain_base = market_value_base
+                    .zip(cost_basis_base)
+                    .map(|(value, cost)| value - cost);
 
                 holding.unrealized_gain = Some(MonetaryValue {
                     local: unrealized_gain_local,
@@ -599,7 +663,7 @@ impl HoldingsValuationService {
                 "{}: Quote data missing. Market valuation incomplete.",
                 context_msg
             );
-            holding.market_value = MonetaryValue::zero();
+            holding.market_value = MonetaryValue::unavailable();
             holding.price = None;
             holding.unrealized_gain = None;
             holding.unrealized_gain_pct = None;
@@ -620,7 +684,7 @@ impl HoldingsValuationService {
         &self,
         holding: &mut Holding,
         base_currency: &str,
-        fx_cache: &mut HashMap<(String, String), Decimal>,
+        fx_cache: &mut HashMap<(String, String), Option<Decimal>>,
     ) -> Result<()> {
         let cash_currency = &holding.local_currency;
         let cash_amount = holding.quantity;
@@ -630,38 +694,38 @@ impl HoldingsValuationService {
         holding.price = Some(dec!(1.0));
 
         let fx_rate_cash_to_base =
-            self.get_fx_rate_or_fallback(cash_currency, base_currency, &context_msg, fx_cache);
-        holding.fx_rate = Some(fx_rate_cash_to_base);
+            self.get_fx_rate(cash_currency, base_currency, &context_msg, fx_cache);
+        holding.fx_rate = fx_rate_cash_to_base;
 
-        let value_base = cash_amount * fx_rate_cash_to_base;
+        let value_base = fx_rate_cash_to_base.map(|rate| cash_amount * rate);
 
         holding.market_value.base = value_base;
-        holding.market_value.local = cash_amount;
+        holding.market_value.local = Some(cash_amount);
 
         if let Some(cost_basis) = &mut holding.cost_basis {
             cost_basis.base = value_base;
-            cost_basis.local = cash_amount;
+            cost_basis.local = Some(cash_amount);
         } else {
             warn!(
                 "{}: Cost basis was missing for cash, initializing.",
                 context_msg
             );
             holding.cost_basis = Some(MonetaryValue {
-                local: cash_amount,
+                local: Some(cash_amount),
                 base: value_base,
             });
         }
 
         if let Some(prev_close) = &mut holding.prev_close_value {
             prev_close.base = value_base;
-            prev_close.local = cash_amount;
+            prev_close.local = Some(cash_amount);
         } else {
             warn!(
                 "{}: Previous close value was missing for cash, initializing.",
                 context_msg
             );
             holding.prev_close_value = Some(MonetaryValue {
-                local: cash_amount,
+                local: Some(cash_amount),
                 base: value_base,
             });
         }

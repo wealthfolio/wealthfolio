@@ -29,7 +29,7 @@ export function ProfileMenu({ collapsed = false }: { collapsed?: boolean }) {
             type="button"
             variant="ghost"
             className={cn(
-              "group h-12 min-w-0 gap-3 !overflow-visible py-0 hover:bg-transparent",
+              "group h-12 min-w-0 gap-3 !overflow-visible py-0 hover:bg-transparent motion-reduce:transition-colors",
               collapsed
                 ? "w-12 shrink-0 rounded-full p-0 has-[>svg]:px-0"
                 : "w-full justify-start rounded-lg px-2 has-[>svg]:px-2",

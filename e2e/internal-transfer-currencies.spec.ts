@@ -1,7 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
+import { createAccount, uniqueName } from "./api";
 import {
   completeOnboardingIfNeeded,
-  createAccount,
   gotoActivities,
   gotoAppPath,
   selectAccountOption,
@@ -26,18 +26,19 @@ for (const mobile of [false, true]) {
   }) => {
     test.setTimeout(180_000);
     page.setDefaultTimeout(15_000);
-    const source = `Transfer currency ${mobile ? "mobile" : "desktop"} A`;
-    const destination = `Transfer currency ${mobile ? "mobile" : "desktop"} B`;
+    const source = uniqueName(`Transfer currency ${mobile ? "mobile" : "desktop"} A`);
+    const destination = uniqueName(`Transfer currency ${mobile ? "mobile" : "desktop"} B`);
     await completeOnboardingIfNeeded(page);
-    await createAccount(page, source, "USD");
-    await createAccount(page, destination, "USD");
+    await createAccount(page, { name: source });
+    await createAccount(page, { name: destination });
     if (mobile) await page.setViewportSize({ width: 390, height: 844 });
     const openActivities = () =>
       mobile ? gotoAppPath(page, "/activities?tab=investments") : gotoActivities(page);
     await openActivities();
     if (mobile) {
       await page.getByTitle("Add", { exact: true }).click();
-      await page.locator('label[for="TRANSFER_OUT"]').click();
+      // Each card's id carries a prefix unique to the list.
+      await page.locator('label[for$="-TRANSFER_OUT"]').click();
       await page.getByRole("button", { name: "Next", exact: true }).click();
     } else {
       await page.getByTestId("add-activities-button").click();
@@ -54,7 +55,7 @@ for (const mobile of [false, true]) {
       const control = page.getByRole("combobox", { name: label, exact: true });
       if (mobile) {
         await control.click();
-        await page.getByRole("button", { name: new RegExp(account) }).click();
+        await page.getByRole("option", { name: new RegExp(account) }).click();
       } else {
         await selectAccountOption(page, account, "USD", control);
       }

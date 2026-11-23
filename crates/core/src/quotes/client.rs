@@ -827,6 +827,7 @@ impl MarketDataClient {
             quote_mode: Some("MARKET".to_string()),
             is_existing: false,
             existing_asset_id: None,
+            exact_match: false,
             index: String::new(),
             score: result.score.unwrap_or(0.0),
         }
@@ -1328,6 +1329,125 @@ mod tests {
         {
             Err(self.error())
         }
+    }
+
+    /// Serves 16 Nov 2026 closes for London listings the way Alpha Vantage's
+    /// daily series does: the body names no currency, so the provider labels
+    /// it with the shared rule, and records the symbol it was asked for.
+    #[derive(Default)]
+    struct UndenominatedLondonProvider(std::sync::Mutex<Vec<String>>);
+
+    impl UndenominatedLondonProvider {
+        fn quote(
+            &self,
+            context: &QuoteContext,
+            instrument: wealthfolio_market_data::ProviderInstrument,
+        ) -> MarketQuote {
+            let wealthfolio_market_data::ProviderInstrument::EquitySymbol { symbol } = instrument
+            else {
+                panic!("a London listing resolves to an equity symbol");
+            };
+            self.0.lock().unwrap().push(symbol.to_string());
+            let close = match symbol.as_ref() {
+                "IBTA.LON" => dec!(5.9770),
+                "TSCO.LON" => dec!(567.6000),
+                other => panic!("unexpected symbol {other}"),
+            };
+            let currency = ResolverChain::new().quote_currency(&"ALPHA_VANTAGE".into(), context);
+            MarketQuote::new(
+                Utc.with_ymd_and_hms(2026, 11, 16, 0, 0, 0).unwrap(),
+                close,
+                currency,
+                "ALPHA_VANTAGE".into(),
+            )
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl wealthfolio_market_data::MarketDataProvider for UndenominatedLondonProvider {
+        fn id(&self) -> &'static str {
+            "ALPHA_VANTAGE"
+        }
+
+        fn capabilities(&self) -> wealthfolio_market_data::ProviderCapabilities {
+            wealthfolio_market_data::ProviderCapabilities {
+                instrument_kinds: &[wealthfolio_market_data::InstrumentKind::Equity],
+                coverage: wealthfolio_market_data::Coverage::global_best_effort(),
+                supports_latest: true,
+                supports_historical: true,
+                supports_search: false,
+                supports_profile: false,
+                supports_dividends: false,
+            }
+        }
+
+        fn rate_limit(&self) -> wealthfolio_market_data::RateLimit {
+            wealthfolio_market_data::RateLimit::default()
+        }
+
+        async fn get_latest_quote(
+            &self,
+            context: &QuoteContext,
+            instrument: wealthfolio_market_data::ProviderInstrument,
+        ) -> std::result::Result<MarketQuote, wealthfolio_market_data::errors::MarketDataError>
+        {
+            Ok(self.quote(context, instrument))
+        }
+
+        async fn get_historical_quotes(
+            &self,
+            context: &QuoteContext,
+            instrument: wealthfolio_market_data::ProviderInstrument,
+            _start: DateTime<Utc>,
+            _end: DateTime<Utc>,
+        ) -> std::result::Result<Vec<MarketQuote>, wealthfolio_market_data::errors::MarketDataError>
+        {
+            Ok(vec![self.quote(context, instrument)])
+        }
+    }
+
+    /// #2141 wiring: core hands a London asset's own quote currency to a
+    /// provider whose prices carry none, resolves the venue's `.LON` symbol,
+    /// asks once per fetch, and keeps the label through conversion on the
+    /// latest and historical paths. The provider's rule itself is pinned by
+    /// the Alpha Vantage and resolver tests in the market-data crate.
+    #[tokio::test]
+    async fn london_quotes_without_a_response_currency_keep_the_asset_currency() {
+        let provider = Arc::new(UndenominatedLondonProvider::default());
+        let client =
+            MarketDataClient::new_with_extra(Arc::new(NoSecrets), vec![], vec![provider.clone()])
+                .await
+                .unwrap();
+
+        for (symbol, quote_ccy, close) in [
+            ("IBTA", "USD", dec!(5.9770)),
+            ("TSCO", "GBp", dec!(567.6000)),
+            ("TSCO", "GBX", dec!(567.6000)),
+        ] {
+            let mut asset = create_test_asset(AssetKind::Investment, symbol, quote_ccy);
+            asset.instrument_exchange_mic = Some("XLON".to_string());
+            asset.provider_config = Some(serde_json::json!({
+                "preferred_provider": "ALPHA_VANTAGE"
+            }));
+
+            let latest = client.fetch_latest_quote(&asset).await.unwrap();
+            let history = client
+                .fetch_historical_quotes_with_context(&asset, Utc::now(), Utc::now())
+                .await
+                .unwrap();
+
+            for quote in std::iter::once(&latest).chain(&history) {
+                assert_eq!(quote.currency, quote_ccy, "{symbol} in {quote_ccy}");
+                assert_eq!(quote.close, close, "{symbol} in {quote_ccy}");
+                assert_eq!(quote.data_source, "ALPHA_VANTAGE");
+            }
+        }
+
+        assert_eq!(
+            *provider.0.lock().unwrap(),
+            ["IBTA.LON", "IBTA.LON", "TSCO.LON", "TSCO.LON", "TSCO.LON", "TSCO.LON"],
+            "one request per fetch, for the venue's Alpha Vantage symbol"
+        );
     }
 
     struct NoSecrets;

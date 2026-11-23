@@ -72,6 +72,7 @@ interface SandboxMessage {
   ok?: boolean;
   result?: unknown;
   error?: string;
+  errorCode?: string;
   subscriptionId?: string;
   payload?: unknown;
   theme?: AddonThemeSnapshot;
@@ -776,7 +777,11 @@ window.addEventListener("message", (event: MessageEvent<SandboxMessage>) => {
     if (message.ok) {
       callbacks.resolve(message.result);
     } else {
-      callbacks.reject(new Error(message.error || "Addon host call failed"));
+      const error = new Error(message.error || "Addon host call failed");
+      if (typeof message.errorCode === "string") {
+        Object.assign(error, { code: message.errorCode });
+      }
+      callbacks.reject(error);
     }
     return;
   }

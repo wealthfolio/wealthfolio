@@ -26,12 +26,13 @@ impl AgentToolCatalog {
         Self::new(crate::tools::v1_read_tools())
     }
 
-    /// The in-app assistant catalog: read tools plus the draft/suggest tools.
-    /// Commit tools are NOT included — the assistant persists drafts through
-    /// its confirmation widget, never directly.
+    /// The in-app assistant catalog: read tools, the draft/suggest tools and
+    /// the Spending reads. Commit tools are NOT included — the assistant
+    /// persists drafts through its confirmation widget, never directly.
     pub fn assistant_catalog() -> Self {
         let mut tools = crate::tools::v1_read_tools();
         tools.extend(crate::tools::draft_suggest_tools());
+        tools.extend(crate::tools::spending_read_tools());
         Self::new(tools)
     }
 
@@ -49,6 +50,8 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::quote_import_tools());
         tools.extend(crate::tools::activity_update_tools());
         tools.extend(crate::tools::transaction_category_tools());
+        tools.extend(crate::tools::asset_market_data_tools());
+        tools.extend(crate::tools::portfolio_setup_tools());
         Self::new(tools)
     }
 
@@ -585,6 +588,30 @@ mod tests {
         assert!(!names.contains(&"commit_activity_updates"));
         assert!(!names.contains(&"prepare_activity_deletions"));
         assert!(!names.contains(&"commit_activity_deletions"));
+        assert!(!names.contains(&"prepare_account_change"));
+        assert!(!names.contains(&"commit_account_change"));
+        assert!(!names.contains(&"get_holdings_snapshots"));
+        assert!(!names.contains(&"prepare_holdings_snapshot"));
+        assert!(!names.contains(&"commit_holdings_snapshot"));
+        assert!(!names.contains(&"get_exchange_rates"));
+        assert!(!names.contains(&"prepare_alternative_asset"));
+        assert!(!names.contains(&"commit_alternative_asset"));
+    }
+
+    #[test]
+    fn assistant_catalog_has_spending_reads_but_no_spending_workflows() {
+        let assistant = AgentToolCatalog::assistant_catalog();
+        let mcp = AgentToolCatalog::mcp_catalog();
+        for tool in crate::tools::spending_read_tools() {
+            assert_eq!(tool.access_level(), crate::tool::AgentToolAccess::Read);
+            assert!(assistant.get(tool.name()).is_some(), "{}", tool.name());
+        }
+        for tool in crate::tools::spending_access_tools() {
+            assert!(mcp.get(tool.name()).is_some(), "{}", tool.name());
+            if tool.access_level() != crate::tool::AgentToolAccess::Read {
+                assert!(assistant.get(tool.name()).is_none(), "{}", tool.name());
+            }
+        }
     }
 
     #[tokio::test]
@@ -667,8 +694,111 @@ mod tests {
         assert!(names.contains(&"commit_activity_updates"));
         assert!(names.contains(&"prepare_activity_deletions"));
         assert!(names.contains(&"commit_activity_deletions"));
+        // Asset and market-data reads are MCP-only and need holdings:read.
+        let assistant = AgentToolCatalog::assistant_catalog();
+        for name in [
+            "get_asset",
+            "get_quote_history",
+            "get_market_data_providers",
+        ] {
+            let tool = catalog.get(name).expect(name);
+            assert_eq!(
+                tool.required_scopes(),
+                &[crate::scope::AgentScope::HoldingsRead],
+                "{name}"
+            );
+            assert_eq!(
+                tool.access_level(),
+                crate::tool::AgentToolAccess::Read,
+                "{name}"
+            );
+            assert!(assistant.get(name).is_none(), "{name}");
+        }
         // The shared v1 read catalog stays unchanged; category management is MCP-only.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
+    }
+
+    #[tokio::test]
+    async fn asset_update_tools_need_holdings_read_and_market_data_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let assistant = AgentToolCatalog::assistant_catalog();
+        for (name, access) in [
+            ("prepare_asset_update", crate::tool::AgentToolAccess::Draft),
+            ("commit_asset_update", crate::tool::AgentToolAccess::Write),
+        ] {
+            let tool = catalog.get(name).expect(name);
+            assert_eq!(tool.access_level(), access, "{name}");
+            assert!(assistant.get(name).is_none(), "{name}");
+            for granted in [
+                AgentScopeSet::from_strs(["holdings:read"]),
+                AgentScopeSet::from_strs(["market-data:write"]),
+            ] {
+                let err = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &granted,
+                        name,
+                        serde_json::json!({ "assetId": "a", "quoteCurrency": "USD" }),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "{name}: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn refresh_market_data_needs_holdings_read_and_market_data_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let tool = catalog.get("refresh_market_data").expect("registered");
+        assert_eq!(tool.access_level(), crate::tool::AgentToolAccess::Write);
+        assert!(!tool.is_additive());
+        assert!(AgentToolCatalog::assistant_catalog()
+            .get("refresh_market_data")
+            .is_none());
+        for granted in [
+            AgentScopeSet::from_strs(["holdings:read"]),
+            AgentScopeSet::from_strs(["market-data:write"]),
+        ] {
+            let err = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    "refresh_market_data",
+                    serde_json::json!({ "mode": "latest" }),
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(err, AgentToolError::ScopeDenied { .. }), "{err}");
+        }
+    }
+
+    #[tokio::test]
+    async fn asset_market_data_reads_are_denied_without_holdings_read() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let granted = AgentScopeSet::from_strs(["classification:read", "market-data:write"]);
+        for name in [
+            "get_asset",
+            "get_quote_history",
+            "get_market_data_providers",
+        ] {
+            let err = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    name,
+                    serde_json::json!({ "assetId": "a" }),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(err, AgentToolError::ScopeDenied { .. }),
+                "{name}: {err}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -692,6 +822,14 @@ mod tests {
             "commit_activity_updates",
             "prepare_activity_deletions",
             "commit_activity_deletions",
+            "prepare_account_change",
+            "commit_account_change",
+            "get_holdings_snapshots",
+            "prepare_holdings_snapshot",
+            "commit_holdings_snapshot",
+            "get_exchange_rates",
+            "prepare_alternative_asset",
+            "commit_alternative_asset",
         ] {
             let err = catalog
                 .execute(
@@ -999,6 +1137,53 @@ mod tests {
             AgentScopeSet::from_strs(["market-data:write"]),
         ] {
             for name in ["prepare_quote_import", "commit_quote_import"] {
+                let err = catalog
+                    .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "tool {name} should be scope-denied for {granted:?}, got: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn account_changes_need_accounts_read_and_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let args = serde_json::json!({ "accountId": "a", "name": "Renamed" });
+        for granted in [
+            AgentScopeSet::read_activity_write_classification_suggest(),
+            AgentScopeSet::from_strs(["accounts:write"]),
+        ] {
+            for name in ["prepare_account_change", "commit_account_change"] {
+                let err = catalog
+                    .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "tool {name} should be scope-denied for {granted:?}, got: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn holdings_snapshot_writes_need_holdings_read_and_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let args = serde_json::json!({ "accountId": "a", "date": "2026-01-31", "positions": [] });
+        for granted in [
+            AgentScopeSet::read_activity_write_classification_suggest(),
+            AgentScopeSet::from_strs(["holdings:write"]),
+        ] {
+            for name in [
+                "prepare_holdings_snapshot",
+                "commit_holdings_snapshot",
+                "prepare_alternative_asset",
+                "commit_alternative_asset",
+            ] {
                 let err = catalog
                     .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
                     .await

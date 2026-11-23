@@ -787,7 +787,7 @@ describe("PerformancePage built-in display labels", () => {
     await userEvent.click(
       await screen.findByRole("button", {
         name: i18n.t("common:component.calculation_note_for", {
-          label: zhPerformance.metric.twr_short,
+          label: zhPerformance.metric.time_weighted_short,
         }),
       }),
     );
@@ -861,6 +861,14 @@ describe("PerformancePage built-in display labels", () => {
     });
     renderPage(true, i18n);
     const label = known ? zhPerformance.exclusion.holdings_not_mwr : raw;
+    // An unavailable MWR reads N/A; its reason sits behind the tile's warning.
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: i18n.t("common:component.calculation_note_for", {
+          label: zhPerformance.metric.money_weighted_return,
+        }),
+      }),
+    );
     expect((await screen.findAllByText(label)).length).toBeGreaterThan(0);
     if (known)
       expect(

@@ -4,15 +4,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useReducer,
   useRef,
   type ReactNode,
   type Dispatch,
 } from "react";
-import { useTranslation } from "react-i18next";
 import { checkActivitiesImport, previewImportAssets, logger } from "@/adapters";
 import type {
   ActivityImport,
+  ImportAssetCandidate,
   ImportAssetPreviewItem,
   ImportMappingData,
   ImportTemplateScope,
@@ -20,8 +21,54 @@ import type {
 } from "@/lib/types";
 import {
   applyAssetResolution,
-  buildImportAssetCandidateFromDraft,
+  getImportAssetCandidates,
+  getUnreviewedAssetCandidates,
 } from "../utils/asset-review-utils";
+import { assetPreviewError, type AssetPreviewError } from "../utils/asset-preview-error";
+
+// Keep requests sequential and small; provider rate limiting stays in the backend.
+const ASSET_PREVIEW_BATCH_SIZE = 5;
+
+function buildAssetPreviewBatches(
+  candidates: ImportAssetCandidate[],
+  unchecked: ImportAssetCandidate[],
+): ImportAssetCandidate[][] {
+  // The core bond alias resolver checks conflicting ISIN/CUSIP claims across
+  // its entire input. Keep all explicit bond inputs together, including known
+  // matches needed as context on retry; do not reimplement those checks here.
+  const bonds = candidates.filter(
+    (candidate) => candidate.instrumentType?.trim().toUpperCase() === "BOND",
+  );
+  const bondKeys = new Set(bonds.map((candidate) => candidate.key));
+  const batches: ImportAssetCandidate[][] = [];
+  let batch: ImportAssetCandidate[] = [];
+  let bondsQueued = false;
+  const flush = () => {
+    if (batch.length) batches.push(batch);
+    batch = [];
+  };
+  for (const candidate of unchecked) {
+    if (bondKeys.has(candidate.key)) {
+      if (!bondsQueued) {
+        flush();
+        batches.push(bonds);
+        bondsQueued = true;
+      }
+    } else {
+      batch.push(candidate);
+      if (batch.length === ASSET_PREVIEW_BATCH_SIZE) flush();
+    }
+  }
+  flush();
+  return batches;
+}
+
+export interface AssetPreviewProgress {
+  total: number;
+  completed: number;
+  startedAt: number;
+  finishedAt?: number;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -77,6 +124,8 @@ export interface DraftActivity {
   symbolName?: string;
   quoteCcy?: string;
   instrumentType?: string;
+  /** Provider quote type of the resolved asset (e.g. "MUTUALFUND"); classifies a new asset. */
+  instrumentTypeLabel?: string;
   quoteMode?: string;
   providerId?: string;
   providerSymbol?: string;
@@ -146,7 +195,8 @@ export interface ImportState {
   draftRevision: number;
   lastValidatedRevision: number | null;
   isPreviewingAssets: boolean;
-  assetPreviewError: string | null;
+  assetPreviewError: AssetPreviewError | null;
+  assetPreviewProgress: AssetPreviewProgress | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -191,6 +241,7 @@ const INITIAL_STATE: ImportState = {
   lastValidatedRevision: null,
   isPreviewingAssets: false,
   assetPreviewError: null,
+  assetPreviewProgress: null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,8 +285,18 @@ export type ImportAction =
   | { type: "SET_IS_VALIDATING"; payload: boolean }
   | { type: "SET_VALIDATION_ERROR"; payload: ImportValidationError | null }
   | { type: "MARK_VALIDATED"; payload: number }
-  | { type: "SET_IS_PREVIEWING_ASSETS"; payload: boolean }
-  | { type: "SET_ASSET_PREVIEW_ERROR"; payload: string | null }
+  | {
+      type: "START_ASSET_PREVIEW";
+      payload: { revision: number; retry: boolean; progress: AssetPreviewProgress };
+    }
+  | {
+      type: "APPLY_ASSET_PREVIEW_BATCH";
+      payload: { revision: number; items: ImportAssetPreviewItem[] };
+    }
+  | {
+      type: "FINISH_ASSET_PREVIEW";
+      payload: { finishedAt: number; error: AssetPreviewError | null };
+    }
   | { type: "RESET" };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -284,7 +345,21 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
       "currency" in updates && !("currencySource" in updates)
         ? { ...updates, currencySource: "manual" as const }
         : updates;
-    return { ...draft, ...normalizedUpdates, isEdited: true };
+    // A quote type belongs to the asset it was resolved for, not to an edited identity.
+    const identityChanged = (
+      ["symbol", "exchangeMic", "instrumentType", "providerId", "providerSymbol", "isin"] as const
+    ).some((field) => field in updates && updates[field] !== draft[field]);
+    const labelUpdate =
+      identityChanged && !("instrumentTypeLabel" in updates)
+        ? { instrumentTypeLabel: undefined }
+        : {};
+    // Validation sends the name as reviewed, so it must not follow the row to another asset.
+    const nameIdentityChanged = (
+      ["symbol", "exchangeMic", "providerId", "providerSymbol", "isin"] as const
+    ).some((field) => field in updates && updates[field] !== draft[field]);
+    const nameUpdate =
+      nameIdentityChanged && !("symbolName" in updates) ? { symbolName: undefined } : {};
+    return { ...draft, ...normalizedUpdates, ...labelUpdate, ...nameUpdate, isEdited: true };
   };
 
   const updatesAffectAssetPreview = (updates: Partial<DraftActivity>) =>
@@ -468,6 +543,7 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
           isPreviewingAssets: false,
           validationError: null,
           assetPreviewError: null,
+          assetPreviewProgress: null,
           lastValidatedRevision: prevStepValue === "mapping" ? null : state.lastValidatedRevision,
         }),
       };
@@ -482,11 +558,61 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
     case "MARK_VALIDATED":
       return { ...state, lastValidatedRevision: action.payload, validationError: null };
 
-    case "SET_IS_PREVIEWING_ASSETS":
-      return { ...state, isPreviewingAssets: action.payload };
+    case "START_ASSET_PREVIEW":
+      if (state.draftRevision !== action.payload.revision) return state;
+      return {
+        ...state,
+        isPreviewingAssets: true,
+        assetPreviewError: null,
+        assetPreviewProgress: action.payload.progress,
+        assetPreviewItems: action.payload.retry ? state.assetPreviewItems : [],
+        pendingImportAssets: action.payload.retry ? state.pendingImportAssets : {},
+      };
 
-    case "SET_ASSET_PREVIEW_ERROR":
-      return { ...state, assetPreviewError: action.payload };
+    case "APPLY_ASSET_PREVIEW_BATCH": {
+      if (state.draftRevision !== action.payload.revision) return state;
+      const previews = new Map(state.assetPreviewItems.map((item) => [item.key, item]));
+      const pending = { ...state.pendingImportAssets };
+      let drafts = state.draftActivities;
+      let completed = 0;
+      for (const item of action.payload.items) {
+        // A result must never replace an already reviewed or manually edited match.
+        if (previews.has(item.key)) continue;
+        previews.set(item.key, item);
+        completed += 1;
+        if (!item.draft) continue;
+        if (item.status === "EXISTING_ASSET") {
+          drafts = applyAssetResolution(drafts, item.key, item.draft, { assetId: item.assetId });
+        } else if (item.status === "AUTO_RESOLVED_NEW_ASSET") {
+          drafts = applyAssetResolution(drafts, item.key, item.draft, { importAssetKey: item.key });
+          pending[item.key] = { key: item.key, draft: item.draft, source: "auto" };
+        }
+      }
+      return {
+        ...state,
+        assetPreviewItems: [...previews.values()],
+        pendingImportAssets: pending,
+        draftActivities: drafts,
+        // Enrichment is part of this preview, not a user edit invalidating its next batch.
+        lastValidatedRevision: null,
+        assetPreviewProgress: state.assetPreviewProgress
+          ? {
+              ...state.assetPreviewProgress,
+              completed: state.assetPreviewProgress.completed + completed,
+            }
+          : null,
+      };
+    }
+
+    case "FINISH_ASSET_PREVIEW":
+      return {
+        ...state,
+        isPreviewingAssets: false,
+        assetPreviewError: action.payload.error,
+        assetPreviewProgress: state.assetPreviewProgress
+          ? { ...state.assetPreviewProgress, finishedAt: action.payload.finishedAt }
+          : null,
+      };
 
     case "RESET":
       return { ...INITIAL_STATE };
@@ -512,7 +638,10 @@ interface ImportContextValue {
     drafts: DraftActivity[],
     options?: { revision?: number },
   ) => Promise<ValidationResult>;
-  previewAssets: (drafts: DraftActivity[], options?: { revision?: number }) => Promise<void>;
+  previewAssets: (
+    drafts: DraftActivity[],
+    options?: { revision?: number; retry?: boolean },
+  ) => Promise<void>;
 }
 
 const ImportContext = createContext<ImportContextValue | null>(null);
@@ -544,7 +673,6 @@ interface ImportProviderProps {
 }
 
 export function ImportProvider({ children, initialAccountId }: ImportProviderProps) {
-  const { t } = useTranslation();
   const [state, dispatch] = useReducer(importReducer, {
     ...INITIAL_STATE,
     accountId: initialAccountId ?? "",
@@ -552,6 +680,19 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
 
   const validationRunRef = useRef(0);
   const previewRunRef = useRef(0);
+  const isActiveRef = useRef(true);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  useEffect(() => {
+    isActiveRef.current = true;
+    return () => {
+      // React Activity also cleans up effects when a kept phone screen hides.
+      // Let the pending request settle its preserved state, but stop scheduling
+      // further batches while hidden or after a permanent unmount.
+      isActiveRef.current = false;
+    };
+  }, []);
 
   // Invalidate in-flight async work when navigating backward so stale
   // responses cannot repopulate state the user already left behind.
@@ -587,6 +728,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
                 activityType: (draft.activityType || "UNKNOWN") as ActivityImport["activityType"],
                 date: draft.activityDate || "",
                 symbol: draft.symbol || "",
+                symbolName: draft.symbolName,
                 assetId: draft.assetId,
                 exchangeMic: draft.exchangeMic,
                 quoteCcy: draft.quoteCcy,
@@ -737,57 +879,74 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
   );
 
   const previewAssets = useCallback(
-    async (drafts: DraftActivity[], options?: { revision?: number }) => {
+    async (drafts: DraftActivity[], options?: { revision?: number; retry?: boolean }) => {
       const run = ++previewRunRef.current;
       const requestedRevision = options?.revision ?? draftRevisionRef.current;
-      const candidates = drafts
-        .map(buildImportAssetCandidateFromDraft)
-        .filter((c): c is NonNullable<typeof c> => c !== null)
-        .filter((c, i, arr) => arr.findIndex((x) => x.key === c.key) === i);
+      const retry = options?.retry ?? false;
+      const candidates = getImportAssetCandidates(drafts);
+      const unchecked = retry
+        ? getUnreviewedAssetCandidates(drafts, stateRef.current.assetPreviewItems)
+        : candidates;
+      const uncheckedKeys = new Set(unchecked.map((candidate) => candidate.key));
+      const isCurrent = () =>
+        run === previewRunRef.current && draftRevisionRef.current <= requestedRevision;
 
-      if (candidates.length === 0) return;
-
-      dispatch({ type: "SET_IS_PREVIEWING_ASSETS", payload: true });
-      dispatch({ type: "SET_ASSET_PREVIEW_ERROR", payload: null });
+      dispatch({
+        type: "START_ASSET_PREVIEW",
+        payload: {
+          revision: requestedRevision,
+          retry,
+          progress: {
+            total: candidates.length,
+            completed: candidates.length - unchecked.length,
+            startedAt: Date.now(),
+          },
+        },
+      });
+      let failure: AssetPreviewError | null = null;
       try {
-        const preview = await previewImportAssets({ candidates });
-        if (run !== previewRunRef.current || draftRevisionRef.current > requestedRevision) return;
-        dispatch({ type: "SET_ASSET_PREVIEW_ITEMS", payload: preview });
-        dispatch({ type: "CLEAR_PENDING_IMPORT_ASSETS" });
-
-        let nextDrafts = drafts;
-        for (const item of preview) {
-          if (!item.draft) continue;
-          if (item.status === "EXISTING_ASSET") {
-            nextDrafts = applyAssetResolution(nextDrafts, item.key, item.draft, {
-              assetId: item.assetId,
-            });
+        for (const batch of buildAssetPreviewBatches(candidates, unchecked)) {
+          if (!isCurrent() || !isActiveRef.current) return;
+          const preview = await previewImportAssets({ candidates: batch });
+          if (!isCurrent()) return;
+          // An incomplete response cannot count as a completed batch or unlock review.
+          const expectedKeys = new Set(batch.map((candidate) => candidate.key));
+          if (
+            !Array.isArray(preview) ||
+            preview.length !== batch.length ||
+            preview.some(
+              (item) =>
+                !item ||
+                !expectedKeys.has(item.key) ||
+                !["EXISTING_ASSET", "AUTO_RESOLVED_NEW_ASSET", "NEEDS_FIXING"].includes(
+                  item.status,
+                ) ||
+                (item.status === "EXISTING_ASSET" && !item.assetId) ||
+                (item.status === "AUTO_RESOLVED_NEW_ASSET" && !item.draft),
+            ) ||
+            new Set(preview.map((item) => item.key)).size !== batch.length
+          ) {
+            throw new Error("Incomplete asset preview response");
           }
-          if (item.status === "AUTO_RESOLVED_NEW_ASSET") {
-            nextDrafts = applyAssetResolution(nextDrafts, item.key, item.draft, {
-              importAssetKey: item.key,
-            });
-            dispatch({
-              type: "SET_PENDING_IMPORT_ASSET",
-              payload: {
-                key: item.key,
-                draft: item.draft,
-                source: "auto",
-              } satisfies PendingImportAsset,
-            });
-          }
+          dispatch({
+            type: "APPLY_ASSET_PREVIEW_BATCH",
+            payload: {
+              revision: requestedRevision,
+              // Reviewed bonds can be request context without replacing edits
+              // or counting their already completed results a second time.
+              items: preview.filter((item) => uncheckedKeys.has(item.key)),
+            },
+          });
         }
-        dispatch({ type: "SET_DRAFT_ACTIVITIES", payload: nextDrafts });
       } catch (error) {
-        if (run !== previewRunRef.current || draftRevisionRef.current > requestedRevision) return;
-        dispatch({
-          type: "SET_ASSET_PREVIEW_ERROR",
-          payload:
-            error instanceof Error ? error.message : t("activity:import.errors.previewFailed"),
-        });
+        if (!isCurrent()) return;
+        failure = assetPreviewError(error);
       } finally {
         if (run === previewRunRef.current) {
-          dispatch({ type: "SET_IS_PREVIEWING_ASSETS", payload: false });
+          dispatch({
+            type: "FINISH_ASSET_PREVIEW",
+            payload: { finishedAt: Date.now(), error: failure },
+          });
         }
       }
     },

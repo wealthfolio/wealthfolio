@@ -42,6 +42,11 @@ pub struct LotDisposal {
     pub proceeds_base: String,
     pub cost_basis_base: String,
     pub realized_pnl_base: String,
+    /// Legacy rows do not establish availability, even when their numeric amount is zero.
+    #[serde(default)]
+    pub proceeds_base_known: Option<bool>,
+    #[serde(default)]
+    pub cost_basis_base_known: Option<bool>,
     pub currency: String,
     pub base_currency: String,
     pub fx_rate_to_base: String,

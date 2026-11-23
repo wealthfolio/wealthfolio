@@ -6,7 +6,6 @@ import { autoMatchAccountMappings, collectCsvAccountValues } from "./account-mat
 function makeAccount(overrides: Partial<Account> & Pick<Account, "id" | "name">): Account {
   return {
     accountType: AccountType.SECURITIES,
-    balance: 0,
     currency: "USD",
     isDefault: false,
     isActive: true,
@@ -42,6 +41,16 @@ describe("collectCsvAccountValues", () => {
     ]);
   });
 
+  it("reads the last of two columns with the same name, as the import does", () => {
+    expect(
+      collectCsvAccountValues(
+        [["2024-01-01", "Retirement", "Trading Account"]],
+        ["Date", "Account", "Account"],
+        "Account",
+      ),
+    ).toEqual(["Trading Account"]);
+  });
+
   it("returns nothing when the column is unmapped or missing", () => {
     expect(collectCsvAccountValues(rows, headers, undefined)).toEqual([]);
     expect(collectCsvAccountValues(rows, headers, "Portfolio")).toEqual([]);
@@ -52,6 +61,14 @@ describe("autoMatchAccountMappings", () => {
   it("matches account names regardless of case and spacing", () => {
     expect(autoMatchAccountMappings(["  trading   account "], accounts, {})).toEqual({
       "trading   account": "acc-1",
+    });
+  });
+
+  it("matches names whose apostrophes differ only in style", () => {
+    const owned = [makeAccount({ id: "acc-401k", name: "Wife\u2019s 401k" })];
+
+    expect(autoMatchAccountMappings(["Wife's 401k"], owned, {})).toEqual({
+      "Wife's 401k": "acc-401k",
     });
   });
 

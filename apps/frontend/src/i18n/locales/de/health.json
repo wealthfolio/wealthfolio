@@ -5,6 +5,11 @@
       "title_other": "Fehlende manuelle Bewertungen für {{count}} Bestände",
       "message": "Manuelle/benutzerdefinierte Bestände benötigen eine manuelle Bewertung, bevor sie als bewertete Performance-Positionen einbezogen werden können."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Bewertung von {{name}} nicht aktualisiert",
+      "title_other": "Bewertungen von {{count}} Vermögenswerten nicht aktualisiert",
+      "message": "Einige manuell bewertete Vermögenswerte wurden seit über {{days}} Tagen nicht aktualisiert. Ihr Nettovermögen ist daher möglicherweise nicht aktuell."
+    },
     "price_no_market_data": {
       "title_one": "Keine Marktdaten für {{symbol}}",
       "title_other": "Keine Marktdaten für {{count}} Bestände",
@@ -157,6 +162,11 @@
       "title_one": "Wechselkurse für {{from}} und {{to}} widersprechen sich",
       "title_other": "Wechselkurse widersprechen sich für {{count}} Währungspaare",
       "message": "Für dieselben Tage sind Kurse in beide Richtungen erfasst, die nicht zusammenpassen. Jede Richtung wird wie erfasst verwendet, sodass eine Umrechnung hin und zurück einen anderen Betrag ergibt. Korrigieren oder entfernen Sie die falschen Kurse."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "Optionsverfall ist nicht mit seinem Kontrakt verknüpft",
+      "title_other": "{{count}} Optionsverfälle sind nicht mit ihren Kontrakten verknüpft",
+      "message": "Diese Optionsverfälle nennen die zugrunde liegende Aktie statt des Optionskontrakts, daher bleibt der Kontrakt offen und sein Gewinn oder Verlust wird nicht erfasst. Verknüpfen Sie jeden Verfall mit dem verfallenen Kontrakt."
     }
   },
   "page": {
@@ -196,8 +206,10 @@
     "rebuild_account_history": "Verlauf neu erstellen",
     "add_price": "Preis hinzufügen",
     "update_cost_basis": "Kostenbasis aktualisieren",
+    "update_value": "Wert aktualisieren",
     "review_transaction": "Transaktion prüfen",
-    "review_entry": "Eintrag prüfen"
+    "review_entry": "Eintrag prüfen",
+    "match_option_expiry_contracts": "Zugeordnete Kontrakte verwenden"
   },
   "updatedAt": "Aktualisiert um {{time}}",
   "healthy": {
@@ -275,5 +287,18 @@
     },
     "affectedItems_one": "Betroffenes Element ({{count}})",
     "affectedItems_other": "Betroffene Elemente ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Transaktion: {{id}}",
+    "missing_fx_rate": "Für den {{date}} ist kein Wechselkurs von {{from}} nach {{to}} verfügbar.",
+    "close_buy_without_short_position": "Dieser Kauf soll eine Position in {{asset}} schließen, es gibt jedoch keine Short-Position zum Schließen.",
+    "sell_short_intent_required": "Dieser Verkauf würde die Short-Position in {{asset}} erhöhen. Kennzeichnen Sie ihn als Leerverkauf.",
+    "conversion_insufficient_holdings": "Diese Umwandlung erfordert {{requested}} Einheiten von {{asset}}, das Konto hält jedoch nur {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} wird in {{fromCurrency}} und {{toAsset}} in {{toCurrency}} gehalten. Bei einer Umwandlung muss die Währung gleich bleiben.",
+    "return_of_capital_amount_required": "Geben Sie einen Betrag für diese Kapitalrückzahlung ein.",
+    "sell_without_position": "Es gibt keine Position in {{asset}} zum Verkaufen. Nur die Auswirkung auf den Barbestand wurde verbucht.",
+    "insufficient_quantity": "Diese Transaktion entfernt {{requested}} Einheiten von {{asset}}, es wurden jedoch nur {{held}} gehalten. Die verbleibenden {{excess}} Einheiten haben keine Kostenbasis.",
+    "missing_final_cash": "Diese gebuchte Transaktion hat keinen endgültigen Barbetrag und hat daher den Barbestand nicht verändert.",
+    "option_expiry_not_option": "Dieser Optionsverfall nennt {{asset}}, das kein Optionskontrakt ist, daher hat er nichts verändert. Verknüpfen Sie ihn mit dem verfallenen Kontrakt."
   }
 }

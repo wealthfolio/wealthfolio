@@ -5,8 +5,8 @@
 //! Assistant-only limits (imports, attachments, history) stay local.
 
 pub use wealthfolio_agent_tools::constants::{
-    DEFAULT_PAGE_SIZE, DEFAULT_VALUATIONS_DAYS, MAX_ACCOUNTS, MAX_ACTIVITIES_ROWS, MAX_DIVIDENDS,
-    MAX_GOALS, MAX_HOLDINGS, MAX_INCOME_RECORDS, MAX_VALUATIONS_POINTS,
+    DEFAULT_PAGE_SIZE, DEFAULT_VALUATIONS_DAYS, MAX_ACTIVITIES_ROWS, MAX_DIVIDENDS, MAX_GOALS,
+    MAX_HOLDINGS, MAX_INCOME_RECORDS, MAX_VALUATIONS_POINTS,
 };
 
 /// Maximum number of rows to import from CSV per tool call.

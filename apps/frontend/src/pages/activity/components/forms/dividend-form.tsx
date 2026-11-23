@@ -16,6 +16,7 @@ import {
   AccountSelect,
   AdvancedOptionsSection,
   AmountInput,
+  ChargeLinesField,
   createValidatedSubmit,
   DatePicker,
   FormSection,
@@ -26,7 +27,12 @@ import {
 } from "./fields";
 import { calculateIncomeFinalAmount } from "@/lib/activity-final-amount";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
-import { assetMetadataSchema } from "./schemas";
+import {
+  assetMetadataSchema,
+  createChargeLineFields,
+  createChargeLinesRefinement,
+} from "./schemas";
+import { useIncomeAmounts } from "./use-income-amounts";
 import { Spinner } from "@wealthfolio/ui";
 
 // Non-UI sentinel for the "cash" income mode (not a DB value; internal only).
@@ -61,6 +67,8 @@ export const createDividendFormSchema = (t?: TFunction) =>
         .min(0, {
           message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
         }),
+      // A cash dividend's amount before tax: input only, never saved.
+      grossAmount: z.coerce.number().optional(),
       tax: z.coerce
         .number({
           error: invalidTypeError(
@@ -118,8 +126,23 @@ export const createDividendFormSchema = (t?: TFunction) =>
       symbolQuoteCcy: z.string().nullable().optional(),
       symbolInstrumentType: z.string().nullable().optional(),
       assetMetadata: assetMetadataSchema,
+      // Fee and tax lines (metadata.charges)
+      ...createChargeLineFields(t),
     })
+    .superRefine(createChargeLinesRefinement(t))
     .superRefine((data, ctx) => {
+      if (data.grossAmount !== undefined && (data.tax ?? 0) > data.grossAmount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["tax"],
+          message: msg(
+            t,
+            "activity:form.err_charges_exceed_amount_before_tax",
+            "Tax and fees can't be more than the amount before tax.",
+          ),
+        });
+      }
+
       const isAssetBacked =
         data.subtype === ACTIVITY_SUBTYPES.DRIP ||
         data.subtype === ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND;
@@ -216,7 +239,7 @@ export function DividendForm({
       symbol: "",
       activityDate: new Date(),
       amount: undefined,
-      tax: 0,
+      tax: undefined,
       comment: null,
       fxRate: undefined,
       subtype: null,
@@ -239,6 +262,8 @@ export function DividendForm({
   const isAssetBacked =
     subtype === ACTIVITY_SUBTYPES.DRIP || subtype === ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND;
   const dividendMode = subtype ?? INCOME_MODE_CASH;
+  // A cash dividend (including a return of capital) is entered before tax.
+  const incomeAmounts = useIncomeAmounts(form, { enabled: !isAssetBacked });
 
   useEffect(() => {
     if (!isAssetBacked) return;
@@ -401,26 +426,49 @@ export function DividendForm({
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <AmountInput
-              name="amount"
-              data-testid={isAssetBacked ? "dividend-amount-input" : undefined}
-              label={
-                isAssetBacked
-                  ? t("activity:form.label_dividend_amount")
-                  : t("activity:form.label_amount")
-              }
-              currency={currency}
-              onValueChange={() => {
-                amountWasEdited.current = true;
-              }}
-              maxDecimalPlaces={moneyDecimals}
-            />
-            <AmountInput
-              name="tax"
+            {isAssetBacked ? (
+              <AmountInput
+                name="amount"
+                data-testid="dividend-amount-input"
+                label={t("activity:form.label_dividend_amount")}
+                currency={currency}
+                onValueChange={() => {
+                  amountWasEdited.current = true;
+                }}
+                maxDecimalPlaces={moneyDecimals}
+              />
+            ) : (
+              <AmountInput
+                name="grossAmount"
+                label={t("activity:form.label_amount_before_tax")}
+                currency={currency}
+                onValueChange={incomeAmounts.onGrossAmountChange}
+                maxDecimalPlaces={moneyDecimals}
+              />
+            )}
+            <ChargeLinesField
+              totalName="tax"
+              linesName="taxLines"
+              category="tax"
               label={t("activity:form.label_withholding_tax")}
               currency={currency}
+              onValueChange={incomeAmounts.onChargeChange}
+              onTotalChange={incomeAmounts.onChargeChange}
               maxDecimalPlaces={moneyDecimals}
             />
+            {!isAssetBacked && (
+              <AmountInput
+                name="amount"
+                label={t("activity:form.received_amount")}
+                labelHelpText={t("activity:form.help_total_credit")}
+                currency={currency}
+                onValueChange={(value) => {
+                  amountWasEdited.current = true;
+                  incomeAmounts.onReceivedAmountChange(value);
+                }}
+                maxDecimalPlaces={moneyDecimals}
+              />
+            )}
           </div>
         </FormSection>
 

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de-DE">
+<head>
+<meta charset="utf-8">
+<title>ACME AG Aktie 123,45 €</title>
+<script>window.__STATE__ = {"price": 999.99, "volume": 12345};</script>
+<style>.price { width: 100px; } /* 42 */</style>
+</head>
+<body class="quote-page">
+<!-- price box 1,23 -->
+<header><nav><ul><li><a href="/">Start</a><li><a href="/aktien">Aktien</a></ul></nav></header>
+<main id="content">
+<div class="price-box instrument-header">
+  <h1>ACME AG <small>WKN 123456</small></h1>
+  <div class="quote">
+    <span class="label">Letzter Kurs</span>
+    <span id="last-price" class="value big" data-field="last">123,45&nbsp;&euro;</span>
+    <span class="change positive">+1,25&nbsp;%</span>
+  </div>
+  <div class="quote">
+    <span class="label">Geld</span><span class="value" data-field="bid">123,40</span>
+    <span class="label">Brief</span><span class="value" data-field="ask">123,50</span>
+  </div>
+  <p>Volumen <b>1.234.567</b>
+  <p>Stand: <time datetime="2026-11-04T17:35:00+01:00">04.11.2026 17:35</time>
+</div>
+<div class="kennzahlen">
+<table class="key-figures">
+  <tr><th>Kennzahl<th>Wert
+  <tr><td>Tageshoch<td><span class="desktop">125,10</span><span class="mobile">125,1</span>
+  <tr><td>Tagestief<td>122,80
+  <tr><td>52W-Hoch<td><b><i>140,00</b></i>
+</table>
+</div>
+<section id="historie">
+<h2>Historische Kurse</h2>
+<table class="quotes history">
+  <thead><tr><th>Datum</th><th>Eröffnung</th><th>Hoch</th><th>Tief</th><th>Schluss</th><th>Volumen</th></tr></thead>
+  <tr><td><span class="d-full">04.11.2026</span><span class="d-short">04.11.</span></td><td>122,00 €</td><td>125,10 €</td><td>122,80 €</td><td>123,45 €</td><td>1.234.567</td></tr>
+  <tr><td>03.11.2026<td>121,10 €<td>122,50 €<td>120,90 €<td>122,20 €<td>987.654</tr>
+  <tr class="dividend"><td colspan="6">Dividende 2,50 €</td></tr>
+  <tr><td>31.10.2026</td><td>119,00&nbsp;€</td><td>121,40&nbsp;€</td><td>118,75&nbsp;€</td><td>121,00&nbsp;€</td><td>-</td></tr>
+</table>
+</section>
+<div id="price:last" class="1st-line kurs-ä">99,90</div>
+<footer>© 2026 Example Börse &middot; Kurse verzögert 15 Min.</footer>
+</main>
+</body>
+</html>

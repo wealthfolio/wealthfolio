@@ -74,7 +74,9 @@ async fn update_settings(
                     asset_ids: None,
                     days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
                 },
-                ..PortfolioJobConfig::default()
+                // Another job may consume the settings trigger's marker before
+                // the runtime currency changes. Invalidate again when this job runs.
+                force_full: true,
             };
 
             if let Err(err) = process_portfolio_job(state_for_job, job_config).await {
@@ -102,10 +104,7 @@ async fn update_settings(
 async fn is_auto_update_check_enabled(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<bool>> {
-    let enabled = state
-        .settings_service
-        .is_auto_update_check_enabled()
-        .unwrap_or(true);
+    let enabled = state.settings_service.is_auto_update_check_enabled()?;
     Ok(Json(enabled))
 }
 
@@ -295,3 +294,6 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/app/info", get(get_app_info))
         .route("/app/check-update", get(check_update))
 }
+
+#[cfg(test)]
+mod tests;

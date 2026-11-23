@@ -556,7 +556,7 @@ impl AiProviderServiceTrait for AiProviderService {
                 "anthropic" => request
                     .header("x-api-key", api_key.as_str())
                     .header("anthropic-version", "2023-06-01"),
-                "google" => request.query(&[("key", api_key.as_str())]),
+                "google" => request.header("x-goog-api-key", api_key.as_str()),
                 _ => request.header("Authorization", format!("Bearer {}", api_key)),
             };
         }
@@ -565,23 +565,22 @@ impl AiProviderServiceTrait for AiProviderService {
         let response = request
             .send()
             .await
-            .map_err(|e| ProviderApiError::ProviderError {
-                message: format!("Failed to connect to provider: {}", e),
+            .map_err(|_| ProviderApiError::ProviderError {
+                message: "Could not connect to the provider.".into(),
             })?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_default();
             return Err(ProviderApiError::ProviderError {
-                message: format!("Provider returned error {}: {}", status, body),
+                message: format!("Provider returned HTTP {}.", status.as_u16()),
             });
         }
 
         let body = response
             .text()
             .await
-            .map_err(|e| ProviderApiError::ProviderError {
-                message: format!("Failed to read provider response: {}", e),
+            .map_err(|_| ProviderApiError::ProviderError {
+                message: "Could not read the provider response.".into(),
             })?;
         let models = parse_fetched_models(provider_id, &body)?;
 
@@ -607,8 +606,8 @@ fn parse_fetched_models(
         body: &str,
         provider_name: &str,
     ) -> std::result::Result<T, ProviderApiError> {
-        serde_json::from_str(body).map_err(|e| ProviderApiError::ProviderError {
-            message: format!("Failed to parse {} response: {}", provider_name, e),
+        serde_json::from_str(body).map_err(|_| ProviderApiError::ProviderError {
+            message: format!("Failed to parse {} response.", provider_name),
         })
     }
 
@@ -821,6 +820,89 @@ fn parse_fetched_models(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn model_listing_keeps_keys_out_of_urls_and_provider_bodies_out_of_errors() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = vec![0; 8192];
+            let mut len = 0;
+            loop {
+                let read = socket.read(&mut bytes[len..]).await.unwrap();
+                assert!(read > 0);
+                len += read;
+                if bytes[..len].windows(4).any(|part| part == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let request = String::from_utf8(bytes[..len].to_vec()).unwrap();
+            assert!(request.starts_with("GET /v1beta/models HTTP/1.1\r\n"));
+            assert!(request
+                .to_ascii_lowercase()
+                .contains("x-goog-api-key: fake-key-2531\r\n"));
+            let body = "FAKE-KEY-2531 /private/portfolio.db account_balance";
+            socket.write_all(format!("HTTP/1.1 401 Unauthorized\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).as_bytes()).await.unwrap();
+        });
+        let secrets = Arc::new(crate::env::test_env::MockSecretStore::default());
+        secrets.set_secret("ai_google", "FAKE-KEY-2531").unwrap();
+        let service = AiProviderService::new(
+            Arc::new(StoredSettings(
+                json!({"schemaVersion": 2, "providers": {"google": {"customUrl": base_url}}})
+                    .to_string(),
+            )),
+            secrets,
+            include_str!("ai_providers.json"),
+        )
+        .unwrap();
+        let error = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            service.list_models("google"),
+        )
+        .await
+        .unwrap()
+        .unwrap_err();
+        server.await.unwrap();
+        assert!(error.to_string().contains("401"));
+        let wire = serde_json::to_string(&error.public_error()).unwrap();
+        for value in ["FAKE-KEY-2531", "/private", "account_balance"] {
+            assert!(!format!("{error:?}").contains(value));
+            assert!(!wire.contains(value));
+        }
+    }
+
+    #[tokio::test]
+    async fn model_listing_transport_errors_do_not_expose_custom_urls() {
+        // Invalid URL: exercise request construction failure without network access.
+        let private_url = "http://[FAKE-KEY-2531/private";
+        let secrets = Arc::new(crate::env::test_env::MockSecretStore::default());
+        secrets.set_secret("ai_google", "FAKE-KEY-2531").unwrap();
+        let service = AiProviderService::new(
+            Arc::new(StoredSettings(
+                json!({"schemaVersion": 2, "providers": {"google": {"customUrl": private_url}}})
+                    .to_string(),
+            )),
+            secrets,
+            include_str!("ai_providers.json"),
+        )
+        .unwrap();
+        let error = service.list_models("google").await.unwrap_err();
+        assert!(!error.to_string().contains("FAKE-KEY-2531"));
+        assert!(!format!("{error:?}").contains("/private"));
+    }
+
+    #[test]
+    fn model_listing_parse_errors_do_not_echo_response_values() {
+        let error = parse_fetched_models(
+            "openai",
+            r#"{"data":[{"id":{"FAKE-KEY-2531":"/private/portfolio.db"}}]}"#,
+        )
+        .unwrap_err();
+        assert!(!error.to_string().contains("FAKE-KEY-2531"));
+        assert!(!error.to_string().contains("/private"));
+    }
 
     fn caps(models: &[FetchedModel], id: &str) -> Option<(bool, bool, bool)> {
         let model = models.iter().find(|m| m.id == id).expect(id);

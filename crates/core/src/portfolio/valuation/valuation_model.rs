@@ -560,6 +560,14 @@ pub struct DailyAccountValuation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentAccountValuation {
+    /// Base amounts are known subtotals unless this status is complete.
+    #[serde(default)]
+    pub value_status: ValuationStatus,
+    /// Completeness of the independently valued account-currency amounts.
+    #[serde(default)]
+    pub account_value_status: ValuationStatus,
+    #[serde(default)]
+    pub missing_fx: Vec<crate::fx::FxConversionIssue>,
     pub account_id: String,
     pub account_currency: String,
     pub base_currency: String,
@@ -591,6 +599,11 @@ pub struct CurrentValuationSplit {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentValuationSummary {
+    /// Base amounts and currency splits are known subtotals unless complete.
+    #[serde(default)]
+    pub value_status: ValuationStatus,
+    #[serde(default)]
+    pub missing_fx: Vec<crate::fx::FxConversionIssue>,
     pub scope_id: String,
     pub base_currency: String,
     pub cash_balance_base: Decimal,

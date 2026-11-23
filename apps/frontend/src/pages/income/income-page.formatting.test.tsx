@@ -1,6 +1,12 @@
 import type { IncomeSummary } from "@/lib/types";
+import { findTooltip } from "@/test/tooltip";
 import { render, screen, within } from "@testing-library/react";
-import { FormattingProvider, type CurrencyFormattingRegions } from "@wealthfolio/ui";
+import userEvent from "@testing-library/user-event";
+import {
+  FormattingProvider,
+  TooltipProvider,
+  type CurrencyFormattingRegions,
+} from "@wealthfolio/ui";
 import { cloneElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import IncomePage from "./income-page";
@@ -14,8 +20,17 @@ const { summary } = vi.hoisted(() => ({
     yoyGrowth: null,
     unconvertedCurrencies: [],
     byMonth: {},
-    byType: {},
-    byAsset: {},
+    byType: { DIVIDEND: 412355.9633, INTEREST: 824711.9267 },
+    byAsset: {
+      example: {
+        assetId: "example",
+        kind: "INVESTMENT",
+        symbol: "EXAMPLE",
+        name: "Example company",
+        income: 137451.9878,
+        dividendIncome: 137451.9878,
+      },
+    },
     byAccount: {},
     byCurrency: { INR: 1234567.8912, USD: 2500, JPY: 1234.5 },
     byCurrencyBase: { INR: 14814.81, USD: 2500, JPY: 8.27 },
@@ -73,4 +88,23 @@ describe("IncomePage currency tooltip", () => {
     expect(tooltip.getByText("1,234,567.891")).toBeInTheDocument();
     expect(tooltip.getByText("2,500")).toBeInTheDocument();
   });
+});
+
+it("uses the selected region for income source percentages and updates immediately", async () => {
+  const page = (locale: string) => (
+    <FormattingProvider locale={locale}>
+      <TooltipProvider delay={0}>
+        <IncomePage />
+      </TooltipProvider>
+    </FormattingProvider>
+  );
+  const { rerender } = render(page("ES"));
+  expect(screen.getByText("33,3 %")).toBeInTheDocument();
+  expect(screen.getByText("66,7 %")).toBeInTheDocument();
+  const bar = document.querySelector<HTMLElement>('[data-slot="tooltip-trigger"]');
+  await userEvent.hover(bar!);
+  expect(await findTooltip()).toHaveTextContent("33,3 % of total");
+  rerender(page("US"));
+  expect(screen.getByText("33.3%")).toBeInTheDocument();
+  expect(screen.getByText("66.7%")).toBeInTheDocument();
 });

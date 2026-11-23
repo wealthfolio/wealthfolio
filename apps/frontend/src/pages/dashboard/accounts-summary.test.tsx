@@ -120,7 +120,6 @@ function createAccount(overrides: Partial<Account>): Account {
     name: overrides.name ?? "Account 1",
     accountType,
     group: overrides.group,
-    balance: overrides.balance ?? 0,
     currency: overrides.currency ?? "USD",
     isDefault: overrides.isDefault ?? false,
     isActive: overrides.isActive ?? true,
@@ -186,6 +185,8 @@ function createCurrentValuation(
     sourceDataAsOf: overrides.sourceDataAsOf ?? "2026-03-17T11:59:00Z",
     calculatedAt: overrides.calculatedAt ?? "2026-03-17T12:00:00Z",
     warnings: overrides.warnings ?? [],
+    valueStatus: overrides.valueStatus ?? "complete",
+    accountValueStatus: overrides.accountValueStatus ?? "complete",
   };
 }
 
@@ -382,6 +383,39 @@ function getLastPerformanceQueryPlaceholderData(): unknown {
 describe("AccountsSummary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("keeps a group total unavailable while retaining complete local balances", async () => {
+    const user = userEvent.setup();
+    renderAccountsSummary({
+      accounts: [
+        createAccount({ id: "cop", name: "COP account", currency: "COP", group: "FX group" }),
+        createAccount({ id: "aed", name: "AED account", currency: "AED", group: "FX group" }),
+      ],
+      valuations: [],
+      currentValuations: [
+        createCurrentValuation({
+          accountId: "cop",
+          accountCurrency: "COP",
+          baseCurrency: "AED",
+          valueStatus: "unavailable",
+          accountValueStatus: "complete",
+          totalValue: 100000,
+          totalValueBase: 0,
+        }),
+        createCurrentValuation({
+          accountId: "aed",
+          accountCurrency: "AED",
+          baseCurrency: "AED",
+          totalValue: 20,
+          totalValueBase: 20,
+        }),
+      ],
+    });
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+    expect(screen.queryByText("value:AED:20")).not.toBeInTheDocument();
+    await user.click(screen.getByText("FX group"));
+    expect(screen.getByText("value:COP:100000")).toBeInTheDocument();
   });
 
   it("requests performance for visible grouped dashboard rows only", async () => {

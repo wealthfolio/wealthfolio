@@ -1,3 +1,4 @@
+import { ExternalLink } from "@/components/external-link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -395,6 +396,7 @@ export function AccountForm({
                         <Input
                           placeholder={t("settings:accounts_form_group_placeholder")}
                           {...field}
+                          value={field.value ?? ""}
                         />
                       </FormControl>
                       <AccountFormMessage />
@@ -540,14 +542,14 @@ export function AccountForm({
                       <Icons.AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
                         {t("settings:accounts.form_tracking_setup_hint")}{" "}
-                        <a
-                          href="https://wealthfolio.app/docs/concepts/activity-types"
+                        <ExternalLink
+                          href="https://wealthfolio.app/docs/concepts/tracking-modes/"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-foreground underline"
                         >
                           {t("settings:accounts.form_learn_more")}
-                        </a>
+                        </ExternalLink>
                       </AlertDescription>
                     </Alert>
                   )}
@@ -604,14 +606,14 @@ export function AccountForm({
                       <Icons.AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
                         {t("settings:accounts.form_tracking_holdings_warning")}{" "}
-                        <a
-                          href="https://wealthfolio.app/docs/concepts/activity-types"
+                        <ExternalLink
+                          href="https://wealthfolio.app/docs/concepts/tracking-modes/"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-foreground underline"
                         >
                           {t("settings:accounts.form_learn_more")}
-                        </a>
+                        </ExternalLink>
                       </AlertDescription>
                     </Alert>
                   )}

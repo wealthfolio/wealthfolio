@@ -12,7 +12,6 @@ function holdingsAccount(providerAccountId?: string): Account {
     id: "account",
     name: "Account",
     accountType: "SECURITIES",
-    balance: 0,
     currency: "USD",
     isDefault: false,
     isActive: true,

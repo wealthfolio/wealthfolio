@@ -78,7 +78,7 @@ pub fn acquire_broker_sync_guard(running: &Arc<AtomicBool>) -> Option<BrokerSync
 
 #[cfg(feature = "broker")]
 pub enum PostLoginBrokerBootstrapDecision<Guard> {
-    Start(Guard),
+    Start(Guard, Vec<crate::broker::BrokerConnection>),
     Skip(PostLoginBootstrapReason),
 }
 
@@ -93,41 +93,22 @@ pub fn is_active_broker_connection(connection: &crate::broker::BrokerConnection)
 
 #[cfg(feature = "broker")]
 pub async fn prepare_post_login_broker_bootstrap<
-    CheckEntitlement,
-    CheckEntitlementFuture,
     ListConnections,
     ListConnectionsFuture,
     TryStart,
     Guard,
 >(
     feature_enabled: bool,
-    check_entitlement: CheckEntitlement,
     list_connections: ListConnections,
     try_start: TryStart,
 ) -> PostLoginBrokerBootstrapDecision<Guard>
 where
-    CheckEntitlement: FnOnce() -> CheckEntitlementFuture,
-    CheckEntitlementFuture: Future<Output = Result<bool, String>>,
     ListConnections: FnOnce() -> ListConnectionsFuture,
     ListConnectionsFuture: Future<Output = Result<Vec<crate::broker::BrokerConnection>, String>>,
     TryStart: FnOnce() -> Option<Guard>,
 {
     if !feature_enabled {
         return PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::FeatureDisabled);
-    }
-
-    match check_entitlement().await {
-        Ok(true) => {}
-        Ok(false) => {
-            return PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NotEntitled);
-        }
-        Err(err) => {
-            log::debug!(
-                "[Connect] Post-login broker sync skipped: could not verify entitlement ({})",
-                err
-            );
-            return PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::Error);
-        }
     }
 
     let connections = match list_connections().await {
@@ -137,7 +118,12 @@ where
                 "[Connect] Post-login broker sync skipped: failed to inspect connections ({})",
                 err
             );
-            return PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::Error);
+            let reason = if is_subscription_denial(&err) {
+                PostLoginBootstrapReason::NotEntitled
+            } else {
+                PostLoginBootstrapReason::Error
+            };
+            return PostLoginBrokerBootstrapDecision::Skip(reason);
         }
     };
 
@@ -146,7 +132,35 @@ where
     }
 
     match try_start() {
-        Some(guard) => PostLoginBrokerBootstrapDecision::Start(guard),
+        Some(guard) => PostLoginBrokerBootstrapDecision::Start(guard, connections),
         None => PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::AlreadyRunning),
+    }
+}
+
+/// Expected entitlement denials are a quiet skip for automatic broker work.
+/// Preserve auth/transient failures for their own handling.
+pub fn is_subscription_denial(message: &str) -> bool {
+    message.contains("SUBSCRIPTION_") || message.contains("PLAN_UPGRADE_REQUIRED")
+}
+
+#[cfg(test)]
+mod denial_tests {
+    use super::is_subscription_denial;
+
+    #[test]
+    fn entitlement_denials_do_not_mask_auth_or_transient_errors() {
+        for message in [
+            "API error 403: SUBSCRIPTION_CANCELED",
+            "API error 403: PLAN_UPGRADE_REQUIRED",
+        ] {
+            assert!(is_subscription_denial(message));
+        }
+        for message in [
+            "API error 401: UNAUTHORIZED",
+            "API error 429: RATE_LIMITED",
+            "network error",
+        ] {
+            assert!(!is_subscription_denial(message));
+        }
     }
 }

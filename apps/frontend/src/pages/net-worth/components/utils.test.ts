@@ -44,6 +44,16 @@ function point(overrides: Partial<ParsedHistoryPoint>): ParsedHistoryPoint {
 }
 
 describe("net worth utils", () => {
+  it("does not derive growth by bridging incomplete history", () => {
+    expect(
+      parseHistory([
+        rawPoint({ netWorth: 100 }),
+        rawPoint({ date: "2024-01-02", valueStatus: "unavailable", netWorth: 100000 }),
+        rawPoint({ date: "2024-01-03", netWorth: 120 }),
+      ]),
+    ).toEqual([]);
+  });
+
   it("parses history and breakdown values into finite numbers", () => {
     const parsed = parseHistory([
       rawPoint({
@@ -254,6 +264,22 @@ describe("net worth utils", () => {
       { month: "2024-03", value: 20, current: true },
       { month: "2024-04", value: 60, current: true },
     ]);
+  });
+
+  it("compares explicit years to the complete prior calendar year, including its first day", () => {
+    const momentum = computeMomentum(
+      [
+        point({ date: "2024-01-01", netWorth: 100 }),
+        point({ date: "2024-01-02", netWorth: 225 }),
+        point({ date: "2024-12-31", netWorth: 300 }),
+        point({ date: "2025-01-01", netWorth: 400 }),
+        point({ date: "2025-12-31", netWorth: 700 }),
+      ],
+      "2025-01-01",
+      "2025-12-31",
+      2025,
+    );
+    expect(momentum).toMatchObject({ currentChange: 300, priorChange: 200, beatBy: 100 });
   });
 
   it("removes cash from investment allocation and rescales the remaining categories", () => {

@@ -128,18 +128,12 @@ export function HeatmapCellSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
-        // SheetContent injects an inline paddingTop (safe-area + 1.5rem) that a
-        // className can't override. Zero it here and reapply safe-area inside
-        // the header so the gradient runs edge-to-edge from the very top.
-        style={{ paddingTop: 0 }}
-      >
+      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
         {/* ── Header ─────────────────────────────────────────────────── */}
         <header
           className="border-border/60 relative border-b px-6 pb-5"
           style={{
-            paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
+            paddingTop: "1.5rem",
             backgroundImage:
               "linear-gradient(to bottom, color-mix(in oklch, var(--heatmap-accent) 25%, transparent) 0%, color-mix(in oklch, var(--heatmap-accent) 10%, transparent) 55%, transparent 100%)",
           }}

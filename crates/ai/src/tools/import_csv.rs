@@ -16,7 +16,7 @@
 //! 4. Return `(ParseConfig, ImportMappingData)` plus a small sample for UI
 
 use log::debug;
-use rig::tool::PortableTool as Tool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -1160,7 +1160,11 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let attachment = find_csv_attachment(&self.attachments, &args.attachment_name)?;
         let csv_content = attachment.data.as_bytes();
         debug!(
@@ -1499,7 +1503,7 @@ mod tests {
             default_currency: None,
         };
 
-        let result = tool.call(args).await.unwrap();
+        let result = tool.call(&mut ToolContext::new(), args).await.unwrap();
         assert_eq!(result.total_rows, 1);
         assert_eq!(result.detected_headers.len(), 5);
         assert!(!result.used_saved_profile);
@@ -1559,7 +1563,7 @@ mod tests {
             default_currency: None,
         };
 
-        let result = tool.call(args).await.unwrap();
+        let result = tool.call(&mut ToolContext::new(), args).await.unwrap();
         let fields = &result.applied_mapping.field_mappings;
         assert!(fields.contains_key(FIELD_DATE));
         assert!(fields.contains_key(FIELD_COMMENT));
@@ -1667,7 +1671,7 @@ mod tests {
             default_currency: None,
         };
 
-        let result = tool.call(args).await.unwrap();
+        let result = tool.call(&mut ToolContext::new(), args).await.unwrap();
         assert_eq!(result.total_rows, 1);
         let buy = result.applied_mapping.activity_mappings.get("BUY").unwrap();
         assert!(buy.iter().any(|v| v == "Kopen"));
@@ -1704,7 +1708,7 @@ mod tests {
             default_currency: None,
         };
 
-        let result = tool.call(args).await.unwrap();
+        let result = tool.call(&mut ToolContext::new(), args).await.unwrap();
         assert_eq!(result.account_id, None);
         assert_eq!(result.applied_mapping.account_id, "");
     }
@@ -1742,7 +1746,7 @@ mod tests {
             default_currency: None,
         };
 
-        let result = tool.call(args).await.unwrap();
+        let result = tool.call(&mut ToolContext::new(), args).await.unwrap();
         assert_eq!(result.account_id, Some("acct-1".to_string()));
         assert_eq!(result.applied_mapping.account_id, "acct-1");
         assert_eq!(
@@ -1784,7 +1788,7 @@ mod tests {
             default_currency: None,
         };
 
-        let result = tool.call(args).await.unwrap();
+        let result = tool.call(&mut ToolContext::new(), args).await.unwrap();
         assert_eq!(
             result.applied_mapping.symbol_mappings.get("Cloudflare"),
             Some(&"NET".to_string())
@@ -1831,12 +1835,15 @@ mod tests {
         // The blank line is not a parser row, so a model counting lines asks
         // for 4 and would skip the header.
         let result = statement_tool()
-            .call(ImportCsvArgs {
-                attachment_name: ATTACHMENT_NAME.to_string(),
-                field_mappings: Some(statement_field_mappings()),
-                skip_top_rows: Some(4),
-                ..Default::default()
-            })
+            .call(
+                &mut ToolContext::new(),
+                ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    field_mappings: Some(statement_field_mappings()),
+                    skip_top_rows: Some(4),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -1864,11 +1871,14 @@ mod tests {
             )],
         );
         let result = tool
-            .call(ImportCsvArgs {
-                attachment_name: ATTACHMENT_NAME.to_string(),
-                skip_top_rows: Some(1),
-                ..Default::default()
-            })
+            .call(
+                &mut ToolContext::new(),
+                ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    skip_top_rows: Some(1),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -1893,12 +1903,15 @@ mod tests {
             )],
         );
         let result = tool
-            .call(ImportCsvArgs {
-                attachment_name: ATTACHMENT_NAME.to_string(),
-                skip_top_rows: Some(0),
-                skip_bottom_rows: Some(2),
-                ..Default::default()
-            })
+            .call(
+                &mut ToolContext::new(),
+                ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    skip_top_rows: Some(0),
+                    skip_bottom_rows: Some(2),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -1917,12 +1930,15 @@ mod tests {
             "USD".to_string(),
             vec![csv_attachment(csv)],
         )
-        .call(ImportCsvArgs {
-            attachment_name: ATTACHMENT_NAME.to_string(),
-            skip_top_rows: Some(skip_top),
-            skip_bottom_rows: Some(skip_bottom),
-            ..Default::default()
-        })
+        .call(
+            &mut ToolContext::new(),
+            ImportCsvArgs {
+                attachment_name: ATTACHMENT_NAME.to_string(),
+                skip_top_rows: Some(skip_top),
+                skip_bottom_rows: Some(skip_bottom),
+                ..Default::default()
+            },
+        )
         .await
         .unwrap()
     }
@@ -1974,12 +1990,15 @@ mod tests {
     #[tokio::test]
     async fn test_import_csv_keeps_skip_top_rows_that_lands_on_the_header() {
         let result = statement_tool()
-            .call(ImportCsvArgs {
-                attachment_name: ATTACHMENT_NAME.to_string(),
-                field_mappings: Some(statement_field_mappings()),
-                skip_top_rows: Some(3),
-                ..Default::default()
-            })
+            .call(
+                &mut ToolContext::new(),
+                ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    field_mappings: Some(statement_field_mappings()),
+                    skip_top_rows: Some(3),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -2008,23 +2027,26 @@ mod tests {
         );
 
         let result = tool
-            .call(ImportCsvArgs {
-                attachment_name: ATTACHMENT_NAME.to_string(),
-                field_mappings: Some(into_field_mapping_values(
-                    [
-                        ("date", "Date"),
-                        ("symbol", "Symbol"),
-                        ("quantity", "Quantity"),
-                        ("unitPrice", "Price"),
-                        ("activityType", "Type"),
-                    ]
-                    .into_iter()
-                    .map(|(field, header)| (field.to_string(), header.to_string()))
-                    .collect(),
-                )),
-                skip_top_rows: Some(130),
-                ..Default::default()
-            })
+            .call(
+                &mut ToolContext::new(),
+                ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    field_mappings: Some(into_field_mapping_values(
+                        [
+                            ("date", "Date"),
+                            ("symbol", "Symbol"),
+                            ("quantity", "Quantity"),
+                            ("unitPrice", "Price"),
+                            ("activityType", "Type"),
+                        ]
+                        .into_iter()
+                        .map(|(field, header)| (field.to_string(), header.to_string()))
+                        .collect(),
+                    )),
+                    skip_top_rows: Some(130),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -2050,12 +2072,15 @@ mod tests {
         .collect();
 
         let result = statement_tool()
-            .call(ImportCsvArgs {
-                attachment_name: ATTACHMENT_NAME.to_string(),
-                field_mappings: Some(field_mappings),
-                skip_top_rows: Some(3),
-                ..Default::default()
-            })
+            .call(
+                &mut ToolContext::new(),
+                ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    field_mappings: Some(field_mappings),
+                    skip_top_rows: Some(3),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -2076,10 +2101,13 @@ mod tests {
         );
 
         let result = tool
-            .call(ImportCsvArgs {
-                attachment_name: ATTACHMENT_NAME.to_string(),
-                ..Default::default()
-            })
+            .call(
+                &mut ToolContext::new(),
+                ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -2136,22 +2164,25 @@ mod tests {
                 vec![csv_attachment(data)],
             );
             let result = tool
-                .call(ImportCsvArgs {
-                    attachment_name: ATTACHMENT_NAME.to_string(),
-                    field_mappings: Some(
-                        mappings
-                            .into_iter()
-                            .map(|(field, header)| {
-                                (
-                                    field.to_string(),
-                                    FieldMappingValue::Single(header.to_string()),
-                                )
-                            })
-                            .collect(),
-                    ),
-                    skip_top_rows: requested_skip,
-                    ..Default::default()
-                })
+                .call(
+                    &mut ToolContext::new(),
+                    ImportCsvArgs {
+                        attachment_name: ATTACHMENT_NAME.to_string(),
+                        field_mappings: Some(
+                            mappings
+                                .into_iter()
+                                .map(|(field, header)| {
+                                    (
+                                        field.to_string(),
+                                        FieldMappingValue::Single(header.to_string()),
+                                    )
+                                })
+                                .collect(),
+                        ),
+                        skip_top_rows: requested_skip,
+                        ..Default::default()
+                    },
+                )
                 .await
                 .unwrap();
 
@@ -2209,7 +2240,7 @@ mod tests {
         }))
         .unwrap();
 
-        let result = tool.call(args).await.unwrap();
+        let result = tool.call(&mut ToolContext::new(), args).await.unwrap();
 
         let fields = &result.applied_mapping.field_mappings;
         assert_eq!(

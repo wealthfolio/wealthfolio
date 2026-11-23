@@ -325,7 +325,7 @@ Run the web UI with a local Axum server with one command.
 
 #### Quick Start
 
-1. **Setup environment** (optional but recommended):
+1. **Setup environment**:
 
    Copy the example environment file and customize it for your setup:
 
@@ -333,8 +333,10 @@ Run the web UI with a local Axum server with one command.
    cp .env.web.example .env.web
    ```
 
-   Edit `.env.web` to configure database path, ports, and other settings as
-   needed.
+   The server needs a secret key. Set `WF_SECRET_KEY` in `.env.web` to the
+   output of `openssl rand -base64 32`, or point `WF_SECRET_KEY_FILE` at a file
+   holding one. Edit `.env.web` to configure database path, ports, and other
+   settings as needed.
 
 2. **Start both backend and Vite dev server**:
 

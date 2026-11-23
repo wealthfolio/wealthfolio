@@ -21,67 +21,73 @@ interface FakeCarousel {
 }
 const carousels: FakeCarousel[] = [];
 const startIndexes: (number | undefined)[] = [];
-// Embla is a dependency of @wealthfolio/ui only, so the copy it resolves is mocked.
-vi.mock("../../../../packages/ui/node_modules/embla-carousel-react", async () => {
-  const { useEffect, useRef, useState } = await import("react");
-  function makeCarousel(startIndex: number): FakeCarousel {
-    let selected = startIndex;
-    let position = startIndex;
-    const listeners = new Map<string, Set<(api: FakeCarousel) => void>>();
-    const emit = (event: string) => listeners.get(event)?.forEach((listener) => listener(carousel));
-    const carousel: FakeCarousel = {
-      selectedScrollSnap: () => selected,
-      scrollSnapList: () => [0, 1, 2],
-      scrollProgress: () => position,
-      select: (index) => {
-        selected = index;
-        emit("select");
-      },
-      arrive: () => {
-        position = selected;
-        emit("scroll");
-        emit("settle");
-      },
-      scrollTo: (index, jump) => {
-        if (!jump) {
-          carousel.select(index);
-          carousel.arrive();
-          return;
-        }
-        // Like Embla, a jump settles before it selects the new snap.
-        position = index;
-        emit("settle");
-        selected = index;
-        emit("select");
-      },
-      emit,
-      on: (event, listener) => {
-        const set = listeners.get(event) ?? new Set();
-        set.add(listener);
-        listeners.set(event, set);
-        return carousel;
-      },
-      off: (event, listener) => {
-        listeners.get(event)?.delete(listener);
-        return carousel;
+// Embla is a dependency of @wealthfolio/ui only, so the ES module that copy's import
+// resolves to is mocked. Vite 8 resolves the package folder to its UMD `main`, which
+// that import never loads.
+vi.mock(
+  "../../../../packages/ui/node_modules/embla-carousel-react/esm/embla-carousel-react.esm.js",
+  async () => {
+    const { useEffect, useRef, useState } = await import("react");
+    function makeCarousel(startIndex: number): FakeCarousel {
+      let selected = startIndex;
+      let position = startIndex;
+      const listeners = new Map<string, Set<(api: FakeCarousel) => void>>();
+      const emit = (event: string) =>
+        listeners.get(event)?.forEach((listener) => listener(carousel));
+      const carousel: FakeCarousel = {
+        selectedScrollSnap: () => selected,
+        scrollSnapList: () => [0, 1, 2],
+        scrollProgress: () => position,
+        select: (index) => {
+          selected = index;
+          emit("select");
+        },
+        arrive: () => {
+          position = selected;
+          emit("scroll");
+          emit("settle");
+        },
+        scrollTo: (index, jump) => {
+          if (!jump) {
+            carousel.select(index);
+            carousel.arrive();
+            return;
+          }
+          // Like Embla, a jump settles before it selects the new snap.
+          position = index;
+          emit("settle");
+          selected = index;
+          emit("select");
+        },
+        emit,
+        on: (event, listener) => {
+          const set = listeners.get(event) ?? new Set();
+          set.add(listener);
+          listeners.set(event, set);
+          return carousel;
+        },
+        off: (event, listener) => {
+          listeners.get(event)?.delete(listener);
+          return carousel;
+        },
+      };
+      return carousel;
+    }
+    return {
+      default: function useFakeCarousel(options: { startIndex?: number }) {
+        startIndexes.push(options.startIndex);
+        const startIndex = useRef(options.startIndex ?? 0);
+        const [api, setApi] = useState<FakeCarousel>();
+        useEffect(() => {
+          const carousel = makeCarousel(startIndex.current);
+          carousels.push(carousel);
+          setApi(carousel);
+        }, []);
+        return [() => undefined, api];
       },
     };
-    return carousel;
-  }
-  return {
-    default: function useFakeCarousel(options: { startIndex?: number }) {
-      startIndexes.push(options.startIndex);
-      const startIndex = useRef(options.startIndex ?? 0);
-      const [api, setApi] = useState<FakeCarousel>();
-      useEffect(() => {
-        const carousel = makeCarousel(startIndex.current);
-        carousels.push(carousel);
-        setApi(carousel);
-      }, []);
-      return [() => undefined, api];
-    },
-  };
-});
+  },
+);
 class NoopObserver {
   observe() {}
   unobserve() {}

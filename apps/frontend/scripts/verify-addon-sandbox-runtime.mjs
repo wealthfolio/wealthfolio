@@ -2,7 +2,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { init, parse } from "es-module-lexer";
+// The minimal build keeps the short record fields (d, n) the import check reads.
+import { init, parse } from "es-module-lexer/minimal";
 import { JSDOM } from "jsdom";
 
 const FRONTEND_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -152,7 +153,7 @@ export async function verifyAddonSandboxRuntime({ dist = false, web = false } = 
       stat(cssPath),
     ]);
 
-  await init;
+  await init();
   const [imports] = parse(javascript);
   const externalImports = imports.filter(
     (entry) => entry.d === -1 || (entry.d >= 0 && entry.n !== undefined),

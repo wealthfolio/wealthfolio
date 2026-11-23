@@ -284,7 +284,7 @@ export function ThreadSidebar({
 
       {/* Tag Filter */}
       {allTags.length > 0 && (
-        <div className="scrollbar-thin flex gap-1 overflow-x-auto border-b p-2">
+        <div className="flex scrollbar-thin gap-1 overflow-x-auto border-b p-2">
           {allTags.map((tag) => (
             <Badge
               key={tag}

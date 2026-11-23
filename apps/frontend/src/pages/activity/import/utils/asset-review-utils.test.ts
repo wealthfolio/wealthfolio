@@ -5,6 +5,7 @@ import type { ImportAssetPreviewItem, ImportMappingData } from "@/lib/types";
 import type { DraftActivity } from "../context";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
 import {
+  buildImportAssetCandidateFromDraft,
   canProceedFromAssetReviewStep,
   holdingsImportHasAssets,
   type AssetReviewProceedInput,
@@ -48,7 +49,7 @@ function createHoldingsMapping(
 
 function previewItem(overrides: Partial<ImportAssetPreviewItem> = {}): ImportAssetPreviewItem {
   return {
-    key: "AAPL::EQUITY::::::",
+    key: buildImportAssetCandidateFromDraft(createDraft())!.key,
     status: "EXISTING_ASSET",
     resolutionSource: "market_data",
     ...overrides,
@@ -170,7 +171,7 @@ describe("canProceedFromAssetReviewStep", () => {
         proceedInput({
           isHoldingsMode: true,
           parsedRowCount: 3,
-          assetPreviewError: "Network error",
+          assetPreviewError: { kind: "network" },
         }),
       ),
     ).toBe(false);
@@ -204,5 +205,47 @@ describe("canProceedFromAssetReviewStep", () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  it("blocks a partial preview even when every returned item is resolved", () => {
+    expect(
+      canProceedFromAssetReviewStep(
+        proceedInput({
+          draftActivities: [createDraft(), createDraft({ rowIndex: 1, symbol: "MSFT" })],
+          assetPreviewItems: [previewItem()],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("allows manually merged candidates covered by the same existing asset", () => {
+    expect(
+      canProceedFromAssetReviewStep(
+        proceedInput({
+          draftActivities: [
+            createDraft({ assetId: "apple" }),
+            createDraft({ rowIndex: 1, symbol: "APPLE", assetId: "apple" }),
+          ],
+          assetPreviewItems: [previewItem({ assetId: "apple" })],
+        }),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("buildImportAssetCandidateFromDraft", () => {
+  it("sends the draft's name for an asset no provider names", () => {
+    const fund = "PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN";
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        symbol: "INF879O01027",
+        symbolName: fund,
+        isin: "INF879O01027",
+        currency: "INR",
+      }),
+    );
+
+    expect(candidate?.symbol).toBe("INF879O01027");
+    expect(candidate?.name).toBe(fund);
   });
 });

@@ -2,9 +2,11 @@
 //!
 //! Retains the Mozilla roots used before reqwest 0.13, without requiring Android
 //! platform-verifier initialization. Callers retain control of timeouts, redirects,
-//! and HTTP support for local services. OIDC uses its separate legacy transport.
+//! and HTTP support for local services.
 
 use std::sync::LazyLock;
+
+pub mod timeouts;
 
 static ROOTS: LazyLock<Vec<reqwest::Certificate>> = LazyLock::new(|| {
     webpki_root_certs::TLS_SERVER_ROOT_CERTS

@@ -68,7 +68,7 @@
   "other": "其他",
   "other_sources_count_one": "{{count}} 個其他來源",
   "other_sources_count_other": "{{count}} 個其他來源",
-  "percent_of_total": "佔總額 {{percent}}%",
+  "percent_of_total": "佔總額 {{percent}}",
   "view_combined": "合併",
   "view_by_account": "依帳戶",
   "monthly_income": "每月收入",

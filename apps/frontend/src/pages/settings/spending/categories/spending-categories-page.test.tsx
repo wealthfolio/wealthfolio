@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { Activity } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -17,6 +17,18 @@ const mocks = vi.hoisted(() => ({
   name: "Travel",
   remove: vi.fn<(input: { taxonomyId: string; categoryId: string }) => Promise<void>>(),
   toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("@/features/spending/adapters/category-merge", () => ({
+  reviewCategoryMerge: vi.fn(async () => ({
+    source: mocks.category,
+    references: { automaticBudgetLinks: 0 },
+    destinations: [],
+    destinationId: null,
+    revision: "reviewed",
+    targets: [],
+  })),
+  mergeCategory: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: mocks.toast }));
@@ -166,6 +178,9 @@ it("reports a delete that fails while the screen is out of sight", async () => {
   );
   const kept = renderKept();
   fireEvent.click(screen.getByRole("button", { name: "Delete Food" }));
+  const confirm = await screen.findByRole("button", { name: i18n.t("common:delete") });
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
   await waitFor(() => expect(kept.status()).toBe("pending"));
 
   kept.hide();
@@ -237,6 +252,9 @@ it.each([
   mocks.remove.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
   const kept = renderKept();
   fireEvent.click(screen.getByRole("button", { name: `Delete ${name}` }));
+  const confirm = await screen.findByRole("button", { name: i18n.t("common:delete") });
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
   await waitFor(() => expect(kept.status()).toBe("pending"));
 
   kept.hide();

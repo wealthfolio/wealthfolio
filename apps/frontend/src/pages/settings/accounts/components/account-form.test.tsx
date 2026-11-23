@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountForm } from "./account-form";
 import enCommon from "@/i18n/locales/en/common.json";
 
+const openUrl = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/adapters", () => ({ openUrlInBrowser: openUrl }));
+
 const mutations = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
@@ -230,6 +233,21 @@ describe("AccountForm archive", () => {
   });
 });
 
+describe("AccountForm group", () => {
+  beforeEach(() => mutations.update.mockClear());
+
+  it("sends null when the group is cleared", async () => {
+    renderForm({ group: "Retirement" });
+    fireEvent.change(screen.getByLabelText(/settings:accounts_form_group_label/), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    expect(mutations.update.mock.calls[0][0]).toMatchObject({ group: null });
+  });
+});
+
 describe("AccountForm account number", () => {
   beforeEach(() => {
     mutations.create.mockClear();
@@ -316,4 +334,22 @@ describe("AccountForm layout", () => {
       trackingMode.compareDocumentPosition(visibility) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+});
+
+describe("AccountForm documentation links", () => {
+  beforeEach(() => openUrl.mockClear());
+
+  it.each(["NOT_SET", "HOLDINGS"] as const)(
+    "opens tracking-mode help through the platform adapter for %s",
+    (trackingMode) => {
+      renderForm({ trackingMode });
+      const link = screen.getByRole("link", { name: "settings:accounts.form_learn_more" });
+      expect(link).toHaveAttribute("href", "https://wealthfolio.app/docs/concepts/tracking-modes/");
+      expect(fireEvent.click(link)).toBe(false);
+      expect(openUrl).toHaveBeenCalledExactlyOnceWith(
+        "https://wealthfolio.app/docs/concepts/tracking-modes/",
+      );
+      expect(mutations.create).not.toHaveBeenCalled();
+    },
+  );
 });

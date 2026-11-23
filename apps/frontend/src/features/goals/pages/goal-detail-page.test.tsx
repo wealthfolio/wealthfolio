@@ -3,11 +3,13 @@ import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-q
 import { Activity } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { expect, it, vi } from "vitest";
-import type { Goal } from "@/lib/types";
+import type { Goal, SaveUpOverviewDTO } from "@/lib/types";
 import GoalDetailPage from "./goal-detail-page";
 
 const mocks = vi.hoisted(() => ({
   useDeleteGoal: (() => undefined) as () => unknown,
+  saveUpOverview: undefined as SaveUpOverviewDTO | undefined,
+  save: vi.fn((_content: Blob, _name: string) => Promise.resolve(true)),
 }));
 
 const goal: Goal = {
@@ -17,6 +19,7 @@ const goal: Goal = {
   statusLifecycle: "active",
   statusHealth: "on_track",
   priority: 0,
+  summaryCurrentValue: 1000,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
 } as Goal;
@@ -25,11 +28,15 @@ vi.mock("../hooks/use-goal-detail", () => ({
   useGoalDetail: () => ({ goal, plan: null, fundingRules: [], isLoading: false, error: null }),
   useGoalPlanMutations: () => ({ savePlanMutation: { mutate: vi.fn() } }),
   useRetirementOverview: () => ({}),
-  useSaveUpOverview: () => ({}),
+  useSaveUpOverview: () => ({ data: mocks.saveUpOverview }),
 }));
 vi.mock("../hooks/use-goals", () => ({
   useGoalMutations: () => ({ deleteMutation: mocks.useDeleteGoal() }),
   useGoals: () => ({ goals: [] }),
+}));
+vi.mock("@/adapters", async (original) => ({
+  ...(await original<typeof import("@/adapters")>()),
+  openFileSaveDialog: mocks.save,
 }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { timezone: "UTC", baseCurrency: "USD" } }),
@@ -42,6 +49,9 @@ vi.mock("@/features/goals/retirement-planner/pages/dashboard-page", () => ({
 }));
 vi.mock("@/features/goals/retirement-planner/pages/risk-lab-page", () => ({ default: () => null }));
 vi.mock("../save-up/components/save-up-detail", () => ({ default: () => null }));
+vi.mock("../components/goal-funding-editor", () => ({
+  GoalFundingEditor: () => <button>Change funding</button>,
+}));
 vi.mock("../components/goal-edit-dialog", () => ({ GoalEditDialog: () => null }));
 // The page's actions, as plain buttons.
 vi.mock("@/components/action-palette", () => ({
@@ -91,4 +101,74 @@ it("goes back to the goals once a delete ends while the screen is out of sight",
 
   rerender(page(false));
   await waitFor(() => expect(screen.getByText("Goals list")).toBeInTheDocument());
+});
+
+it("exports the save-up projection only once the goal has one", async () => {
+  mocks.useDeleteGoal = () => ({ isSuccess: false, isPending: false, mutate: vi.fn() });
+  const page = () => (
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={["/goals/goal-1"]}>
+        <Routes>
+          <Route path="/goals/:goalId" element={<GoalDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  mocks.saveUpOverview = undefined;
+  const { unmount } = render(page());
+  expect(screen.queryByRole("button", { name: "Export projection" })).not.toBeInTheDocument();
+  unmount();
+
+  mocks.saveUpOverview = {
+    currentValue: 1000,
+    targetAmount: 5000,
+    progress: 0.2,
+    health: "on_track",
+    projectedValueAtTargetDate: 5200,
+    requiredMonthlyContribution: 300,
+    projectedCompletionDate: "2027-06-30",
+    trajectory: [
+      {
+        date: "2026-11-08",
+        nominal: 1000,
+        optimistic: 1000,
+        pessimistic: 1000,
+        target: 5000,
+        needed: 950,
+      },
+    ],
+  };
+  render(page());
+  fireEvent.click(screen.getByRole("button", { name: "Export projection" }));
+  await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+  const [file, name] = mocks.save.mock.calls[0];
+  expect(name).toMatch(/^goal-projection_sabbatical_\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = await file.text();
+  expect(csv).toContain('"2026-11-08","1000.00","1000.00","1000.00","5000.00","950.00"');
+  expect(csv).toContain('"Goal","Sabbatical"');
+  mocks.saveUpOverview = undefined;
+});
+
+it("shows an unavailable goal with a Health Center link and keeps editing accessible", () => {
+  mocks.useDeleteGoal = () => ({ isSuccess: false, isPending: false, mutate: vi.fn() });
+  goal.summaryCurrentValue = undefined;
+  try {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/goals/goal-1"]}>
+          <Routes>
+            <Route path="/goals/:goalId" element={<GoalDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change funding" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Review the details in the Health Center." }),
+    ).toHaveAttribute("href", "/health");
+    expect(screen.getByRole("button", { name: "Edit goal" })).toBeInTheDocument();
+  } finally {
+    goal.summaryCurrentValue = 1000;
+  }
 });

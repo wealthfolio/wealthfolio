@@ -12,6 +12,12 @@ expression: snapshot
           "compact"
         ],
         "type": "string"
+      },
+      "includeArchived": {
+        "type": "boolean"
+      },
+      "includeHidden": {
+        "type": "boolean"
       }
     },
     "required": [],

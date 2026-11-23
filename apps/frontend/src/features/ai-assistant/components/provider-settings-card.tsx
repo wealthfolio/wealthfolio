@@ -104,6 +104,19 @@ const DATA_ACCESS_OPTIONS = [
     descriptionKey: "ai:providerSettings.dataAccess.transactionsDescription",
   },
   {
+    toolIds: [
+      "get_spending_context",
+      "search_spending_transactions",
+      "get_budget",
+      "list_spending_events",
+      "get_spending_report",
+      "get_spending_insight",
+      "get_event_spending_summaries",
+    ],
+    labelKey: "ai:providerSettings.dataAccess.spendingLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.spendingDescription",
+  },
+  {
     toolIds: ["get_performance"],
     labelKey: "ai:providerSettings.dataAccess.performanceLabel",
     descriptionKey: "ai:providerSettings.dataAccess.performanceDescription",
@@ -911,7 +924,8 @@ const PRIMARY_FIELDS: Record<"temperature" | "maxTokens" | "maxTokensThinking", 
       descriptionKey: "ai:providerSettings.field.temperatureDescription",
       group: "sampling",
       bounds: { min: 0, max: 2, step: 0.05 },
-      format: (v) => v.toFixed(2),
+      format: (v, formatting) =>
+        formatting.formatDecimal(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     },
     maxTokens: {
       labelKey: "ai:providerSettings.field.maxTokens",

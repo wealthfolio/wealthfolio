@@ -45,6 +45,7 @@ function AnimatedNumber({
       animated={true}
       format={{
         style: "percent",
+        useGrouping: true,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         signDisplay: showSign ? "exceptZero" : "never",

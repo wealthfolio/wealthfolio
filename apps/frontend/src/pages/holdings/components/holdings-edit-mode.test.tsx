@@ -20,7 +20,6 @@ const account: Account = {
   id: "account-1",
   name: "Brokerage",
   accountType: AccountType.SECURITIES,
-  balance: 0,
   currency: "USD",
   isDefault: false,
   isActive: true,

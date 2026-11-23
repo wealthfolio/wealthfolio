@@ -59,6 +59,8 @@ function isLoanSheetEntry(value: unknown): value is LoanSheetEntry {
 interface LoanEventSheetProps {
   event: LoanSheetEntry;
   originationDate?: string;
+  /** Today in the settings timezone, which the backend dates loan actions against. */
+  today: string;
   metadata?: LoanMetadata;
   eventIndex?: number;
   onClose: () => void;
@@ -67,6 +69,7 @@ interface LoanEventSheetProps {
 export function LoanEventSheet({
   event,
   originationDate,
+  today,
   metadata = {},
   eventIndex = -1,
   onClose,
@@ -122,7 +125,7 @@ export function LoanEventSheet({
     if (
       !isLoanSheetEntry(next) ||
       (originationDate && values.effectiveDate < originationDate) ||
-      values.effectiveDate > formatDateISO(new Date()) ||
+      values.effectiveDate > today ||
       (values.termEndDate && values.termEndDate <= values.effectiveDate)
     ) {
       ctx.addIssue({

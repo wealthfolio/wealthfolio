@@ -131,7 +131,7 @@ function TransactionRowImpl({
       <TableCell className="max-w-0! px-3 py-2">
         <div className="flex items-center gap-2">
           {row.needsReview && <NeedsReviewIcon label={t("spending:transactions.review")} />}
-          {a.notes != null ? (
+          {a.notes?.trim() ? (
             <TruncatedText text={a.notes} className="text-sm" />
           ) : (
             <span className="text-muted-foreground text-sm italic">—</span>

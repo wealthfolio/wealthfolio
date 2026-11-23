@@ -71,6 +71,7 @@ impl AccountRepositoryTrait for AccountRepository {
         // Capture which optional fields were explicitly set before conversion
         let is_archived_provided = account_update.is_archived.is_some();
         let tracking_mode_provided = account_update.tracking_mode.is_some();
+        let group_provided = account_update.group.is_some();
 
         self.writer
             .exec_tx(move |tx| {
@@ -86,6 +87,9 @@ impl AccountRepositoryTrait for AccountRepository {
                 account_db.currency = existing.currency;
                 account_db.created_at = existing.created_at;
                 account_db.updated_at = chrono::Utc::now().naive_utc();
+                if !group_provided {
+                    account_db.group = existing.group;
+                }
 
                 // Preserve broker-managed fields (only set by broker sync, not user form)
                 account_db.provider_account_id = existing.provider_account_id;
@@ -244,7 +248,7 @@ mod tests {
             id: Some(account.id.clone()),
             name: account.name.clone(),
             account_type: account.account_type.clone(),
-            group: account.group.clone(),
+            group: Some(account.group.clone()),
             is_default: account.is_default,
             is_active: account.is_active,
             platform_id: account.platform_id.clone(),
@@ -312,6 +316,34 @@ mod tests {
             meta_json["accounting"]["costBasisMethod"],
             serde_json::json!("FIFO")
         );
+    }
+
+    #[tokio::test]
+    async fn group_updates_preserve_omitted_values_and_clear_explicit_null() {
+        let (repo, _pool, _dir) = setup().await;
+        let mut input = new_account("Brokerage");
+        input.group = Some("Retirement".to_string());
+        let account = repo.create(input).await.unwrap();
+
+        let mut update = update_with_number(&account, None);
+        update.group = None;
+        let updated = repo.update(update).await.unwrap();
+        assert_eq!(updated.group.as_deref(), Some("Retirement"));
+        assert_eq!(repo.get_by_id(&account.id).unwrap().group, updated.group);
+
+        let mut update = update_with_number(&account, None);
+        update.group = Some(Some("Savings".to_string()));
+        let updated = repo.update(update).await.unwrap();
+        assert_eq!(
+            repo.get_by_id(&account.id).unwrap().group.as_deref(),
+            Some("Savings")
+        );
+
+        let mut update = update_with_number(&updated, None);
+        update.group = Some(None);
+        let updated = repo.update(update).await.unwrap();
+        assert_eq!(updated.group, None);
+        assert_eq!(repo.get_by_id(&account.id).unwrap().group, None);
     }
 
     #[tokio::test]

@@ -1018,6 +1018,52 @@ mod migration_tests {
     use diesel::prelude::*;
     use diesel::sql_types::BigInt;
 
+    #[test]
+    fn contribution_limit_settings_migrate_and_revert_together() {
+        let conn = RusqliteConnection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE contribution_limits (id TEXT PRIMARY KEY, limit_amount REAL);
+             INSERT INTO contribution_limits VALUES ('existing-limit', 7000);",
+        )
+        .unwrap();
+        conn.execute_batch(include_str!(
+            "../../migrations/2026-10-31-000001_contribution_limits_recurring/up.sql"
+        ))
+        .unwrap();
+        let settings: (f64, bool, Option<String>) = conn
+            .query_row(
+                "SELECT limit_amount, is_recurring, excluded_activity_ids FROM contribution_limits",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(settings, (7000.0, false, None));
+        conn.execute(
+            "UPDATE contribution_limits SET is_recurring = 1, excluded_activity_ids = ?1",
+            [r#"["rollover"]"#],
+        )
+        .unwrap();
+        conn.execute_batch(include_str!(
+            "../../migrations/2026-10-31-000001_contribution_limits_recurring/down.sql"
+        ))
+        .unwrap();
+        let columns: Vec<String> = conn
+            .prepare("SELECT name FROM pragma_table_info('contribution_limits')")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap();
+        assert_eq!(columns, ["id", "limit_amount"]);
+        assert_eq!(
+            conn.query_row("SELECT limit_amount FROM contribution_limits", [], |row| {
+                row.get::<_, f64>(0)
+            })
+            .unwrap(),
+            7000.0
+        );
+    }
+
     #[derive(QueryableByName)]
     struct CountRow {
         #[diesel(sql_type = BigInt)]

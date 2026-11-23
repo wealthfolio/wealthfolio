@@ -53,6 +53,9 @@ struct Fixture {
 
 const FUND: &str = "fund";
 const HOUSE: &str = "house";
+const GOLD: &str = "gold";
+const MORTGAGE: &str = "mortgage";
+const MARKET_GOLD: &str = "market-gold";
 
 async fn fixture() -> Fixture {
     let dir = common::TestDir::new();
@@ -84,7 +87,13 @@ async fn fixture() -> Fixture {
     .await
     .unwrap()
     .with_event_sink(Arc::new(events.clone()));
-    for (id, kind) in [(FUND, AssetKind::Investment), (HOUSE, AssetKind::Property)] {
+    for (id, kind, quote_mode) in [
+        (FUND, AssetKind::Investment, QuoteMode::Manual),
+        (HOUSE, AssetKind::Property, QuoteMode::Manual),
+        (GOLD, AssetKind::PreciousMetal, QuoteMode::Manual),
+        (MORTGAGE, AssetKind::Liability, QuoteMode::Manual),
+        (MARKET_GOLD, AssetKind::PreciousMetal, QuoteMode::Market),
+    ] {
         assets
             .create(NewAsset {
                 id: Some(id.into()),
@@ -92,7 +101,7 @@ async fn fixture() -> Fixture {
                 name: Some(id.into()),
                 display_code: Some(id.to_uppercase()),
                 is_active: true,
-                quote_mode: QuoteMode::Manual,
+                quote_mode,
                 quote_ccy: "EUR".into(),
                 ..Default::default()
             })
@@ -233,7 +242,7 @@ async fn preview_reports_each_rows_outcome_without_writing() {
         row(FUND, "2026-06-29", Decimal::new(98, 0), false),
         row(FUND, "2026-06-26", Decimal::new(96, 0), true),
         row("missing", "2026-06-25", Decimal::new(10, 0), false),
-        row(HOUSE, "2026-06-25", Decimal::new(10, 0), false),
+        row(MARKET_GOLD, "2026-06-25", Decimal::new(10, 0), false),
         row(FUND, "2026-13-01", Decimal::new(10, 0), false),
         row(FUND, &tomorrow, Decimal::new(10, 0), false),
         row(FUND, "2026-06-23", Decimal::ZERO, false),
@@ -263,7 +272,7 @@ async fn preview_reports_each_rows_outcome_without_writing() {
     assert!(conflict.errors[0].contains("set overwrite"), "{conflict:?}");
     let expected_errors = [
         (4, "Asset not found"),
-        (5, "Only investment assets"),
+        (5, "is PRECIOUS_METAL priced MARKET"),
         (6, "Invalid date"),
         (7, "in the future"),
         (8, "greater than 0"),
@@ -463,4 +472,43 @@ async fn single_quote_writes_emit_no_events() {
     fixture.quotes.update_quote(changed).await.unwrap();
     fixture.quotes.delete_quote(&quote.id).await.unwrap();
     assert!(fixture.events.is_empty(), "{:?}", fixture.events.events());
+}
+
+/// #2122: a gold coin, a house or a mortgage priced by hand keeps its value as
+/// manual quotes, so the reviewed import takes them like investment prices.
+#[tokio::test]
+async fn manually_priced_alternative_assets_take_imported_quotes() {
+    let fixture = fixture().await;
+    let rows = [
+        row(GOLD, "2026-06-30", Decimal::new(6215, 2), false),
+        row(HOUSE, "2026-06-30", Decimal::new(450_000, 0), false),
+        row(MORTGAGE, "2026-06-30", Decimal::new(212_500, 0), false),
+    ];
+
+    assert_eq!(
+        fixture.commit(&rows).await,
+        vec![QuoteImportOutcome::Create; 3]
+    );
+
+    for (asset_id, close) in [
+        (GOLD, Decimal::new(6215, 2)),
+        (HOUSE, Decimal::new(450_000, 0)),
+        (MORTGAGE, Decimal::new(212_500, 0)),
+    ] {
+        let saved = fixture
+            .quotes
+            .get_historical_quotes(asset_id)
+            .unwrap()
+            .into_iter()
+            .find(|quote| quote.timestamp.date_naive() == day("2026-06-30"))
+            .unwrap_or_else(|| panic!("no quote saved for {asset_id}"));
+        assert_eq!(saved.close, close, "{asset_id}");
+        assert_eq!(saved.data_source, "MANUAL", "{asset_id}");
+    }
+
+    // The quote currency still has to match.
+    let mut usd = row(GOLD, "2026-06-29", Decimal::new(60, 0), false);
+    usd.currency = "USD".into();
+    let previews = fixture.quotes.preview_quote_import(&[usd]).unwrap();
+    assert_eq!(previews[0].outcome, QuoteImportOutcome::Invalid);
 }

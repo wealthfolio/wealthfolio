@@ -33,7 +33,11 @@ import { TemplatePicker } from "../components/template-picker";
 import { computeFieldMappings, useImportMapping } from "../hooks/use-import-mapping";
 import { autoMatchAccountMappings, collectCsvAccountValues } from "../utils/account-matching";
 import { ACTIVITY_SKIP, isFieldMapped, resolveMappedValue } from "../utils/draft-utils";
-import { validateTickerSymbol, findMappedActivityType } from "../utils/validation-utils";
+import {
+  validateTickerSymbol,
+  findMappedActivityType,
+  isinFallbackSymbol,
+} from "../utils/validation-utils";
 import {
   createDefaultActivityMapping,
   createDefaultParseConfig,
@@ -259,7 +263,12 @@ export function MappingStepUnified() {
       }
 
       needed.add(symbol);
-      if (!validateTickerSymbol(symbol)) invalid.add(symbol);
+      if (
+        !validateTickerSymbol(symbol) &&
+        !isinFallbackSymbol(symbol, getMappedValue(row, ImportFormat.ISIN))
+      ) {
+        invalid.add(symbol);
+      }
     });
 
     return {
@@ -430,7 +439,13 @@ export function MappingStepUnified() {
       if (appType && !shouldResolveImportAsset(appType, csvSubtype, symbol)) {
         return;
       }
-      if (validateTickerSymbol(symbol) || localMapping.symbolMappings?.[symbol]) return;
+      if (
+        validateTickerSymbol(symbol) ||
+        localMapping.symbolMappings?.[symbol] ||
+        isinFallbackSymbol(symbol, getMappedValue(row, ImportFormat.ISIN))
+      ) {
+        return;
+      }
       unresolved.add(symbol);
     });
     return unresolved.size;

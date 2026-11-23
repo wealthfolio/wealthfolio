@@ -278,10 +278,6 @@ impl CredentialStore for TauriEnginePorts {
         self.context.connect_service().is_session_configured()
     }
 
-    async fn is_sync_allowed(&self) -> Result<bool, String> {
-        self.context.connect_service().has_device_sync().await
-    }
-
     fn get_sync_identity(&self) -> Option<SyncIdentity> {
         get_sync_identity_from_store(&self.context).map(|identity| SyncIdentity {
             device_id: identity.device_id,

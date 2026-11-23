@@ -99,8 +99,16 @@
   "limits_add_button": "Add limit",
   "limits_add_aria": "Add contribution limit",
   "limits_current_year": "Current year ({{year}})",
+  "limits_future_years": "Upcoming years",
   "limits_previous_years": "Previous years",
   "limits_show_previous": "Show",
+  "limits_projected_badge": "Projected",
+  "limits_projected_description": "Auto-generated from your recurring {{year}} limit. Add it to customize this year's amount.",
+  "limits_projected_add_button": "Add this year",
+  "limits_projected_add_aria": "Add {{group}} for {{year}} ({{accounts}})",
+  "limits_no_accounts_selected": "No accounts selected",
+  "limits_choose_accounts": "Choose accounts",
+  "limits_accounts_more": "+{{number}} more",
   "limits_empty_title": "No contribution limits for {{year}}!",
   "limits_empty_description": "You don't have any contribution limits for the current year. Start adding your contribution limits.",
   "limits_add_first": "Add a contribution limit",
@@ -114,15 +122,12 @@
   "limits_delete_description": "This action cannot be undone.",
   "limits_form_update_title": "Update contribution limit",
   "limits_form_add_title": "Add contribution limit",
-  "limits_form_update_description": "Update contribution limit information",
   "limits_form_add_description": "Add a new contribution limit.",
   "limits_form_group_name_label": "Group name",
   "limits_form_group_name_placeholder": "e.g., TFSA, 401(k), RRSP",
-  "limits_form_group_name_description": "Name of the contribution limit group",
   "limits_form_group_name_required": "Group name is required",
   "limits_form_limit_amount_label": "Limit amount",
   "limits_form_limit_amount_placeholder": "e.g., 6,000.00",
-  "limits_form_limit_amount_description": "Maximum contribution amount allowed",
   "limits_form_limit_amount_number": "Limit amount must be a positive number.",
   "limits_form_limit_amount_non_negative": "Limit amount must be non-negative.",
   "limits_form_year_label": "Year",
@@ -131,14 +136,17 @@
   "limits_form_start_date_label": "Start date",
   "limits_form_end_date_label": "End date",
   "limits_form_date_description": "Dates default to January 1st through December 31st of the selected year",
+  "limits_form_recurring_label": "Repeats every year",
+  "limits_form_recurring_description": "Automatically show a projected limit for future years with the same amount, until you add or edit that year.",
+  "limits_form_accounts_label": "Accounts that count",
+  "limits_form_accounts_description": "Contributions to these accounts count toward this limit.",
+  "limits_form_accounts_selected": "{{selected}} of {{total}} selected",
+  "limits_form_accounts_search": "Search accounts",
+  "limits_form_accounts_no_match": "No accounts match your search.",
+  "limits_form_accounts_empty": "No accounts can hold contributions yet.",
   "limits_form_updating": "Updating...",
   "limits_form_saving": "Saving...",
   "limits_form_update_button": "Update",
-  "limits_select_accounts": "Select accounts",
-  "limits_loading": "Loading...",
-  "limits_contributed": "Contributed",
-  "limits_saving": "Saving...",
-  "limits_save_selected_accounts": "Save selected accounts",
   "addons_info_title": "🔌 Add-ons & extensions",
   "addons_info_description": "Add-ons let you extend Wealthfolio with new features, custom analytics, and additional functionality to enhance your financial management experience.",
   "addons_security_notice": "Security notice:",
@@ -174,17 +182,139 @@
   "export_title": "Data export",
   "export_description": "Keep a backup of your portfolio or export your data to use elsewhere.",
   "export_tab_backup": "Backups",
-  "export_section_description": "Export specific data types in various formats for analysis or external use.",
-  "export_format_title": "Choose your preferred format",
-  "export_format_csv_description": "Simple, widely compatible spreadsheet format",
-  "export_format_json_description": "Structured data for easy programmatic access",
-  "export_customize_title": "Customize your export",
-  "export_type_accounts_description": "Your financial accounts",
-  "export_type_activities": "Activities",
-  "export_type_activities_description": "Detailed transaction history and logs",
-  "export_type_goals_description": "Financial objectives and progress tracking",
-  "export_type_portfolio_history": "Portfolio history",
-  "export_type_portfolio_history_description": "Your portfolio's performance over time, including valuations, gains, and cash flow activities.",
+  "data_export": {
+    "intro": "Readable files for spreadsheets and other apps. They can't be restored into Wealthfolio: to move to another device, use a backup.",
+    "all_title": "Export all your data",
+    "all_description_csv": "One ZIP with a CSV file for each dataset and a README that explains them.",
+    "all_description_json": "One JSON file with every dataset as a section.",
+    "all_info": "Projections for goals and loan schedules aren't included, since they change every day. Export them from the goal or the loan.",
+    "all_info_label": "About data exports",
+    "all_button": "Export all",
+    "all_pending": "Exporting…",
+    "format_label": "File format",
+    "include_archived": "Include archived accounts",
+    "include_archived_help": "Adds archived accounts with their activities, tax lots and loan payments.",
+    "dates_title": "Dates",
+    "start_date": "From",
+    "end_date": "To",
+    "dates_help": "Limits activities, sales, prices, valuations and histories. Leave empty for all dates.",
+    "date_order_error": "The start date is after the end date.",
+    "clear_dates": "Clear dates",
+    "datasets_title": "Choose what to export",
+    "datasets_description": "Download one dataset at a time.",
+    "groups": {
+      "accounts": "Accounts and activity",
+      "investments": "Investments",
+      "net-worth": "Net worth",
+      "spending": "Spending and budgets",
+      "planning": "Planning",
+      "organization": "Organization"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Accounts",
+        "description": "Your accounts with their latest balance, archived ones marked"
+      },
+      "activities": {
+        "name": "Activities",
+        "description": "Every transaction, with cash balance and spending category"
+      },
+      "holdings": {
+        "name": "Holdings",
+        "description": "Positions with value, cost and gains"
+      },
+      "lots": {
+        "name": "Tax lots",
+        "description": "Open and closed lots with their cost basis"
+      },
+      "realized-gains": {
+        "name": "Realized gains",
+        "description": "Each sale matched to the lots it closed"
+      },
+      "manual-prices": {
+        "name": "Manual prices",
+        "description": "Prices you entered for assets you price yourself"
+      },
+      "income": {
+        "name": "Income",
+        "description": "Dividends and interest per month, for each account"
+      },
+      "income-by-source": {
+        "name": "Income by source",
+        "description": "Income from each holding, all time and per year"
+      },
+      "assets-and-liabilities": {
+        "name": "Assets and liabilities",
+        "description": "Property, vehicles, valuables and loans, with loan terms"
+      },
+      "asset-valuations": {
+        "name": "Asset valuations",
+        "description": "Every value you recorded for those assets and liabilities"
+      },
+      "loan-payments": {
+        "name": "Loan payments",
+        "description": "Payments linked to each loan"
+      },
+      "net-worth-history": {
+        "name": "Net worth history",
+        "description": "Daily net worth: investments, other assets and liabilities"
+      },
+      "portfolio-history": {
+        "name": "Portfolio history",
+        "description": "Daily value of each account"
+      },
+      "budgets": {
+        "name": "Budgets",
+        "description": "Amounts for each period, with rollover settings"
+      },
+      "budget-actuals": {
+        "name": "Budget vs actual",
+        "description": "Budgeted, spent and remaining per category, month by month"
+      },
+      "budget-groups": {
+        "name": "Budget groups",
+        "description": "Groups and the categories in each"
+      },
+      "spending-rules": {
+        "name": "Categorization rules",
+        "description": "Rules that categorize transactions automatically"
+      },
+      "spending-events": {
+        "name": "Events",
+        "description": "Trips and other events, with what was spent on each"
+      },
+      "goals": {
+        "name": "Goals",
+        "description": "Plan settings, linked accounts and progress"
+      },
+      "contribution-limits": {
+        "name": "Contribution limits",
+        "description": "Limits and the accounts they cover"
+      },
+      "portfolios": {
+        "name": "Portfolios",
+        "description": "Groups of accounts"
+      },
+      "categories": {
+        "name": "Categories",
+        "description": "Every category of every classification, including spending"
+      },
+      "classifications": {
+        "name": "Asset classifications",
+        "description": "Which category each asset belongs to"
+      }
+    },
+    "rows_one": "{{count}} row",
+    "rows_other": "{{count}} rows",
+    "daily": "Daily values",
+    "holdings_today": "Current holdings",
+    "none_yet": "None yet",
+    "download": "Download {{name}}",
+    "downloading": "Downloading {{name}}…",
+    "summary_error": "Couldn't count your data. You can still export it.",
+    "empty": "There's nothing to export in this dataset yet.",
+    "empty_all": "There's nothing to export yet."
+  },
   "backup_title": "Local backups",
   "backup_restore_title": "Restore backup",
   "about_description": "Application information",
@@ -324,9 +454,6 @@
   "about_db_path": "Database path",
   "about_copy_db_path": "Copy database path",
   "about_copy_logs_dir": "Copy logs directory",
-  "export_type_holdings_description": "Current holdings with valuation, performance, allocation, and instrument data",
-  "export_exporting_item": "Exporting {{name}}...",
-  "export_export_item": "Export {{name}}",
   "backup_unknown_date": "Unknown date",
   "backup_creating_short": "Saving backup…",
   "backup_empty_title": "No backups yet",
@@ -996,7 +1123,33 @@
       "tab_income_one": "Income ({{count}})",
       "tab_income_other": "Income ({{count}})",
       "tab_savings_one": "Savings ({{count}})",
-      "tab_savings_other": "Savings ({{count}})"
+      "tab_savings_other": "Savings ({{count}})",
+      "merge": {
+        "description": "Move all transactions, rules and budgets from {{name}}.",
+        "history": "Past reports will use the new category. This can’t be undone.",
+        "destination": "Move into…",
+        "choose": "Choose a category",
+        "budgets": "Budgets · {{name}}",
+        "confirm": "Move and delete",
+        "error": "The merge failed or the data changed. Refresh the preview, check the destination, and try again.",
+        "refresh": "Refresh preview",
+        "none": "No eligible destination. Resolve the restrictions below or create a suitable category.",
+        "blocked": {
+          "invalid_destination": "Choose a different category in the same expense, income, or savings list.",
+          "children": "Move or merge subcategories first; categories with children cannot be merged.",
+          "asset_references": "Remove asset classifications and allocation target references first.",
+          "category_rollover": "Remove the saved rollover settings from both categories first, including settings switched off.",
+          "group_rollover": "Disable rollover for the affected expense groups before moving between groups. Merging within the same group is allowed.",
+          "exclusions": "The source and destination must have the same effective “Exclude from spending” setting, including inherited exclusions.",
+          "budget_destination": "This category has budget targets. Both categories must be at the top level so those targets remain effective."
+        },
+        "period": "Month",
+        "current": "Current",
+        "added": "Added",
+        "after": "New total",
+        "monthlyDefault": "Monthly default",
+        "budgetHint": "Other months use the monthly default."
+      }
     },
     "events": {
       "heading": "Spending events",
@@ -1073,6 +1226,7 @@
   "fx_err_rate_negative": "Rate must be a non-negative number.",
   "fx_err_source_required": "Data source is required",
   "fx_err_rate_invalid": "Please enter a valid exchange rate.",
+  "fx_err_quote_unit": "{{code}} is a quote unit of {{major}}. Enter the {{major}} rate instead.",
   "fx_from_currency": "From currency",
   "fx_to_currency": "To currency",
   "fx_select_currency": "Select currency",
@@ -1214,6 +1368,8 @@
     "scope_locked_title": "Required by Activities — commit/write",
     "scope_locked_market_data_title": "Required by Market data — write",
     "scope_locked_classification_title": "Required by Asset classification — apply/write",
+    "scope_locked_accounts_title": "Required by Accounts — write",
+    "scope_locked_holdings_title": "Required by Holdings — write",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1263,7 +1419,7 @@
       },
       "market_data_write": {
         "label": "Market data — write",
-        "description": "Save reviewed prices (quotes) for existing assets. Requires the holdings read scope."
+        "description": "Save reviewed prices (quotes), refresh or replace an asset's price history, and change how an asset is priced: its symbol, exchange, quote currency, quote mode or data provider. Requires the holdings read scope."
       },
       "spending_read": {
         "label": "View spending",
@@ -1276,6 +1432,14 @@
       "budget_write": {
         "label": "Manage budgets",
         "description": "Change default and monthly budgets, groups, buffers, and rollovers. Requires View spending."
+      },
+      "accounts_write": {
+        "label": "Accounts — write",
+        "description": "Create accounts and change their name, type, group, number, tracking mode, and hidden or archived state. Requires the accounts read scope."
+      },
+      "holdings_write": {
+        "label": "Holdings — write",
+        "description": "Save holdings snapshots (positions and cash on a date) for accounts that track holdings, and add alternative assets and liabilities. Requires the holdings read scope."
       }
     },
     "preset": {
@@ -1563,15 +1727,6 @@
       "addingFailed": "There was a problem adding the exchange rate: {{error}}",
       "deletingFailed": "There was a problem deleting the exchange rate: {{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "No accounts available to export right now.",
-        "activities": "No activities available to export right now.",
-        "holdings": "No holdings available to export right now.",
-        "goals": "No goals available to export right now.",
-        "portfolio-history": "No portfolio history records available to export right now."
-      }
-    },
     "providerUpdateFailed": "Failed to update settings for provider {{provider}}",
     "httpFailed": "HTTP request failed.",
     "addonDownloadFailed": "Failed to download the addon.",
@@ -1640,6 +1795,8 @@
       "performance_calculateHistory": "Calculate performance history",
       "performance_calculateSummary": "Calculate performance summary",
       "performance_calculateAccountsSimple": "Calculate basic account performance",
+      "allocation-targets_getAll": "View your allocation targets",
+      "allocation-targets_getDrift": "Compare your holdings with a target",
       "currency_getAll": "View exchange rates",
       "currency_update": "Update currency rates",
       "currency_add": "Add new exchange rates",
@@ -1695,6 +1852,10 @@
       "accounts": {
         "name": "Account Management",
         "description": "Access to account information and settings"
+      },
+      "allocation-targets": {
+        "name": "Allocation Targets",
+        "description": "Read-only access to your allocation targets and how your holdings compare to them"
       },
       "alternative-assets": {
         "name": "Alternative Assets",
@@ -1768,6 +1929,34 @@
         "name": "Network Access",
         "description": "Access to declared external HTTPS hosts through the host network broker"
       }
+    }
+  },
+  "limits_detail": {
+    "back": "Contribution limits",
+    "counted": "Counted contributions",
+    "annual_limit": "Limit amount",
+    "remaining": "Remaining room",
+    "used_percent": "{{percent}} used",
+    "period_ends": "Period ends",
+    "over": "Over limit",
+    "activities": "Contribution activity",
+    "group_counted": "Contributions",
+    "group_not_counted": "Not counted automatically",
+    "group_not_counted_hint": "Internal transfers never count. If money came from outside your accounts, edit the activity and mark it as external.",
+    "edit_activity": "Edit activity",
+    "edit_activity_aria": "Edit {{activity}}",
+    "edit_activity_error": "Couldn't open this activity. Try again.",
+    "count_activity": "Count {{activity}} in this limit",
+    "activity_unchanged": "Only this limit's usage changes. Account activity stays unchanged.",
+    "save_success": "Contribution treatment saved.",
+    "save_error": "Could not save contribution treatment.",
+    "load_error": "Could not load this contribution limit.",
+    "no_activities": "No contribution activity in this period.",
+    "treatments": {
+      "counted": "Counted",
+      "excludedByUser": "Excluded by you",
+      "internalTransfer": "Internal transfer",
+      "notExternal": "Not marked external"
     }
   }
 }

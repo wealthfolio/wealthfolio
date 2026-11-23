@@ -67,6 +67,19 @@ describe("isExpiredOptionAsset", () => {
 });
 
 describe("getNoQuoteReasonText", () => {
+  it.each(["LAST_ERROR", "FUTURE_REASON"])(
+    "does not display saved diagnostic text for %s",
+    (code) => {
+      const text = getNoQuoteReasonText({
+        quote: null,
+        isStale: true,
+        effectiveMarketDate: "2026-04-27",
+        noQuoteReason: { code, message: "FAKE-KEY-2531 /private/portfolio.db" },
+      });
+      expect(text).not.toContain("FAKE-KEY");
+      expect(text).not.toContain("/private");
+    },
+  );
   it("uses the backend reason when present", () => {
     expect(
       getNoQuoteReasonText({

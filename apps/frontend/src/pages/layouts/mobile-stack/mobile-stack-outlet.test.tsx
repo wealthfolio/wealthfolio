@@ -1,23 +1,35 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Dialog, DialogContent, DialogTitle } from "@wealthfolio/ui";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MobileStackContext, type MobileStackContextValue } from "./mobile-stack-contexts";
 import { MobileStackOutlet } from "./mobile-stack-outlet";
 import { applyNavigation, coldStart, type StackConfig, type StackState } from "./stack-model";
 
-const pages = vi.hoisted(() => ({ withPopup: false, withField: false }));
-// Each screen's page: nothing, an open dialog titled with the page's path, or a
-// text field labelled with it.
+const pages = vi.hoisted(() => ({ withPopup: false, withField: false, lateHeading: false }));
+// Each screen's page: nothing, an open dialog titled with the page's path, a
+// text field labelled with it, or a heading that renders once it is told to.
 vi.mock("@/app-screen-routes", () => ({
   AppScreenRoutes: ({ location }: { location?: { pathname: string } }) =>
     pages.withPopup ? (
       <PagePopup title={location?.pathname ?? ""} />
     ) : pages.withField ? (
       <input aria-label={location?.pathname} />
+    ) : pages.lateHeading ? (
+      <LateHeading title={location?.pathname ?? ""} />
     ) : null,
 }));
+
+function LateHeading({ title }: { title: string }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const show = () => setShown(true);
+    window.addEventListener("test:show-heading", show);
+    return () => window.removeEventListener("test:show-heading", show);
+  }, []);
+  return shown ? <h1>{title}</h1> : <p>Loading</p>;
+}
 
 function PagePopup({ title }: { title: string }) {
   return (
@@ -257,5 +269,50 @@ describe("a back swipe in the iOS app", () => {
     );
     rerender(outletFor(sectionChanged));
     expect(under()).not.toBe("none");
+  });
+});
+
+describe("focus after a push", () => {
+  afterEach(() => {
+    pages.withPopup = false;
+    pages.lateHeading = false;
+  });
+
+  it("moves focus to a heading that renders after the push settles", async () => {
+    pages.lateHeading = true;
+    const { container, rerender } = render(outletFor(stackOf(1)));
+    rerender(outletFor(stackOf(2)));
+    const top = container.querySelector<HTMLElement>('[data-stack-screen="holdings:1"]')!;
+    const under = container.querySelector<HTMLElement>('[data-stack-screen="holdings:0"]')!;
+    await waitFor(() => expect(under).not.toBeVisible());
+    // With no heading yet, the screen itself holds focus.
+    await waitFor(() => expect(document.activeElement).toBe(top));
+
+    act(() => {
+      window.dispatchEvent(new Event("test:show-heading"));
+    });
+    await waitFor(() => expect(document.activeElement).toBe(top.querySelector("h1")));
+  });
+
+  it("leaves focus in a dialog the pushed screen's page opened", async () => {
+    pages.withPopup = true;
+    const { container, rerender } = render(outletFor(stackOf(1)));
+    rerender(outletFor(stackOf(2)));
+    // Found through its screen's portal: a role query would also match dialogs
+    // other tests in this file left open.
+    const dialog = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>(
+        '[data-portal-scope="holdings:1"] [role="dialog"]',
+      );
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+
+    // The push settles once the screen underneath is hidden; then the stack moves
+    // focus unless the page already put it somewhere, as this dialog did.
+    const under = container.querySelector<HTMLElement>('[data-stack-screen="holdings:0"]')!;
+    await waitFor(() => expect(under).not.toBeVisible());
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 });

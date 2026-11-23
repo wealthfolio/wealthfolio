@@ -594,11 +594,13 @@ commit_quote_import                -- save them as manual quotes (batch)
 These save the closing prices a statement reports for existing assets, so the
 portfolio's value on the statement date can match it without changing
 activities, quantities or cost basis. Each row names an asset by `assetId`
-(tickers are never resolved; `get_asset_taxonomy_assignments`, under
-`classification:read`, finds an id), a `date` (`YYYY-MM-DD`, not in the future),
-a `price` in the asset's quote currency, that `currency`, and an optional
-`overwrite` flag. Only investment assets are accepted: FX rates, alternative
-assets and liabilities keep their own valuation paths.
+(tickers are never resolved; `get_asset`, under `holdings:read`, finds an id), a
+`date` (`YYYY-MM-DD`, not in the future), a `price` in the asset's quote
+currency, that `currency`, and an optional `overwrite` flag. Investment assets
+are accepted, and so are manually priced alternative assets and liabilities,
+whose values are stored as manual quotes (a gold coin's price, a house's value,
+a mortgage balance). FX rates and market-priced alternative assets keep their
+own paths.
 
 `prepare_quote_import` (`QuoteServiceTrait::preview_quote_import`) reports per
 row the asset, the quote valuations use for that day (a manual quote before a
@@ -607,9 +609,9 @@ a provider or broker quote with the same price and currency, which is saved as a
 manual quote so a later refetch cannot change the day), `skip` (a manual quote
 with the same price and currency is stored), `update` (a different price is
 stored and the row sets `overwrite`), `conflict` (a different price without
-`overwrite`) or `invalid` (unknown or non-investment asset, bad or future date,
-non-positive price, a currency other than the asset's quote currency, or a
-second row for the same asset and date).
+`overwrite`) or `invalid` (unknown asset, an FX or market-priced alternative
+asset, bad or future date, non-positive price, a currency other than the asset's
+quote currency, or a second row for the same asset and date).
 
 `commit_quote_import` runs the preview again and saves nothing if any row is
 invalid or a conflict. Otherwise it passes the create and update rows to
@@ -633,6 +635,109 @@ A batch holds up to 100 rows, and the audit log keeps only the asset ids, dates
 and counts of the arguments, never prices. As for every tool, an argument that
 fails to parse is recorded in the error message, which may quote it. The in-app
 assistant has no confirmation card for quotes and does not get these tools.
+
+### MCP-only Asset and Market Data Reads
+
+```text
+get_asset                          -- one asset's market-data setup and price state
+get_quote_history                  -- an asset's stored quotes over a date range
+get_market_data_providers          -- built-in and custom providers
+refresh_market_data                -- refresh prices or replace provider history
+prepare_asset_update               -- preview a fix to an asset's listing, currency or provider
+commit_asset_update                -- save it, then replace the provider history
+```
+
+These let an agent find why an asset's prices are missing or wrong. They read
+stored data only and never call a provider. All three need `holdings:read`.
+
+`get_asset` takes an `assetId` or a `query` (the asset lookup that
+`get_asset_taxonomy_assignments` uses, now shared in `tools/asset_lookup.rs`, so
+finding an id no longer needs `classification:read`); several matches return
+`candidates`. It returns the identity (kind, instrument type, symbol, MIC,
+ISIN), quote mode and currency, preferred provider and per-provider symbols, the
+latest quote with its stale flag or the reason it is missing, the sync state,
+stored quotes grouped by source and currency with their date span, and the
+accounts holding the asset with quantities (the asset page's holdings read).
+
+`get_quote_history` returns date, close, currency and source per stored quote,
+newest first, for a range (default the last 365 days) and optional source,
+capped at 500 rows by default and 2000 at most, with `truncated`.
+
+`get_market_data_providers` lists built-in providers from
+`QuoteServiceTrait::get_providers_info` and custom providers from
+`AgentEnvironment::custom_providers` (id `CUSTOM:<code>`, the form the app's
+asset editor and symbol resolution use). Custom provider sources are left out:
+their URLs and headers can hold API keys. Stored sync errors stay internal for
+the same reason, as in the quote service's other public reads: `get_asset`
+reports a failed last sync with the generic `PublicError::provider_unavailable`
+message, and `get_market_data_providers` passes on the counts and generic
+messages `get_providers_info` returns. Custom providers report no error details,
+since their failures are recorded under the dispatch row. The in-app assistant
+does not get these tools.
+
+`refresh_market_data` (`market-data:write`, also `holdings:read`) has four
+modes. `latest`, `recent` (N days, default 30) and `history` (the app's "Refetch
+prices") map to `MarketSyncMode` `Incremental`, `RefetchRecent` and
+`BackfillHistory` and go through `AgentEnvironment::request_portfolio_job`,
+which each host implements with the path its price buttons use: Tauri calls
+`handle_portfolio_request`, Axum spawns the same coordinator job as
+`enqueue_portfolio_job`. The job's one-at-a-time lock, retries and recalculation
+are unchanged; the tool returns `queued` and the agent checks the result with
+`get_asset` or `get_health_status`. The default implementation reports that the
+environment cannot start jobs. Tauri builds the environment before its profile
+context exists, so the context sets a `OnceLock` binding (app handle and a weak
+context reference) when it is installed.
+
+`replace` (asset ids required, at most 10, MARKET quote mode only) calls
+`QuoteServiceTrait::reset_provider_history` for each asset during the call, in a
+spawned task so a dropped request still commits. The reset fetches the history
+from the asset's current provider and, in one transaction, replaces the provider
+rows; MANUAL and BROKER quotes stay, and a failed fetch deletes nothing. The
+quote service emits one `PriceHistoryChanged` per successful reset (and one per
+`reset_all_provider_history` that replaced anything); the hosts' reset commands
+no longer emit their own. Only enabled providers are used: the market data
+client is built from enabled providers, as before.
+
+`prepare_asset_update` / `commit_asset_update` (`market-data:write`, also
+`holdings:read`; #2467) change an investment asset's quote currency, quote mode,
+symbol, exchange MIC, preferred provider (any enabled provider, including an
+existing custom one as `CUSTOM:<code>`) or one built-in provider's symbol. The
+tools never create or configure providers. Both build the same plan:
+
+- The full `UpdateAssetProfile` for `AssetServiceTrait::update_asset_profile`.
+  Storage writes `provider_config`, `quote_mode`, `name`, `display_code` and
+  `notes` even when a payload leaves them out, so the tool reads the asset and
+  sends all of them back; `metadata` is left out, which storage preserves.
+  Provider config keys the request does not touch are kept.
+- `AssetServiceTrait::preview_asset_profile_update`, which runs the
+  normalization and identity-collision check `update_asset_profile` runs, now
+  shared in one function, and returns the profile that would be stored and any
+  asset that already has the listing. A collision blocks the commit.
+- A named provider must exist and be enabled; otherwise the plan is blocked
+  before any request. When the listing, currency or provider of a MARKET asset
+  changes, or the asset switches to MARKET, the new
+  `QuoteServiceTrait::resolve_asset_quote` asks for the latest quote with the
+  asset as it would be stored (its whole provider configuration, overrides
+  included, as a sync uses it). No quote, an answer from another provider than
+  the preferred one, or a quote in another currency or unit than the requested
+  one (GBp and GBX count as the same) blocks the commit. The probe is the asset
+  exactly as a sync would send it. Known limit: Alpha Vantage and Finnhub label
+  a quote with the exchange's currency, or with the asset's own quote currency
+  when the listing gives none, instead of reporting one, so for them the check
+  cannot contradict that currency; Yahoo reports it. The preview always makes
+  this request; the commit makes it again.
+- The commit re-reads the asset after the provider request and saves nothing
+  when any field the update writes changed meanwhile (storage does not bump
+  `updated_at` on profile edits), so an edit made in the app is not overwritten.
+  This is a check before the write, not a database compare-and-swap.
+- For such changes the commit replaces the provider history afterwards (the
+  `refresh_market_data` `replace` path), so rows in the old currency or from the
+  old provider go away; MANUAL and BROKER quotes stay. `keepHistory: true` skips
+  it. History cannot be replaced for custom providers; the preview warns.
+
+`update_asset_profile` still resets the asset's sync state and emits
+`AssetsUpdated`, which queues the sync and recalculation as for an edit in the
+app. Transactions, quantities and cost are never changed.
 
 ### MCP-only Activity Update Tools
 
@@ -767,14 +872,136 @@ Rules:
 - Draft and import-preview tools never mutate data; activity commits require
   `activities:write` (which itself requires `activities:draft`), classification
   commits require `classification:write` (which itself requires
-  `classification:suggest`), and quote imports require `market-data:write`
-  (which itself requires `holdings:read`).
+  `classification:suggest`), quote imports require `market-data:write` (which
+  itself requires `holdings:read`), account changes require `accounts:write`
+  (which itself requires `accounts:read`), and holdings snapshots require
+  `holdings:write` (which itself requires `holdings:read`).
 - CSV / activity-row content must not be persisted in raw audit logs: the
   write/import tools redact their `activities`/row arguments to a count
   (`"[N rows]"`) via per-tool audit sanitization.
 - Activity writes go through existing activity services and validation.
 - Suggestions return proposed assignments and rationale; agents never directly
   alter allocation semantics.
+
+### MCP-only Portfolio Setup Tools
+
+```text
+prepare_account_change             -- preview creating or updating one account
+commit_account_change              -- save it
+get_holdings_snapshots             -- list an account's snapshot dates, or read one
+prepare_holdings_snapshot          -- preview one date's positions and cash
+commit_holdings_snapshot           -- save it
+get_exchange_rates                 -- read stored exchange rates
+prepare_alternative_asset          -- preview creating an alternative asset or liability
+commit_alternative_asset           -- create it
+```
+
+These let an agent create the accounts it imports into, and fix an account's
+details, without the app. Without `accountId` the change creates an account
+(`name`, `accountType`, `currency` and `trackingMode` are required); with it,
+the change updates that account and fields left out keep their stored values.
+Settable fields: `name` (2 to 50 characters, as in the app's form),
+`accountType`, `currency` (create only: every path keeps an account's currency
+fixed), `group` and `accountNumber` (null clears), `trackingMode`
+(`TRANSACTIONS` or `HOLDINGS`), `hidden` and `archived`. There is no delete.
+
+`prepare_account_change` reads every account and reports the stored account, the
+proposed one, the changed fields, other accounts with the same name
+(case-insensitive) and warnings: the currency is fixed after creation, a
+tracking mode switch leaves the other mode's activities or snapshots stored but
+unused, and values in a non-base currency convert through exchange rates. Errors
+block the change: a name clash unless `allowDuplicateName` is set (so a repeated
+create cannot add a second account), a credit card in `HOLDINGS` mode, a
+currency change, or an unknown account. A broker-connected account keeps its
+provider link and account number, and its tracking mode cannot change here: in
+the app that change starts a broker sync, which an agent should not start
+unseen. Account numbers are masked to their last four characters in previews and
+redacted in the audit log.
+
+`commit_account_change` runs the same checks and saves through
+`AccountServiceTrait::create_account` or `update_account`, the calls behind the
+app's account form, so FX pair registration and the `AccountsChanged` and
+`TrackingModeChanged` events (and the recalculation they plan) are unchanged. An
+update sends back the stored `is_default` and provider fields and leaves the
+account's meta (cost basis settings) as stored; an update that changes nothing
+writes nothing. Both tools need `accounts:read` and `accounts:write`; the in-app
+assistant does not get them.
+
+The snapshot tools set up a HOLDINGS-mode account, whose holdings come from
+dated snapshots instead of activities. `get_holdings_snapshots`
+(`holdings:read`) lists an account's snapshot dates with their source, or
+returns one date's positions (asset id, symbol, quantity, average cost,
+currency) and cash. `prepare_holdings_snapshot` and `commit_holdings_snapshot`
+(`holdings:read` and `holdings:write`) take an account, a date and every
+position held on it, and accept only HOLDINGS-mode accounts that are not
+connected to a broker (a broker's sync writes those snapshots). A snapshot
+replaces whatever is stored on its date, so positions left out are not held
+then; the preview says so and lists each position as added, changed, unchanged
+or removed against that date's snapshot or, when there is none, the latest
+earlier one. Cash left out (or null) is carried forward from that compared
+snapshot, never zeroed; an empty list means no cash. A position names an asset
+by `assetId`, or a reviewed listing (symbol, quote currency, instrument type
+and, for an equity not priced by hand, exchange MIC: the rule
+`AssetResolutionInput::reviewed_metadata_is_sufficient` applies to holdings
+imports), so neither the preview nor the save looks a symbol up with a market
+data provider. A listing that names a stored asset, as saving would match it
+(`AssetServiceTrait::find_asset_by_listing`, the instrument-key lookup
+`get_or_create_minimal_asset` uses), is that asset: the preview compares and
+deduplicates it by its id; new listings with one instrument key
+(`listing_instrument_key`, such as `BTC` and `BTC-USD`) are one asset too. A
+stored position keeps its own currency, which can differ from its asset's quote
+(a GBP cost for a GBp quote). A quote mode is set only on a new asset; a row
+that would change a stored asset's mode is refused, since that would reprice the
+asset in every account. The compared snapshot is read as one row through
+`SnapshotServiceTrait::get_latest_holdings_keyframe`: the latest saved snapshot
+for a HOLDINGS-mode account, the latest calculated one otherwise, each one
+repository query. Quote and cash currencies are read as core spells them:
+uppercased, except minor units such as GBp, so `usd` is USD. Dates follow the
+holdings import's rules (a real day, not in the future). The commit saves
+through `ManualSnapshotService::save_manual_holdings`, the function behind the
+app's holdings form, so new assets, FX pair registration and the
+`HoldingsChanged` event (and the recalculation it plans) are the same. That
+includes the form's one price write: a hand-priced asset with no price on or
+before the date gets its average cost as its first price; the preview lists
+these in `firstPrices`. Other prices go through `commit_quote_import`. Up to 200
+positions per snapshot; the audit log keeps the account, date, asset ids,
+symbols and counts, never quantities, costs or cash. The tools reach the
+snapshot and FX services through `AgentEnvironment::snapshot_service` and
+`fx_service`, whose default bodies return `None`, so test environments need no
+change.
+
+`get_exchange_rates` (`holdings:read`) reads the stored rates valuations use,
+through `FxServiceTrait`; it never fetches from a provider. Without dates it
+returns the latest rate of each registered pair, optionally only pairs involving
+the given currencies. With dates (up to 31) it returns each given currency's
+rate into `to` (the base currency by default) on each date, through
+`get_exchange_rates_for_dates`, the lookup valuations use; a pair without a
+stored rate returns an error for that row.
+
+`prepare_alternative_asset` and `commit_alternative_asset` (`holdings:read` and
+`holdings:write`) create one property, vehicle, collectible, precious metal,
+private equity holding, other asset or liability through
+`AlternativeAssetServiceTrait::create_alternative_asset`, as the app's quick-add
+form does: the value on its date is saved as a manual price. A liability is a
+manual balance with a type (mortgage, auto, student or personal loan, HELOC,
+other) and optionally the asset it finances; it takes no loan setup, so loans
+with an interest rate, term and payment schedule stay in the app. Purchase price
+and date are for assets only, and a precious metal needs its metal, quantity and
+unit. A name another asset of the same kind already has is refused unless
+`allowDuplicateName` is set, so a repeated create adds nothing. Dated values and
+balances go through `prepare_quote_import` / `commit_quote_import`
+(`market-data:write`), which accept manual alternative assets: a batch of
+monthly balances is one call and one recalculation. The quote import takes
+prices above zero only, so a paid-off (zero) balance is entered as the
+`currentValue` at creation or in the app. The commit is the one additive MCP
+write besides `commit_categorization_rule`: it creates an asset, its first
+manual price and, for a non-base currency, its FX pair, and changes nothing
+stored. Creating an alternative asset in another currency than the base one
+registers the pair to the base currency in core (`with_fx_registration`), as
+account creation does; before, no pair was registered and net worth history
+counted the value unconverted. The audit log keeps the kind, currency, dates and
+link, never names or amounts. The tools reach the service through
+`AgentEnvironment::alternative_asset_service`, `None` by default.
 
 ### Deferred Indefinitely
 
@@ -802,7 +1029,10 @@ Read scopes:
 ```text
 accounts:read            get_accounts, get_cash_balances, get_portfolios
 holdings:read            get_holdings, get_asset_allocation,
-                         get_valuation_history, get_income, get_net_worth
+                         get_valuation_history, get_income, get_net_worth,
+                         get_asset, get_quote_history,
+                         get_market_data_providers, get_holdings_snapshots,
+                         get_exchange_rates
 performance:read         get_performance
 activities:read          search_activities, get_import_mapping,
                          find_transfer_matches
@@ -838,7 +1068,14 @@ spending:write           commit_categorization_rule, commit_transaction_categori
                          rerun_categorization_rules (also requires spending:read)
 budget:write             budget management (also requires spending:read;
                          independent of spending:write)
-market-data:write        prepare_quote_import, commit_quote_import
+market-data:write        prepare_quote_import, commit_quote_import,
+                         refresh_market_data,
+                         prepare_asset_update, commit_asset_update
+                         (each also requires holdings:read)
+accounts:write           prepare_account_change, commit_account_change
+                         (each also requires accounts:read)
+holdings:write           prepare_holdings_snapshot, commit_holdings_snapshot,
+                         prepare_alternative_asset, commit_alternative_asset
                          (each also requires holdings:read)
 ```
 
@@ -859,8 +1096,11 @@ Dependency rules: `activities:write` requires `activities:draft`, and
 `classification:write` requires `classification:suggest` (you cannot commit
 without the matching draft/suggest capability). `market-data:write` requires
 `holdings:read`: both quote tools return stored quotes, so the scope reaches no
-tool without it. Token creation validates this, and no preset grants
-`market-data:write`.
+tool without it. `accounts:write` requires `accounts:read` for the same reason:
+the account change preview shows the stored accounts, and `holdings:write`
+requires `holdings:read`, as the snapshot preview shows the stored holdings.
+Token creation validates these, and no preset grants `market-data:write`,
+`accounts:write` or `holdings:write`.
 
 Presets (`AgentScopeSet` constructors):
 

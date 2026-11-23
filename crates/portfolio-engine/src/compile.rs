@@ -6,7 +6,7 @@
 use rust_decimal::Decimal;
 
 use crate::arith;
-use crate::diagnostics::{Diagnostic, DiagnosticCode};
+use crate::diagnostics::{ActivityReason, Diagnostic, DiagnosticCode};
 use crate::model::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -268,11 +268,14 @@ fn resolve_cash(
     }
 
     let Some(final_amount) = activity.amount else {
-        diagnostics.push(Diagnostic::warning(
-            DiagnosticCode::MissingFinalCash,
-            activity.id.as_str(),
-            "posted activity stores no final cash amount; zero cash booked",
-        ));
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::MissingFinalCash,
+                activity.id.as_str(),
+                "posted activity stores no final cash amount; zero cash booked",
+            )
+            .with_reason(Some(ActivityReason::MissingFinalCash)),
+        );
         return None;
     };
 

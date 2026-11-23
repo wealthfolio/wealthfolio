@@ -2,7 +2,7 @@ import { cn } from "../../lib/utils";
 import { useAmountFormatting } from "../formatting-provider";
 
 interface AmountDisplayProps {
-  value: number;
+  value: number | null | undefined;
   currency: string;
   isHidden?: boolean;
   displayCurrency?: boolean;
@@ -21,10 +21,11 @@ export function AmountDisplay({
   className,
 }: AmountDisplayProps) {
   const { formatAmount } = useAmountFormatting();
-  const formattedAmount = formatAmount(value, currency, displayCurrency);
+  const available = value != null && Number.isFinite(value);
+  const formattedAmount = available ? formatAmount(value, currency, displayCurrency) : "—";
   const positive = invertColor ? "text-loss" : "text-gain";
   const negative = invertColor ? "text-gain" : "text-loss";
-  const colorClass = colorFormat ? (value >= 0 ? positive : negative) : "";
+  const colorClass = colorFormat && available ? (value >= 0 ? positive : negative) : "";
 
   return <span className={cn(colorClass, className)}>{isHidden ? "••••" : formattedAmount}</span>;
 }

@@ -136,7 +136,9 @@ function ActivityTypeButton({
       />
       <span
         className={cn(
-          "whitespace-nowrap text-sm font-medium transition-colors",
+          // Wraps in the grid's fixed-width columns; a carousel item is sized to
+          // its content, so the label stays on one line there.
+          "wrap-break-word text-center text-sm font-medium leading-tight transition-colors",
           isSelected ? "text-primary" : "text-foreground",
         )}
       >

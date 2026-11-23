@@ -1,3 +1,4 @@
+import { useNumberFormatting } from "../formatting-provider";
 import React from "react";
 import { Icons } from "./icons";
 import { cn } from "../../lib/utils";
@@ -100,6 +101,7 @@ export function StarRatingDisplay({
   showText = true,
   className,
 }: StarRatingDisplayProps) {
+  const numbers = useNumberFormatting();
   const textSizes = {
     sm: "text-xs",
     md: "text-sm",
@@ -111,10 +113,12 @@ export function StarRatingDisplay({
       <StarRating rating={rating} size={size} />
       {showText && (
         <div className={cn("flex items-center gap-1", textSizes[size])}>
-          <span className="font-medium">{rating.toFixed(1)}</span>
+          <span className="font-medium">
+            {numbers.formatDecimal(rating, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+          </span>
           {reviewCount !== undefined && (
             <span className="text-muted-foreground">
-              ({reviewCount} {reviewCount === 1 ? "review" : "reviews"})
+              ({numbers.formatDecimal(reviewCount)} {reviewCount === 1 ? "review" : "reviews"})
             </span>
           )}
         </div>

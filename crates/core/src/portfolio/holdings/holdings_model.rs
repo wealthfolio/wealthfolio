@@ -8,6 +8,9 @@ use std::collections::VecDeque;
 use crate::assets::{AssetClassifications, AssetKind, InstrumentType};
 use crate::portfolio::snapshot::Lot;
 
+/// Synthetic instrument IDs for account cash, rather than persisted assets.
+pub const CASH_INSTRUMENT_ID_PREFIX: &str = "cash:";
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum HoldingType {
@@ -40,15 +43,40 @@ pub struct Instrument {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MonetaryValue {
-    pub local: Decimal,
-    pub base: Decimal,
+    pub local: Option<Decimal>,
+    pub base: Option<Decimal>,
 }
 
 impl MonetaryValue {
     pub fn zero() -> Self {
-        MonetaryValue {
-            local: Decimal::ZERO,
-            base: Decimal::ZERO,
+        Self::new(Decimal::ZERO, Decimal::ZERO)
+    }
+
+    pub fn new(local: impl Into<Option<Decimal>>, base: impl Into<Option<Decimal>>) -> Self {
+        Self {
+            local: local.into(),
+            base: base.into(),
+        }
+    }
+
+    pub fn unavailable() -> Self {
+        Self {
+            local: None,
+            base: None,
+        }
+    }
+
+    pub fn add(&self, other: &Self) -> Self {
+        Self {
+            local: self.local.zip(other.local).map(|(a, b)| a + b),
+            base: self.base.zip(other.base).map(|(a, b)| a + b),
+        }
+    }
+
+    pub fn subtract(&self, other: &Self) -> Self {
+        Self {
+            local: self.local.zip(other.local).map(|(a, b)| a - b),
+            base: self.base.zip(other.base).map(|(a, b)| a - b),
         }
     }
 }
@@ -111,6 +139,9 @@ pub struct Holding {
     pub local_currency: String,
     pub base_currency: String,
     pub fx_rate: Option<Decimal>,
+    /// Observed snapshots provide a native-currency cost, not an acquisition-FX book.
+    #[serde(skip)]
+    pub translate_observed_basis: bool,
 
     // Current valuation
     pub market_value: MonetaryValue,
@@ -139,7 +170,7 @@ pub struct Holding {
     pub prev_close_value: Option<MonetaryValue>,
 
     // Portfolio allocation
-    pub weight: Decimal,
+    pub weight: Option<Decimal>,
 
     // Reference date for performance calculations
     pub as_of_date: NaiveDate,
@@ -206,7 +237,7 @@ pub struct HoldingListItem {
     pub day_change: Option<MonetaryValue>,
     pub day_change_pct: Option<Decimal>,
     pub prev_close_value: Option<MonetaryValue>,
-    pub weight: Decimal,
+    pub weight: Option<Decimal>,
     pub as_of_date: NaiveDate,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_account_ids: Vec<String>,

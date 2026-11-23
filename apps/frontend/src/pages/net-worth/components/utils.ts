@@ -29,22 +29,6 @@ export function toneFill(value: number): string {
   return `color-mix(in srgb, ${base} 60%, transparent)`;
 }
 
-export const CARD_LABEL = "text-muted-foreground/70 text-xs font-semibold uppercase tracking-wide";
-
-// Category colours from the theme's chart palette, in both modes. Used for the
-// composition bar, breakdown row dots, and the detail-sheet icons so they stay
-// consistent. Liabilities keep the semantic red.
-export const CATEGORY_CSS_COLORS: Record<string, string> = {
-  properties: "var(--chart-1)",
-  investments: "var(--chart-2)",
-  cash: "var(--chart-3)",
-  vehicles: "var(--chart-4)",
-  preciousMetals: "var(--chart-5)",
-  collectibles: "var(--chart-6)",
-  otherAssets: "var(--chart-stone)",
-  liabilities: "var(--destructive)",
-};
-
 export interface BreakdownEntry {
   category: string;
   name: string;
@@ -56,6 +40,30 @@ export interface BreakdownEntry {
 }
 
 /** A breakdown row selected for the detail drawer. */
+/** History key prefix the backend gives a credit card's balance (`CREDIT_CARD:<accountId>`). */
+export const CREDIT_CARD_KEY_PREFIX = "CREDIT_CARD:";
+const CASH_ACCOUNT_KEY_PREFIX = "CASH:";
+
+/** Only Net Worth cash breakdown keys identify accounts instead of assets. */
+export function categoryItemDetailPath(category: string, assetId?: string): string | null {
+  if (!assetId) return null;
+  if (category === "cash" && assetId.startsWith(CASH_ACCOUNT_KEY_PREFIX)) {
+    const accountId = assetId.slice(CASH_ACCOUNT_KEY_PREFIX.length).split(":")[0];
+    return accountId ? `/accounts/${encodeURIComponent(accountId)}` : null;
+  }
+  return `/holdings/${encodeURIComponent(assetId)}`;
+}
+
+/**
+ * Where a liability's own page is: the account for a credit card, the asset
+ * page for a loan or other liability.
+ */
+export function liabilityDetailPath(key: string): string {
+  return key.startsWith(CREDIT_CARD_KEY_PREFIX)
+    ? `/accounts/${encodeURIComponent(key.slice(CREDIT_CARD_KEY_PREFIX.length))}`
+    : `/holdings/${encodeURIComponent(key)}`;
+}
+
 export interface SelectedCategory {
   /** History/breakdown key: the category key for assets, the assetId for liabilities. */
   key: string;
@@ -113,7 +121,8 @@ const num = (value: number | undefined | null): number =>
 
 /** Parse the raw history response, treating missing or non-finite values as zero. */
 export function parseHistory(history: NetWorthHistoryPoint[] | undefined): ParsedHistoryPoint[] {
-  if (!history) return [];
+  if (!history || history.some((point) => point.valueStatus && point.valueStatus !== "complete"))
+    return [];
   return history.map((point) => {
     const breakdown: Record<string, number> = {};
     for (const [key, value] of Object.entries(point.breakdown ?? {})) {
@@ -296,13 +305,17 @@ export function computeMomentum(
   longHistory: ParsedHistoryPoint[],
   rangeStartISO: string,
   rangeEndISO: string,
+  calendarYear?: number | null,
 ): Momentum | null {
   if (longHistory.length < 2) return null;
 
   const rangeDays = daysBetween(rangeStartISO, rangeEndISO) || 1;
-  const priorStartISO = new Date(new Date(rangeStartISO).getTime() - rangeDays * MS_PER_DAY)
-    .toISOString()
-    .slice(0, 10);
+  const priorStartISO =
+    calendarYear != null
+      ? `${calendarYear - 1}-01-01`
+      : new Date(new Date(rangeStartISO).getTime() - rangeDays * MS_PER_DAY)
+          .toISOString()
+          .slice(0, 10);
 
   const nwEnd = netWorthAsOf(longHistory, rangeEndISO);
   const nwStart = netWorthAsOf(longHistory, rangeStartISO);
@@ -311,7 +324,9 @@ export function computeMomentum(
   const earliest = longHistory[0].date;
   const hasPrior = earliest <= priorStartISO;
   const nwPriorStart = netWorthAsOf(longHistory, priorStartISO);
-  const priorChange = hasPrior ? nwStart - nwPriorStart : null;
+  const nwPriorEnd =
+    calendarYear != null ? netWorthAsOf(longHistory, `${calendarYear - 1}-12-31`) : nwStart;
+  const priorChange = hasPrior ? nwPriorEnd - nwPriorStart : null;
   const beatBy = priorChange != null ? currentChange - priorChange : null;
 
   // Monthly net worth change bars across the prior + current windows.

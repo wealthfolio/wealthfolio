@@ -33,7 +33,7 @@ export const isAutoUpdateCheckEnabled = async (): Promise<boolean> => {
     return await invoke<boolean>("is_auto_update_check_enabled");
   } catch (_error) {
     logger.error("Error checking auto-update setting.");
-    return true; // Default to enabled
+    return false; // Skip automatic checks rather than run one the user may have turned off
   }
 };
 
@@ -68,7 +68,7 @@ export const exportDatabaseBackup = async (
   signal?: AbortSignal,
 ): Promise<boolean> => {
   if (signal?.aborted) return false;
-  const output = await tauriInvoke<PendingExport>("export_database_backup", {
+  const output = await invoke<PendingExport>("export_database_backup", {
     filename,
     password,
     unencrypted,

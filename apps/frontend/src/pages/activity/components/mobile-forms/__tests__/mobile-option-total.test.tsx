@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { describe, expect, it, vi } from "vitest";
 import type { NewActivityFormValues } from "../../forms/schemas";
+import type { IncomeAmountTypedLast } from "../../forms/use-income-amounts";
 import { MobileDetailsStep } from "../mobile-details-step";
 
 vi.mock("@/lib/settings-provider", () => ({
@@ -25,12 +26,14 @@ function OptionBuy({ currency, unitPrice }: { currency: string; unitPrice: numbe
     } as Partial<NewActivityFormValues>,
   });
   const amountWasEdited = useRef(false);
+  const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
   return (
     <FormProvider {...form}>
       <MobileDetailsStep
         accounts={[{ value: "account", label: "Brokerage", currency }]}
         activityType={ActivityType.BUY}
         amountWasEdited={amountWasEdited}
+        incomeAmountTypedLast={incomeAmountTypedLast}
       />
     </FormProvider>
   );

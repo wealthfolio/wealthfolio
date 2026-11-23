@@ -9,7 +9,7 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use tempfile::tempdir;
 use tower::ServiceExt;
-use wealthfolio_core::addons::MAX_ADDON_ARCHIVE_COMPRESSED_SIZE;
+use wealthfolio_core::addons::{extract_addon_zip_internal, MAX_ADDON_ARCHIVE_COMPRESSED_SIZE};
 use wealthfolio_server::{api::app_router, build_state, config::Config};
 
 fn test_config(db_path: String, addons_root: String) -> Config {
@@ -62,15 +62,28 @@ async fn addon_zip_routes_accept_zips_up_to_the_service_limit() {
     let state = build_state(&config).await.unwrap();
     let app = app_router(state, &config).unwrap();
 
-    let zip_data_b64 = BASE64.encode(vec![0u8; MAX_ADDON_ARCHIVE_COMPRESSED_SIZE + 1]);
+    let zip_data = vec![0u8; MAX_ADDON_ARCHIVE_COMPRESSED_SIZE + 1];
+    // Verify the service's size guard separately; HTTP must not expose its
+    // diagnostic text or reject this body at axum's smaller default limit.
+    let service_error = extract_addon_zip_internal(zip_data.clone())
+        .err()
+        .expect("the service must reject an oversized archive");
+    assert!(service_error.contains("ZIP addon is too large"));
+    let zip_data_b64 = BASE64.encode(zip_data);
     let body = format!(r#"{{"zipDataB64":"{zip_data_b64}"}}"#);
 
     for uri in ["/api/v1/addons/extract", "/api/v1/addons/install-zip"] {
         let (status, message) = post_json(&app, uri, body.clone()).await;
-        assert!(
-            message.contains("ZIP addon is too large"),
-            "{uri} returned {status}: {message}"
+        assert_eq!(
+            status,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "{uri}: {message}"
         );
+        let error: serde_json::Value = serde_json::from_str(&message).unwrap();
+        assert_eq!(error["code"], 500);
+        assert_eq!(error["errorCode"], "internal_error");
+        assert_eq!(error["message"], "The operation could not be completed.");
+        assert!(!message.contains(&service_error));
     }
 }
 

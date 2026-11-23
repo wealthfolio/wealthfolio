@@ -1,4 +1,4 @@
-use crate::activities::IncomeData;
+use crate::activities::{IncomeData, ACTIVITY_TYPE_DIVIDEND};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
@@ -10,7 +10,10 @@ pub struct IncomeByAsset {
     pub kind: String,
     pub symbol: String,
     pub name: String,
+    /// Income of every type.
     pub income: Decimal,
+    /// The part of `income` that is dividends.
+    pub dividend_income: Decimal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,16 +77,21 @@ impl IncomeSummary {
             .by_type
             .entry(data.income_type.clone())
             .or_insert_with(|| Decimal::ZERO) += &converted_amount;
-        self.by_asset
+        let asset = self
+            .by_asset
             .entry(data.asset_id.clone())
-            .and_modify(|entry| entry.income += converted_amount)
             .or_insert_with(|| IncomeByAsset {
                 asset_id: data.asset_id.clone(),
                 kind: data.asset_kind.clone(),
                 symbol: data.symbol.clone(),
                 name: data.symbol_name.clone(),
-                income: converted_amount,
+                income: Decimal::ZERO,
+                dividend_income: Decimal::ZERO,
             });
+        asset.income += converted_amount;
+        if data.income_type == ACTIVITY_TYPE_DIVIDEND {
+            asset.dividend_income += converted_amount;
+        }
         *self
             .by_currency
             .entry(data.currency.clone())

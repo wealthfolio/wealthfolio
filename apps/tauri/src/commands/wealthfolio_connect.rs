@@ -140,18 +140,11 @@ pub(crate) async fn run_broker_bootstrap(
     app: AppHandle,
     context: Arc<ServiceContext>,
 ) -> PostLoginBootstrapSyncResult {
-    let entitlement_context = Arc::clone(&context);
     let connections_context = Arc::clone(&context);
     let guard_context = Arc::clone(&context);
 
     let decision = prepare_post_login_broker_bootstrap(
         true,
-        move || async move {
-            entitlement_context
-                .connect_service()
-                .has_broker_sync()
-                .await
-        },
         move || async move {
             let client = connections_context
                 .connect_service()
@@ -163,8 +156,8 @@ pub(crate) async fn run_broker_bootstrap(
     )
     .await;
 
-    let guard = match decision {
-        PostLoginBrokerBootstrapDecision::Start(guard) => guard,
+    let (guard, connections) = match decision {
+        PostLoginBrokerBootstrapDecision::Start(guard, connections) => (guard, connections),
         PostLoginBrokerBootstrapDecision::Skip(reason) => {
             return PostLoginBootstrapSyncResult::skipped(reason);
         }
@@ -172,7 +165,9 @@ pub(crate) async fn run_broker_bootstrap(
 
     let app_handle = app.clone();
     tauri::async_runtime::spawn(async move {
-        match perform_broker_sync_with_guard(&context, Some(&app_handle), guard).await {
+        match perform_broker_sync_with_guard(&context, Some(&app_handle), guard, Some(connections))
+            .await
+        {
             Ok(_result) => {
                 debug!("[Connect] Broker bootstrap sync completed successfully");
             }
@@ -357,39 +352,18 @@ mod tests {
 
     #[cfg(feature = "connect-sync")]
     #[tokio::test]
-    async fn broker_preflight_no_entitlement_skips_without_listing_connections() {
+    async fn broker_preflight_server_denial_skips_without_starting() {
         let list_calls = Arc::new(AtomicUsize::new(0));
-
+        let start_calls = Arc::new(AtomicUsize::new(0));
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(false) },
             {
                 let list_calls = Arc::clone(&list_calls);
                 move || async move {
                     list_calls.fetch_add(1, Ordering::SeqCst);
-                    Ok(vec![broker_connection(Some("connected"), false)])
+                    Err("API error 403: SUBSCRIPTION_CANCELED".to_string())
                 }
             },
-            || Some(()),
-        )
-        .await;
-
-        assert!(matches!(
-            decision,
-            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NotEntitled)
-        ));
-        assert_eq!(list_calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[cfg(feature = "connect-sync")]
-    #[tokio::test]
-    async fn broker_preflight_zero_connections_skips_without_starting() {
-        let start_calls = Arc::new(AtomicUsize::new(0));
-
-        let decision = prepare_post_login_broker_bootstrap(
-            true,
-            || async { Ok(true) },
-            || async { Ok(vec![]) },
             {
                 let start_calls = Arc::clone(&start_calls);
                 move || {
@@ -398,6 +372,27 @@ mod tests {
                 }
             },
         )
+        .await;
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NotEntitled)
+        ));
+        assert_eq!(list_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(start_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[cfg(feature = "connect-sync")]
+    #[tokio::test]
+    async fn broker_preflight_zero_connections_skips_without_starting() {
+        let start_calls = Arc::new(AtomicUsize::new(0));
+
+        let decision = prepare_post_login_broker_bootstrap(true, || async { Ok(vec![]) }, {
+            let start_calls = Arc::clone(&start_calls);
+            move || {
+                start_calls.fetch_add(1, Ordering::SeqCst);
+                Some(())
+            }
+        })
         .await;
 
         assert!(matches!(
@@ -412,7 +407,6 @@ mod tests {
     async fn broker_preflight_requires_active_usable_connection() {
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(true) },
             || async {
                 Ok(vec![
                     broker_connection(Some("disconnected"), false),
@@ -435,7 +429,6 @@ mod tests {
     async fn broker_preflight_active_connection_starts() {
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(true) },
             || async { Ok(vec![broker_connection(Some("connected"), false)]) },
             || Some("guard"),
         )
@@ -443,7 +436,7 @@ mod tests {
 
         assert!(matches!(
             decision,
-            PostLoginBrokerBootstrapDecision::Start("guard")
+            PostLoginBrokerBootstrapDecision::Start("guard", _)
         ));
     }
 
@@ -452,7 +445,6 @@ mod tests {
     async fn broker_preflight_already_running_skips() {
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(true) },
             || async { Ok(vec![broker_connection(Some("connected"), false)]) },
             || None::<()>,
         )

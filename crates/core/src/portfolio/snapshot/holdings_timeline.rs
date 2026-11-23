@@ -140,6 +140,7 @@ mod tests {
             cash_total_account_currency: Decimal::ZERO,
             cash_total_base_currency: Decimal::ZERO,
             calculated_at: Utc::now().naive_utc(),
+            base_currency: None,
             source: SnapshotSource::ManualEntry,
         }
     }

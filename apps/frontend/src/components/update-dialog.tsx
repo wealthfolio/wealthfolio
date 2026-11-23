@@ -1,4 +1,10 @@
-import { useDateFormatting, type FormattingApi, Spinner } from "@wealthfolio/ui";
+import type { NumberFormatting } from "@wealthfolio/ui";
+import {
+  useDateFormatting,
+  type FormattingApi,
+  Spinner,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import type { TFunction } from "i18next";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -31,10 +37,11 @@ interface DismissedUpdate {
 
 const SNOOZE_DURATION_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function formatBytes(bytes: number, numbers: NumberFormatting): string {
+  if (bytes < 1024) return `${numbers.formatDecimal(bytes)} B`;
+  if (bytes < 1024 * 1024)
+    return `${numbers.formatDecimal(bytes / 1024, { maximumFractionDigits: 0 })} KB`;
+  return `${numbers.formatDecimal(bytes / (1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
 }
 
 function isDismissed(dismissed: DismissedUpdate | null, version: string): boolean {
@@ -76,6 +83,7 @@ function externalUpdateMessage(source: ExternalUpdateSource, t: TFunction): stri
 export function UpdateDialog() {
   const formatting = useDateFormatting();
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const { data: updateInfo } = useCheckUpdateOnStartup();
   const clearUpdate = useClearUpdate();
   const [isOpen, setIsOpen] = useState(false);
@@ -256,8 +264,8 @@ export function UpdateDialog() {
                     </span>
                     <span className="text-muted-foreground tabular-nums">
                       {progress.total
-                        ? `${formatBytes(progress.downloaded)} / ${formatBytes(progress.total)}`
-                        : formatBytes(progress.downloaded)}
+                        ? `${formatBytes(progress.downloaded, numbers)} / ${formatBytes(progress.total, numbers)}`
+                        : formatBytes(progress.downloaded, numbers)}
                     </span>
                   </div>
                   <Progress

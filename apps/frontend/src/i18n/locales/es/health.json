@@ -6,6 +6,12 @@
       "title_many": "Faltan valoraciones manuales de {{count}} posiciones",
       "message": "Las posiciones manuales o personalizadas necesitan una valoración manual antes de poder incluirse como posiciones de rendimiento valoradas."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Valoración sin actualizar de {{name}}",
+      "title_other": "Valoraciones sin actualizar de {{count}} activos",
+      "title_many": "Valoraciones sin actualizar de {{count}} activos",
+      "message": "Algunos activos valorados manualmente no se han actualizado en más de {{days}} días, por lo que tu patrimonio neto puede estar desactualizado."
+    },
     "price_no_market_data": {
       "title_one": "Sin datos de mercado para {{symbol}}",
       "title_other": "Sin datos de mercado para {{count}} posiciones",
@@ -187,6 +193,12 @@
       "title_other": "Los tipos de cambio no coinciden en {{count}} pares de monedas",
       "title_many": "Los tipos de cambio no coinciden en {{count}} pares de monedas",
       "message": "Hay tipos registrados en ambos sentidos para los mismos días y no coinciden. Cada sentido se usa tal como está registrado, así que convertir en un sentido y volver da un importe distinto. Corrige o elimina los tipos incorrectos."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "Vencimiento de opción no vinculado a su contrato",
+      "title_other": "{{count}} vencimientos de opciones no vinculados a sus contratos",
+      "title_many": "{{count}} vencimientos de opciones no vinculados a sus contratos",
+      "message": "Estos vencimientos de opciones indican la acción subyacente en lugar del contrato de opción, por lo que el contrato sigue abierto y su ganancia o pérdida no se registra. Vincule cada vencimiento al contrato que venció."
     }
   },
   "page": {
@@ -226,8 +238,10 @@
     "rebuild_account_history": "Reconstruir historial",
     "add_price": "Añadir precio",
     "update_cost_basis": "Actualizar base de coste",
+    "update_value": "Actualizar valor",
     "review_transaction": "Revisar transacción",
-    "review_entry": "Revisar entrada"
+    "review_entry": "Revisar entrada",
+    "match_option_expiry_contracts": "Usar los contratos encontrados"
   },
   "updatedAt": "Actualizado {{time}}",
   "healthy": {
@@ -309,5 +323,18 @@
     "affectedItems_one": "Elemento afectado ({{count}})",
     "affectedItems_other": "Elementos afectados ({{count}})",
     "affectedItems_many": "Elementos afectados ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Actividad: {{id}}",
+    "missing_fx_rate": "No hay un tipo de cambio de {{from}} a {{to}} disponible para el {{date}}.",
+    "close_buy_without_short_position": "Esta compra está marcada para cerrar una posición en {{asset}}, pero no hay ninguna posición corta que cerrar.",
+    "sell_short_intent_required": "Esta venta aumentaría la posición corta en {{asset}}. Márquela como venta en corto.",
+    "conversion_insufficient_holdings": "Esta conversión requiere {{requested}} unidades de {{asset}}, pero la cuenta solo tiene {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} se mantiene en {{fromCurrency}} y {{toAsset}} en {{toCurrency}}. Una conversión debe conservar la misma divisa.",
+    "return_of_capital_amount_required": "Introduzca un importe para esta devolución de capital.",
+    "sell_without_position": "No hay ninguna posición en {{asset}} que vender. Solo se aplicó el efecto en el efectivo.",
+    "insufficient_quantity": "Esta transacción retira {{requested}} unidades de {{asset}}, pero solo había {{held}}. Las {{excess}} unidades restantes no tienen base de coste.",
+    "missing_final_cash": "Esta transacción contabilizada no tiene un importe final en efectivo, por lo que no modificó el saldo de efectivo.",
+    "option_expiry_not_option": "Este vencimiento de opción indica {{asset}}, que no es un contrato de opción, por lo que no cambió nada. Vincúlelo al contrato que venció."
   }
 }

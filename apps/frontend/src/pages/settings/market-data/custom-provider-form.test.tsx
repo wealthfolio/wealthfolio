@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
+import { createInstance } from "i18next";
+import { I18nextProvider } from "react-i18next";
+import en from "@/i18n/locales/en/common.json";
+import fr from "@/i18n/locales/fr/common.json";
+import ar from "@/i18n/locales/ar/common.json";
+import enSettings from "@/i18n/locales/en/settings.json";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -57,6 +63,54 @@ describe("CustomProviderForm", () => {
     updateProvider.mockReset();
     testSource.mockReset();
   });
+
+  it.each(["fetch", "verification"])(
+    "translates retained %s transport failures when the language changes",
+    async (flow) => {
+      const i18n = createInstance();
+      await i18n.init({
+        lng: "en",
+        fallbackLng: "en",
+        resources: {
+          en: { common: en, settings: enSettings },
+          fr: { common: fr },
+          ar: { common: ar },
+        },
+      });
+      const failure = {
+        success: false,
+        errorCode: "provider_unavailable",
+        error: "FAKE-KEY-2531 /private/portfolio.db",
+      };
+      testSource.mockImplementation((_request, callbacks) => callbacks.onSuccess(failure));
+      if (flow === "verification") {
+        testSource.mockImplementationOnce((_request, callbacks) =>
+          callbacks.onSuccess({ success: true, rawResponse: '{"price":42}' }),
+        );
+      }
+      render(
+        <I18nextProvider i18n={i18n}>
+          <CustomProviderForm open onOpenChange={vi.fn()} />
+        </I18nextProvider>,
+      );
+      setInputValue(screen.getByLabelText(/url template/i), "https://example.test/quotes");
+      setInputValue(screen.getByPlaceholderText("e.g. AAPL"), "AAPL");
+      fireEvent.click(screen.getByRole("button", { name: /^fetch$/i }));
+      if (flow === "verification") {
+        fireEvent.click((await screen.findByText('"price"')).closest('[role="button"]')!);
+        await waitFor(() => expect(testSource).toHaveBeenCalledTimes(2));
+      }
+      expect(await screen.findByText(en.backendErrors.providerUnavailable)).toBeInTheDocument();
+      await act(() => i18n.changeLanguage("fr"));
+      expect(screen.getByText(fr.backendErrors.providerUnavailable)).toBeInTheDocument();
+      await act(() => i18n.changeLanguage("ar"));
+      expect(i18n.dir()).toBe("rtl");
+      expect(screen.getByText(ar.backendErrors.providerUnavailable)).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain("FAKE-KEY");
+      expect(document.body.textContent).not.toContain("/private");
+      expect(testSource).toHaveBeenCalledTimes(flow === "fetch" ? 1 : 2);
+    },
+  );
 
   it("keeps latest and historical source values separate while switching tabs", async () => {
     const user = userEvent.setup();

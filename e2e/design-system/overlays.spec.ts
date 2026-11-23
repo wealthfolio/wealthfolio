@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { containsFocus, navigate, nextFrames, openGallery, overlays } from "./gallery";
+import {
+  containsFocus,
+  navigate,
+  nextFrames,
+  openGallery,
+  overlays,
+  recordMotion,
+  settle,
+} from "./gallery";
 
 // Behaviour every overlay must keep when its primitive changes: how it opens from the
 // keyboard, where focus goes and comes back to, and what closes it.
@@ -222,23 +230,37 @@ test("select inside a sheet: choosing keeps the sheet open", async ({ page }) =>
   await expect(sheet).toBeVisible();
 });
 
-test("overlays open without motion when the system asks for reduced motion", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+test("overlays fade in place when the system asks for reduced motion", async ({ page }) => {
   await openGallery(page);
+  const motion = await recordMotion(page);
+  // Without the setting the dialog zooms, so the probe sees movement.
+  await overlay("dialog").open(page);
+  await expect(overlay("dialog").content(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(overlay("dialog").content(page)).toBeHidden();
+  expect((await motion()).some((record) => record.moved > 0.5)).toBe(true);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
   for (const name of ["dialog", "sheet", "bottom-sheet", "popover", "menu"]) {
     const item = overlay(name);
     await item.open(page);
     await expect(item.content(page)).toBeVisible();
-    // Animations still run, so code waiting for them finishes, but they last
-    // no time; a slide or zoom would still be running here.
-    const durations = await page.evaluate(() =>
-      document.getAnimations().map((animation) => Number(animation.effect?.getTiming().duration)),
-    );
-    expect(
-      durations.filter((duration) => duration > 1),
-      name,
-    ).toEqual([]);
+    const role = await item.content(page).getAttribute("role");
+    // A transition starts a frame after the overlay mounts at opacity 0;
+    // closing earlier would skip it.
+    await nextFrames(page);
+    await settle(page);
     await page.keyboard.press("Escape");
     await expect(item.content(page)).toBeHidden();
+    const records = await motion();
+    expect(
+      records.filter((record) => record.moved > 0.5),
+      name,
+    ).toEqual([]);
+    // The panel itself fades, not only its backdrop.
+    expect(
+      records.some((record) => record.faded && record.element === role),
+      `${name} fades`,
+    ).toBe(true);
   }
 });

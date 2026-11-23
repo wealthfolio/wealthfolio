@@ -5,7 +5,7 @@
 // =========================================================================
 
 import { useProfile } from "@/features/profiles/profile-context";
-import { Icons, Spinner } from "@wealthfolio/ui";
+import { Icons, Spinner, useDateFormatting } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 import { useId, useState, type ReactNode } from "react";
@@ -36,7 +36,8 @@ export function RestoreOperationView({
   onClose,
   onDone,
 }: RestoreOperationViewProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const dates = useDateFormatting();
   const backupId = useId();
   const profileName = useProfile()?.profile?.name;
   // Backing up first is the safe default for a destructive replacement.
@@ -80,7 +81,7 @@ export function RestoreOperationView({
   const copiedAt = operation.snapshot ? new Date(operation.snapshot.createdAt) : null;
   const copiedAtLabel =
     copiedAt && !Number.isNaN(copiedAt.getTime())
-      ? copiedAt.toLocaleString(i18n.resolvedLanguage, { dateStyle: "medium", timeStyle: "short" })
+      ? dates.formatDateTime(copiedAt, { dateStyle: "medium", timeStyle: "short" })
       : null;
   const header = (() => {
     switch (phase) {

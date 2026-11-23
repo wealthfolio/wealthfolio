@@ -1024,6 +1024,9 @@ mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let converted = NewActivity::from(import);
@@ -1075,12 +1078,62 @@ mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let converted = NewActivity::from(import);
         let metadata = converted.metadata.expect("metadata should be set");
         let parsed: serde_json::Value = serde_json::from_str(&metadata).unwrap();
         assert_eq!(parsed["flow"]["is_external"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn test_activity_import_charges_reach_metadata_beside_the_flow() {
+        // An add-on sends the lines as JSON; they land beside the boundary flag.
+        let import: ActivityImport = serde_json::from_value(serde_json::json!({
+            "date": "2024-01-15",
+            "symbol": "",
+            "activityType": "TRANSFER_IN",
+            "currency": "USD",
+            "amount": 100,
+            "fee": 1.5,
+            "isDraft": false,
+            "isValid": true,
+            "isExternal": true,
+            "charges": [{ "category": "fee", "label": "Wire fee", "amount": "1.5" }],
+        }))
+        .expect("import row should parse");
+
+        let converted = NewActivity::from(import);
+        let metadata: serde_json::Value =
+            serde_json::from_str(&converted.metadata.expect("metadata should be set")).unwrap();
+        assert_eq!(
+            metadata["flow"]["is_external"],
+            serde_json::Value::Bool(true)
+        );
+        assert_eq!(
+            metadata["charges"],
+            serde_json::json!([{ "category": "fee", "label": "Wire fee", "amount": "1.5" }])
+        );
+    }
+
+    #[test]
+    fn test_activity_import_charge_errors_do_not_include_input_values() {
+        for line in [
+            serde_json::json!({"category": "fee", "label": "Private label", "amount": "123.45invalid"}),
+            serde_json::json!({"category": "fee", "label": 123.45, "amount": "1"}),
+            serde_json::json!({"category": "Private category", "label": "Private label", "amount": "1"}),
+        ] {
+            let error = serde_json::from_value::<ActivityImport>(serde_json::json!({
+                "date": "2024-01-15", "symbol": "", "activityType": "WITHDRAWAL",
+                "currency": "USD", "amount": 100, "isDraft": false, "isValid": true,
+                "charges": [line],
+            }))
+            .unwrap_err();
+            assert_eq!(error.to_string(), "Invalid fee and tax lines");
+        }
     }
 
     #[test]
@@ -1121,6 +1174,9 @@ mod tests {
                 force_import: false,
                 is_external: Some(is_external),
                 source_group_id: None,
+                charges: None,
+                source_record_id: None,
+                metadata: None,
             };
 
             let converted = NewActivity::from(import);
@@ -1171,6 +1227,9 @@ mod tests {
             force_import: false,
             is_external: Some(false),
             source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());
@@ -1213,8 +1272,73 @@ mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());
+    }
+
+    #[test]
+    fn test_activity_import_to_new_activity_keeps_source_record_id_and_metadata() {
+        let import: ActivityImport = serde_json::from_value(serde_json::json!({
+            "date": "2024-01-15",
+            "symbol": "AAPL",
+            "activityType": "TRANSFER_IN",
+            "quantity": 10,
+            "currency": "USD",
+            "fee": 1,
+            "accountId": "acc-1",
+            "isDraft": false,
+            "isValid": true,
+            "isExternal": true,
+            "sourceRecordId": "  stmt-7  ",
+            "metadata": {
+                "addons": { "statement-importer": { "folio": "123" } },
+                "flow": { "is_external": false },
+                "charges": [{ "category": "tax", "label": "Stamp duty", "amount": 5 }]
+            },
+            "charges": [{ "category": "fee", "label": "Commission", "amount": 1 }]
+        }))
+        .unwrap();
+
+        let converted = NewActivity::from(import);
+        assert_eq!(converted.source_system.as_deref(), Some("CSV"));
+        assert_eq!(converted.source_record_id.as_deref(), Some("stmt-7"));
+        let metadata: serde_json::Value =
+            serde_json::from_str(&converted.metadata.unwrap()).unwrap();
+        assert_eq!(
+            metadata["addons"],
+            serde_json::json!({ "statement-importer": { "folio": "123" } })
+        );
+        assert_eq!(metadata["flow"], serde_json::json!({ "is_external": true }));
+        assert_eq!(metadata["charges"].as_array().unwrap().len(), 1);
+        assert_eq!(metadata["charges"][0]["label"], "Commission");
+    }
+
+    #[test]
+    fn test_activity_import_metadata_cannot_set_flow_or_charges() {
+        let import: ActivityImport = serde_json::from_value(serde_json::json!({
+            "date": "2024-01-15",
+            "symbol": "AAPL",
+            "activityType": "BUY",
+            "quantity": 10,
+            "unitPrice": 150,
+            "currency": "USD",
+            "accountId": "acc-1",
+            "isDraft": false,
+            "isValid": true,
+            "sourceRecordId": "   ",
+            "metadata": {
+                "flow": { "is_external": true },
+                "charges": [{ "category": "fee", "label": "Commission", "amount": 1 }]
+            }
+        }))
+        .unwrap();
+
+        let converted = NewActivity::from(import);
+        assert!(converted.source_record_id.is_none());
+        assert!(converted.metadata.is_none());
     }
 }

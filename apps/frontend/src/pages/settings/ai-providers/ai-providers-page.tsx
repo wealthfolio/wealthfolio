@@ -22,6 +22,7 @@ import type {
   ProviderTuningOverrides,
 } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { backendErrorText } from "@/lib/backend-error";
 
 /**
  * AI Providers settings page - configure AI provider API keys and preferences.
@@ -126,7 +127,7 @@ export default function AiProvidersPage() {
             {t("settings:ai_providers_load_error")}
           </AlertTitle>
           <AlertDescription>
-            {error.message}
+            {backendErrorText(error, t)}
             <div className="mt-4">
               <Button
                 variant="outline"
@@ -227,6 +228,7 @@ function ProviderSettingsCardWrapper({
   onToolsAllowlistChange: (tools: string[] | null) => void;
   onTuningOverridesChange: (overrides: ProviderTuningOverrides | null) => void;
 }) {
+  const { t } = useTranslation();
   const { setApiKey, deleteApiKey, revealApiKey } = useAiProviderApiKey(provider.id);
   const [modelComboboxOpen, setModelComboboxOpen] = useState(false);
 
@@ -263,7 +265,7 @@ function ProviderSettingsCardWrapper({
       onModelComboboxOpenChange={setModelComboboxOpen}
       fetchedModels={fetchedModels}
       isFetchingModels={isFetchingModels}
-      fetchModelsError={fetchModelsError?.message ?? null}
+      fetchModelsError={fetchModelsError ? backendErrorText(fetchModelsError, t) : null}
       onRefreshModels={() => refetchModels()}
     />
   );

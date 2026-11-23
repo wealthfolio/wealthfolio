@@ -5,7 +5,7 @@
 
 use diesel::result::Error as DieselError;
 use thiserror::Error;
-use wealthfolio_core::errors::{DatabaseError, Error};
+use wealthfolio_core::errors::{DatabaseError, Error, ValidationError};
 
 /// Storage-specific errors that wrap Diesel and r2d2 types.
 ///
@@ -61,6 +61,11 @@ impl From<StorageError> for Error {
             )) => Error::Database(DatabaseError::ForeignKeyViolation(
                 info.message().to_string(),
             )),
+            StorageError::QueryFailed(DieselError::DatabaseError(
+                diesel::result::DatabaseErrorKind::CheckViolation
+                | diesel::result::DatabaseErrorKind::NotNullViolation,
+                info,
+            )) => Error::Validation(ValidationError::InvalidInput(info.message().to_string())),
             StorageError::QueryFailed(e) => {
                 Error::Database(DatabaseError::QueryFailed(e.to_string()))
             }
@@ -127,5 +132,27 @@ impl<T> IntoCore<T> for std::result::Result<T, DieselError> {
 impl<T> IntoCore<T> for std::result::Result<T, r2d2::Error> {
     fn into_core(self) -> wealthfolio_core::Result<T> {
         self.map_err(|e| StorageError::from(e).into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn input_constraint_violations_are_validation_errors() {
+        use diesel::result::DatabaseErrorKind::{CheckViolation, NotNullViolation};
+
+        for kind in [CheckViolation, NotNullViolation] {
+            let error: Error = StorageError::QueryFailed(DieselError::DatabaseError(
+                kind,
+                Box::new("invalid value".to_string()),
+            ))
+            .into();
+            assert!(matches!(
+                error,
+                Error::Validation(ValidationError::InvalidInput(message)) if message == "invalid value"
+            ));
+        }
     }
 }

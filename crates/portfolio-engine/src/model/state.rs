@@ -300,6 +300,11 @@ pub struct LotDisposal {
     pub cost_basis_base: Decimal,
     #[serde(with = "crate::model::decimal_serde")]
     pub realized_pnl_base: Decimal,
+    /// Availability is independent of the stored numeric value: zero is a valid amount.
+    #[serde(default)]
+    pub proceeds_base_known: bool,
+    #[serde(default)]
+    pub cost_basis_base_known: bool,
     pub currency: Currency,
     #[serde(with = "crate::model::decimal_serde")]
     pub fx_rate_to_base: Decimal,

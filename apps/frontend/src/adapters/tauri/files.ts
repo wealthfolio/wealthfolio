@@ -8,7 +8,7 @@ import {
   stopAccessingSecurityScopedResource,
 } from "@tauri-apps/plugin-fs";
 
-import { invoke } from "./core";
+import { invoke, tauriInvoke } from "./core";
 
 interface PendingExport {
   relativePath: string;
@@ -31,7 +31,7 @@ const isMobileUserAgent = (): boolean => {
   return /android|iphone|ipad|ipod/.test(userAgent);
 };
 
-const isMobileRuntime = async (): Promise<boolean> => {
+export const isMobileRuntime = async (): Promise<boolean> => {
   try {
     const platform = await invoke<{ is_mobile?: boolean; os: string }>("get_platform");
     return platform.is_mobile ?? (platform.os === "ios" || platform.os === "android");
@@ -45,7 +45,7 @@ const fileExtension = (fileName: string): string | null => {
   return extension && extension !== fileName ? extension : null;
 };
 
-const toBase64 = (bytes: Uint8Array): string => {
+export const toBase64 = (bytes: Uint8Array): string => {
   let binary = "";
   const chunkSize = 0x8000;
 
@@ -188,7 +188,9 @@ export const openFileSaveDialog = async (
       return saveAppDataFileViaPicker(relativePath, filename);
     }
 
-    return invoke<boolean>("save_text_file_with_dialog", {
+    // The command includes a user-controlled native dialog, so it cannot use
+    // a request deadline. Profile admission still goes through tauriInvoke.
+    return tauriInvoke<boolean>("save_text_file_with_dialog", {
       fileName,
       content: fileContent,
     });
@@ -211,7 +213,7 @@ export const openFileSaveDialog = async (
     return saveAppDataFileViaPicker(relativePath, filename);
   }
 
-  return invoke<boolean>("save_file_with_dialog", {
+  return tauriInvoke<boolean>("save_file_with_dialog", {
     fileName,
     contentBase64,
   });

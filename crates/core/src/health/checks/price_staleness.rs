@@ -14,6 +14,7 @@ use crate::health::model::{
     HealthEntityRef, HealthIssue, NavigateAction, Severity,
 };
 use crate::health::traits::{HealthCheck, HealthContext};
+use crate::portfolio::net_worth::{StaleAssetInfo, STALENESS_THRESHOLD_DAYS};
 use crate::utils::time_utils;
 
 /// Data about an asset holding for staleness checks.
@@ -145,7 +146,7 @@ impl PriceStalenessCheck {
                         "Manual/custom holdings need a manual valuation before they can be included as valued performance positions.",
                     )
                     .affected_count(count as u32)
-                    .affected_mv_pct(0.0)
+                    .affected_mv_pct(None)
                     .affected_items(affected_items)
                     .diagnostics(vec![price_diagnostic(
                         &manual_without_value,
@@ -196,14 +197,10 @@ impl PriceStalenessCheck {
 
         // Emit error-level issue for critically stale assets
         if !error_assets.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                error_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = ctx.affected_mv_pct(error_mv);
 
             // Escalate to Critical if MV% exceeds threshold
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Error
@@ -311,14 +308,10 @@ impl PriceStalenessCheck {
 
         // Emit warning-level issue for slightly stale assets
         if !warning_assets.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                warning_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = ctx.affected_mv_pct(warning_mv);
 
             // Escalate to Critical if MV% exceeds threshold
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Warning
@@ -374,6 +367,118 @@ impl PriceStalenessCheck {
         }
 
         issues
+    }
+
+    /// Reports manually valued assets whose latest value is older than Net
+    /// worth's staleness threshold. The caller passes Net worth's stale list,
+    /// already narrowed to manually priced assets. The issue identity is each
+    /// asset with the date of its last value, not its age, so a dismissal holds
+    /// as days pass and ends when an asset joins or leaves the list or gets a
+    /// new value that later goes stale again.
+    pub fn analyze_stale_manual_valuations(
+        &self,
+        stale_valuations: &[StaleAssetInfo],
+    ) -> Vec<HealthIssue> {
+        let Some(first) = stale_valuations.first() else {
+            return Vec::new();
+        };
+        let count = stale_valuations.len();
+        let label =
+            |asset: &StaleAssetInfo| asset.name.clone().unwrap_or_else(|| asset.asset_id.clone());
+        let valued_assets: Vec<String> = stale_valuations
+            .iter()
+            .map(|asset| format!("{}@{}", asset.asset_id, asset.valuation_date))
+            .collect();
+        let data_hash = compute_data_hash(&valued_assets, Severity::Warning, 0.0);
+
+        let mut diagnostic = HealthDiagnostic::new(
+            "STALE_MANUAL_VALUATION",
+            "Valuation not updated",
+            format!(
+                "These values were entered by hand and haven't been updated in over \
+                 {STALENESS_THRESHOLD_DAYS} days, so net worth may not reflect what they are \
+                 worth today."
+            ),
+        )
+        .domain(DiagnosticDomain::MarketData)
+        // The issue id comes from its diagnostics' fingerprints, which by
+        // default cover only the assets; add the value dates.
+        .fingerprint(data_hash.clone());
+        for asset in stale_valuations {
+            let route = format!(
+                "/holdings/{}?tab=history",
+                urlencoding::encode(&asset.asset_id)
+            );
+            diagnostic = diagnostic
+                .entity(
+                    HealthEntityRef::new("asset", asset.asset_id.clone())
+                        .label(label(asset))
+                        .route(route.clone()),
+                )
+                .evidence(
+                    Evidence::new(
+                        label(asset),
+                        format!(
+                            "last valued {} · {} days ago",
+                            asset.valuation_date, asset.days_stale
+                        ),
+                    )
+                    .with_route(route),
+                );
+        }
+        if let [single] = stale_valuations {
+            diagnostic = diagnostic.navigate(
+                true,
+                NavigateAction::to_asset_valuations(single.asset_id.clone()),
+            );
+        }
+
+        let title = if count == 1 {
+            format!("Valuation not updated for {}", label(first))
+        } else {
+            format!("Valuations not updated for {count} assets")
+        };
+        let details = stale_valuations
+            .iter()
+            .take(5)
+            .enumerate()
+            .map(|(index, asset)| {
+                format!(
+                    "{}. {} - {} days ago",
+                    index + 1,
+                    label(asset),
+                    asset.days_stale
+                )
+            })
+            .chain((count > 5).then(|| format!("... and {} more", count - 5)))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        vec![HealthIssue::builder()
+            .id(format!("manual_valuation:stale:{data_hash}"))
+            .severity(Severity::Warning)
+            .category(HealthCategory::PriceStaleness)
+            .code("price_manual_valuation_stale")
+            .param("count", count as u32)
+            .param("name", label(first))
+            .param("days", STALENESS_THRESHOLD_DAYS)
+            .title(title)
+            .message(format!(
+                "Some manually valued assets haven't been updated in over \
+                 {STALENESS_THRESHOLD_DAYS} days, so your net worth may be out of date."
+            ))
+            .affected_count(count as u32)
+            .affected_mv_pct(None)
+            .affected_items(
+                stale_valuations
+                    .iter()
+                    .map(|asset| AffectedItem::asset_with_name(&asset.asset_id, label(asset), None))
+                    .collect(),
+            )
+            .diagnostics(vec![diagnostic])
+            .details(details)
+            .data_hash(data_hash)
+            .build()]
     }
 }
 
@@ -512,7 +617,11 @@ impl HealthCheck for PriceStalenessCheck {
 }
 
 /// Computes a data hash for issue identity and change detection.
-fn compute_data_hash(asset_ids: &[String], severity: Severity, mv_pct: f64) -> String {
+fn compute_data_hash(
+    asset_ids: &[String],
+    severity: Severity,
+    mv_pct: impl Into<Option<f64>>,
+) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -523,7 +632,10 @@ fn compute_data_hash(asset_ids: &[String], severity: Severity, mv_pct: f64) -> S
         id.hash(&mut hasher);
     }
     severity.as_str().hash(&mut hasher);
-    ((mv_pct * 100.0) as u32).hash(&mut hasher);
+    match mv_pct.into() {
+        Some(pct) => ((pct * 100.0) as u32).hash(&mut hasher),
+        None => "unknown".hash(&mut hasher),
+    }
 
     format!("{:x}", hasher.finish())
 }
@@ -865,5 +977,84 @@ mod tests {
         let issues = check.analyze(&holdings, &quote_times, &ctx);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].severity, Severity::Error);
+    }
+
+    fn stale_valuation(asset_id: &str, name: Option<&str>, days_stale: i64) -> StaleAssetInfo {
+        StaleAssetInfo {
+            asset_id: asset_id.to_string(),
+            name: name.map(str::to_string),
+            valuation_date: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            days_stale,
+        }
+    }
+
+    fn primary_navigate(issue: &HealthIssue) -> Option<NavigateAction> {
+        issue.diagnostics.as_ref()?.iter().find_map(|diagnostic| {
+            diagnostic
+                .actions
+                .iter()
+                .find_map(|action| match &action.action {
+                    crate::health::model::ActionRef::Navigate { action } => Some(action.clone()),
+                    _ => None,
+                })
+        })
+    }
+
+    #[test]
+    fn no_stale_manual_valuations_no_issue() {
+        assert!(PriceStalenessCheck::new()
+            .analyze_stale_manual_valuations(&[])
+            .is_empty());
+    }
+
+    #[test]
+    fn single_stale_manual_valuation_links_to_its_values() {
+        let issues = PriceStalenessCheck::new()
+            .analyze_stale_manual_valuations(&[stale_valuation("house", Some("Home"), 120)]);
+
+        assert_eq!(issues.len(), 1);
+        let issue = &issues[0];
+        assert_eq!(issue.code.as_deref(), Some("price_manual_valuation_stale"));
+        assert_eq!(issue.params["name"], "Home");
+        assert_eq!(issue.params["days"], STALENESS_THRESHOLD_DAYS);
+        assert!(issue.fix_action.is_none());
+        let navigate = primary_navigate(issue).expect("update value action");
+        assert_eq!(navigate.route, "/holdings/house");
+        assert_eq!(navigate.query.unwrap()["tab"], "history");
+    }
+
+    #[test]
+    fn stale_manual_valuations_hash_the_assets_not_their_age() {
+        let check = PriceStalenessCheck::new();
+        let today = check.analyze_stale_manual_valuations(&[
+            stale_valuation("house", Some("Home"), 120),
+            stale_valuation("car", None, 95),
+        ]);
+        let tomorrow = check.analyze_stale_manual_valuations(&[
+            stale_valuation("car", None, 96),
+            stale_valuation("house", Some("Home"), 121),
+        ]);
+
+        assert_eq!(today[0].id, tomorrow[0].id);
+        assert_eq!(today[0].data_hash, tomorrow[0].data_hash);
+        // A new value that goes stale again is a new issue.
+        let revalued = check.analyze_stale_manual_valuations(&[
+            StaleAssetInfo {
+                valuation_date: NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+                ..stale_valuation("house", Some("Home"), 95)
+            },
+            stale_valuation("car", None, 96),
+        ]);
+        assert_ne!(today[0].id, revalued[0].id);
+        assert_eq!(today[0].params["count"], 2);
+        // Several assets: each row links to its own values, with no single target.
+        assert!(primary_navigate(&today[0]).is_none());
+        // Without a name the asset id labels the row.
+        assert!(today[0]
+            .affected_items
+            .as_ref()
+            .unwrap()
+            .iter()
+            .any(|item| item.name == "car"));
     }
 }

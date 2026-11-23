@@ -8,6 +8,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@wealthfolio/ui/components/ui/sheet";
+import { AccountTypeIconTile, IconTile } from "@/components/account-type-icon";
 import { HOLDING_CATEGORY_FILTERS } from "@/lib/constants";
 import { Account, AccountScope, HoldingCategoryFilterId } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -75,10 +76,7 @@ export const HoldingsMobileFilterSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="flex h-[85vh] flex-col rounded-t-xl pb-[max(var(--inset-bottom),0.75rem)]"
-      >
+      <SheetContent side="bottom" className="flex h-[85vh] flex-col rounded-t-xl pb-3">
         <SheetHeader className="text-start">
           <SheetTitle>{t("holdings:display_options")}</SheetTitle>
         </SheetHeader>
@@ -207,11 +205,10 @@ export const HoldingsMobileFilterSheet = ({
                     )}
                     onClick={() => {
                       onAccountScopeChange({ type: "all" });
-                      onOpenChange(false);
                     }}
                   >
                     <span className="flex items-center gap-2">
-                      <Icons.Wallet className="text-muted-foreground h-4 w-4" />
+                      <IconTile icon={Icons.Wallet} />
                       {t("holdings:all_accounts")}
                     </span>
                     {accountFilter.type === "all" && (
@@ -230,11 +227,10 @@ export const HoldingsMobileFilterSheet = ({
                       )}
                       onClick={() => {
                         onAccountScopeChange({ type: "portfolio", portfolioId: portfolio.id });
-                        onOpenChange(false);
                       }}
                     >
                       <span className="flex items-center gap-2">
-                        <Icons.Folder className="text-muted-foreground h-4 w-4" />
+                        <IconTile icon={Icons.Folder} />
                         {portfolio.name}
                       </span>
                       {accountFilter.type === "portfolio" &&
@@ -254,11 +250,10 @@ export const HoldingsMobileFilterSheet = ({
                       )}
                       onClick={() => {
                         onAccountScopeChange({ type: "account", accountId: account.id });
-                        onOpenChange(false);
                       }}
                     >
                       <span className="flex items-center gap-2">
-                        <Icons.CreditCard className="text-muted-foreground h-4 w-4" />
+                        <AccountTypeIconTile accountType={account.accountType} />
                         {account.name}
                       </span>
                       {accountFilter.type === "account" &&
@@ -285,7 +280,6 @@ export const HoldingsMobileFilterSheet = ({
                     )}
                     onClick={() => {
                       setSelectedTypes([]);
-                      onOpenChange(false);
                     }}
                   >
                     <span>{t("holdings:all_types")}</span>

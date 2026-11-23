@@ -1,6 +1,6 @@
 use wealthfolio_core::assets::{AssetKind, NewAsset};
 use wealthfolio_core::errors::{DatabaseError, ValidationError};
-use wealthfolio_core::fx::{ExchangeRate, FxRepositoryTrait};
+use wealthfolio_core::fx::{ExchangeRate, FxError, FxRepositoryTrait};
 use wealthfolio_core::quotes::constants::DATA_SOURCE_MANUAL;
 use wealthfolio_core::quotes::Quote;
 use wealthfolio_core::{Error, Result};
@@ -172,29 +172,53 @@ impl FxRepository {
 
     pub fn get_all_historical_exchange_rates(&self) -> Result<Vec<ExchangeRate>> {
         let mut conn = get_connection(&self.pool)?;
+        Self::historical_rates_on_connection(&mut conn)
+    }
 
-        let results: Vec<(QuoteDB, AssetDB)> = quotes::table
+    pub(crate) fn historical_rates_on_connection(
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<ExchangeRate>> {
+        #[derive(Queryable)]
+        struct HistoricalRateRow {
+            asset_id: String,
+            from_currency: Option<String>,
+            to_currency: String,
+            rate: String,
+            source: String,
+            timestamp: String,
+        }
+
+        // Holdings capture the full FX history in their read transaction. Avoid
+        // decoding every quote and repeating the full asset row for each rate.
+        let results: Vec<HistoricalRateRow> = quotes::table
             .inner_join(assets::table.on(quotes::asset_id.eq(assets::id)))
             .filter(assets::kind.eq(AssetKind::Fx.as_db_str()))
-            .select((quotes::all_columns, assets::all_columns))
+            .select((
+                assets::id,
+                assets::instrument_symbol,
+                assets::quote_ccy,
+                quotes::close,
+                quotes::source,
+                quotes::timestamp,
+            ))
             .order_by((quotes::asset_id.asc(), quotes::timestamp.asc()))
-            .load(&mut conn)
+            .load(conn)
             .map_err(StorageError::from)?;
 
         Ok(results
             .into_iter()
-            .map(|(quote_db, asset_db)| {
-                let timestamp = chrono::DateTime::parse_from_rfc3339(&quote_db.timestamp)
+            .map(|row| {
+                let timestamp = chrono::DateTime::parse_from_rfc3339(&row.timestamp)
                     .map(|dt| dt.with_timezone(&Utc))
                     .unwrap_or_else(|_| Utc::now());
-                let rate = Decimal::from_str(&quote_db.close).unwrap_or(Decimal::ZERO);
+                let rate = Decimal::from_str(&row.rate).unwrap_or(Decimal::ZERO);
 
                 ExchangeRate {
-                    id: asset_db.id,
-                    from_currency: asset_db.instrument_symbol.unwrap_or_default(),
-                    to_currency: asset_db.quote_ccy,
+                    id: row.asset_id,
+                    from_currency: row.from_currency.unwrap_or_default(),
+                    to_currency: row.to_currency,
                     rate,
-                    source: quote_db.source.clone(),
+                    source: row.source,
                     timestamp,
                 }
             })
@@ -464,6 +488,17 @@ impl FxRepository {
                 if let Some(existing_asset) = existing {
                     Ok(existing_asset.id)
                 } else {
+                    // `new_fx_asset` stores the pair upper-cased, so a code in any
+                    // other case would be inserted under a different key than the
+                    // one looked up above and read back below (#2188). Pairs that
+                    // older versions stored as entered are found above.
+                    if let Some(code) = [&from_owned, &to_owned]
+                        .into_iter()
+                        .find(|code| code.to_uppercase() != **code)
+                    {
+                        return Err(FxError::InvalidCurrencyCode(code.clone()).into());
+                    }
+
                     let new_asset = NewAsset::new_fx_asset(&from_owned, &to_owned, &source_owned);
                     let asset_db: InsertableAssetDB = new_asset.into();
 

@@ -15,12 +15,13 @@ export const WIDGET_IDS = [
   "breakdown",
   "movers",
   "concentration",
+  "holdings",
 ] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
 export const GRID_COLUMNS = { desktop: 12, tablet: 6, mobile: 2 };
 export type LayoutBreakpoint = keyof typeof GRID_COLUMNS;
 export interface InsightsLayout {
-  version: 6;
+  version: 7;
   hiddenWidgets: WidgetId[];
   layouts: Record<LayoutBreakpoint, LayoutItem[]>;
 }
@@ -32,7 +33,8 @@ export const SUMMARY_WIDGET_IDS: readonly WidgetId[] = [
   "bookCost",
   "pnl",
 ];
-const PREVIOUS_WIDGET_IDS = WIDGET_IDS.filter((id) => id !== "movers" && id !== "concentration");
+const V6_WIDGET_IDS = WIDGET_IDS.filter((id) => id !== "holdings");
+const PREVIOUS_WIDGET_IDS = V6_WIDGET_IDS.filter((id) => id !== "movers" && id !== "concentration");
 const LEGACY_WIDGET_IDS = PREVIOUS_WIDGET_IDS.filter(
   (id) => !["cash", "invested", "bookCost", "pnl"].includes(id),
 );
@@ -183,6 +185,37 @@ function appendInsightWidgets(items: LayoutItem[], breakpoint: LayoutBreakpoint)
   ];
 }
 
+// Added below the existing cards, so saved arrangements keep their positions.
+function appendHoldingsDonut(items: LayoutItem[], breakpoint: LayoutBreakpoint): LayoutItem[] {
+  const bottom = Math.max(0, ...items.map((item) => item.y + item.h));
+  return [...items, { i: "holdings", x: 0, y: bottom, w: breakpoint === "mobile" ? 2 : 6, h: 440 }];
+}
+
+// New layouts pair the donut with Breakdown: side by side on desktop, stacked below it
+// on narrower grids.
+function placeHoldingsBesideBreakdown(
+  items: LayoutItem[],
+  breakpoint: LayoutBreakpoint,
+): LayoutItem[] {
+  const breakdown = items.find((item) => item.i === "breakdown")!;
+  if (breakpoint === "desktop") {
+    return [
+      ...items.map((item) => (item === breakdown ? { ...item, w: 6 } : item)),
+      { i: "holdings", x: 6, y: breakdown.y, w: 6, h: breakdown.h },
+    ];
+  }
+  return [
+    ...items,
+    {
+      i: "holdings",
+      x: 0,
+      y: breakdown.y + breakdown.h,
+      w: GRID_COLUMNS[breakpoint],
+      h: breakdown.h,
+    },
+  ];
+}
+
 export function defaultInsightsLayout(): InsightsLayout {
   const desktop: LayoutItem[] = [
     { i: "value", x: 0, y: 0, w: 12, h: 100 },
@@ -221,12 +254,12 @@ export function defaultInsightsLayout(): InsightsLayout {
     ),
   };
   return {
-    version: 6,
+    version: 7,
     hiddenWidgets: [],
     layouts: Object.fromEntries(
       (Object.keys(GRID_COLUMNS) as LayoutBreakpoint[]).map((key) => [
         key,
-        appendInsightWidgets(layouts[key], key),
+        appendInsightWidgets(placeHoldingsBesideBreakdown(layouts[key], key), key),
       ]),
     ) as InsightsLayout["layouts"],
   };
@@ -266,19 +299,21 @@ export function readInsightsLayout(value: unknown): InsightsLayout {
   if (!value || typeof value !== "object") return fallback;
   const stored = value as Omit<Partial<InsightsLayout>, "version"> & { version?: number };
   if (
-    ![1, 2, 3, 4, 5, 6].includes(stored.version ?? 0) ||
+    ![1, 2, 3, 4, 5, 6, 7].includes(stored.version ?? 0) ||
     !Array.isArray(stored.hiddenWidgets) ||
     !stored.layouts
   )
     return fallback;
   const expectedIds: readonly WidgetId[] =
-    stored.version === 6
+    stored.version === 7
       ? WIDGET_IDS
-      : stored.version! >= 4
-        ? PREVIOUS_WIDGET_IDS
-        : stored.version === 3
-          ? PREVIOUS_WIDGET_IDS.filter((id) => id !== "pnl")
-          : LEGACY_WIDGET_IDS;
+      : stored.version === 6
+        ? V6_WIDGET_IDS
+        : stored.version! >= 4
+          ? PREVIOUS_WIDGET_IDS
+          : stored.version === 3
+            ? PREVIOUS_WIDGET_IDS.filter((id) => id !== "pnl")
+            : LEGACY_WIDGET_IDS;
   for (const breakpoint of Object.keys(GRID_COLUMNS) as LayoutBreakpoint[]) {
     const items = stored.layouts[breakpoint];
     const cols = breakpoint === "mobile" && stored.version! < 5 ? 1 : GRID_COLUMNS[breakpoint];
@@ -303,7 +338,7 @@ export function readInsightsLayout(value: unknown): InsightsLayout {
       return fallback;
   }
   return {
-    version: 6,
+    version: 7,
     hiddenWidgets: WIDGET_IDS.filter(
       (id) =>
         stored.hiddenWidgets!.includes(id) ||
@@ -331,9 +366,13 @@ export function readInsightsLayout(value: unknown): InsightsLayout {
           key === "mobile" && stored.version! < 5 ? repackMobile(migrated) : migrated,
           key,
         );
+        const withInsights =
+          stored.version! < 6 ? normalizeLayout(appendInsightWidgets(layout, key), key) : layout;
         return [
           key,
-          stored.version! < 6 ? normalizeLayout(appendInsightWidgets(layout, key), key) : layout,
+          stored.version! < 7
+            ? normalizeLayout(appendHoldingsDonut(withInsights, key), key)
+            : withInsights,
         ];
       }),
     ) as InsightsLayout["layouts"],

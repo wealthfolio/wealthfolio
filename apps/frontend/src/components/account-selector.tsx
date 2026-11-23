@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/compone
 import { Account, TrackingMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Icons, type Icon } from "@wealthfolio/ui";
+import { getAccountTypeIcon } from "@/lib/account-type-icons";
 import { Fragment, forwardRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -30,15 +31,6 @@ import { AnimatePresence, motion } from "motion/react";
 
 // Custom type for UI purposes that extends the standard AccountType
 type UIAccountType = AccountType | typeof PORTFOLIO_ACCOUNT_TYPE;
-
-// Map account types to icons for visual distinction
-const accountTypeIcons: Record<string, Icon> = {
-  SECURITIES: Icons.Briefcase,
-  CASH: Icons.DollarSign,
-  CREDIT_CARD: Icons.CreditCard,
-  CRYPTOCURRENCY: Icons.Bitcoin,
-  [PORTFOLIO_ACCOUNT_TYPE]: Icons.Wallet,
-};
 
 interface AccountSelectorProps {
   selectedAccount?: Account | null;
@@ -76,7 +68,6 @@ function createPortfolioAccount(baseCurrency: string, t: TFunction): UIAccount {
     id: PORTFOLIO_SCOPE_ID,
     name: t("common:component.all_portfolio"),
     accountType: PORTFOLIO_ACCOUNT_TYPE as UIAccountType,
-    balance: 0,
     currency: baseCurrency,
     isDefault: false,
     isActive: true,
@@ -207,8 +198,8 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
         case "card":
           return (
             <div className="border-border bg-background/50 h-full w-full rounded-lg border border-dashed p-2">
-              <div className="flex flex-col items-center justify-center space-y-1">
-                <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <Skeleton className="h-10 w-10 rounded-full" />
                 <div className="space-y-0.5 text-center">
                   <Skeleton className="mx-auto h-3 w-16" />
                   <Skeleton className="mx-auto h-3 w-20" />
@@ -264,7 +255,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                     : "border-border bg-background/50 hover:bg-background/80 hover:border-muted-foreground/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
               )}
             >
-              <div className="flex flex-col items-center justify-center space-y-1">
+              <div className="flex flex-col items-center justify-center space-y-2">
                 <AnimatePresence mode="wait">
                   {selectedAccount ? (
                     <motion.div
@@ -273,13 +264,12 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      className="bg-success-subtle flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                      className="bg-success-subtle flex h-10 w-10 items-center justify-center rounded-full shadow-sm"
                     >
                       <motion.div variants={iconVariants} initial="initial" animate="animate">
                         {(() => {
-                          const IconComponent =
-                            accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard;
-                          return <IconComponent className="text-success h-4 w-4" />;
+                          const IconComponent = getAccountTypeIcon(selectedAccount.accountType);
+                          return <IconComponent className="text-success h-5 w-5" />;
                         })()}
                       </motion.div>
                     </motion.div>
@@ -290,16 +280,16 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      className="bg-muted flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                      className="bg-muted flex h-10 w-10 items-center justify-center rounded-full shadow-sm"
                     >
                       <motion.div variants={iconVariants} initial="initial" animate="animate">
-                        <Icons.ChevronsUpDown className="text-muted-foreground h-4 w-4" />
+                        <Icons.ChevronsUpDown className="text-muted-foreground h-5 w-5" />
                       </motion.div>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                <div className="space-y-0 text-center">
+                <div className="space-y-0.5 text-center">
                   <AnimatePresence mode="wait">
                     {selectedAccount ? (
                       <motion.div
@@ -356,7 +346,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                   const IconComponent = CustomIcon
                     ? CustomIcon
                     : selectedAccount
-                      ? (accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard)
+                      ? getAccountTypeIcon(selectedAccount.accountType)
                       : Icons.Wallet;
                   return <IconComponent className="h-4 w-4 shrink-0" />;
                 })()
@@ -366,8 +356,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                     {selectedAccount ? (
                       <>
                         {(() => {
-                          const IconComponent =
-                            accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard;
+                          const IconComponent = getAccountTypeIcon(selectedAccount.accountType);
                           return <IconComponent className="h-4 w-4 shrink-0 opacity-70" />;
                         })()}
                         <span>{selectedAccount.name}</span>
@@ -400,8 +389,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                 {selectedAccount ? (
                   <>
                     {(() => {
-                      const IconComponent =
-                        accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard;
+                      const IconComponent = getAccountTypeIcon(selectedAccount.accountType);
                       return <IconComponent className="h-4 w-4 shrink-0 opacity-70" />;
                     })()}
                     <span className="truncate">{selectedAccount.name}</span>
@@ -505,8 +493,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                           <Fragment key={type}>
                             <CommandGroup heading={type}>
                               {typeAccounts.map((account) => {
-                                const IconComponent =
-                                  accountTypeIcons[account.accountType] ?? Icons.CreditCard;
+                                const IconComponent = getAccountTypeIcon(account.accountType);
                                 return (
                                   <CommandItem
                                     key={account.id}

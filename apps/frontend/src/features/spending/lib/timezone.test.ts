@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { addCalendarMonths, getZonedDateParts, zonedCalendarDateBoundaryToDate } from "./timezone";
 
 describe("spending timezone helpers", () => {
+  it("includes the repeated final hour before the next Santiago day", () => {
+    const date = { year: 2026, month: 4, day: 4 };
+    expect(zonedCalendarDateBoundaryToDate(date, "end", "America/Santiago").toISOString()).toBe(
+      "2026-04-05T03:59:59.999Z",
+    );
+  });
+
   it("converts configured timezone day boundaries to UTC instants", () => {
     const date = { year: 2026, month: 5, day: 1 };
 

@@ -14,7 +14,7 @@ use tracing::warn;
 use tracing::{debug, info, warn};
 
 #[cfg(feature = "connect-sync")]
-use crate::api::connect::{has_broker_sync, perform_broker_sync};
+use crate::api::connect::perform_broker_sync;
 use crate::main_lib::AppState;
 #[cfg(feature = "connect-sync")]
 use wealthfolio_connect::CLOUD_REFRESH_TOKEN_KEY;
@@ -75,22 +75,6 @@ async fn run_scheduled_sync(state: &Arc<AppState>) {
         return;
     }
 
-    // Check if user's plan includes broker sync
-    match has_broker_sync(state).await {
-        Ok(true) => {}
-        Ok(false) => {
-            debug!("Scheduled sync skipped: plan does not include broker sync");
-            return;
-        }
-        Err(e) => {
-            debug!(
-                "Scheduled sync skipped: could not verify broker sync access ({})",
-                e
-            );
-            return;
-        }
-    }
-
     // Perform the sync using the shared perform_broker_sync from api::connect
     // This uses SyncOrchestrator which:
     // - Emits broker:sync-start, broker:sync-complete, broker:sync-error events via SSE
@@ -114,6 +98,7 @@ async fn run_scheduled_sync(state: &Arc<AppState>) {
                 || e.contains("not authenticated")
                 || e.contains("Session expired")
                 || e.contains("Broker sync already running")
+                || wealthfolio_connect::is_subscription_denial(&e)
             {
                 debug!("Scheduled sync skipped: {}", e);
             } else {

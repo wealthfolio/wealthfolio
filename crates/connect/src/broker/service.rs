@@ -46,6 +46,28 @@ const DEFAULT_BROKERAGE_PROVIDER: &str = "snaptrade";
 /// Higher than generic valuation precision to preserve crypto fidelity.
 const HOLDINGS_DECIMAL_PRECISION: u32 = 12;
 
+/// Leaves out the positions that resolved to an alternative asset and returns
+/// their spec keys. Alternative assets count toward net worth on their own,
+/// never in an account; only an older one that holds a listing can match a
+/// broker position.
+fn drop_alternative_positions(
+    spec_key_to_asset_id: &mut HashMap<String, String>,
+    assets: &HashMap<String, Asset>,
+) -> Vec<String> {
+    let mut dropped = Vec::new();
+    spec_key_to_asset_id.retain(|spec_key, asset_id| {
+        let alternative = assets
+            .get(asset_id)
+            .is_some_and(|asset| asset.kind.is_alternative());
+        if alternative {
+            dropped.push(spec_key.clone());
+        }
+        !alternative
+    });
+    dropped.sort();
+    dropped
+}
+
 fn normalize_holdings_money(amount: Decimal, currency: &str) -> (Decimal, String) {
     let (amount, currency) = normalize_amount(amount, currency);
     (
@@ -1162,6 +1184,15 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 }
             }
         }
+        // Dropped before any quote, metadata or snapshot write: an unmapped
+        // position is skipped by each of them.
+        for spec_key in drop_alternative_positions(&mut spec_key_to_asset_id, &ensure_result.assets)
+        {
+            warn!(
+                "Broker position {} matches an alternative asset and is left out of account {}",
+                spec_key, account_id
+            );
+        }
 
         // Broker multipliers are asset economics shared by every account. New assets already carry
         // this metadata through AssetSpec; existing assets are updated only when the resolved value
@@ -1374,6 +1405,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
             net_contribution_base: Decimal::ZERO,
             cash_total_account_currency: cash_total,
             cash_total_base_currency: Decimal::ZERO,
+            base_currency: None,
             calculated_at: now.naive_utc(),
             source: SnapshotSource::BrokerImported,
         };
@@ -1819,6 +1851,36 @@ mod tests {
         super::apply_declared_contract_multiplier(&mut position, Decimal::ZERO);
         assert_eq!(position.contract_multiplier, decimal("50"));
         assert_eq!(position.average_cost, Some(decimal("20")));
+    }
+
+    #[test]
+    fn positions_matching_an_alternative_asset_are_left_out() {
+        let asset = |id: &str, kind: wealthfolio_core::assets::AssetKind| Asset {
+            id: id.to_string(),
+            kind,
+            ..Default::default()
+        };
+        let assets: HashMap<String, Asset> = [
+            ("aapl", wealthfolio_core::assets::AssetKind::Investment),
+            ("cottage", wealthfolio_core::assets::AssetKind::Property),
+        ]
+        .into_iter()
+        .map(|(id, kind)| (id.to_string(), asset(id, kind)))
+        .collect();
+        let mut mapping: HashMap<String, String> =
+            [("EQUITY:AAPL@XNAS", "aapl"), ("EQUITY:COTTAGE", "cottage")]
+                .into_iter()
+                .map(|(key, id)| (key.to_string(), id.to_string()))
+                .collect();
+
+        let dropped = super::drop_alternative_positions(&mut mapping, &assets);
+
+        assert_eq!(dropped, vec!["EQUITY:COTTAGE".to_string()]);
+        assert_eq!(mapping.len(), 1);
+        assert_eq!(
+            mapping.get("EQUITY:AAPL@XNAS").map(String::as_str),
+            Some("aapl")
+        );
     }
 
     #[test]

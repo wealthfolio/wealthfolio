@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type UseFormReturn } from "react-hook-form";
 
 import { useTestCustomProviderSource } from "@/hooks/use-custom-providers";
+import { backendError, type BackendError } from "@/lib/backend-error";
 import type {
   DetectedHtmlElement,
   DetectedHtmlTable,
@@ -69,7 +70,7 @@ export interface SourceRuntime {
   rawResponse: string | null;
   detectedElements: DetectedHtmlElement[];
   detectedTables: DetectedHtmlTable[];
-  fetchError: string | null;
+  fetchError: string | BackendError | null;
   testResult: TestSourceResult | null;
   status: FetchStatus | null;
   armedField: MappingField | null;
@@ -113,7 +114,7 @@ export function useSourceRuntime({
   const [rawResponse, setRawResponse] = useState<string | null>(null);
   const [detectedElements, setDetectedElements] = useState<DetectedHtmlElement[]>([]);
   const [detectedTables, setDetectedTables] = useState<DetectedHtmlTable[]>([]);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | BackendError | null>(null);
   const [testResult, setTestResult] = useState<TestSourceResult | null>(null);
   const [status, setStatus] = useState<FetchStatus | null>(null);
   const [armedField, setArmedField] = useState<MappingField | null>(null);
@@ -202,7 +203,9 @@ export function useSourceRuntime({
             setRawResponse(null);
             setDetectedElements([]);
             setDetectedTables([]);
-            setFetchError(result.error ?? i18n.t("settings:messages.httpFailed"));
+            setFetchError(
+              backendError(result) ?? result.error ?? i18n.t("settings:messages.httpFailed"),
+            );
             setStatus({ code: statusCode, ok: false });
             if (result.error && /403|forbidden|denied/i.test(result.error)) {
               onAdvancedOpen?.();
@@ -230,7 +233,7 @@ export function useSourceRuntime({
             setTestResult(result);
           } else {
             setRawResponse(null);
-            setFetchError(result.error ?? "Empty response from server.");
+            setFetchError(backendError(result) ?? result.error ?? "Empty response from server.");
             setStatus({ code: 0, ok: false });
             if (result.error && /403|forbidden|denied/i.test(result.error)) {
               onAdvancedOpen?.();
@@ -241,7 +244,7 @@ export function useSourceRuntime({
           setRawResponse(null);
           setDetectedElements([]);
           setDetectedTables([]);
-          setFetchError(err.message);
+          setFetchError(backendError(err) ?? err.message);
           setStatus({ code: 0, ok: false });
           if (/403|forbidden|denied/i.test(err.message)) {
             onAdvancedOpen?.();
@@ -294,7 +297,12 @@ export function useSourceRuntime({
           },
           {
             onSuccess: (result) => setTestResult(result),
-            onError: (err) => setTestResult({ success: false, error: err.message }),
+            onError: (err) =>
+              setTestResult({
+                success: false,
+                error: err.message,
+                errorCode: backendError(err)?.errorCode,
+              }),
           },
         );
       }, 300);

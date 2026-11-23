@@ -1,3 +1,5 @@
+import SpendingActivityPage from "@/features/spending/pages/spending-activity-page";
+import { getSpendingBackgroundLocation } from "@/features/spending/lib/activity-entry";
 import { AppScreenRoutes } from "@/app-screen-routes";
 import AppLauncher from "@/components/app-launcher";
 import { MobileLoadingIndicator } from "@/components/mobile-loading-indicator";
@@ -64,7 +66,10 @@ const AppLayoutContent = () => {
   const launchBarHeight =
     !shouldUseMobileNavigation && isLaunchBar && !isFocusMode ? "3.5rem" : undefined;
   const isAppShellReady = !!settings?.onboardingCompleted;
-  const pageScrollKey = getPageScrollKey(location.pathname);
+  const spendingBackgroundLocation = shouldUseMobileNavigation
+    ? undefined
+    : getSpendingBackgroundLocation(location);
+  const pageScrollKey = getPageScrollKey(spendingBackgroundLocation?.pathname ?? location.pathname);
   // Each tab-bar and menu destination is a tab with its own stack of screens;
   // add-on pages are destinations too, but replace one another as before.
   const tabsKey = [
@@ -94,7 +99,7 @@ const AppLayoutContent = () => {
     // Catches errors outside a page. Going home reloads at the root, away from a route that keeps failing.
     <ErrorBoundary onGoHome={() => window.location.assign("/")}>
       <ApplicationShell
-        className="app-shell h-screen overflow-x-hidden"
+        className="app-shell h-screen overflow-x-hidden supports-[height:100dvh]:h-dvh"
         data-mobile-navigation={shouldUseMobileNavigation ? "true" : undefined}
         data-nav-style={shouldUseMobileNavigation && isAndroid ? "material" : undefined}
         style={{
@@ -131,7 +136,8 @@ const AppLayoutContent = () => {
                   withMobileNavOffset={shouldUseBottomNavigation}
                 >
                   <PageErrorBoundary>
-                    <AppScreenRoutes />
+                    <AppScreenRoutes location={spendingBackgroundLocation} />
+                    {spendingBackgroundLocation && <SpendingActivityPage />}
                   </PageErrorBoundary>
                 </PageScrollContainer>
               )}

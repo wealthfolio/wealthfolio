@@ -77,8 +77,8 @@ pub use sync::{
 
 // Re-export unified service types
 pub use service::{
-    FetchDividendsParams, LatestQuoteSnapshot, ProviderInfo, QuoteService, QuoteServiceTrait,
-    SparseAssetMarketFacts,
+    search_result_matches_query, FetchDividendsParams, LatestQuoteSnapshot, ProviderInfo,
+    QuoteService, QuoteServiceTrait, SparseAssetMarketFacts,
 };
 
 // Re-export import types

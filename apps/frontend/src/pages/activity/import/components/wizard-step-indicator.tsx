@@ -25,10 +25,12 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
   const currentIndex = steps.findIndex((s) => s.id === currentStep);
 
   return (
-    <div className="w-full">
-      {/* Mobile: compact, scrollable rail with current title */}
-      <div className="md:hidden">
-        <div className="mx-auto flex w-full max-w-85 items-center px-5 py-3">
+    <div className="@container w-full">
+      {/* Compact rail; share a row with its title on wider cards to leave room in short windows.
+          The 4px inset there keeps the current step's 3px ring inside the rail, which clips.
+          max-w-85 is important: up to 1024px the mobile reset's max-width would stretch it. */}
+      <div className="@lg:flex @lg:items-center @lg:justify-center @lg:gap-3 @min-[72rem]:hidden">
+        <div className="mx-auto flex w-full max-w-85! items-center px-5 py-3 @lg:mx-0 @lg:-my-1 @lg:min-w-0 @lg:flex-1 @lg:p-1">
           {steps.map((step, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = step.id === currentStep;
@@ -77,13 +79,13 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
             );
           })}
         </div>
-        <div className="text-muted-foreground px-3 pb-3 text-center text-xs font-medium">
+        <div className="text-muted-foreground px-3 pb-3 text-center text-xs font-medium @lg:pb-0">
           {steps[currentIndex]?.label}
         </div>
       </div>
 
-      {/* Desktop and tablets: full stepper */}
-      <div className="hidden w-full items-center justify-center md:flex">
+      {/* Full labels need room inside the card, including with an expanded sidebar. */}
+      <div className="hidden w-full items-center justify-center @min-[72rem]:flex">
         {steps.map((step, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = step.id === currentStep;
@@ -103,7 +105,7 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
                 }}
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 400, damping: 20, duration: 0.3 }}
-                className={`relative flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300 ${
+                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300 ${
                   isCompleted
                     ? "border-primary bg-primary text-primary-foreground"
                     : isCurrent

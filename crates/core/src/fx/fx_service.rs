@@ -1,10 +1,12 @@
 use super::currency_converter::CurrencyConverter;
 use super::fx_errors::FxError;
-use super::fx_model::{ExchangeRate, NewExchangeRate};
+use super::fx_model::{ExchangeRate, ExchangeRateInfo, NewExchangeRate};
 use super::fx_traits::{FxRepositoryTrait, FxServiceTrait};
 use crate::errors::Result;
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
-use crate::fx::currency::{denormalization_multiplier, normalize_currency_code};
+use crate::fx::currency::{
+    denormalization_multiplier, get_normalization_rule, is_crypto_currency, normalize_currency_code,
+};
 use crate::quotes::constants::{DATA_SOURCE_MANUAL, DATA_SOURCE_YAHOO};
 use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
@@ -185,6 +187,21 @@ impl FxServiceTrait for FxService {
     }
 
     async fn add_exchange_rate(&self, new_rate: NewExchangeRate) -> Result<ExchangeRate> {
+        // Conversions look up quote units (GBp, ZAc, ...) through their major
+        // currency's pair, so a pair saved in a quote unit is never used as a
+        // direct rate (#2460).
+        for code in [&new_rate.from_currency, &new_rate.to_currency] {
+            if let Some(rule) = get_normalization_rule(code) {
+                return Err(FxError::InvalidCurrencyCode(format!(
+                    "{} is a quote unit of {}; enter the {} rate instead",
+                    code.trim(),
+                    rule.major_code,
+                    rule.major_code
+                ))
+                .into());
+            }
+        }
+
         // Create/get the FX asset — returns the asset UUID
         let asset_id = self
             .repository
@@ -293,6 +310,33 @@ impl FxServiceTrait for FxService {
         Ok(source_multiplier * base_rate * target_multiplier)
     }
 
+    fn get_latest_exchange_rate_info(&self, from: &str, to: &str) -> Result<ExchangeRateInfo> {
+        let (from, to, source_multiplier, target_multiplier) =
+            Self::normalize_currency_pair(from, to);
+        let multiplier = source_multiplier * target_multiplier;
+        if from == to {
+            return Ok(ExchangeRateInfo {
+                rate: multiplier,
+                oldest_quote_time: None,
+            });
+        }
+        if let Ok(converter_lock) = self.converter.read() {
+            if let Some(converter) = &*converter_lock {
+                if let Ok(mut info) =
+                    converter.get_rate_info(from, to, crate::utils::clock::now().date_naive())
+                {
+                    info.rate *= multiplier;
+                    return Ok(info);
+                }
+            }
+        }
+        let rate = self.load_latest_exchange_rate(from, to)?;
+        Ok(ExchangeRateInfo {
+            rate: rate.rate * multiplier,
+            oldest_quote_time: Some(rate.timestamp),
+        })
+    }
+
     fn get_exchange_rate_for_date(
         &self,
         from_currency: &str,
@@ -396,9 +440,17 @@ impl FxServiceTrait for FxService {
             .ok();
 
         if existing_rate.is_none() {
+            // Providers only quote crypto against another currency (BTC/USD),
+            // never the reverse, so register that side; conversion inverts it.
+            let (base, quote) =
+                if is_crypto_currency(normalized_to) && !is_crypto_currency(normalized_from) {
+                    (normalized_to, normalized_from)
+                } else {
+                    (normalized_from, normalized_to)
+                };
             let asset_id = self
                 .repository
-                .create_fx_asset(normalized_from, normalized_to, DATA_SOURCE_YAHOO)
+                .create_fx_asset(base, quote, DATA_SOURCE_YAHOO)
                 .await?;
 
             self.event_sink
@@ -458,6 +510,7 @@ impl FxServiceTrait for FxService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::Error;
     use crate::fx::fx_model::ExchangeRateDateQuery;
     use crate::quotes::Quote;
     use chrono::NaiveDateTime;
@@ -469,6 +522,7 @@ mod tests {
         created_pairs: Mutex<Vec<(String, String, String)>>,
         saved_rates: Mutex<Vec<ExchangeRate>>,
         historical_rates: Mutex<Vec<ExchangeRate>>,
+        upper_case_only: bool,
     }
 
     #[async_trait]
@@ -533,6 +587,12 @@ mod tests {
             to_currency: &str,
             source: &str,
         ) -> Result<String> {
+            if let Some(code) = [from_currency, to_currency]
+                .into_iter()
+                .find(|code| self.upper_case_only && code.to_uppercase() != *code)
+            {
+                return Err(FxError::InvalidCurrencyCode(code.to_string()).into());
+            }
             self.created_pairs.lock().unwrap().push((
                 from_currency.to_string(),
                 to_currency.to_string(),
@@ -585,6 +645,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn register_currency_pair_puts_crypto_first() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        // A USD activity in a BTC account: providers only quote BTC/USD.
+        service.register_currency_pair("USD", "BTC").await.unwrap();
+        service.register_currency_pair("BTC", "EUR").await.unwrap();
+        // Crypto on both sides keeps the order it came in.
+        service.register_currency_pair("ETH", "BTC").await.unwrap();
+
+        let created: Vec<(String, String)> = repo
+            .created_pairs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(from, to, _)| (from.clone(), to.clone()))
+            .collect();
+        assert_eq!(
+            created,
+            vec![
+                ("BTC".to_string(), "USD".to_string()),
+                ("BTC".to_string(), "EUR".to_string()),
+                ("ETH".to_string(), "BTC".to_string()),
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn add_exchange_rate_manual_persists_quote() {
         let repo = Arc::new(MockFxRepository::default());
         let service = FxService::new(repo.clone());
@@ -602,6 +690,80 @@ mod tests {
         let saved = repo.saved_rates.lock().unwrap();
         assert_eq!(saved.len(), 1, "manual rate should be persisted as a quote");
         assert_eq!(saved[0].rate, Decimal::new(11, 1));
+    }
+
+    /// Conversions look quote units up through their major currency's pair,
+    /// so a GBX/USD pair saved here could never be used as a direct rate (#2460).
+    #[tokio::test]
+    async fn add_exchange_rate_rejects_quote_units_without_registering_a_pair() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        for (from, to, major) in [
+            ("GBX", "USD", "GBP"),
+            (" gbx ", "USD", "GBP"),
+            ("GBp", "USD", "GBP"),
+            ("zac", "USD", "ZAR"),
+            ("ZAC", "USD", "ZAR"),
+            ("ILA", "USD", "ILS"),
+            ("ila", "USD", "ILS"),
+            ("KWF", "USD", "KWD"),
+            ("kwf", "USD", "KWD"),
+            ("USX", "USD", "USD"),
+            ("uSx", "USD", "USD"),
+            ("EUR", "GBp", "GBP"),
+        ] {
+            let err = service
+                .add_exchange_rate(NewExchangeRate {
+                    from_currency: from.to_string(),
+                    to_currency: to.to_string(),
+                    rate: Decimal::new(125, 4),
+                    source: DATA_SOURCE_MANUAL.to_string(),
+                })
+                .await
+                .expect_err("a quote-unit pair should be rejected");
+            assert!(
+                matches!(&err, Error::Fx(FxError::InvalidCurrencyCode(msg)) if msg.contains(major)),
+                "{from}/{to}: {err}"
+            );
+
+            let err = service
+                .update_exchange_rate(from, to, Decimal::new(125, 4))
+                .await
+                .expect_err("editing a quote-unit pair should be rejected");
+            assert!(matches!(err, Error::Fx(FxError::InvalidCurrencyCode(_))));
+        }
+
+        assert!(repo.created_pairs.lock().unwrap().is_empty());
+        assert!(repo.saved_rates.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn add_exchange_rate_preserves_major_currency_casing() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+        for (from, to) in [
+            ("GBP", "USD"),
+            ("gbp", "USD"),
+            ("USD", "GBP"),
+            ("USD", "gbp"),
+        ] {
+            service
+                .add_exchange_rate(NewExchangeRate {
+                    from_currency: from.to_string(),
+                    to_currency: to.to_string(),
+                    rate: Decimal::ONE,
+                    source: DATA_SOURCE_MANUAL.to_string(),
+                })
+                .await
+                .unwrap();
+            service
+                .update_exchange_rate(from, to, Decimal::ONE)
+                .await
+                .unwrap();
+        }
+        assert_eq!(repo.created_pairs.lock().unwrap().len(), 8);
+        assert_eq!(repo.saved_rates.lock().unwrap().len(), 8);
     }
 
     /// The converter is consulted before the repository on every dated lookup,
@@ -689,6 +851,38 @@ mod tests {
             .get_exchange_rate_for_date("USD", "EUR", date)
             .unwrap();
         assert_eq!(rate, Decimal::new(90, 2));
+    }
+
+    #[test]
+    fn get_exchange_rate_for_date_scales_minor_units() {
+        let date = NaiveDate::from_ymd_opt(2026, 5, 18).unwrap();
+        let repo = Arc::new(MockFxRepository::default());
+        repo.historical_rates
+            .lock()
+            .unwrap()
+            .push(make_historical_rate(
+                "GBP",
+                "USD",
+                Decimal::new(125, 2),
+                date,
+            ));
+        let service = FxService::new(repo);
+        service.initialize().unwrap();
+
+        // One penny is a hundredth of a pound, either way round.
+        assert_eq!(
+            service
+                .get_exchange_rate_for_date("GBp", "USD", date)
+                .unwrap(),
+            Decimal::new(125, 4)
+        );
+        assert_eq!(
+            service
+                .get_exchange_rate_for_date("USD", "GBp", date)
+                .unwrap()
+                .round_dp(6),
+            Decimal::new(80, 0)
+        );
     }
 
     #[test]
@@ -809,5 +1003,154 @@ mod tests {
         assert!(results[0].error.is_none());
         assert!(results[1].rate.is_none());
         assert!(results[1].error.is_some());
+    }
+    fn stored_rate(from: &str, to: &str, rate: &str) -> ExchangeRate {
+        ExchangeRate {
+            id: format!("FX:{from}/{to}"),
+            from_currency: from.to_string(),
+            to_currency: to.to_string(),
+            rate: rate.parse().unwrap(),
+            source: DATA_SOURCE_YAHOO.to_string(),
+            timestamp: crate::utils::clock::now() - chrono::Duration::days(1),
+        }
+    }
+
+    fn pivot_service(rates: Vec<ExchangeRate>) -> (Arc<MockFxRepository>, FxService) {
+        let repo = Arc::new(MockFxRepository {
+            upper_case_only: true,
+            ..Default::default()
+        });
+        *repo.historical_rates.lock().unwrap() = rates;
+        let service = FxService::new(repo.clone());
+        service.initialize().unwrap();
+        (repo, service)
+    }
+
+    /// Pairs passed to `create_fx_asset`, sorted: registration takes them as a set.
+    fn created(repo: &MockFxRepository) -> Vec<(String, String)> {
+        let mut pairs: Vec<(String, String)> = repo
+            .created_pairs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(from, to, _)| (from.clone(), to.clone()))
+            .collect();
+        pairs.sort();
+        pairs
+    }
+
+    fn sorted(mut pairs: Vec<(String, String)>) -> Vec<(String, String)> {
+        pairs.sort();
+        pairs
+    }
+
+    fn pair(from: &str, to: &str) -> (String, String) {
+        (from.to_string(), to.to_string())
+    }
+
+    /// Yahoo has no COPAED=X: a COP account under an AED base gets its rate
+    /// through USD once COP/USD and USD/AED exist.
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_registers_both_legs_for_a_pair_without_rates() {
+        let (repo, service) = pivot_service(vec![]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(vec![pair("COP", "AED")], "USD")
+            .await
+            .unwrap();
+
+        assert_eq!(wanted, vec![pair("COP", "USD"), pair("USD", "AED")]);
+        assert_eq!(created(&repo), sorted(wanted));
+    }
+
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_leaves_pairs_that_already_convert() {
+        // A direct rate, and a pair that already converts through stored legs.
+        let (repo, service) = pivot_service(vec![
+            stored_rate("EUR", "AED", "4.2"),
+            stored_rate("COP", "USD", "0.00025"),
+            stored_rate("USD", "AED", "3.6725"),
+        ]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(vec![pair("EUR", "AED"), pair("COP", "AED")], "USD")
+            .await
+            .unwrap();
+
+        assert!(wanted.is_empty());
+        assert!(created(&repo).is_empty());
+        assert_eq!(
+            service.get_latest_exchange_rate("COP", "AED").unwrap(),
+            "0.00025".parse::<Decimal>().unwrap() * "3.6725".parse::<Decimal>().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_asks_for_each_leg_once() {
+        // COP has no rate against anything; COP/USD serves both of its pairs.
+        let (repo, service) = pivot_service(vec![stored_rate("USD", "AED", "3.6725")]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(
+                vec![pair("COP", "AED"), pair("COP", "EUR"), pair("USD", "COP")],
+                "USD",
+            )
+            .await
+            .unwrap();
+
+        // USD/COP is itself a pivot leg: it is the pair to sync, not to route.
+        assert_eq!(
+            wanted,
+            vec![pair("COP", "USD"), pair("USD", "AED"), pair("USD", "EUR")]
+        );
+        assert_eq!(created(&repo), sorted(wanted));
+    }
+    #[tokio::test]
+    async fn pivot_registration_canonicalizes_legacy_codes_and_minor_units() {
+        let (repo, service) = pivot_service(vec![]);
+        let pairs = service
+            .ensure_pivot_fx_pairs(vec![pair(" cop ", "aed"), pair("GBp", "AED")], "usd")
+            .await
+            .unwrap();
+        assert_eq!(
+            pairs,
+            vec![pair("COP", "USD"), pair("USD", "AED"), pair("GBP", "USD")]
+        );
+        assert_eq!(created(&repo), sorted(pairs));
+    }
+
+    #[tokio::test]
+    async fn pivot_registration_failure_does_not_stop_other_legs() {
+        let (repo, service) = pivot_service(vec![]);
+        let pairs = service
+            .ensure_pivot_fx_pairs(vec![pair("çop", "AED"), pair("COP", "EUR")], "USD")
+            .await
+            .unwrap();
+        assert_eq!(pairs.len(), 4);
+        assert_eq!(
+            created(&repo),
+            vec![pair("COP", "USD"), pair("USD", "AED"), pair("USD", "EUR")]
+        );
+    }
+
+    #[test]
+    fn latest_rate_info_matches_units_and_repository_fallback() {
+        use crate::test_support::in_memory::InMemoryFxRepository;
+        let quote = stored_rate("GBP", "USD", "1.25");
+        let service = FxService::new(Arc::new(InMemoryFxRepository::new(vec![quote.clone()])));
+        // The uninitialized converter still uses the existing repository fallback.
+        let info = service.get_latest_exchange_rate_info("GBp", "USD").unwrap();
+        assert_eq!(
+            info.rate,
+            service.get_latest_exchange_rate("GBp", "USD").unwrap()
+        );
+        assert_eq!(info.oldest_quote_time, Some(quote.timestamp));
+        assert_eq!(
+            service
+                .get_latest_exchange_rate_info("GBp", "GBP")
+                .unwrap()
+                .oldest_quote_time,
+            None
+        );
     }
 }

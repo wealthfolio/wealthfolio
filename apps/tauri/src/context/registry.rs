@@ -80,6 +80,8 @@ pub struct ServiceContext {
     pub ai_provider_service: Arc<dyn AiProviderServiceTrait>,
     pub ai_chat_service: Arc<ChatService<TauriAiEnvironment>>,
     pub agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment>,
+    /// Lets the agent environment start portfolio jobs; set on install.
+    pub portfolio_job_binding: super::ai_environment::PortfolioJobBinding,
     pub mcp_audit_repository: Arc<McpAuditRepository>,
     pub pat_repository: Arc<PatRepository>,
     pub addon_service: Arc<AddonService>,
@@ -94,8 +96,10 @@ pub struct ServiceContext {
     pub categorization_rules_service: Arc<CategorizationRulesService>,
     pub events_service: Arc<EventsService>,
     pub budget_service: Arc<BudgetService>,
+    pub category_merge_service: Arc<wealthfolio_spending::category_merge::CategoryMergeService>,
     pub spending_analytics_service: Arc<AnalyticsService>,
     pub spending_insight_service: Arc<InsightService>,
+    pub data_export_service: Arc<wealthfolio_core::exports::DataExportService>,
 }
 
 impl ServiceContext {
@@ -145,6 +149,12 @@ impl ServiceContext {
 
     pub fn events_service(&self) -> Arc<EventsService> {
         Arc::clone(&self.events_service)
+    }
+
+    pub fn category_merge_service(
+        &self,
+    ) -> Arc<wealthfolio_spending::category_merge::CategoryMergeService> {
+        Arc::clone(&self.category_merge_service)
     }
 
     pub fn budget_service(&self) -> Arc<BudgetService> {
@@ -277,6 +287,10 @@ impl ServiceContext {
 
     pub fn pat_repository(&self) -> Arc<PatRepository> {
         Arc::clone(&self.pat_repository)
+    }
+
+    pub fn data_export_service(&self) -> Arc<wealthfolio_core::exports::DataExportService> {
+        Arc::clone(&self.data_export_service)
     }
 
     pub fn portfolio_service(&self) -> Arc<dyn portfolios::PortfolioServiceTrait> {

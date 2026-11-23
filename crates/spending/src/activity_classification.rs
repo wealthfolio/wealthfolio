@@ -2,8 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
-use wealthfolio_core::accounts::account_types;
-use wealthfolio_core::activities::Activity;
+use wealthfolio_core::accounts::{
+    account_types, is_liability_account_type, AccountRepositoryTrait,
+};
+use wealthfolio_core::activities::{Activity, ActivityRepositoryTrait, TransferPairResolution};
 use wealthfolio_core::portfolio::economic_events::ActivityEconomicsResolver;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,24 +83,83 @@ pub(crate) fn within_spending_transfer_groups(acts: &[&Activity]) -> HashSet<Str
         .collect()
 }
 
+/// Neutral groups for totals and category buckets: moves within Spending, plus
+/// linked liability-to-liability balance transfers even across its boundary.
+/// Counterparts are context only; they must not expand the visible account set.
+pub(crate) fn neutral_transfer_groups(
+    acts: &[&Activity],
+    account_types: &HashMap<String, String>,
+    activity_repo: &dyn ActivityRepositoryTrait,
+    account_repo: &dyn AccountRepositoryTrait,
+) -> wealthfolio_core::Result<HashSet<String>> {
+    let mut neutral = within_spending_transfer_groups(acts);
+    let liability_groups: HashSet<String> = acts
+        .iter()
+        .filter(|a| matches!(a.effective_type(), "TRANSFER_IN" | "TRANSFER_OUT"))
+        .filter(|a| {
+            account_types
+                .get(&a.account_id)
+                .is_some_and(|kind| is_liability_account_type(kind))
+        })
+        .filter_map(|a| a.source_group_id.as_ref())
+        .filter(|group| !neutral.contains(*group))
+        .cloned()
+        .collect();
+    if liability_groups.is_empty() {
+        return Ok(neutral);
+    }
+
+    let counterparts = activity_repo
+        .get_activities_by_source_group_ids(&liability_groups.into_iter().collect::<Vec<_>>())?;
+    let pairs = TransferPairResolution::from_activities(&counterparts);
+    let counterpart_account_ids: HashSet<String> = pairs
+        .pairs()
+        .iter()
+        .flat_map(|pair| [&pair.transfer_in.account_id, &pair.transfer_out.account_id])
+        .cloned()
+        .collect();
+    if counterpart_account_ids.is_empty() {
+        return Ok(neutral);
+    }
+    // No archive filter: archiving the other account does not turn debt into savings.
+    let liability_accounts: HashSet<String> = account_repo
+        .list(
+            None,
+            None,
+            Some(&counterpart_account_ids.into_iter().collect::<Vec<_>>()),
+        )?
+        .into_iter()
+        .filter(|account| is_liability_account_type(&account.account_type))
+        .map(|account| account.id)
+        .collect();
+    for pair in pairs.pairs() {
+        if liability_accounts.contains(&pair.transfer_in.account_id)
+            && liability_accounts.contains(&pair.transfer_out.account_id)
+        {
+            neutral.insert(pair.group_id.clone());
+        }
+    }
+    Ok(neutral)
+}
+
 /// Classify for spending TOTALS, with knowledge of which transfer groups are
-/// fully within the spending set. A linked transfer that *crosses out* of the
-/// spending world (counterpart is a non-spending/investing account → only one
-/// leg in the full spending context) classifies its `TRANSFER_OUT` leg, from a
+/// neutral within or across the spending set. Other linked transfers crossing
+/// the spending boundary (only one leg in the full spending context) classify
+/// their `TRANSFER_OUT` leg, from a
 /// cash or card account, as `Saving` — its own bucket, like income — and its
 /// `TRANSFER_IN` leg, money coming back into a cash or card account, as
 /// `FromSavings`, so a round trip nets to zero saving. Within-spending
-/// transfers stay neutral. Unlinked transfers fall through to the plain
-/// classifier and can still be Spending or Income.
+/// transfers and liability-to-liability balance transfers stay neutral. Unlinked
+/// transfers fall through to the plain classifier and can still be Spending or Income.
 pub(crate) fn classify_activity_for_aggregation(
     activity: &Activity,
     account_type: &str,
-    within_spending_groups: &HashSet<String>,
+    neutral_groups: &HashSet<String>,
 ) -> SpendingClassification {
     let activity_type = activity.effective_type();
     if matches!(activity_type, "TRANSFER_IN" | "TRANSFER_OUT") {
         if let Some(group) = activity.source_group_id.as_deref() {
-            if within_spending_groups.contains(group) {
+            if neutral_groups.contains(group) {
                 return SpendingClassification::InternalTransfer;
             }
             return match (account_type, activity_type) {

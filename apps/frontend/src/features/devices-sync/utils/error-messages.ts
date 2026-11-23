@@ -1,5 +1,6 @@
 import i18n from "i18next";
 import { logger } from "@/adapters";
+import { backendError } from "@/lib/backend-error";
 
 export function rawSyncErrorMessage(error: unknown): string {
   if (!error) return "";
@@ -49,12 +50,28 @@ function isTechnicalSyncError(message: string): boolean {
   );
 }
 
+export function cloudSubscriptionErrorMessage(error: unknown): string | null {
+  // Commands answer with the reviewed code; event payloads still carry text.
+  const code = backendError(error)?.errorCode;
+  if (code === "SUBSCRIPTION_REQUIRED") return i18n.t("connect:subscription.syncPausedDescription");
+  if (code === "PLAN_UPGRADE_REQUIRED") return i18n.t("connect:upgrade.title");
+  const message = rawSyncErrorMessage(error);
+  if (/\b(?:SUBSCRIPTION_[A-Z_]+|BACKUP_SUBSCRIPTION_REQUIRED)\b/.test(message)) {
+    return i18n.t("connect:subscription.syncPausedDescription");
+  }
+  if (message.includes("PLAN_UPGRADE_REQUIRED")) return i18n.t("connect:upgrade.title");
+  return null;
+}
+
 export function userFacingSyncErrorMessage(
   error: unknown,
   fallback = i18n.t("sync:errors.fallback"),
 ): string {
   const message = rawSyncErrorMessage(error).trim();
   if (!message) return fallback;
+
+  const subscriptionMessage = cloudSubscriptionErrorMessage(message);
+  if (subscriptionMessage) return subscriptionMessage;
 
   const lower = message.toLowerCase();
   const repairMessage = portfolioRepairMessage(message);

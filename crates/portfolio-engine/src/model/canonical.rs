@@ -110,6 +110,9 @@ pub struct AssetFacts {
     pub allows_negative_lots: bool,
     /// Equity-like assets need explicit POSITION_OPEN/CLOSE intent to go short.
     pub requires_explicit_short_intent: bool,
+    /// Whether the asset is an option contract, as its instrument type says.
+    #[serde(default)]
+    pub instrument: InstrumentClass,
 }
 
 impl AssetFacts {
@@ -123,8 +126,23 @@ impl AssetFacts {
             contract_multiplier: Decimal::ONE,
             allows_negative_lots: false,
             requires_explicit_short_intent: false,
+            instrument: InstrumentClass::Untyped,
         }
     }
+}
+
+/// What an asset's instrument type says about it, for the rules that apply
+/// only to option contracts.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum InstrumentClass {
+    /// An option contract.
+    Option,
+    /// A typed instrument that is not an option (equity, bond, crypto, ...).
+    NotOption,
+    /// No instrument type: a legacy or custom asset that may be either.
+    #[default]
+    Untyped,
 }
 
 /// The closed vocabulary of 14 activity types.

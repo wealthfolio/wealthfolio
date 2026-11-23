@@ -26,4 +26,10 @@ pub enum SpendingError {
     /// Requested spending entity does not exist.
     #[error("{entity} not found: {id}")]
     NotFound { entity: &'static str, id: String },
+
+    /// The activity id given by the caller does not exist. The id stays out of
+    /// the message: MCP tool errors are stored in the agent audit log, which
+    /// must not hold caller input.
+    #[error("Activity not found")]
+    ActivityNotFound,
 }

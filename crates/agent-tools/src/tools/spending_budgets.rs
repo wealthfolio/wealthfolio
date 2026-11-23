@@ -10,11 +10,11 @@ use wealthfolio_spending::budget::{BudgetOperation, BudgetReview};
 fn operation_schema() -> Value {
     let target = json!({"type":"object","additionalProperties":false,"properties":{
         "id":{"type":["string","null"]},"periodKey":{"type":"string","description":"default or YYYY-MM. Defaults affect every inheriting month, including historical months."},
-        "targetType":{"type":"string","enum":["category","group_buffer"]},"taxonomyId":{"type":["string","null"],"enum":["spending_categories","income_sources",null]},
-        "categoryId":{"type":["string","null"]},"groupId":{"type":["string","null"]},"amount":{"type":"string","description":"Exact nonnegative decimal in the profile base currency. Category targets require a top-level category; group_buffer requires groupId."}
+        "targetType":{"type":"string","enum":["category","group_buffer"]},"taxonomyId":{"type":["string","null"],"enum":["spending_categories","savings_categories","income_sources",null]},
+        "categoryId":{"type":["string","null"]},"groupId":{"type":["string","null"]},"amount":{"type":"string","description":"Exact nonnegative decimal in the profile base currency. Category targets require a top-level category; group_buffer requires groupId. Expense targets and buffers are spending limits; savings targets are goals to reach."}
     },"required":["periodKey","targetType","amount"]});
     let rollover = json!({"type":"object","additionalProperties":false,"properties":{
-        "id":{"type":["string","null"]},"targetType":{"type":"string","enum":["category","group"]},"taxonomyId":{"type":["string","null"],"enum":["spending_categories",null]},"categoryId":{"type":["string","null"]},"groupId":{"type":["string","null"]},"enabled":{"type":"boolean"},"startMonth":{"type":"string"},"startingBalance":{"type":"string"}
+        "id":{"type":["string","null"]},"targetType":{"type":"string","enum":["category","group"]},"taxonomyId":{"type":["string","null"],"enum":["spending_categories","savings_categories",null]},"categoryId":{"type":["string","null"]},"groupId":{"type":["string","null"]},"enabled":{"type":"boolean"},"startMonth":{"type":"string"},"startingBalance":{"type":"string"}
     },"required":["targetType","startMonth","startingBalance"]});
     let group = json!({"type":"object","additionalProperties":false,"properties":{
         "id":{"type":["string","null"]},"key":{"type":["string","null"]},"name":{"type":"string"},"color":{"type":["string","null"]},"icon":{"type":["string","null"]},"sortOrder":{"type":["integer","null"]},"isSystem":{"type":"boolean","const":false}
@@ -34,7 +34,7 @@ fn operation_schema() -> Value {
         variant("create_group",json!({"group":group}),vec!["group"]),
         variant("update_group",json!({"id":{"type":"string"},"changes":patch}),vec!["id","changes"]),
         variant("delete_group",json!({"id":{"type":"string"},"reassignToGroupId":{"type":"string"}}),vec!["id","reassignToGroupId"]),
-        variant("assign_category",json!({"categoryId":{"type":"string"},"groupId":{"type":"string"}}),vec!["categoryId","groupId"]),
+        variant("assign_category",json!({"taxonomyId":{"type":"string","enum":["spending_categories","savings_categories"],"description":"Taxonomy of the category; a category is identified by taxonomy and id. Defaults to spending_categories."},"categoryId":{"type":"string"},"groupId":{"type":"string"}}),vec!["taxonomyId","categoryId","groupId"]),
         variant("set_rollover",json!({"setting":rollover}),vec!["setting"]),
         variant("remove_rollover",json!({"id":{"type":"string"}}),vec!["id"]),
         variant("reset_groups",json!({}),vec![])
@@ -89,7 +89,7 @@ fn effects(review: &BudgetReview) -> Value {
             json!({"removedGroup":review.expected.groups.iter().find(|g|g.id==*id),"reassignToGroupId":reassign_to_group_id,"assignments":review.expected.group_assignments.iter().filter(|a|a.group_id==*id).collect::<Vec<_>>(),"buffers":review.expected.targets.iter().filter(|t|t.group_id.as_deref()==Some(id.as_str())).collect::<Vec<_>>(),"effect":"Assignments move to the destination; buffers merge by period using the native decimal writer. Group rollover must be removed first."})
         }
         SetRollover { setting } => {
-            json!({"after":setting,"rolloverSettingsBefore":review.expected.rollover_settings,"effect":"Enabling group rollover disables its category rollovers atomically. Category rollover requires its group rollover to be disabled. This changes remaining/carry calculations from startMonth."})
+            json!({"after":setting,"rolloverSettingsBefore":review.expected.rollover_settings,"effect":"Group rollover carries the group's expense budget: enabling it disables its expense category rollovers atomically, and an expense category rollover requires its group rollover to be disabled. A savings category rollover carries an unmet savings goal and is independent of group rollover. This changes remaining/carry calculations from startMonth."})
         }
         RemoveRollover { id } => {
             json!({"removed":review.expected.rollover_settings.iter().find(|r|r.id==*id),"effect":"Remaining and carry results are recalculated without this rollover setting."})
@@ -98,7 +98,7 @@ fn effects(review: &BudgetReview) -> Value {
             json!({"effect":"Explicit destructive reset: restore native system group labels/order and default category links. Custom groups remain; missing/deleted categories are not recreated. Targets and rollover settings remain stored."})
         }
         _ => {
-            json!({"change":review.operation,"effect":"Only the displayed group configuration or category-group mapping changes; financial transactions and category assignments are preserved."})
+            json!({"change":review.operation,"effect":"Only the displayed group configuration or category-group mapping changes; financial transactions, category assignments and whether money counts as spending or saving are preserved."})
         }
     };
     effects
@@ -110,7 +110,7 @@ impl AgentTool for PrepareBudgetChange {
         "prepare_budget_change"
     }
     fn description(&self) -> &'static str {
-        "Preview one native budget operation: set/remove category target or group buffer, copy month targets with explicit overwrite, create/edit/reorder/delete custom groups with reassignment, assign a category to a group, set/remove rollover, or explicitly reset groups. Read-only; returns before state, exact proposed configuration and scope/effects for review. Defaults apply to ANY inheriting month, including past months. Savings targets await core domain support; no new accounting semantics are introduced."
+        "Preview one native budget operation: set/remove category target or group buffer, copy month targets with explicit overwrite, create/edit/reorder/delete custom groups with reassignment, assign a category to a group, set/remove rollover, or explicitly reset groups. Read-only; returns before state, exact proposed configuration and scope/effects for review. Defaults apply to ANY inheriting month, including past months. Expense targets are limits; savings targets are goals. Moving a category between groups never changes how its money counts."
     }
     fn input_schema(&self) -> Value {
         json!({"type":"object","additionalProperties":false,"properties":{"change":operation_schema(),"periodKey":{"type":"string","description":"default or YYYY-MM for the resulting budget view. Each target carries its own explicit periodKey."}},"required":["change"]})

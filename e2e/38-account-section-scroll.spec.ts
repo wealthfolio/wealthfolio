@@ -1,5 +1,11 @@
-import { expect, test } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { expect, test } from "./fixtures";
+import {
+  BASE_URL,
+  completeOnboardingIfNeeded,
+  gotoAppPath,
+  trackPortfolioUpdates,
+  waitForPortfolioUpdates,
+} from "./helpers";
 
 // Safari (WebKit) clamps a scroll position as soon as anything measures the
 // layout. Switching an account's sections used to measure the page while one
@@ -62,18 +68,27 @@ test("switching an account's sections keeps the page where it was", async ({ pag
         const response = await page.request.post(`${BASE_URL}/api/v1/holdings/list/query`, {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
-        return ((await response.json()) as unknown[]).length;
+        return ((await response.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )
     .toBeGreaterThanOrEqual(10);
 
+  await trackPortfolioUpdates(page);
   await gotoAppPath(page, `/accounts/${accountId}`);
   // On a phone the account page opens over the Dashboard, which stays mounted.
   const container = page.locator("[data-page-scroll-container]:visible");
   const activities = page.getByRole("button", { name: "Activities", exact: true });
   await expect(activities).toBeVisible({ timeout: 15_000 });
   await expect(container.getByText(`SEC${runId}9`, { exact: true })).toBeVisible();
+  // The performance grid above the switch replaces a skeleton of another
+  // height when it loads, and the browser's scroll anchoring then moves the
+  // page; let it load before recording where the page is.
+  await expect(container.getByText("Time Weighted Return", { exact: true })).toBeVisible();
+  // The load's portfolio update refetches the page when it finishes, which can
+  // swap sections for skeletons mid-switch; measure once that has settled.
+  await waitForPortfolioUpdates(page);
+  await expect(container.locator('[data-slot="skeleton"]')).toHaveCount(0);
 
   // Bring the section switch near the top, with the holdings filling the screen.
   const before = await container.evaluate((element) => {

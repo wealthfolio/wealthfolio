@@ -207,3 +207,22 @@ describe("running balance", () => {
     expect(screen.getByText(/Balance/)).toHaveTextContent("Balance $850.00");
   });
 });
+
+describe("no notes", () => {
+  it.each(["", "  ", null])("shows a dash instead of a blank title for notes %j", (notes) => {
+    const row = toRowVM(activity({ notes } as Partial<CashActivity>), new Map());
+    render(
+      <>
+        <TransactionCard row={row} selectionMode={false} {...shared} />
+        <Table>
+          <TableBody>
+            <TransactionRow row={row} {...shared} />
+          </TableBody>
+        </Table>
+      </>,
+      { wrapper: withProviders },
+    );
+
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+});

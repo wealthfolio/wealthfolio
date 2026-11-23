@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "添加资产",
     "add_liability": "添加负债",
-    "record_transaction": "记录交易",
     "sync_broker_accounts": "同步券商账户",
     "sync_devices": "同步设备",
     "update_prices": "更新价格",

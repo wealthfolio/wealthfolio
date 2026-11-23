@@ -21,7 +21,12 @@ import { useTranslation } from "react-i18next";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { Account, ActivityImport } from "@/lib/types";
 import { cn, formatDateTime, toPascalCase } from "@/lib/utils";
-import { useAmountFormatting, type FormattingApi, useDateFormatting } from "@wealthfolio/ui";
+import {
+  useAmountFormatting,
+  type FormattingApi,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
 import { DataTableFacetedFilterProps } from "@wealthfolio/ui/components/ui/data-table/data-table-faceted-filter";
@@ -99,6 +104,7 @@ export const ImportPreviewTable = ({
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
@@ -161,7 +167,7 @@ export const ImportPreviewTable = ({
 
   const table = useReactTable({
     data: activities,
-    columns: getColumns(t, accounts, baseCurrency, amountFormatting, dateFormatting),
+    columns: getColumns(t, accounts, baseCurrency, amountFormatting, dateFormatting, numbers),
     state: {
       sorting,
       columnFilters,
@@ -297,6 +303,7 @@ function getColumns(
   baseCurrency: string,
   formatting: Pick<FormattingApi, "formatAmount">,
   dateFormatting: Pick<FormattingApi, "formatDate" | "formatTime">,
+  numbers: Pick<FormattingApi, "formatDecimal">,
 ): ColumnDef<ActivityImport>[] {
   const accountCurrencyLookup = new Map(accounts.map((account) => [account.id, account.currency]));
   return [
@@ -518,7 +525,9 @@ function getColumns(
               {activityType === "SPLIT"
                 ? (() => {
                     const ratio = toNumber(unitPrice);
-                    return ratio === undefined ? "-" : `${ratio.toFixed(0)} : 1`;
+                    return ratio === undefined
+                      ? "-"
+                      : `${numbers.formatDecimal(ratio, { maximumFractionDigits: 0 })} : 1`;
                   })()
                 : safeFormatAmount(unitPrice, currency, formatting)}
             </div>

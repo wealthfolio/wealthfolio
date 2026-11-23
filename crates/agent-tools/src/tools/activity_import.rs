@@ -77,6 +77,9 @@ pub struct ActivityImportRow {
     pub account_id: Option<String>,
     #[serde(default)]
     pub comment: Option<String>,
+    /// Explicit external marker for a transfer or credit.
+    #[serde(default)]
+    pub is_external: Option<bool>,
     /// 1-based source line, surfaced in previews and duplicate messages.
     #[serde(default)]
     pub line_number: Option<i32>,
@@ -176,6 +179,11 @@ fn is_rejected(row: &ActivityImport) -> bool {
 
 fn is_duplicate(row: &ActivityImport) -> bool {
     row.duplicate_of_id.is_some() || row.duplicate_of_line_number.is_some()
+}
+
+/// A row the import wrote as a draft (no final cash it could establish).
+fn is_saved_draft(row: &ActivityImport) -> bool {
+    row.is_draft && !is_rejected(row) && !(is_duplicate(row) && !row.force_import)
 }
 
 fn to_result(row: &ActivityImport) -> ImportRowResult {
@@ -458,6 +466,11 @@ pub struct CommitActivityImportOutput {
     pub financial_rows: Vec<ImportFinancialRowStatus>,
     pub import_run_id: String,
     pub summary: ImportActivitiesSummary,
+    /// Rows saved as drafts: they wait for review and count toward nothing.
+    pub draft: usize,
+    /// Each draft row with the warning that says why.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub drafts: Vec<ImportRowResult>,
     /// Rows that failed validation/import (with their errors).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<ImportRowResult>,
@@ -483,7 +496,7 @@ impl AgentTool for CommitActivityImport {
     }
 
     fn description(&self) -> &'static str {
-        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. Nothing is imported if any row fails validation; fix or remove the failed rows and retry. A row that passes validation but fails while being written is skipped and listed in failed, with success false; the other rows are still imported. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, financialRows with saved/existing IDs and per-row financial status, a summary, and failed rows. For Spending category/event columns, use prepare_spending_import_metadata against those saved IDs, review, then commit only metadata. A metadata failure must never trigger reimporting successful financial rows."
+        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. Nothing is imported if any row fails validation; fix or remove the failed rows and retry. A row that passes validation but fails while being written is skipped and listed in failed, with success false; the other rows are still imported. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, financialRows with saved/existing IDs and per-row financial status (imported, draft, duplicate_skipped or failed), a summary, a draft count with each draft row and its warning, and failed rows. Draft rows are saved but wait for review and count toward no holding or balance: tell the user, and fix them with prepare_activity_updates / commit_activity_updates. For Spending category/event columns, use prepare_spending_import_metadata against those saved IDs, review, then commit only metadata. A metadata failure must never trigger reimporting successful financial rows."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -553,6 +566,8 @@ impl AgentTool for CommitActivityImport {
                     success: false,
                     error_message: Some("Validation errors found in activities.".to_string()),
                 },
+                draft: 0,
+                drafts: Vec::new(),
                 failed,
             };
             return Ok(AgentToolResult {
@@ -598,10 +613,12 @@ impl AgentTool for CommitActivityImport {
                     "failed"
                 } else if duplicate {
                     "duplicate_skipped"
+                } else if row.is_draft {
+                    "draft"
                 } else {
                     "imported"
                 };
-                let id = if status == "imported" {
+                let id = if matches!(status, "imported" | "draft") {
                     result
                         .persisted_rows
                         .iter()
@@ -620,10 +637,18 @@ impl AgentTool for CommitActivityImport {
                 }
             })
             .collect();
+        let drafts: Vec<ImportRowResult> = result
+            .activities
+            .iter()
+            .filter(|row| is_saved_draft(row))
+            .map(to_result)
+            .collect();
         let output = CommitActivityImportOutput {
             financial_rows,
             import_run_id: result.import_run_id,
             summary,
+            draft: drafts.len(),
+            drafts,
             failed,
         };
         Ok(AgentToolResult {
@@ -652,13 +677,14 @@ fn activity_row_schema() -> serde_json::Value {
             "providerSymbol": { "type": "string", "description": "Provider-native symbol returned during review." },
             "quantity": { "type": "number" },
             "unitPrice": { "type": "number" },
-            "amount": { "type": "number" },
+            "amount": { "type": "number", "description": "Final cash that moved, as the statement booked it. For DIVIDEND and INTEREST, the cash received after withholding tax; for INTEREST on a credit card, the interest charged. For DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD, the value of the shares or tokens received. For SPLIT, the split ratio (2 for a 2-for-1 split)." },
             "fee": { "type": "number" },
             "tax": { "type": "number", "description": "Tax withheld, such as dividend withholding tax." },
             "fxRate": { "type": "number", "description": "Rate from the statement converting the activity currency into the account currency. Omit to use the market rate." },
             "subtype": { "type": "string", "description": "Variation of the activity type, e.g. DRIP for DIVIDEND or STAKING_REWARD for INTEREST." },
             "accountId": { "type": "string" },
             "comment": { "type": "string" },
+            "isExternal": { "type": "boolean", "description": "Mark a transfer or credit as external with true. False follows the core import semantics; an unpaired transfer without an external marker has an unknown boundary." },
             "lineNumber": { "type": "integer", "description": "1-based source row, for duplicate messages." },
             "forceImport": { "type": "boolean", "description": "Import despite a detected duplicate." }
         },
@@ -694,6 +720,7 @@ mod tests {
             subtype: None,
             account_id: Some("acct-1".to_string()),
             comment: None,
+            is_external: None,
             line_number: None,
             force_import: force,
         }
@@ -710,6 +737,37 @@ mod tests {
         assert_eq!(r.line_number, Some(1)); // defaulted from index
         assert!(r.force_import); // "import anyway" preserved
         assert!(!r.is_draft);
+    }
+
+    #[test]
+    fn external_flag_survives_mcp_import_mapping() {
+        for flag in [None, Some(true), Some(false)] {
+            let mut input = serde_json::to_value(row(false)).unwrap();
+            input["activityType"] = json!("TRANSFER_IN");
+            if let Some(flag) = flag {
+                input["isExternal"] = json!(flag);
+            }
+            let parsed: ActivityImportRow = serde_json::from_value(input).unwrap();
+            let mapped = to_import_rows(&[parsed]).unwrap();
+            assert_eq!(mapped[0].is_external, flag);
+            let activity: wealthfolio_core::activities::NewActivity = mapped[0].clone().into();
+            let metadata = activity
+                .metadata
+                .as_deref()
+                .map(|m| serde_json::from_str::<serde_json::Value>(m).unwrap());
+            if flag == Some(true) {
+                assert_eq!(metadata.unwrap()["flow"]["is_external"], true);
+            } else {
+                assert!(metadata.is_none());
+            }
+        }
+        let properties = &PrepareActivityImport.input_schema()["properties"]["activities"]["items"]
+            ["properties"];
+        assert_eq!(properties["isExternal"]["type"], "boolean");
+        assert_eq!(
+            PrepareActivityImport.input_schema(),
+            CommitActivityImport.input_schema()
+        );
     }
 
     #[test]

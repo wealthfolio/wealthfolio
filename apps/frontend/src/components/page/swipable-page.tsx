@@ -101,13 +101,23 @@ function MobileNavigation({
   compact?: boolean;
 }) {
   const layoutId = React.useId();
+  const navigationRef = React.useRef<HTMLDivElement>(null);
 
+  React.useEffect(() => {
+    navigationRef.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [currentView]);
+
+  // The mobile reset clips .flex and sets every max-width to 100vw. Keep
+  // this strip's own scrolling and its parent's width as the limit.
   return (
     <div
+      ref={navigationRef}
       className={cn(
-        "bg-muted/50 rounded-(--segmented-radius) flex items-center gap-0.5 p-1 backdrop-blur-sm",
-        compact && "w-fit min-w-0 max-w-full",
+        "bg-muted/50 rounded-(--segmented-radius) mx-auto inline-flex w-max max-w-full! items-center gap-0.5 overflow-x-auto overscroll-x-contain p-1 backdrop-blur-sm",
       )}
+      data-no-swipe-drag
     >
       {views.map((item) => {
         const isActive = currentView === item.value;
@@ -119,10 +129,12 @@ function MobileNavigation({
             type="button"
             onClick={() => onViewChange(item.value)}
             className={cn(
-              "rounded-(--segmented-radius) relative flex cursor-pointer items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors duration-200",
+              // The tap area fills the strip's height; the pill keeps its compact size.
+              // The mobile reset's overflow-x on .flex would make that taller ::after
+              // scroll inside the button, so overflow stays visible.
+              "rounded-(--segmented-radius) relative flex overflow-visible! shrink-0 cursor-pointer after:absolute after:inset-x-0 after:-inset-y-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors duration-200",
               "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
               compact ? "px-2" : "px-3",
-              isActive ? "min-w-0" : "shrink-0",
               isActive ? "text-foreground" : "text-muted-foreground",
             )}
             aria-label={item.label}
@@ -141,11 +153,9 @@ function MobileNavigation({
                 }}
               />
             )}
-            <span className={cn("relative z-10 flex items-center gap-1.5", compact && "min-w-0")}>
+            <span className="relative z-10 flex items-center gap-1.5">
               {IconComponent && <IconComponent className="size-4" />}
-              {isActive && (
-                <span className={cn("whitespace-nowrap", compact && "truncate")}>{item.label}</span>
-              )}
+              {isActive && <span className="whitespace-nowrap">{item.label}</span>}
             </span>
           </button>
         );
@@ -206,6 +216,21 @@ export function SwipablePage({
   const currentActions = views.find((v) => v.value === shownView)?.actions;
   const mobileActionsInHeader = mobileActionsPlacement === "header";
 
+  // On phones the header floats, translucent, over the views as they scroll; each
+  // view starts below it by the header's measured height.
+  const mobileHeaderRef = React.useRef<HTMLDivElement>(null);
+  React.useLayoutEffect(() => {
+    const header = mobileHeaderRef.current;
+    const container = header?.parentElement;
+    if (!isMobile || !header || !container) return;
+    const update = () =>
+      container.style.setProperty("--page-header-height", `${header.offsetHeight}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [isMobile]);
+
   const handleViewChange = React.useCallback(
     (nextView: string, haptic = true) => {
       const swipeIsPending = swipedView !== null;
@@ -256,14 +281,18 @@ export function SwipablePage({
       >
         {isMobile ? (
           /* Mobile: SwipableView with navigation */
-          <div className="flex h-full flex-col md:hidden">
-            {/* Mobile Navigation at top */}
-            <div className="pt-safe flex shrink-0 flex-col gap-2 px-3 pb-2">
-              {/* Equal side columns centre the pills, whatever each view's actions are;
-                  wider actions push them aside instead of overlapping. */}
-              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <div className="relative flex h-full flex-col md:hidden">
+            {/* Mobile Navigation at top, floating over the views */}
+            <div
+              ref={mobileHeaderRef}
+              className="pt-safe from-background/70 to-background/25 absolute inset-x-0 top-0 z-20 flex flex-col gap-2 bg-linear-to-b px-3 pb-2 backdrop-blur-sm backdrop-saturate-150"
+            >
+              {/* Equal side columns centre the strip on the header; the actions column never
+                  drops below its content, so wider actions push the strip aside, and on a
+                  very narrow screen the strip shrinks and scrolls. */}
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,max-content)_minmax(max-content,1fr)] items-center gap-2">
                 <div />
-                <div className={cn("min-w-0", mobileActionsInHeader && "flex justify-center")}>
+                <div className="min-w-0">
                   <MobileNavigation
                     views={views}
                     currentView={shownView}
@@ -271,18 +300,14 @@ export function SwipablePage({
                     compact={mobileActionsInHeader}
                   />
                 </div>
-                {mobileActionsInHeader ? (
-                  // min-w-max: as a mobile `.flex` it clips overflow, which would let its
-                  // column shrink and hide the first action behind the pills.
-                  <div className="flex min-w-max shrink-0 items-center justify-end gap-2">
-                    {currentActions}
-                  </div>
-                ) : (
-                  <div />
-                )}
+                <div className="flex min-w-max items-center justify-end gap-2">
+                  {mobileActionsInHeader && currentActions}
+                </div>
               </div>
               {currentActions && !mobileActionsInHeader && (
-                <div className="flex min-w-0 items-center justify-end gap-2">{currentActions}</div>
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                  {currentActions}
+                </div>
               )}
             </div>
 
@@ -299,6 +324,7 @@ export function SwipablePage({
                         // wash) and keeps its own nav clearance: stretch it to fill the pane,
                         // so no plain band shows below it.
                         withPadding ? "p-2" : "flex min-h-full flex-col [&>*]:grow",
+                        "pt-[var(--page-header-height,0px)]",
                         withMobileNavOffset && "pb-[var(--mobile-nav-total-offset)]",
                       )}
                     >

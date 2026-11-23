@@ -1808,4 +1808,54 @@ mod tests {
         assert_eq!(parse_date("   ", None), None);
         assert_eq!(parse_date("not a date", None), None);
     }
+
+    #[test]
+    fn quote_page_history_rows_are_pinned() {
+        // Same fixture as the custom provider detection tests: the history
+        // table mixes closed and unclosed cells, a responsive date cell, a
+        // dividend row and &nbsp; before the currency.
+        let body = include_str!("../custom_provider/quote_page_fixture.html");
+        let mut source = json_source("1:4");
+        source.format = "html_table".to_string();
+        source.date_path = Some("1:0".to_string());
+        source.open_path = Some("1:1".to_string());
+        source.high_path = Some("1:2".to_string());
+        source.low_path = Some("1:3".to_string());
+        source.volume_path = Some("1:5".to_string());
+
+        let rows: Vec<_> = extract_table_rows(body, &source, Some("de-DE"))
+            .into_iter()
+            .map(|r| (r.date, r.open, r.high, r.low, r.close, r.volume))
+            .collect();
+
+        assert_eq!(
+            rows,
+            [
+                (
+                    Some(ymd(2026, 11, 4)),
+                    Some(122.0),
+                    Some(125.1),
+                    Some(122.8),
+                    123.45,
+                    Some(1_234_567.0)
+                ),
+                (
+                    Some(ymd(2026, 11, 3)),
+                    Some(121.1),
+                    Some(122.5),
+                    Some(120.9),
+                    122.2,
+                    Some(987_654.0)
+                ),
+                (
+                    Some(ymd(2026, 10, 31)),
+                    Some(119.0),
+                    Some(121.4),
+                    Some(118.75),
+                    121.0,
+                    None
+                ),
+            ]
+        );
+    }
 }

@@ -10,6 +10,18 @@ function paste(text: string) {
 }
 
 describe("localized financial input typing", () => {
+  it("preserves existing Spanish input grouping choices", () => {
+    render(
+      <FormattingProvider locale="ES">
+        <MoneyInput aria-label="Amount" value={8765.43} thousandSeparator={false} />
+        <QuantityInput aria-label="Quantity" value={8765.43} />
+      </FormattingProvider>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Amount" })).toHaveValue("8765,43");
+    expect(screen.getByRole("textbox", { name: "Quantity" })).toHaveValue("8.765,43");
+  });
+
   it.each([
     ["money", "de-DE", "1.5", "1,5", 1.5],
     ["quantity", "de-DE", "1.5", "1,5", 1.5],
@@ -165,6 +177,22 @@ describe("localized financial input typing", () => {
 });
 
 describe("localized financial input paste", () => {
+  it.each(["readOnly", "disabled"] as const)("blocks pastes into %s money inputs", (state) => {
+    const onValueChange = vi.fn();
+    render(
+      <MoneyInput
+        value={100}
+        readOnly={state === "readOnly"}
+        disabled={state === "disabled"}
+        onValueChange={onValueChange}
+      />,
+    );
+
+    expect(paste("$1,234.56")).toBe(false);
+    expect(screen.getByRole("textbox")).toHaveValue("100");
+    expect(onValueChange).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["1234.56", 1234.56],
     ["1,234.56", 1234.56],

@@ -21,6 +21,9 @@ vi.mock("@/adapters", () => ({
   calculatePerformanceSummary: vi.fn(),
 }));
 
+vi.mock("@/hooks/use-health", () => ({
+  useHealthStatus: () => ({ data: undefined, isLoading: false }),
+}));
 vi.mock("@/components/privacy-toggle", () => ({
   PrivacyToggle: () => <button onClick={uiMocks.togglePrivacy}>Hide Balance</button>,
 }));
@@ -84,8 +87,17 @@ vi.mock("@wealthfolio/ui", async () => {
               description: "3M",
             },
     IntervalSelector: () => <div>interval-selector</div>,
-    usePersistentState: () => [uiMocks.intervalCode, vi.fn()],
-    useDateFormatting: () => ({ formatDate: () => "Jun 1, 2026", formatTime: () => "12:30" }),
+    usePersistentState: (key: string) => [
+      key === "dashboard-period"
+        ? JSON.parse(window.localStorage.getItem(key) ?? "null")
+        : uiMocks.intervalCode,
+      vi.fn(),
+    ],
+    useDateFormatting: () => ({
+      formatDate: () => "Jun 1, 2026",
+      formatTime: () => "12:30",
+      formatCalendarDate: (value: string) => value,
+    }),
   };
 });
 
@@ -175,6 +187,139 @@ describe("DashboardContent", () => {
       error: null,
     } as unknown as ReturnType<typeof useCurrentValuation>);
   }
+
+  it.each(["unavailable", "partialUnpriced"] as const)(
+    "does not show an incomplete %s subtotal as an investment balance",
+    (status) => {
+      mockUseSettingsContext.mockReturnValue({
+        settings: { baseCurrency: "AED" },
+      } as unknown as ReturnType<typeof useSettingsContext>);
+      mockCurrentValuation(20);
+      const previous = mockUseCurrentValuation({ type: "all" });
+      mockUseCurrentValuation.mockReturnValue({
+        ...previous,
+        currentValuation: {
+          ...previous.currentValuation!,
+          summary: {
+            ...previous.currentValuation!.summary,
+            valueStatus: status,
+            missingFx: [],
+          },
+        },
+      });
+      mockUseHoldings.mockReturnValue({
+        holdings: [],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useHoldings>);
+      mockUseValuationHistory.mockReturnValue({
+        valuationHistory: [],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useValuationHistory>);
+      mockUseQuery.mockReturnValue({ isLoading: false, data: null } as unknown as ReturnType<
+        typeof useQuery
+      >);
+      render(<DashboardContent />);
+      expect(screen.getByText("balance:N/A")).toBeInTheDocument();
+      expect(screen.queryByText("balance:20")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Total unavailable: some prices or exchange rates are missing."),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps history gaps visible without reporting growth across an incomplete period", () => {
+    mockCurrentValuation(125);
+    mockUseSettingsContext.mockReturnValue({
+      settings: { baseCurrency: "USD" },
+    } as unknown as ReturnType<typeof useSettingsContext>);
+    mockUseHoldings.mockReturnValue({
+      holdings: [],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useHoldings>);
+    mockUseValuationHistory.mockReturnValue({
+      valuationHistory: [
+        { valuationDate: "2026-05-30", totalValueBase: 100, valueStatus: "complete" },
+        { valuationDate: "2026-05-31", totalValueBase: 0, valueStatus: "unavailable" },
+        { valuationDate: "2026-06-01", totalValueBase: 125, valueStatus: "complete" },
+      ],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useValuationHistory>);
+    mockUseQuery.mockReturnValue({
+      isLoading: false,
+      data: {
+        summary: { amountStatus: "complete", percentStatus: "complete", amount: 25, percent: 0.25 },
+      },
+    } as unknown as ReturnType<typeof useQuery>);
+    render(<DashboardContent />);
+    expect(screen.getByText("balance:125")).toBeInTheDocument();
+    expect(screen.queryByText("gain-amount:25")).not.toBeInTheDocument();
+    expect(screen.queryByText("gain-percent:0.25")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Some historical values are unavailable. Changes cannot be calculated for this period.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["past custom range", "2026-06-01", true],
+    ["range including today", "2026-06-02", false],
+  ] as const)("uses period completeness for a %s", (_label, endDate, showsReturn) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-02T12:00:00Z"));
+    window.localStorage.setItem(
+      "dashboard-period",
+      JSON.stringify({
+        kind: "range",
+        from: "2026-05-01",
+        to: endDate,
+      }),
+    );
+    try {
+      mockUseSettingsContext.mockReturnValue({
+        settings: { baseCurrency: "USD", timezone: "UTC" },
+      } as ReturnType<typeof useSettingsContext>);
+      mockCurrentValuation();
+      const current = mockUseCurrentValuation({ type: "all" });
+      mockUseCurrentValuation.mockReturnValue({
+        ...current,
+        currentValuation: {
+          ...current.currentValuation!,
+          summary: { ...current.currentValuation!.summary, valueStatus: "unavailable" },
+        },
+      });
+      mockUseHoldings.mockReturnValue({ holdings: [], isLoading: false } as unknown as ReturnType<
+        typeof useHoldings
+      >);
+      mockUseValuationHistory.mockReturnValue({
+        valuationHistory: [
+          { valuationDate: endDate, totalValueBase: 125, valueStatus: "complete" },
+        ],
+        isLoading: false,
+      } as ReturnType<typeof useValuationHistory>);
+      mockUseQuery.mockReturnValue({
+        isLoading: false,
+        data: {
+          summary: {
+            amountStatus: "complete",
+            percentStatus: "complete",
+            amount: 25,
+            percent: 0.25,
+          },
+        },
+      } as unknown as ReturnType<typeof useQuery>);
+      render(<DashboardContent />);
+      expect(Boolean(screen.queryByText("gain-amount:25"))).toBe(showsReturn);
+      expect(Boolean(screen.queryByText("gain-percent:0.25"))).toBe(showsReturn);
+    } finally {
+      window.localStorage.removeItem("dashboard-period");
+      vi.useRealTimers();
+    }
+  });
 
   it("does not pass backend performance warnings to dashboard header notices", () => {
     mockCurrentValuation(125);
@@ -451,7 +596,10 @@ describe("DashboardContent", () => {
 
     const privacy = screen.getByRole("button", { name: "Hide Balance" });
     expect(privacy.closest("a")).toBeNull();
-    await userEvent.tab();
+    // Header navigation comes before the balance controls in keyboard order.
+    for (let tabs = 0; tabs < 3 && document.activeElement !== privacy; tabs++) {
+      await userEvent.tab();
+    }
     expect(privacy).toHaveFocus();
     await new Promise((resolve) => setTimeout(resolve, 800));
     expect(screen.queryByRole("button", { name: "Update prices" })).not.toBeInTheDocument();

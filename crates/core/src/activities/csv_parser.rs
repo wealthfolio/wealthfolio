@@ -192,9 +192,9 @@ fn detect_encoding(content: &[u8]) -> &'static encoding_rs::Encoding {
         return encoding_rs::UTF_8;
     }
     // Legacy encoding detection (Shift_JIS, Windows-1252, EUC-KR, etc.)
-    let mut detector = chardetng::EncodingDetector::new();
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Allow);
     detector.feed(content, true);
-    detector.guess(None, true)
+    detector.guess(None, chardetng::Utf8Detection::Allow)
 }
 
 /// Decodes content bytes to UTF-8 string, handling BOM and non-UTF-8 encodings.
@@ -547,6 +547,29 @@ mod tests {
         let result = parse_csv(content, &config).unwrap();
 
         assert_eq!(result.headers, vec!["name", "age"]);
+    }
+
+    #[test]
+    fn test_windows_1252_is_detected_and_decoded() {
+        // A European bank export saved as Windows-1252 (é = E9, ü = FC).
+        let content = b"date,description,amount\n2026-01-02,Caf\xE9 M\xFCller,12.50\n2026-01-03,R\xE9sum\xE9 fee,3.00";
+
+        assert_eq!(detect_encoding(content), encoding_rs::WINDOWS_1252);
+        let result = parse_csv(content, &ParseConfig::default()).unwrap();
+        assert_eq!(result.rows[0], vec!["2026-01-02", "Café Müller", "12.50"]);
+        assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn test_shift_jis_is_detected_and_decoded() {
+        let text = "日付,摘要,金額\n2026/01/02,東京電力,1200\n2026/01/03,コンビニ,450";
+        let (content, _, _) = encoding_rs::SHIFT_JIS.encode(text);
+
+        assert_eq!(detect_encoding(&content), encoding_rs::SHIFT_JIS);
+        let result = parse_csv(&content, &ParseConfig::default()).unwrap();
+        assert_eq!(result.headers, vec!["日付", "摘要", "金額"]);
+        assert_eq!(result.rows[0], vec!["2026/01/02", "東京電力", "1200"]);
+        assert!(result.errors.is_empty());
     }
 
     #[test]

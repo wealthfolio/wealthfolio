@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 use wealthfolio_connect::{
-    acquire_broker_sync_guard, ensure_valid_access_token, BrokerSyncServiceTrait,
+    acquire_broker_sync_guard, ensure_profile_access_token, BrokerSyncServiceTrait,
     TokenLifecycleConfig, TokenLifecycleState,
 };
 use wealthfolio_core::{
@@ -279,6 +279,9 @@ async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>)
                         result.message
                     );
                 }
+                Err(e) if wealthfolio_connect::is_subscription_denial(&e) => {
+                    tracing::debug!("Broker sync skipped after tracking mode change: {}", e);
+                }
                 Err(e) => {
                     tracing::warn!("Broker sync failed after tracking mode change: {}", e);
                 }
@@ -440,17 +443,16 @@ async fn mint_access_token(
     }
     let config = token_lifecycle_config().ok_or("Connect auth unavailable")?;
     let (registry, id) = profile_binding.ok_or("Profile binding unavailable")?;
-    let token = ensure_valid_access_token(secret_store.as_ref(), token_lifecycle, Some(&config))
-        .await
-        .map_err(|e| e.to_string())?;
-    wealthfolio_connect::token_lifecycle::admit_profile_binding(
-        &token,
-        &config,
+    let token = ensure_profile_access_token(
+        secret_store.as_ref(),
+        token_lifecycle,
+        Some(&config),
         &cloud_api_base_url(),
         registry.as_ref(),
         *id,
     )
-    .await?;
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(token)
 }
 
@@ -465,7 +467,7 @@ async fn perform_broker_sync(
     token_lifecycle: Arc<TokenLifecycleState>,
     profile_binding: Option<(Arc<wealthfolio_core::profiles::ProfileRegistry>, uuid::Uuid)>,
 ) -> Result<wealthfolio_connect::SyncResult, String> {
-    use wealthfolio_connect::{ConnectApiClient, SyncConfig, SyncOrchestrator};
+    use wealthfolio_connect::ConnectApiClient;
 
     if !crate::features::connect_sync_enabled() {
         return Err("Connect sync feature is disabled in this build.".to_string());
@@ -481,10 +483,18 @@ async fn perform_broker_sync(
     .await?;
     let client = ConnectApiClient::new(&cloud_api_base_url(), &token).map_err(|e| e.to_string())?;
 
-    // Check plan entitlement before syncing
-    if !client.has_broker_sync().await.map_err(|e| e.to_string())? {
-        return Err("Plan does not include broker sync".to_string());
-    }
+    perform_broker_sync_with_client(connect_sync_service, event_bus, &client).await
+}
+
+pub(crate) async fn perform_broker_sync_with_client(
+    connect_sync_service: Arc<dyn BrokerSyncServiceTrait + Send + Sync>,
+    event_bus: EventBus,
+    client: &wealthfolio_connect::ConnectApiClient,
+) -> Result<wealthfolio_connect::SyncResult, String> {
+    use wealthfolio_connect::{BrokerApiClient, SyncConfig, SyncOrchestrator};
+
+    // A denied automatic sync is a quiet skip before any progress events.
+    let connections = client.list_connections().await.map_err(|e| e.to_string())?;
 
     // Create progress reporter and orchestrator
     let reporter = Arc::new(EventBusProgressReporter::new(event_bus));
@@ -496,5 +506,7 @@ async fn perform_broker_sync(
 
     // Run the sync via the centralized orchestrator
     // Note: Asset enrichment is handled automatically via domain events (AssetsCreated)
-    orchestrator.sync_all(&client).await
+    orchestrator
+        .sync_all_with_connections(client, Some(connections))
+        .await
 }

@@ -3,20 +3,22 @@ use std::sync::Arc;
 use axum::{extract::Query, Json};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use wealthfolio_core::errors::{Error as CoreError, ValidationError};
 use wealthfolio_core::portfolios::{AccountScope, ResolvedAccountScope};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use wealthfolio_core::{
-    accounts::{account_supports_purpose, AccountPurpose, AccountServiceTrait, TrackingMode},
+    accounts::{AccountPurpose, AccountServiceTrait, TrackingMode},
     lots::AssetLotView,
     portfolio::{
         allocation::{AllocationHoldings, PortfolioAllocations},
-        holdings::{Holding, HoldingListItem},
+        holdings::{Holding, HoldingsListResponse, HoldingsScope},
         snapshot::{
             check_holdings_import as validate_holdings_import, holdings_import_data_source,
             reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
             validate_holdings_import_snapshot, CashBalanceInput,
             HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
-            ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
+            ManualHoldingInput, ManualHoldingsEntry, ManualHoldingsSaveError,
+            ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
         },
         valuation::{
             CurrentAccountValuationService, CurrentValuationResponse, DailyAccountValuation,
@@ -25,18 +27,23 @@ use wealthfolio_core::{
     quotes::MarketSyncMode,
 };
 
-use crate::{api::shared::holdings_account_ids, error::ApiResult, main_lib::AppState};
+use crate::{
+    api::shared::holdings_account_ids,
+    error::{ApiError, ApiResult},
+    main_lib::AppState,
+};
 
 use super::dto::{
-    AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsQuery,
-    AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult, CurrentValuationBody,
-    DeleteSnapshotQuery, FilterBody, HistoryFilterBody, HistoryQuery, HoldingItemQuery,
-    HoldingsSnapshotInput, ImportHoldingsCsvRequest, ImportHoldingsCsvResult,
+    AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsFilterBody,
+    AssetHoldingsQuery, AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult,
+    CurrentValuationBody, DeleteSnapshotQuery, FilterBody, HistoryFilterBody, HistoryQuery,
+    HoldingItemQuery, HoldingsSnapshotInput, ImportHoldingsCsvRequest, ImportHoldingsCsvResult,
     SaveManualHoldingsRequest, SnapshotDateQuery, SnapshotInfo, SnapshotsQuery, SymbolCheckResult,
 };
 use super::mappers::{parse_date, parse_date_optional};
 
-fn resolve_scope(
+/// Resolves a scope to the accounts whose holdings it reports.
+fn resolve_holdings_scope(
     filter: &AccountScope,
     state: &AppState,
 ) -> Result<ResolvedAccountScope, crate::error::ApiError> {
@@ -47,7 +54,7 @@ fn resolve_scope(
         .clone();
     state
         .portfolio_service
-        .resolve_account_scope(filter, &base)
+        .resolve_account_scope_for_purpose(filter, &base, AccountPurpose::Holdings)
         .map_err(crate::error::ApiError::from)
 }
 
@@ -104,11 +111,11 @@ pub async fn get_holdings(
 pub async fn get_holdings_list(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<FilterBody>,
-) -> ApiResult<Json<Vec<HoldingListItem>>> {
-    let holdings =
-        load_holdings_for_filter(state.as_ref(), &body.filter, body.include_closed).await?;
+) -> ApiResult<Json<HoldingsListResponse>> {
     Ok(Json(
-        holdings.into_iter().map(HoldingListItem::from).collect(),
+        load_holdings_scope_for_filter(state.as_ref(), &body.filter, body.include_closed)
+            .await?
+            .into(),
     ))
 }
 
@@ -117,32 +124,32 @@ async fn load_holdings_for_filter(
     filter: &AccountScope,
     include_closed: bool,
 ) -> ApiResult<Vec<Holding>> {
+    Ok(
+        load_holdings_scope_for_filter(state, filter, include_closed)
+            .await?
+            .require_complete()?,
+    )
+}
+
+async fn load_holdings_scope_for_filter(
+    state: &AppState,
+    filter: &AccountScope,
+    include_closed: bool,
+) -> ApiResult<HoldingsScope> {
     let base = state
         .base_currency
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(filter, state)?;
-    let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
-    let holdings = if account_ids.is_empty() {
-        Vec::new()
-    } else if account_ids.len() == 1 {
-        state
-            .holdings_service
-            .get_holdings_with_options(&account_ids[0], &base, include_closed)
-            .await?
-    } else {
-        state
-            .holdings_service
-            .get_holdings_for_accounts_with_options(
-                &account_ids,
-                &base,
-                &resolved.scope_id,
-                include_closed,
-            )
-            .await?
-    };
-    Ok(holdings)
+    let resolved = resolve_holdings_scope(filter, state)?;
+    let account_ids = &resolved.account_ids;
+    if account_ids.is_empty() {
+        return Ok(HoldingsScope::default());
+    }
+    Ok(state
+        .holdings_service
+        .get_holdings_scope(account_ids, &base, &resolved.scope_id, include_closed)
+        .await?)
 }
 
 /// GET /holdings?accountId=... — simple single-account scope
@@ -170,22 +177,17 @@ pub async fn get_holdings_for_account(
 pub async fn get_holdings_list_for_account(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AccountIdQuery>,
-) -> ApiResult<Json<Vec<HoldingListItem>>> {
-    let base = state
-        .base_currency
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .clone();
-    let account_ids = holdings_account_ids(&state, std::slice::from_ref(&q.account_id))?;
-    if account_ids.is_empty() {
-        return Ok(Json(Vec::new()));
-    }
-    let holdings = state
-        .holdings_service
-        .get_holdings_with_options(&account_ids[0], &base, q.include_closed)
-        .await?;
+) -> ApiResult<Json<HoldingsListResponse>> {
     Ok(Json(
-        holdings.into_iter().map(HoldingListItem::from).collect(),
+        load_holdings_scope_for_filter(
+            state.as_ref(),
+            &AccountScope::Account {
+                account_id: q.account_id,
+            },
+            q.include_closed,
+        )
+        .await?
+        .into(),
     ))
 }
 
@@ -261,28 +263,52 @@ pub async fn get_holding(
 pub async fn get_asset_holdings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AssetHoldingsQuery>,
-) -> ApiResult<Json<Vec<Holding>>> {
+) -> ApiResult<Json<HoldingsListResponse>> {
+    load_asset_holdings_scope(state.as_ref(), &q.asset_id, None)
+        .await
+        .map(Json)
+}
+
+pub async fn get_asset_holdings_for_scope(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(body): Json<AssetHoldingsFilterBody>,
+) -> ApiResult<Json<HoldingsListResponse>> {
+    load_asset_holdings_scope(state.as_ref(), &body.asset_id, Some(&body.filter))
+        .await
+        .map(Json)
+}
+
+async fn load_asset_holdings_scope(
+    state: &AppState,
+    asset_id: &str,
+    filter: Option<&AccountScope>,
+) -> ApiResult<HoldingsListResponse> {
     let base = state
         .base_currency
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let accounts = state.account_service.get_active_accounts()?;
-
-    let mut result = Vec::new();
-    for account in accounts {
-        if !account_supports_purpose(&account.account_type, AccountPurpose::Holdings) {
-            continue;
-        }
-        if let Ok(Some(holding)) = state
-            .holdings_service
-            .get_holding(&account.id, &q.asset_id, &base)
-            .await
-        {
-            result.push(holding);
-        }
-    }
-    Ok(Json(result))
+    let ids = if let Some(filter) = filter {
+        resolve_holdings_scope(filter, state)?.account_ids
+    } else {
+        state
+            .account_service
+            .get_active_accounts()?
+            .into_iter()
+            .filter(|account| {
+                wealthfolio_core::accounts::account_supports_portfolio_scope(
+                    account,
+                    AccountPurpose::Holdings,
+                )
+            })
+            .map(|account| account.id)
+            .collect::<Vec<_>>()
+    };
+    Ok(state
+        .holdings_service
+        .get_asset_holdings_scope(&ids, asset_id, &base)
+        .await?
+        .into())
 }
 
 pub async fn get_asset_lots(
@@ -342,8 +368,8 @@ pub async fn get_historical_valuations_for_scope(
                 .map_err(|e| anyhow::anyhow!("Invalid endDate: {}", e))
         })
         .transpose()?;
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let vals = if account_ids.is_empty() {
         Vec::new()
     } else if account_ids.len() == 1 {
@@ -355,7 +381,7 @@ pub async fn get_historical_valuations_for_scope(
             .valuation_service
             .get_historical_valuation_totals_for_accounts(
                 &resolved.scope_id,
-                &account_ids,
+                account_ids,
                 &resolved.base_currency,
                 start,
                 end,
@@ -443,8 +469,8 @@ pub async fn get_portfolio_allocations(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let allocations = if account_ids.len() == 1 {
         state
             .allocation_service
@@ -453,7 +479,7 @@ pub async fn get_portfolio_allocations(
     } else {
         state
             .allocation_service
-            .get_portfolio_allocations_for_accounts(&account_ids, &base, &resolved.scope_id)
+            .get_portfolio_allocations_for_accounts(account_ids, &base, &resolved.scope_id)
             .await?
     };
     Ok(Json(allocations))
@@ -468,8 +494,8 @@ pub async fn get_holdings_by_allocation(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let result = if account_ids.len() == 1 {
         state
             .allocation_service
@@ -484,7 +510,7 @@ pub async fn get_holdings_by_allocation(
         state
             .allocation_service
             .get_holdings_by_allocation_for_accounts(
-                &account_ids,
+                account_ids,
                 &base,
                 &body.taxonomy_id,
                 &body.category_id,
@@ -571,7 +597,10 @@ pub async fn delete_snapshot_handler(
             q.snapshot_id
                 .as_deref()
                 .map(|snapshot_id| snapshot.id == snapshot_id)
-                .unwrap_or(snapshot.snapshot_date == q.date)
+                .unwrap_or(
+                    snapshot.snapshot_date == q.date
+                        && snapshot.source != SnapshotSource::Calculated.as_str(),
+                )
         })
         .ok_or_else(|| anyhow::anyhow!("No snapshot found for date {}", q.date))?;
 
@@ -599,21 +628,10 @@ pub async fn delete_snapshot_handler(
     }
 
     // Delete via the service so snapshot deletion stays behind one entry point.
-    if let Some(snapshot_id) = q.snapshot_id.as_deref() {
-        state
-            .snapshot_service
-            .delete_snapshot_for_account_by_id(&q.account_id, snapshot_id)
-            .await?;
-    } else if let Some(target_date) = target_date {
-        state
-            .snapshot_service
-            .delete_snapshot_for_account(&q.account_id, &[target_date])
-            .await?;
-    } else {
-        return Err(
-            anyhow::anyhow!("snapshotId is required to delete a malformed snapshot").into(),
-        );
-    }
+    state
+        .snapshot_service
+        .delete_snapshot_for_account_by_id(&q.account_id, &snapshot.id)
+        .await?;
 
     tracing::info!(
         "Deleted {:?} snapshot for account {} on date {}",
@@ -658,6 +676,18 @@ pub async fn delete_snapshot_handler(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
+/// A refusal the user can act on keeps its code and message. Other failures
+/// stay as text, as before the save moved into core: the response and its
+/// error code stay those of an untyped failure.
+fn manual_holdings_error(error: ManualHoldingsSaveError) -> ApiError {
+    match error {
+        ManualHoldingsSaveError::Save(
+            refusal @ CoreError::Validation(ValidationError::AlternativeAssetNotInAccount),
+        ) => refusal.into(),
+        other => anyhow::anyhow!(other.to_string()).into(),
+    }
+}
+
 pub async fn save_manual_holdings_handler(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(req): Json<SaveManualHoldingsRequest>,
@@ -672,92 +702,42 @@ pub async fn save_manual_holdings_handler(
     // Get the account to verify it exists and get its currency
     let account = state.account_service.get_account(&req.account_id)?;
 
-    // Get base currency for FX pair registration
     let base_currency = state
         .base_currency
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-
-    // Parse the snapshot date or use today in the configured user timezone.
     let timezone = state
         .timezone
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let date = match req.snapshot_date {
-        Some(date_str) => NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-            .map_err(|e| anyhow::anyhow!("Invalid date format: {}", e))?,
-        None => user_today(parse_user_timezone_or_default(&timezone)),
-    };
 
-    let mut positions: Vec<ManualHoldingInput> = Vec::new();
-    for holding in req.holdings {
-        let quantity = holding
-            .quantity
-            .parse::<Decimal>()
-            .map_err(|e| anyhow::anyhow!("Invalid quantity for {}: {}", holding.symbol, e))?;
-
-        // Parse average cost if provided
-        let average_cost = match &holding.average_cost {
-            Some(cost_str) if !cost_str.is_empty() => cost_str.parse::<Decimal>().map_err(|e| {
-                anyhow::anyhow!("Invalid average cost for {}: {}", holding.symbol, e)
-            })?,
-            _ => Decimal::ZERO,
-        };
-
-        positions.push(ManualHoldingInput {
-            asset_id: holding.asset_id,
-            symbol: holding.symbol,
-            exchange_mic: holding.exchange_mic,
-            quantity,
-            currency: holding.currency,
-            average_cost,
-            name: holding.name,
-            data_source: holding.data_source,
-            asset_kind: holding.asset_kind,
-            quote_ccy: holding.quote_ccy,
-            instrument_type: holding.instrument_type,
-            provider_id: holding.provider_id,
-            provider_symbol: holding.provider_symbol,
-        });
-    }
-
-    let mut cash_balances: Vec<CashBalanceInput> = Vec::new();
-    for (currency, amount_str) in req.cash_balances {
-        let amount = amount_str
-            .parse::<Decimal>()
-            .map_err(|e| anyhow::anyhow!("Invalid cash amount for {}: {}", currency, e))?;
-        cash_balances.push(CashBalanceInput { currency, amount });
-    }
-
-    let manual_snapshot_service = ManualSnapshotService::new(
+    let saved = ManualSnapshotService::new(
         state.asset_service.clone(),
         state.fx_service.clone(),
         state.snapshot_service.clone(),
         state.quote_service.clone(),
     )
-    .with_timezone(timezone);
-
-    manual_snapshot_service
-        .save_manual_snapshot(ManualSnapshotRequest {
-            account_id: req.account_id.clone(),
-            account_currency: account.currency.clone(),
-            snapshot_date: date,
-            positions,
-            cash_balances,
-            base_currency: Some(base_currency.clone()),
-            source: SnapshotSource::ManualEntry,
-        })
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to save manual snapshot: {}", e))?;
+    .with_timezone(timezone)
+    .save_manual_holdings(
+        &account,
+        &base_currency,
+        ManualHoldingsEntry {
+            holdings: req.holdings,
+            cash_balances: req.cash_balances,
+            snapshot_date: req.snapshot_date,
+        },
+    )
+    .await
+    .map_err(manual_holdings_error)?;
 
     // SnapshotService emits the dated HoldingsChanged event after persistence.
 
     tracing::info!(
         "Saved manual holdings for account {} on date {}",
         req.account_id,
-        date
+        saved.snapshot_date
     );
 
     Ok(axum::http::StatusCode::OK)
@@ -1018,4 +998,36 @@ async fn import_single_snapshot_impl(
         .map_err(|e| anyhow::anyhow!("Failed to save snapshot: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::response::IntoResponse;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn a_refused_holdings_save_keeps_its_code_and_message() {
+        let response = manual_holdings_error(ManualHoldingsSaveError::Save(CoreError::Validation(
+            ValidationError::AlternativeAssetNotInAccount,
+        )))
+        .into_response();
+
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body reads");
+        let body: serde_json::Value = serde_json::from_slice(&body).expect("JSON body");
+        assert_eq!(body["errorCode"], "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT");
+        assert_eq!(
+            body["message"],
+            wealthfolio_core::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT
+        );
+    }
+
+    #[test]
+    fn other_holdings_save_failures_stay_untyped() {
+        let error = manual_holdings_error(ManualHoldingsSaveError::Invalid("bad row".to_string()));
+        assert!(matches!(error, ApiError::Anyhow(_)));
+    }
 }

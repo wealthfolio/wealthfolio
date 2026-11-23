@@ -1,5 +1,13 @@
+import { StarRatingDisplay } from "@wealthfolio/ui";
 import { render, screen } from "@testing-library/react";
-import { FormattingProvider, GainAmount, GainPercent } from "@wealthfolio/ui";
+import {
+  AmountDisplay,
+  DirectionProvider,
+  FormattingProvider,
+  GainAmount,
+  GainPercent,
+  stripBidiControls,
+} from "@wealthfolio/ui";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@number-flow/react", async () => {
@@ -17,6 +25,44 @@ vi.mock("@number-flow/react", async () => {
 });
 
 describe("localized financial components", () => {
+  it.each(["ltr", "rtl"] as const)(
+    "keeps four-digit Spanish amounts grouped before and after animation in %s",
+    async (direction) => {
+      const { container } = render(
+        <DirectionProvider direction={direction}>
+          <FormattingProvider locale="ES">
+            <AmountDisplay value={8765.43} currency="EUR" />
+            <GainAmount value={8765.43} currency="EUR" />
+            <GainPercent value={87.6543} animated />
+          </FormattingProvider>
+        </DirectionProvider>,
+      );
+      const expected = "8.765,43\u00a0€+8.765,43\u00a0€+8.765,43\u00a0%";
+      expect(stripBidiControls(container.textContent ?? "")).toBe(expected);
+
+      expect(await screen.findAllByTestId("animated-financial-value")).toHaveLength(2);
+      expect(stripBidiControls(container.textContent ?? "")).toBe(expected);
+    },
+  );
+
+  it("renders unknown money as unavailable and preserves an actual zero", () => {
+    const { rerender } = render(
+      <FormattingProvider locale="US">
+        <AmountDisplay value={null} currency="CAD" />
+        <GainAmount value={null} currency="CAD" />
+      </FormattingProvider>,
+    );
+    expect(screen.getAllByText("—")).toHaveLength(2);
+    expect(document.querySelector(".text-gain, .text-loss")).toBeNull();
+    rerender(
+      <FormattingProvider locale="US">
+        <AmountDisplay value={0} currency="USD" />
+        <GainAmount value={0} currency="USD" />
+      </FormattingProvider>,
+    );
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.getAllByText("$0.00")).toHaveLength(2);
+  });
   it("preserves Wealthfolio quote-unit symbols in gain amounts", () => {
     render(
       <FormattingProvider locale="US" uiLocale="en">
@@ -144,6 +190,19 @@ describe("localized financial components", () => {
     expect(gain).toHaveClass("text-foreground");
   });
 
+  it("keeps a gain amount's sign in front on a right-to-left page", async () => {
+    render(
+      <div dir="rtl">
+        <FormattingProvider locale="US" uiLocale="ar">
+          <GainAmount value={38793.32} currency="USD" />
+        </FormattingProvider>
+      </div>,
+    );
+    const animated = await screen.findByTestId("animated-financial-value");
+    expect(animated.closest("[dir]")).toHaveAttribute("dir", "ltr");
+    expect(animated).toHaveTextContent(/^\+\$38,793\.32$/);
+  });
+
   it("preserves locale percent spacing in the animated fallback", () => {
     const { container } = render(
       <FormattingProvider locale="FR" uiLocale="fr">
@@ -152,4 +211,14 @@ describe("localized financial components", () => {
     );
     expect(container.textContent).toMatch(/^\+12,50[\u00a0\u202f ]%$/);
   });
+});
+
+it("uses the selected region for shared rating values", () => {
+  render(
+    <FormattingProvider locale="ES">
+      <StarRatingDisplay rating={4.5} reviewCount={12000} />
+    </FormattingProvider>,
+  );
+  expect(screen.getByText("4,5")).toBeInTheDocument();
+  expect(screen.getByText(/12\.000 reviews/)).toBeInTheDocument();
 });

@@ -5,6 +5,7 @@ import {
   calculateActivityValue,
   formatSplitRatio,
   isAssetBackedIncomeActivity,
+  isAssetBackedIncomeSubtype,
   isCashActivity,
   isCashTransfer,
   isConversionRow,
@@ -84,6 +85,8 @@ interface ActivityTableMobileProps {
   onDuplicate: (activity: ActivityDetails) => Promise<void>;
   onLinkTransfer?: (activity: ActivityDetails) => void;
   onUnlinkTransfer?: (activity: ActivityDetails) => void;
+  /** Each account's type by id, for the row menu's card actions. */
+  accountTypeById?: ReadonlyMap<string, string>;
   filtersActive?: boolean;
   onAdd?: () => void;
   /** Show a "Connect Account" button next to the add button when there are no activities. */
@@ -106,6 +109,7 @@ export const ActivityTableMobile = ({
   onDuplicate,
   onLinkTransfer,
   onUnlinkTransfer,
+  accountTypeById,
   filtersActive = false,
   onAdd,
   showConnectAccountLink = false,
@@ -237,6 +241,9 @@ export const ActivityTableMobile = ({
     const isTransferActivity =
       activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT;
     const isAssetBackedIncome = isAssetBackedIncomeActivity(activityType, symbol, activity.assetId);
+    // A cash dividend names its paying asset too; only the subtype says the
+    // income arrived as units with a price.
+    const isIncomeInKind = isAssetBackedIncomeSubtype(activityType, activity.subtype);
     const isCash = isTransferActivity
       ? isCashTransfer(activityType, symbol, activity.assetId)
       : isCashActivity(activityType) && !isAssetBackedIncome;
@@ -364,6 +371,7 @@ export const ActivityTableMobile = ({
               onDuplicate={onDuplicate}
               onLinkTransfer={onLinkTransfer}
               onUnlinkTransfer={onUnlinkTransfer}
+              accountType={accountTypeById?.get(activity.accountId)}
               touch
             />
           </div>
@@ -425,6 +433,7 @@ export const ActivityTableMobile = ({
               onDuplicate={onDuplicate}
               onLinkTransfer={onLinkTransfer}
               onUnlinkTransfer={onUnlinkTransfer}
+              accountType={accountTypeById?.get(activity.accountId)}
               touch
             />
           </div>
@@ -477,10 +486,10 @@ export const ActivityTableMobile = ({
                 {activity.activityType === "SPLIT"
                   ? t("activity:table.ratio")
                   : (isCashActivity(activity.activityType) &&
-                        !isAssetBackedIncome &&
+                        !isIncomeInKind &&
                         !isSecuritiesTransfer(activity.activityType, symbol, activity.assetId)) ||
                       isCashTransfer(activity.activityType, symbol, activity.assetId) ||
-                      (isIncomeActivity(activity.activityType) && !isAssetBackedIncome)
+                      (isIncomeActivity(activity.activityType) && !isIncomeInKind)
                     ? t("activity:form.label_amount")
                     : isOptionActivity
                       ? t("activity:table.premium")
@@ -492,10 +501,10 @@ export const ActivityTableMobile = ({
                 ) : activity.activityType === "SPLIT" ? (
                   formatSplitRatio(Number(activity.amount))
                 ) : (isCashActivity(activity.activityType) &&
-                    !isAssetBackedIncome &&
+                    !isIncomeInKind &&
                     !isSecuritiesTransfer(activity.activityType, symbol, activity.assetId)) ||
                   isCashTransfer(activity.activityType, symbol, activity.assetId) ||
-                  (isIncomeActivity(activity.activityType) && !isAssetBackedIncome) ? (
+                  (isIncomeActivity(activity.activityType) && !isIncomeInKind) ? (
                   <AmountDisplay
                     value={Number(activity.amount)}
                     currency={activity.currency}

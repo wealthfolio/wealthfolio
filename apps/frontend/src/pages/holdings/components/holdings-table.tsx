@@ -1,7 +1,6 @@
 import { profilePreferenceKey } from "@/hooks/use-persistent-state";
 import { usesLegacyPreferences } from "@/features/profiles/session";
 import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
-import { safeDivide } from "@/lib/utils";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   Badge,
@@ -32,18 +31,20 @@ import {
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
 import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
+import { subtractAmounts, sumAmounts } from "@/lib/monetary-value";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { Holding, MonetaryValue } from "@/lib/types";
+import { Account, AccountScope, Holding, MonetaryValue } from "@/lib/types";
 import { AmountDisplay, PriceDisplay, QuantityDisplay } from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { TFunction } from "i18next";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { HoldingsStatusSegmentedControl } from "./holdings-status-control";
 import { isCashHolding, isClosedPosition } from "./holdings-visibility";
 import type { HoldingsVisibilityFilter } from "./holdings-visibility";
+import { CashHoldingsSheet } from "./cash-holdings-sheet";
 import {
   getHoldingTypeFilterOption,
   getHoldingTypeFilterValue,
@@ -55,23 +56,11 @@ const getDisplayValueAndCurrency = (
   holding: Holding,
   valueInBase: number | null | undefined,
   showConvertedToBase: boolean,
-): { value: number; currency: string } => {
-  const fxRate = holding.fxRate ?? 1; // Use fxRate from Holding
-
-  if (showConvertedToBase) {
-    // Show value in Base Currency
-    return {
-      value: valueInBase ?? 0,
-      currency: holding.baseCurrency, // Use baseCurrency from Holding
-    };
-  } else {
-    // Show value in Asset's Original Currency
-    const valueInOriginal = safeDivide(valueInBase ?? 0, fxRate);
-    return {
-      value: valueInOriginal,
-      currency: holding.localCurrency, // Use localCurrency from Holding
-    };
-  }
+): { value: number | null; currency: string } => {
+  return {
+    value: showConvertedToBase ? (valueInBase ?? null) : holding.marketValue.local,
+    currency: showConvertedToBase ? holding.baseCurrency : holding.localCurrency,
+  };
 };
 
 const getAveragePrice = (holding: Holding): number | null => {
@@ -95,8 +84,8 @@ const getDisposedCostBasis = (holding: Holding): MonetaryValue | null => {
   }
 
   return {
-    local: holding.returnBasis.local - (holding.costBasis?.local ?? 0),
-    base: holding.returnBasis.base - (holding.costBasis?.base ?? 0),
+    local: subtractAmounts(holding.returnBasis.local, holding.costBasis?.local),
+    base: subtractAmounts(holding.returnBasis.base, holding.costBasis?.base),
   };
 };
 
@@ -107,8 +96,8 @@ const getClosingCashFlow = (holding: Holding): MonetaryValue | null => {
   }
 
   return {
-    local: costBasis.local + holding.realizedGain.local,
-    base: costBasis.base + holding.realizedGain.base,
+    local: sumAmounts([costBasis.local, holding.realizedGain.local]),
+    base: sumAmounts([costBasis.base, holding.realizedGain.base]),
   };
 };
 
@@ -138,6 +127,8 @@ export const HoldingsTable = ({
   visibilityFilters,
   setVisibilityFilters,
   showClosedPositions = true,
+  accountFilter = { type: "all" },
+  accounts = [],
 }: {
   holdings: Holding[];
   isLoading: boolean;
@@ -145,6 +136,8 @@ export const HoldingsTable = ({
   visibilityFilters?: HoldingsVisibilityFilter[];
   setVisibilityFilters?: (value: HoldingsVisibilityFilter[]) => void;
   showClosedPositions?: boolean;
+  accountFilter?: AccountScope;
+  accounts?: Account[];
 }) => {
   const { t, i18n } = useTranslation();
   const formatting = useNumberFormatting();
@@ -154,6 +147,23 @@ export const HoldingsTable = ({
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
   const [showConvertedValues, setShowConvertedValues] = useState(false);
+  const [cashCurrency, setCashCurrency] = useState<string | null>(null);
+  // Column changes remount cells, so restore focus to the current cash button.
+  const cashTriggers = useRef(new Map<string, HTMLButtonElement>());
+  const registerCashTrigger = useCallback((currency: string, element: HTMLButtonElement | null) => {
+    if (element) cashTriggers.current.set(currency, element);
+    else cashTriggers.current.delete(currency);
+  }, []);
+  const cashHolding = holdings.find(
+    (holding) => isCashHolding(holding) && holding.localCurrency === cashCurrency,
+  );
+  useEffect(() => {
+    if (!cashHolding) setCashCurrency(null);
+  }, [cashHolding]);
+  const handleCashClick = useCallback(
+    (holding: Holding) => setCashCurrency(holding.localCurrency),
+    [],
+  );
   const isClosedView = visibilityFilters?.length === 1 && visibilityFilters[0] === "closed";
 
   const baseCurrency = settings?.baseCurrency ?? holdings[0]?.baseCurrency;
@@ -176,6 +186,8 @@ export const HoldingsTable = ({
         amountFormatting,
         dateFormatting,
         navigate,
+        handleCashClick,
+        registerCashTrigger,
         onClassify,
       ).filter((column) => {
         if (!("id" in column) || column.id == null) return false;
@@ -191,6 +203,8 @@ export const HoldingsTable = ({
       amountFormatting,
       dateFormatting,
       navigate,
+      handleCashClick,
+      registerCashTrigger,
       onClassify,
       isClosedView,
     ],
@@ -241,6 +255,7 @@ export const HoldingsTable = ({
         searchBy="symbol"
         filters={filters}
         showColumnToggle={true}
+        enableColumnReordering={true}
         storageKey={profilePreferenceKey("holdings-table-v4")}
         fallbackStorageKey={usesLegacyPreferences() ? "holdings-table-v4" : undefined}
         defaultColumnVisibility={
@@ -314,6 +329,15 @@ export const HoldingsTable = ({
           </div>
         }
       />
+      {cashHolding && (
+        <CashHoldingsSheet
+          currency={cashHolding.localCurrency}
+          accountFilter={accountFilter}
+          accounts={accounts}
+          onClose={() => setCashCurrency(null)}
+          finalFocus={() => cashTriggers.current.get(cashHolding.localCurrency) ?? null}
+        />
+      )}
     </div>
   );
 };
@@ -328,6 +352,8 @@ const getColumns = (
   amountFormatting: Pick<FormattingApi, "formatPrice">,
   dateFormatting: Pick<FormattingApi, "formatCalendarDate">,
   navigate: NavigateFunction,
+  onCashClick: (holding: Holding) => void,
+  registerCashTrigger: (currency: string, element: HTMLButtonElement | null) => void,
   onClassify?: (holding: Holding) => void,
 ): ColumnDef<Holding>[] => [
   {
@@ -404,11 +430,20 @@ const getColumns = (
         </div>
       );
 
-      return (
-        <div
-          className={isCash ? "-m-1 p-1" : "-m-1 cursor-pointer p-1"}
-          onClick={isCash ? undefined : handleNavigate}
+      return isCash ? (
+        <button
+          ref={(element) => registerCashTrigger(holding.localCurrency, element)}
+          type="button"
+          className="focus-visible:ring-ring -m-1 cursor-pointer rounded p-1 text-start outline-none focus-visible:ring-2"
+          aria-label={t("holdings:details_for", {
+            name: t("holdings:cash_with_currency", { currency: holding.localCurrency }),
+          })}
+          onClick={() => onCashClick(holding)}
         >
+          {content}
+        </button>
+      ) : (
+        <div className="-m-1 cursor-pointer p-1" onClick={handleNavigate}>
           {content}
         </div>
       );
@@ -434,7 +469,8 @@ const getColumns = (
   },
   {
     id: "closedCostBasis",
-    accessorFn: (row) => getDisposedCostBasis(row)?.base ?? 0,
+    accessorFn: (row) => getDisposedCostBasis(row)?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -468,7 +504,8 @@ const getColumns = (
   },
   {
     id: "saleProceeds",
-    accessorFn: (row) => getClosingCashFlow(row)?.base ?? 0,
+    accessorFn: (row) => getClosingCashFlow(row)?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -502,7 +539,8 @@ const getColumns = (
   },
   {
     id: "closedRealizedPnl",
-    accessorFn: (row) => row.realizedGain?.base ?? 0,
+    accessorFn: (row) => row.realizedGain?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -534,7 +572,8 @@ const getColumns = (
   },
   {
     id: "realizedReturn",
-    accessorFn: (row) => row.realizedGainPct ?? 0,
+    accessorFn: (row) => row.realizedGainPct ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -631,7 +670,8 @@ const getColumns = (
   },
   {
     id: "marketPrice",
-    accessorFn: (row) => row.price ?? 0,
+    accessorFn: (row) => row.price ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     enableSorting: true,
     header: ({ column }) => (
@@ -649,15 +689,19 @@ const getColumns = (
       if (isCashHolding(holding) || isClosedPosition(holding)) {
         return <div className="text-muted-foreground px-4 text-end">—</div>;
       }
-      const price = holding.price ?? 0;
+      const price = holding.price ?? null;
       const currency = holding.localCurrency;
       return (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
-          <PriceDisplay value={price} currency={currency} />
-          <GainPercent
+          {price == null ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            <PriceDisplay value={price} currency={currency} />
+          )}
+          <HoldingPerformancePercent
             variant="badge"
             className={PERCENT_BADGE}
-            value={holding.dayChangePct || 0}
+            value={holding.dayChangePct}
           />
         </div>
       );
@@ -665,7 +709,8 @@ const getColumns = (
   },
   {
     id: "avgPrice",
-    accessorFn: (row) => getAveragePrice(row) ?? 0,
+    accessorFn: (row) => getAveragePrice(row) ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     enableSorting: true,
     header: ({ column }) => (
@@ -704,7 +749,8 @@ const getColumns = (
   },
   {
     id: "bookValue",
-    accessorFn: (row) => row.costBasis?.local ?? 0,
+    accessorFn: (row) => row.costBasis?.local ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -721,7 +767,7 @@ const getColumns = (
       if (isCashHolding(holding) || isClosedPosition(holding)) {
         return <div className="text-muted-foreground px-4 text-end">—</div>;
       }
-      const value = holding.costBasis?.local ?? 0;
+      const value = holding.costBasis?.local ?? null;
       const currency = holding.localCurrency;
 
       return (
@@ -739,7 +785,8 @@ const getColumns = (
   },
   {
     id: "marketValue",
-    accessorFn: (row) => row.marketValue.base ?? 0,
+    accessorFn: (row) => row.marketValue.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: false,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -787,7 +834,8 @@ const getColumns = (
   },
   {
     id: "weight",
-    accessorFn: (row) => row.weight ?? 0,
+    accessorFn: (row) => row.weight ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     enableSorting: true,
     header: ({ column }) => (
@@ -806,7 +854,7 @@ const getColumns = (
       ) : (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
           <span className="font-medium tabular-nums">
-            {formatting.formatPercent(row.original.weight ?? 0)}
+            {row.original.weight == null ? "—" : formatting.formatPercent(row.original.weight)}
           </span>
           <div className="text-xs text-transparent">-</div>
         </div>
@@ -815,7 +863,8 @@ const getColumns = (
   },
   {
     id: "totalPnl",
-    accessorFn: (row) => row.totalGain?.base ?? 0,
+    accessorFn: (row) => row.totalGain?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -832,9 +881,7 @@ const getColumns = (
       if (isCashHolding(holding)) {
         return <div className="text-muted-foreground px-4 text-end">—</div>;
       }
-      const value = showConvertedValues
-        ? (holding.totalGain?.base ?? 0)
-        : (holding.totalGain?.local ?? 0);
+      const value = showConvertedValues ? holding.totalGain?.base : holding.totalGain?.local;
       const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
       const percentage = showConvertedValues
         ? getBaseHoldingPerformancePercent(holding, "totalGain")
@@ -860,7 +907,8 @@ const getColumns = (
   },
   {
     id: "totalReturn",
-    accessorFn: (row) => row.totalReturn?.base ?? row.totalGain?.base ?? 0,
+    accessorFn: (row) => row.totalReturn?.base ?? row.totalGain?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -877,9 +925,7 @@ const getColumns = (
       if (isCashHolding(holding)) {
         return <div className="text-muted-foreground px-4 text-end">—</div>;
       }
-      const value = showConvertedValues
-        ? (holding.totalReturn?.base ?? 0)
-        : (holding.totalReturn?.local ?? 0);
+      const value = showConvertedValues ? holding.totalReturn?.base : holding.totalReturn?.local;
       const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
       const percentage = showConvertedValues
         ? getBaseHoldingPerformancePercent(holding, "totalReturn")
@@ -900,7 +946,8 @@ const getColumns = (
   },
   {
     id: "dayPnl",
-    accessorFn: (row) => row.dayChange?.base ?? 0,
+    accessorFn: (row) => row.dayChange?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -917,9 +964,7 @@ const getColumns = (
       if (isCashHolding(holding) || isClosedPosition(holding)) {
         return <div className="text-muted-foreground px-4 text-end">—</div>;
       }
-      const value = showConvertedValues
-        ? (holding.dayChange?.base ?? 0)
-        : (holding.dayChange?.local ?? 0);
+      const value = showConvertedValues ? holding.dayChange?.base : holding.dayChange?.local;
       const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
 
       return (
@@ -941,7 +986,8 @@ const getColumns = (
   },
   {
     id: "unrealizedPnl",
-    accessorFn: (row) => row.unrealizedGain?.base ?? 0,
+    accessorFn: (row) => row.unrealizedGain?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -959,8 +1005,8 @@ const getColumns = (
         return <div className="text-muted-foreground px-4 text-end">—</div>;
       }
       const value = showConvertedValues
-        ? (holding.unrealizedGain?.base ?? 0)
-        : (holding.unrealizedGain?.local ?? 0);
+        ? holding.unrealizedGain?.base
+        : holding.unrealizedGain?.local;
       const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
       const percentage = showConvertedValues
         ? getBaseHoldingPerformancePercent(holding, "unrealizedGain")
@@ -981,7 +1027,8 @@ const getColumns = (
   },
   {
     id: "realizedPnl",
-    accessorFn: (row) => row.realizedGain?.base ?? 0,
+    accessorFn: (row) => row.realizedGain?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -1021,7 +1068,8 @@ const getColumns = (
   },
   {
     id: "income",
-    accessorFn: (row) => row.income?.base ?? 0,
+    accessorFn: (row) => row.income?.base ?? undefined,
+    sortUndefined: "last",
     enableHiding: true,
     header: ({ column }) => (
       <DataTableColumnHeader className="justify-end" column={column} title={t("holdings:income")} />

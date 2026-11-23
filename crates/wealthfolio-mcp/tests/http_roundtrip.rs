@@ -19,6 +19,7 @@ use axum::response::Response;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use wealthfolio_agent_tools::{
     AgentEnvironment, AgentScope, AgentScopeSet, AgentTool, AgentToolAccess, AgentToolError,
     AgentToolResult,
@@ -210,7 +211,7 @@ async fn spawn_server(with_auth: bool, sink: Arc<CapturingSink>) -> String {
         .audit(sink)
         .build_http_service(
             StreamableHttpServerConfig::default()
-                .with_stateful_mode(false)
+                .with_legacy_session_mode(false)
                 .with_json_response(true)
                 .with_sse_keep_alive(None),
         );
@@ -415,4 +416,193 @@ async fn rejected_initial_requests_do_not_allocate_sessions() {
         }
     }
     server.abort();
+}
+
+/// Hosts' transport config: `StreamableHttpServerConfig::default()` keeps
+/// legacy sessions on, and rmcp serves 2026-07-28 requests without one.
+async fn spawn_host_like_server(
+    env: Arc<dyn AgentEnvironment>,
+    sink: Arc<CapturingSink>,
+) -> (String, CancellationToken, tokio::task::JoinHandle<()>) {
+    let config = StreamableHttpServerConfig::default().with_sse_keep_alive(None);
+    let cancel = config.cancellation_token.clone();
+    let service = McpServerBuilder::new(env)
+        .tools(vec![Arc::new(EchoTool), Arc::new(HiddenTool)])
+        .audit(sink)
+        .build_http_service(config);
+    let router = axum::Router::new()
+        .nest_service("/mcp", service)
+        .layer(middleware::from_fn(inject_auth));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/mcp", listener.local_addr().unwrap());
+    let shutdown = cancel.clone();
+    let server = tokio::spawn(async move {
+        let _ = axum::serve(listener, router)
+            .with_graceful_shutdown(shutdown.cancelled_owned())
+            .await;
+    });
+    (url, cancel, server)
+}
+
+/// Reads a JSON-RPC message from a JSON or single-event SSE response body.
+fn response_message(text: &str) -> serde_json::Value {
+    serde_json::from_str(text)
+        .ok()
+        .or_else(|| {
+            text.lines()
+                .filter_map(|line| line.strip_prefix("data:"))
+                .find_map(|data| serde_json::from_str(data.trim()).ok())
+        })
+        .unwrap_or_else(|| panic!("no JSON-RPC message in response: {text}"))
+}
+
+/// A 2026-07-28 request: no initialize or session, with the protocol
+/// version and client capabilities carried on every request.
+async fn modern_rpc(
+    client: &reqwest::Client,
+    url: &str,
+    method: &str,
+    name: Option<&str>,
+    mut params: serde_json::Value,
+) -> (reqwest::header::HeaderMap, serde_json::Value) {
+    params["_meta"] = serde_json::json!({
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/clientInfo": { "name": "test", "version": "1.0" }
+    });
+    let body = serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
+    let mut request = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/event-stream")
+        .header("MCP-Protocol-Version", "2026-07-28")
+        .header("Mcp-Method", method);
+    if let Some(name) = name {
+        request = request.header("Mcp-Name", name);
+    }
+    let response = request.body(body.to_string()).send().await.unwrap();
+    let headers = response.headers().clone();
+    (headers, response_message(&response.text().await.unwrap()))
+}
+
+#[tokio::test]
+async fn sessionless_2026_07_28_clients_keep_auth_and_audit_as_stateless() {
+    let sink = Arc::new(CapturingSink::default());
+    let (url, cancel, _server) = spawn_host_like_server(Arc::new(StubEnv), sink.clone()).await;
+    let client = reqwest::Client::new();
+
+    // The auth context still reaches the handler: scope filtering applies.
+    let (_, list) = modern_rpc(&client, &url, "tools/list", None, serde_json::json!({})).await;
+    let tools = list["result"]["tools"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{list}"));
+    assert_eq!(tools.len(), 1, "scope filtering failed: {tools:?}");
+    assert_eq!(tools[0]["name"], "echo");
+    // The list depends on the token's scopes: clients must not reuse it
+    // after a scope edit, nor share it.
+    assert_eq!(list["result"]["ttlMs"], 0);
+    assert_eq!(list["result"]["cacheScope"], "private");
+
+    let (headers, call) = modern_rpc(
+        &client,
+        &url,
+        "tools/call",
+        Some("echo"),
+        serde_json::json!({ "name": "echo", "arguments": { "a": 1 } }),
+    )
+    .await;
+    assert_eq!(
+        call["result"]["structuredContent"],
+        serde_json::json!({ "echo": { "a": 1 } }),
+        "{call}"
+    );
+    assert!(!headers.contains_key("mcp-session-id"));
+
+    // Calling a tool outside the token's scopes is still denied.
+    let (_, denied) = modern_rpc(
+        &client,
+        &url,
+        "tools/call",
+        Some("hidden"),
+        serde_json::json!({ "name": "hidden", "arguments": {} }),
+    )
+    .await;
+    assert_eq!(denied["result"]["isError"], true, "{denied}");
+
+    let entries = sink.entries.lock().await;
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().all(|e| e.session_id == "stateless"));
+    assert_eq!(entries[0].outcome, AuditOutcome::Success);
+    assert_eq!(entries[1].tool, "hidden");
+    assert_eq!(entries[1].outcome, AuditOutcome::Denied);
+    cancel.cancel();
+}
+
+#[tokio::test]
+async fn cancelling_the_server_ends_open_sessions() {
+    let sink = Arc::new(CapturingSink::default());
+    let env = Arc::new(StubEnv);
+    let env_alive = Arc::downgrade(&env);
+    let (url, cancel, server) = spawn_host_like_server(env, sink.clone()).await;
+    let client = reqwest::Client::new();
+    let post = |body: serde_json::Value, session: Option<&str>| {
+        let mut request = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .body(body.to_string());
+        if let Some(session) = session {
+            request = request
+                .header("Mcp-Session-Id", session)
+                .header("MCP-Protocol-Version", "2025-03-26");
+        }
+        request.send()
+    };
+
+    let init = post(init_body(), None).await.unwrap();
+    let session = init.headers()["mcp-session-id"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        response_message(&init.text().await.unwrap())["result"]["serverInfo"]["name"],
+        "wealthfolio"
+    );
+    let initialized =
+        serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" });
+    assert!(post(initialized, Some(&session))
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+    let call = serde_json::json!({
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": { "name": "echo", "arguments": {} }
+    });
+    let call = post(call, Some(&session))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert_eq!(response_message(&call)["result"]["isError"], false);
+    assert_eq!(sink.entries.lock().await[0].session_id, session);
+
+    // The session worker holds a handler clone, and through it the
+    // environment. Stopping the server must release it, not leave the
+    // session to expire on its own.
+    cancel.cancel();
+    tokio::time::timeout(std::time::Duration::from_secs(5), server)
+        .await
+        .expect("server stops")
+        .unwrap();
+    let mut tries = 0;
+    while env_alive.strong_count() > 0 {
+        tries += 1;
+        assert!(
+            tries < 100,
+            "a session kept the environment alive after shutdown"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
 }

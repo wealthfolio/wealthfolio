@@ -99,6 +99,8 @@ const needs: BudgetGroupRow = {
   remaining: 0,
   overspent: false,
   rolloverEnabled: false,
+  savingsTargetTotal: 0,
+  savingsActual: 0,
   categories: [spend("cat_housing", "Housing", 1498), spend("cat_bills", "Bills", 120)],
 };
 

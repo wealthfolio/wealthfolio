@@ -13,7 +13,8 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Holding, HOLDING_GROUP_ORDER } from "@/lib/types";
 import { AccountType, AssetKind, HoldingType } from "@/lib/constants";
 import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
-import { cn, safeDivide } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { sumAmounts } from "@/lib/monetary-value";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -51,7 +52,7 @@ interface HoldingsGroupedTableProps {
 interface HoldingGroup {
   name: string;
   holdings: HoldingWithMeta[];
-  totalValue: number;
+  totalValue: number | null;
   order: number;
 }
 
@@ -124,11 +125,14 @@ export function HoldingsGroupedTable({
         const valueB = Math.abs(b.marketValue?.base ?? 0);
         return valueB - valueA;
       }),
-      totalValue: holdings.reduce((sum, h) => {
-        const value = h.marketValue?.base ?? 0;
-        // Liabilities are stored as positive but should reduce total
-        return sum + (h.isLiability ? -value : value);
-      }, 0),
+      totalValue: holdings.some((holding) => holding.weight == null)
+        ? null
+        : sumAmounts(
+            holdings.map((holding) => {
+              const value = holding.marketValue?.base;
+              return value == null ? null : holding.isLiability ? -value : value;
+            }),
+          ),
       order: HOLDING_GROUP_ORDER[name] ?? 99,
     }));
 
@@ -226,32 +230,30 @@ function HoldingRow({
   const isClickable = !!holding.instrument?.id;
 
   // Calculate display values
-  const fxRate = holding.fxRate ?? 1;
-  const marketValueBase = holding.marketValue?.base ?? 0;
-  const marketValue = showConvertedValues ? marketValueBase : safeDivide(marketValueBase, fxRate);
+  const marketValue = showConvertedValues ? holding.marketValue.base : holding.marketValue.local;
   const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
 
   // For liabilities, display value as negative
-  const displayValue = holding.isLiability ? -Math.abs(marketValue) : marketValue;
+  const displayValue =
+    marketValue == null ? null : holding.isLiability ? -Math.abs(marketValue) : marketValue;
 
   const gainValue =
     performanceMode === "return"
       ? showConvertedValues
-        ? (holding.totalReturn?.base ?? holding.totalGain?.base ?? 0)
-        : (holding.totalReturn?.local ?? holding.totalGain?.local ?? 0)
+        ? holding.totalReturn?.base
+        : holding.totalReturn?.local
       : performanceMode === "pnl"
         ? showConvertedValues
-          ? (holding.totalGain?.base ?? 0)
-          : (holding.totalGain?.local ?? 0)
+          ? holding.totalGain?.base
+          : holding.totalGain?.local
         : showConvertedValues
-          ? (holding.dayChange?.base ?? 0)
-          : (holding.dayChange?.local ?? 0);
+          ? holding.dayChange?.base
+          : holding.dayChange?.local;
   const gainPct =
     performanceMode === "return"
       ? showConvertedValues
-        ? (getBaseHoldingPerformancePercent(holding, "totalReturn") ??
-          getBaseHoldingPerformancePercent(holding, "totalGain"))
-        : (holding.totalReturnPct ?? holding.totalGainPct)
+        ? getBaseHoldingPerformancePercent(holding, "totalReturn")
+        : holding.totalReturnPct
       : performanceMode === "pnl"
         ? showConvertedValues
           ? getBaseHoldingPerformancePercent(holding, "totalGain")
@@ -313,7 +315,7 @@ function HoldingRow({
           {!holding.isLiability && (
             <>
               <AmountDisplay
-                value={gainValue ?? 0}
+                value={gainValue}
                 currency={currency}
                 isHidden={isBalanceHidden}
                 colorFormat={true}

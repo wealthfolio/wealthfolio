@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { CategorizationProposalsContentImpl } from "./categorization-proposals-tool-ui";
 import { CreateCategorizationRuleToolUIContentImpl } from "./create-categorization-rule-tool-ui";
+import { ListCategorizationContextContentImpl } from "./list-categorization-context-tool-ui";
 
 const mocks = vi.hoisted(() => ({ assign: vi.fn(), create: vi.fn(), update: vi.fn() }));
 vi.mock("@/adapters", () => ({ updateToolResult: mocks.update }));
@@ -129,4 +130,44 @@ it("creates a rule then reopens its saved result without losing the rule or allo
   expect(await screen.findByText("Coffee rule")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Rule created" })).toBeDisabled();
   expect(mocks.create).toHaveBeenCalledTimes(1);
+});
+
+const context = {
+  taxonomies: [],
+  examples: [],
+  unproposed: [],
+  summary: { total: 7, deterministicallyProposed: 3, needsAiJudgement: 4 },
+};
+const contextProps = {
+  ...props,
+  toolName: "list_categorization_context",
+  result: context,
+} as unknown as ComponentProps<typeof ListCategorizationContextContentImpl>;
+const loadedContext =
+  "Loaded context · 7 transactions · 3 rule/history draft matches · 4 need AI judgement";
+
+it.each([
+  ["a plain result", context],
+  ["a saved {data,meta} result", { data: context, meta: { x: 1 } }],
+])("shows the categorization context summary for %s", (_, result) => {
+  render(
+    <ListCategorizationContextContentImpl
+      {...contextProps}
+      result={result as typeof contextProps.result}
+    />,
+  );
+  expect(screen.getByText(loadedContext)).toBeInTheDocument();
+});
+
+it.each([
+  ["a result truncated on save", { data: null, meta: { _truncated: true, _originalSize: 300000 } }],
+  ["a skipped call saved as a success string", "Skipped: repeated call"],
+])("renders nothing instead of throwing for %s", (_, result) => {
+  const { container } = render(
+    <ListCategorizationContextContentImpl
+      {...contextProps}
+      result={result as unknown as typeof contextProps.result}
+    />,
+  );
+  expect(container).toBeEmptyDOMElement();
 });

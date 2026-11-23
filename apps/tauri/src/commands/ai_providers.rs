@@ -1,7 +1,7 @@
 use crate::profiles::ProfileAccess;
 
 use wealthfolio_ai::{
-    AiProvidersResponse, ListModelsResponse, ProviderApiError, SetDefaultProviderRequest,
+    AiProvidersResponse, ListModelsResponse, SetDefaultProviderRequest,
     UpdateProviderSettingsRequest,
 };
 
@@ -46,10 +46,13 @@ pub async fn set_default_ai_provider(
 pub async fn list_ai_models(
     context: ProfileAccess,
     provider_id: String,
-) -> Result<ListModelsResponse, ProviderApiError> {
-    let context = context.context()?;
+) -> Result<ListModelsResponse, wealthfolio_core::errors::PublicError> {
+    let context = context
+        .context()
+        .map_err(|_| wealthfolio_core::errors::PublicError::internal())?;
     context
         .ai_provider_service()
         .list_models(&provider_id)
         .await
+        .map_err(|error| error.public_error())
 }

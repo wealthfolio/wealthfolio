@@ -83,15 +83,15 @@ function HoldingRow({
             }),
       });
   const avatarSymbol = parsedOption ? parsedOption.underlying : symbol;
-  const marketValue = holding.marketValue?.base ?? 0;
+  const marketValue = holding.marketValue?.base;
   const gainAmount =
     performanceMode === "return"
-      ? (holding.totalReturn?.base ?? holding.totalGain?.base ?? 0)
+      ? holding.totalReturn?.base
       : performanceMode === "pnl"
-        ? (holding.totalGain?.base ?? holding.unrealizedGain?.base ?? 0)
+        ? holding.totalGain?.base
         : performanceMode === "unrealized"
-          ? (holding.unrealizedGain?.base ?? 0)
-          : (holding.dayChange?.base ?? 0);
+          ? holding.unrealizedGain?.base
+          : holding.dayChange?.base;
   const gainPercent = getBaseHoldingPerformancePercentForMode(holding, performanceMode);
 
   // An Item link: its padding and rounded corners carry the hover, and the negative
@@ -111,10 +111,8 @@ function HoldingRow({
         className="size-8 shrink-0"
       />
       <ItemContent className="min-w-0 gap-0">
-        <ItemTitle className="block w-full truncate text-sm font-semibold md:text-base">
-          {title}
-        </ItemTitle>
-        <ItemDescription className="line-clamp-none truncate text-xs text-nowrap md:text-sm">
+        <ItemTitle className="block w-full truncate text-base font-semibold">{title}</ItemTitle>
+        <ItemDescription className="line-clamp-none truncate text-sm text-nowrap">
           {subtitle}
         </ItemDescription>
       </ItemContent>
@@ -123,20 +121,20 @@ function HoldingRow({
           value={marketValue}
           currency={baseCurrency}
           isHidden={isHidden}
-          className="text-sm font-semibold md:text-base"
+          className="text-base font-semibold"
         />
         <div className="flex items-center gap-2">
           <GainAmount
             value={gainAmount}
             currency={baseCurrency}
             displayCurrency={false}
-            className="text-xs md:text-sm"
+            className="text-sm"
           />
           {/* The badge variant draws light text; normal matches the amount beside it. */}
           <HoldingPerformancePercent
             value={gainPercent}
             variant="badge"
-            className="min-w-15 justify-center text-center text-xs font-normal md:text-sm"
+            className="min-w-15 justify-center text-center text-sm font-normal"
           />
         </div>
       </ItemActions>

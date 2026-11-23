@@ -118,7 +118,7 @@ describe("getAssetProfileHolding", () => {
       ],
       "asset-1",
     );
-    expect(result?.income).toBeNull();
+    expect(result?.income).toEqual({ local: null, base: null });
     expect(result?.realizedGainPct).toBeNull();
     expect(result?.totalGainPct).toBeNull();
     expect(result?.totalReturnPct).toBeNull();

@@ -109,6 +109,9 @@
     "search": "検索 ...",
     "reset": "リセット",
     "columns": "列",
+    "moveColumnUp": "{{column}}を上へ移動",
+    "moveColumnDown": "{{column}}を下へ移動",
+    "resetColumnOrder": "列の順序をリセット",
     "sortAsc": "昇順",
     "sortDesc": "降順",
     "hide": "非表示"
@@ -116,6 +119,8 @@
   "datePicker": {
     "dateLabel": "日付",
     "pick": "日付を選択",
+    "time": "時刻",
+    "done": "完了",
     "previousMonth": "前の月",
     "nextMonth": "次の月",
     "chooseMonth": "月を選択",
@@ -206,6 +211,7 @@
     "typeToSearch": "入力して検索"
   },
   "sheet": {
+    "back": "戻る",
     "close": "閉じる"
   },
   "page": {

@@ -16,7 +16,8 @@ use wealthfolio_core::{
     accounts::{account_supports_portfolio_scope, AccountPurpose, AccountServiceTrait},
     health::HealthServiceTrait,
     portfolio::coordinator::{
-        run_periodic_update, AccountFailure, JobObserver, PortfolioJobRequest, RetryPolicy,
+        run_periodic_update, AccountFailure, JobObserver, PortfolioCoordinator,
+        PortfolioJobRequest, RetryPolicy,
     },
     quotes::{MarketSyncMode, SyncResult},
 };
@@ -79,8 +80,22 @@ pub struct PortfolioJobConfig {
 
 /// Enqueue a background portfolio job that will publish SSE events as it runs.
 pub fn enqueue_portfolio_job(state: Arc<AppState>, config: PortfolioJobConfig) {
+    spawn_portfolio_job(
+        state.portfolio_coordinator.clone(),
+        ServerJobObserver::new(&state),
+        config,
+    );
+}
+
+/// [`enqueue_portfolio_job`] from its parts, for callers built before
+/// `AppState` exists (the agent environment).
+pub fn spawn_portfolio_job(
+    coordinator: Arc<PortfolioCoordinator>,
+    observer: ServerJobObserver,
+    config: PortfolioJobConfig,
+) {
     tokio::spawn(async move {
-        if let Err(err) = process_portfolio_job(state, config).await {
+        if let Err(err) = run_portfolio_job(&coordinator, &observer, config).await {
             tracing::error!("Portfolio job failed: {}", err);
         }
     });
@@ -244,9 +259,16 @@ pub async fn process_portfolio_job(
     config: PortfolioJobConfig,
 ) -> ApiResult<()> {
     let observer = ServerJobObserver::new(&state);
-    let report = state
-        .portfolio_coordinator
-        .run_job_with_retry(config.into_request(), &observer, RetryPolicy::default())
+    run_portfolio_job(&state.portfolio_coordinator, &observer, config).await
+}
+
+async fn run_portfolio_job(
+    coordinator: &PortfolioCoordinator,
+    observer: &ServerJobObserver,
+    config: PortfolioJobConfig,
+) -> ApiResult<()> {
+    let report = coordinator
+        .run_job_with_retry(config.into_request(), observer, RetryPolicy::default())
         .await
         .map_err(|err| crate::error::ApiError::Anyhow(anyhow!(err.to_string())))?;
     if let Some(Err(message)) = &report.market_sync {

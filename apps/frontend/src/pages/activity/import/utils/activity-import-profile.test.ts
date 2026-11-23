@@ -53,13 +53,13 @@ describe("activity import profiles", () => {
     const cash = getActivityImportProfileForAccountType(AccountType.CASH);
 
     expect(getActivityTypeLabelForImportProfile(ActivityType.WITHDRAWAL, creditCard)).toBe(
-      "Charge",
+      "Purchase",
     );
     expect(getActivityTypeLabelForImportProfile(ActivityType.TRANSFER_IN, creditCard)).toBe(
       "Payment",
     );
     expect(getActivityTypeLabelForImportProfile(ActivityType.TRANSFER_OUT, creditCard)).toBe(
-      "Balance Transfer / Cash Advance",
+      "Cash Advance / Balance Transfer",
     );
     expect(getActivityTypeLabelForImportProfile(ActivityType.WITHDRAWAL, cash)).toBe("Withdrawal");
   });
@@ -129,6 +129,22 @@ describe("activity import profiles", () => {
       },
       accountMappings: {
         Visa: "card-1",
+      },
+    });
+
+    expect(profile).toBe(getActivityImportProfileForAccountType(AccountType.CREDIT_CARD));
+  });
+
+  it("reads the last of two account columns with the same name, as the import does", () => {
+    const profile = getActivityImportProfileForImportContext({
+      accounts: [
+        { id: "brokerage-1", accountType: AccountType.SECURITIES },
+        { id: "card-1", accountType: AccountType.CREDIT_CARD },
+      ],
+      headers: ["Date", "Account", "Merchant", "Amount", "Account"],
+      parsedRows: [["2024-01-15", "brokerage-1", "Starbucks", "12.50", "card-1"]],
+      fieldMappings: {
+        [ImportFormat.ACCOUNT]: "Account",
       },
     });
 

@@ -137,7 +137,6 @@ export default function HistoryChart({
             ) : null}
             <XAxis hide dataKey="timestamp" type="category" />
             <Area
-              isAnimationActive={true}
               animationDuration={300}
               animationEasing="ease-out"
               connectNulls={true}

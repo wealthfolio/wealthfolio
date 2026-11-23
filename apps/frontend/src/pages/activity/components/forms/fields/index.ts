@@ -17,3 +17,4 @@ export { OptionContractFields } from "./option-contract-fields";
 export { PositionIntentSelector } from "./position-intent-selector";
 export { StockTradeIntentSelector } from "./stock-trade-intent-selector";
 export { TradeTotalInput } from "./trade-total-input";
+export { ChargeLinesEditor, ChargeLinesField } from "./charge-lines-field";

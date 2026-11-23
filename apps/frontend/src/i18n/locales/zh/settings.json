@@ -99,8 +99,16 @@
   "limits_add_button": "添加限额",
   "limits_add_aria": "添加供款限额",
   "limits_current_year": "当前年份（{{year}}）",
+  "limits_future_years": "未来年份",
   "limits_previous_years": "往年",
   "limits_show_previous": "显示",
+  "limits_projected_badge": "预测",
+  "limits_projected_description": "根据您 {{year}} 年的循环限额自动生成。添加它以自定义今年的金额。",
+  "limits_projected_add_button": "添加今年",
+  "limits_projected_add_aria": "添加 {{year}} 年的 {{group}} ({{accounts}})",
+  "limits_no_accounts_selected": "未选择账户",
+  "limits_choose_accounts": "选择账户",
+  "limits_accounts_more": "另外 {{number}} 个",
   "limits_empty_title": "{{year}} 年没有供款限额！",
   "limits_empty_description": "您本年度没有任何供款限额。开始添加您的供款限额吧。",
   "limits_add_first": "添加供款限额",
@@ -114,15 +122,12 @@
   "limits_delete_description": "此操作无法撤销。",
   "limits_form_update_title": "更新供款限额",
   "limits_form_add_title": "添加供款限额",
-  "limits_form_update_description": "更新供款限额信息",
   "limits_form_add_description": "添加新的供款限额。",
   "limits_form_group_name_label": "分组名称",
   "limits_form_group_name_placeholder": "例如 TFSA、401(k)、RRSP",
-  "limits_form_group_name_description": "供款限额分组的名称",
   "limits_form_group_name_required": "分组名称为必填项",
   "limits_form_limit_amount_label": "限额金额",
   "limits_form_limit_amount_placeholder": "例如 6,000.00",
-  "limits_form_limit_amount_description": "允许的最大供款金额",
   "limits_form_limit_amount_number": "限额金额必须为正数。",
   "limits_form_limit_amount_non_negative": "限额金额不能为负数。",
   "limits_form_year_label": "年份",
@@ -131,14 +136,17 @@
   "limits_form_start_date_label": "开始日期",
   "limits_form_end_date_label": "结束日期",
   "limits_form_date_description": "日期默认为所选年份的 1 月 1 日至 12 月 31 日",
+  "limits_form_recurring_label": "每年重复",
+  "limits_form_recurring_description": "在您添加或编辑该年份之前，自动显示金额相同的未来年份预测限额。",
+  "limits_form_accounts_label": "计入的账户",
+  "limits_form_accounts_description": "这些账户的供款会计入此限额。",
+  "limits_form_accounts_selected": "已选 {{selected}}/{{total}}",
+  "limits_form_accounts_search": "搜索账户",
+  "limits_form_accounts_no_match": "没有匹配的账户。",
+  "limits_form_accounts_empty": "还没有可接收供款的账户。",
   "limits_form_updating": "更新中...",
   "limits_form_saving": "保存中...",
   "limits_form_update_button": "更新",
-  "limits_select_accounts": "选择账户",
-  "limits_loading": "加载中...",
-  "limits_contributed": "已供款",
-  "limits_saving": "保存中...",
-  "limits_save_selected_accounts": "保存所选账户",
   "addons_info_title": "🔌 插件与扩展",
   "addons_info_description": "插件让您能够为 Wealthfolio 扩展新功能、自定义分析以及额外功能，从而提升您的财务管理体验。",
   "addons_security_notice": "安全提示：",
@@ -174,17 +182,139 @@
   "export_title": "数据导出",
   "export_description": "保存投资组合的备份，或导出数据以便在其他地方使用。",
   "export_tab_backup": "备份",
-  "export_section_description": "以多种格式导出特定类型的数据，供分析或外部使用。",
-  "export_format_title": "选择您偏好的格式",
-  "export_format_csv_description": "简单、广泛兼容的电子表格格式",
-  "export_format_json_description": "结构化数据，便于程序化访问",
-  "export_customize_title": "自定义您的导出",
-  "export_type_accounts_description": "您的财务账户",
-  "export_type_activities": "活动",
-  "export_type_activities_description": "详细的交易历史和日志",
-  "export_type_goals_description": "财务目标及进度跟踪",
-  "export_type_portfolio_history": "投资组合历史",
-  "export_type_portfolio_history_description": "您投资组合随时间推移的表现，包括估值、盈亏和现金流活动。",
+  "data_export": {
+    "intro": "可供电子表格和其他应用读取的文件。这些文件无法恢复到 Wealthfolio：如需迁移到其他设备，请使用备份。",
+    "all_title": "导出全部数据",
+    "all_description_csv": "一个 ZIP 文件，每个数据集对应一个 CSV 文件，并附带说明这些文件的 README。",
+    "all_description_json": "一个 JSON 文件，每个数据集为其中一个部分。",
+    "all_info": "目标预测和贷款还款计划每天都会变化，因此不包含在内。请从相应的目标或贷款中导出。",
+    "all_info_label": "关于数据导出",
+    "all_button": "全部导出",
+    "all_pending": "正在导出…",
+    "format_label": "文件格式",
+    "include_archived": "包含已归档账户",
+    "include_archived_help": "添加已归档账户及其活动、批次和贷款还款。",
+    "dates_title": "日期",
+    "start_date": "从",
+    "end_date": "至",
+    "dates_help": "限制活动、卖出、价格、估值和历史记录的日期范围。留空则包含所有日期。",
+    "date_order_error": "开始日期晚于结束日期。",
+    "clear_dates": "清除日期",
+    "datasets_title": "选择要导出的内容",
+    "datasets_description": "每次下载一个数据集。",
+    "groups": {
+      "accounts": "账户与活动",
+      "investments": "投资",
+      "net-worth": "净资产",
+      "spending": "支出与预算",
+      "planning": "规划",
+      "organization": "整理"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "账户",
+        "description": "您的账户及其最新余额，并标出已归档的账户"
+      },
+      "activities": {
+        "name": "活动",
+        "description": "每笔交易，包含现金余额和支出类别"
+      },
+      "holdings": {
+        "name": "持仓",
+        "description": "包含价值、成本和收益的持仓"
+      },
+      "lots": {
+        "name": "批次",
+        "description": "未平仓和已平仓的批次及其投资成本"
+      },
+      "realized-gains": {
+        "name": "已实现收益",
+        "description": "每笔卖出及其平仓的批次"
+      },
+      "manual-prices": {
+        "name": "手动价格",
+        "description": "您为自行定价的资产输入的价格"
+      },
+      "income": {
+        "name": "收入",
+        "description": "每个账户每月的股息和利息"
+      },
+      "income-by-source": {
+        "name": "按来源分类收入",
+        "description": "每个持仓的收入，包括全部时间和每年"
+      },
+      "assets-and-liabilities": {
+        "name": "资产与负债",
+        "description": "房产、车辆、贵重物品和贷款，以及贷款条款"
+      },
+      "asset-valuations": {
+        "name": "资产估值",
+        "description": "您为这些资产和负债记录的每个价值"
+      },
+      "loan-payments": {
+        "name": "贷款还款",
+        "description": "与每笔贷款关联的还款"
+      },
+      "net-worth-history": {
+        "name": "净资产历史",
+        "description": "每日净资产：投资、其他资产和负债"
+      },
+      "portfolio-history": {
+        "name": "投资组合历史",
+        "description": "每个账户的每日价值"
+      },
+      "budgets": {
+        "name": "预算",
+        "description": "每个周期的金额及结转设置"
+      },
+      "budget-actuals": {
+        "name": "预算对比实际",
+        "description": "每个类别逐月的已预算、已花费和剩余金额"
+      },
+      "budget-groups": {
+        "name": "预算分组",
+        "description": "分组及其中的类别"
+      },
+      "spending-rules": {
+        "name": "分类规则",
+        "description": "自动为交易分类的规则"
+      },
+      "spending-events": {
+        "name": "事件",
+        "description": "旅行和其他事件，以及每个事件的花费"
+      },
+      "goals": {
+        "name": "目标",
+        "description": "计划设置、关联账户和进度"
+      },
+      "contribution-limits": {
+        "name": "供款限额",
+        "description": "限额及其适用的账户"
+      },
+      "portfolios": {
+        "name": "投资组合",
+        "description": "账户分组"
+      },
+      "categories": {
+        "name": "类别",
+        "description": "所有分类中的每个类别，包括支出"
+      },
+      "classifications": {
+        "name": "资产分类",
+        "description": "每个资产所属的类别"
+      }
+    },
+    "rows_one": "{{count}} 行",
+    "rows_other": "{{count}} 行",
+    "daily": "每日数值",
+    "holdings_today": "当前持仓",
+    "none_yet": "暂无",
+    "download": "下载 {{name}}",
+    "downloading": "正在下载 {{name}}…",
+    "summary_error": "无法统计您的数据。您仍然可以导出。",
+    "empty": "此数据集中暂无可导出的内容。",
+    "empty_all": "暂无可导出的内容。"
+  },
   "backup_title": "本地备份",
   "backup_export_dialog_title": "导出备份",
   "backup_export_protected": "设置密码（推荐）",
@@ -365,9 +495,6 @@
   "about_db_path": "数据库路径",
   "about_copy_db_path": "复制数据库路径",
   "about_copy_logs_dir": "复制日志目录",
-  "export_type_holdings_description": "当前持仓，包含估值、表现、配置和金融工具数据",
-  "export_exporting_item": "正在导出 {{name}}...",
-  "export_export_item": "导出 {{name}}",
   "backup_unknown_date": "未知日期",
   "backup_creating_short": "正在保存备份…",
   "backup_empty_title": "尚无备份",
@@ -1020,7 +1147,33 @@
       "duplicate_error": "此类别键已被使用，请尝试其他名称。",
       "tab_expense_other": "支出（{{count}}）",
       "tab_income_other": "收入（{{count}}）",
-      "tab_savings_other": "储蓄（{{count}}）"
+      "tab_savings_other": "储蓄（{{count}}）",
+      "merge": {
+        "description": "将{{name}}的所有交易、规则和预算移至另一分类。",
+        "history": "历史报表也将使用新分类。此操作无法撤销。",
+        "destination": "移入…",
+        "choose": "选择类别",
+        "budgets": "预算 · {{name}}",
+        "confirm": "移动并删除",
+        "error": "合并失败或数据已更改。请刷新预览、检查目标后重试。",
+        "refresh": "刷新预览",
+        "none": "没有符合条件的目标。请先解决以下限制，或创建合适的类别。",
+        "blocked": {
+          "invalid_destination": "请在同一支出、收入或储蓄列表中选择其他类别。",
+          "children": "请先移动或合并子类别。有子类别的类别无法合并。",
+          "asset_references": "请先移除资产分类和配置目标引用。",
+          "category_rollover": "请先移除两个类别已保存的结转设置，包括已关闭的设置。",
+          "group_rollover": "跨组移动前，请关闭相关支出组的结转。同组内允许合并。",
+          "exclusions": "来源和目标的实际“从支出中排除”设置必须相同，包括继承的排除设置。",
+          "budget_destination": "此类别有预算目标。两个类别都必须位于顶层，以便这些目标继续生效。"
+        },
+        "period": "月份",
+        "current": "当前",
+        "added": "增加",
+        "after": "新合计",
+        "monthlyDefault": "每月默认",
+        "budgetHint": "其他月份使用每月默认金额。"
+      }
     },
     "events": {
       "heading": "支出事件",
@@ -1097,6 +1250,7 @@
   "fx_err_rate_negative": "汇率必须为非负数。",
   "fx_err_source_required": "数据源为必填项",
   "fx_err_rate_invalid": "请输入有效的汇率。",
+  "fx_err_quote_unit": "{{code}} 是 {{major}} 的辅币单位。请改为输入 {{major}} 的汇率。",
   "fx_from_currency": "源货币",
   "fx_to_currency": "目标货币",
   "fx_select_currency": "选择货币",
@@ -1238,6 +1392,8 @@
     "scope_locked_title": "由“活动”所需——提交/写入",
     "scope_locked_market_data_title": "由“市场数据——写入”所需",
     "scope_locked_classification_title": "由“资产分类——应用/写入”所需",
+    "scope_locked_accounts_title": "由“账户——写入”所需",
+    "scope_locked_holdings_title": "由“持仓——写入”所需",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "令牌",
     "scope": {
@@ -1287,7 +1443,7 @@
       },
       "market_data_write": {
         "label": "市场数据——写入",
-        "description": "为现有资产保存已审核的价格（报价）。需要持仓与价值（读取）作用域。"
+        "description": "保存已审核的价格（报价），刷新或替换资产的价格历史，并更改资产的定价方式：代码、交易所、报价货币、报价模式或数据提供商。需要持仓与价值（读取）作用域。"
       },
       "spending_read": {
         "label": "查看支出",
@@ -1300,6 +1456,14 @@
       "budget_write": {
         "label": "管理预算",
         "description": "更改默认和月度预算、分组、缓冲金额及结转。需要查看支出权限。"
+      },
+      "accounts_write": {
+        "label": "账户——写入",
+        "description": "创建账户，并更改其名称、类型、分组、账号、跟踪模式以及隐藏或归档状态。需要账户（读取）作用域。"
+      },
+      "holdings_write": {
+        "label": "持仓——写入",
+        "description": "为按持仓跟踪的账户保存持仓快照（某一日期的持仓和现金），并添加另类资产和负债。需要持仓与价值（读取）作用域。"
       }
     },
     "preset": {
@@ -1539,15 +1703,6 @@
       "addingFailed": "添加汇率时出错：{{error}}",
       "deletingFailed": "删除汇率时出错：{{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "当前没有可导出的账户。",
-        "activities": "当前没有可导出的交易记录。",
-        "holdings": "当前没有可导出的持仓。",
-        "goals": "当前没有可导出的目标。",
-        "portfolio-history": "当前没有可导出的组合历史记录。"
-      }
-    },
     "providerUpdateFailed": "无法更新数据源 {{provider}} 的设置",
     "httpFailed": "HTTP 请求失败。",
     "addonDownloadFailed": "无法下载插件。",
@@ -1613,6 +1768,8 @@
       "performance_calculateHistory": "计算历史绩效",
       "performance_calculateSummary": "计算绩效摘要",
       "performance_calculateAccountsSimple": "计算基本账户绩效",
+      "allocation-targets_getAll": "查看您的资产配置目标",
+      "allocation-targets_getDrift": "将持仓与配置目标进行比较",
       "currency_getAll": "查看汇率",
       "currency_update": "更新汇率",
       "currency_add": "添加新汇率",
@@ -1668,6 +1825,10 @@
       "accounts": {
         "name": "账户管理",
         "description": "访问账户信息和设置"
+      },
+      "allocation-targets": {
+        "name": "资产配置目标",
+        "description": "只读访问您的资产配置目标及持仓与目标的对比"
       },
       "alternative-assets": {
         "name": "另类资产",
@@ -1741,6 +1902,34 @@
         "name": "网络访问",
         "description": "通过主机网络代理访问已声明的外部 HTTPS 主机"
       }
+    }
+  },
+  "limits_detail": {
+    "back": "供款限额",
+    "counted": "已计入供款",
+    "annual_limit": "限额金额",
+    "remaining": "剩余额度",
+    "used_percent": "已使用 {{percent}}",
+    "period_ends": "期间结束",
+    "over": "超出限额",
+    "activities": "供款交易",
+    "group_counted": "供款",
+    "group_not_counted": "未自动计入",
+    "group_not_counted_hint": "内部转账不会计入。如果资金来自您的账户之外，请编辑该活动并将其标记为外部。",
+    "edit_activity": "编辑活动",
+    "edit_activity_aria": "编辑{{activity}}",
+    "edit_activity_error": "无法打开此活动。请重试。",
+    "count_activity": "将{{activity}}计入此限额",
+    "activity_unchanged": "仅更改此限额的使用量，不会更改账户交易。",
+    "save_success": "已保存供款处理方式。",
+    "save_error": "无法保存供款处理方式。",
+    "load_error": "无法加载此供款限额。",
+    "no_activities": "此期间没有供款交易。",
+    "treatments": {
+      "counted": "已计入",
+      "excludedByUser": "您已排除",
+      "internalTransfer": "内部转账",
+      "notExternal": "未标记为外部"
     }
   }
 }

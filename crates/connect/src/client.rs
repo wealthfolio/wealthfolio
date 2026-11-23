@@ -152,10 +152,6 @@ pub struct ConnectApiClient {
     auth_header: HeaderValue,
 }
 
-fn subscription_allows_sync(status: Option<&str>) -> bool {
-    matches!(status, Some("active" | "trialing" | "past_due"))
-}
-
 impl ConnectApiClient {
     /// Create a new Connect API client.
     ///
@@ -294,6 +290,10 @@ impl ConnectApiClient {
                     .message
                     .or(err.error)
                     .unwrap_or_else(|| format!("HTTP {}", status));
+                let msg = match err.code {
+                    Some(code) => format!("{code}: {msg}"),
+                    None => msg,
+                };
                 return Err(Error::Unexpected(format!(
                     "API error {}: {} ({})",
                     status.as_u16(),
@@ -440,52 +440,6 @@ impl ConnectApiClient {
     /// Get available subscription plans (authenticated).
     pub async fn get_subscription_plans(&self) -> Result<PlansResponse> {
         self.get("/api/v1/subscription/plans").await
-    }
-
-    /// Every paid plan includes device sync. Unknown/inactive subscriptions deny access.
-    pub async fn has_device_sync(&self) -> Result<bool> {
-        let info = self.get_user_info().await?;
-        Ok(info
-            .team
-            .as_ref()
-            .is_some_and(|team| subscription_allows_sync(team.subscription_status.as_deref())))
-    }
-
-    /// Check if the current user's plan includes broker sync.
-    ///
-    /// Returns true when the user has an active subscription AND their plan
-    /// is not "basic" (basic plan only includes device sync).
-    pub async fn has_broker_sync(&self) -> Result<bool> {
-        let user_info = self.get_user_info().await?;
-
-        let team = match &user_info.team {
-            Some(t) => t,
-            None => {
-                debug!("[ConnectApi] No team info, broker sync not available");
-                return Ok(false);
-            }
-        };
-
-        let is_active = subscription_allows_sync(team.subscription_status.as_deref());
-        if !is_active {
-            debug!("[ConnectApi] No active subscription, broker sync not available");
-            return Ok(false);
-        }
-
-        let plan = match team.plan.as_deref() {
-            Some(p) => p,
-            None => {
-                debug!("[ConnectApi] No plan metadata, broker sync not available");
-                return Ok(false);
-            }
-        };
-        if plan == "basic" {
-            debug!("[ConnectApi] Basic plan, broker sync not available");
-            return Ok(false);
-        }
-
-        debug!("[ConnectApi] Broker sync is available");
-        Ok(true)
     }
 }
 
@@ -904,59 +858,18 @@ mod tests {
         handle.join().expect("server thread");
     }
 
-    #[test]
-    fn subscription_status_gates_sync_without_affecting_authentication() {
-        for status in ["active", "trialing", "past_due"] {
-            assert!(subscription_allows_sync(Some(status)));
-        }
-        for status in [
-            None,
-            Some("canceled"),
-            Some("unpaid"),
-            Some("incomplete"),
-            Some("incomplete_expired"),
-            Some("paused"),
-            Some("unknown"),
-        ] {
-            assert!(!subscription_allows_sync(status));
-        }
-    }
-
     #[tokio::test]
-    async fn device_sync_requires_subscription_but_accepts_basic_plan() {
-        for (body, allowed) in [
-            (r#"{"id":"user-1","team":null}"#, false),
-            (
-                r#"{"id":"user-1","team":{"id":"team-1","plan":"basic","subscriptionStatus":null}}"#,
-                false,
-            ),
-            (
-                r#"{"id":"user-1","team":{"id":"team-1","plan":"basic","subscriptionStatus":"canceled"}}"#,
-                false,
-            ),
-            (
-                r#"{"id":"user-1","team":{"id":"team-1","plan":"basic","subscriptionStatus":"active"}}"#,
-                true,
-            ),
-        ] {
-            let (base_url, _captured, handle) = start_one_request_server(200, body, None);
-            let client = ConnectApiClient::new(&base_url, "test-token").unwrap();
-            assert_eq!(client.has_device_sync().await.unwrap(), allowed);
-            handle.join().unwrap();
-        }
-    }
-
-    #[tokio::test]
-    async fn broker_sync_allows_past_due_grace_period() {
-        let (base_url, _captured, handle) = start_one_request_server(
-            200,
-            r#"{"id":"user-1","team":{"id":"team-1","plan":"essentials","subscriptionStatus":"past_due"}}"#,
+    async fn protected_request_preserves_subscription_error_code() {
+        let (base_url, _, handle) = start_one_request_server(
+            403,
+            r#"{"code":"SUBSCRIPTION_CANCELED","message":"Subscription required"}"#,
             None,
         );
         let client = ConnectApiClient::new(&base_url, "test-token").unwrap();
-
-        assert!(client.has_broker_sync().await.unwrap());
-        handle.join().expect("server thread");
+        let error = client.list_connections().await.unwrap_err().to_string();
+        assert!(error.contains("API error 403: SUBSCRIPTION_CANCELED:"));
+        assert!(crate::is_subscription_denial(&error));
+        handle.join().unwrap();
     }
 
     fn start_one_request_server(

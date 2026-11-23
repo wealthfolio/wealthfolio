@@ -107,6 +107,12 @@ pub struct SymbolSearchResult {
     pub is_existing: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub existing_asset_id: Option<String>,
+    /// Set by the search on an existing asset it found as exactly what the
+    /// query names (its symbol on the query's exchange, a provider alias, or
+    /// the listing an exact provider result points to), as opposed to one whose
+    /// symbol or name merely contains the query.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub exact_match: bool,
     pub index: String,
     pub score: f64,
 }

@@ -211,7 +211,7 @@ export function DateRangeSelector({
       {isMobile ? (
         <Sheet open={isCustomPickerOpen} onOpenChange={handleCustomPickerOpenChange}>
           <SheetTrigger render={triggerButton} />
-          <SheetContent side="bottom" className="mx-1 flex max-h-[85vh] flex-col rounded-t-4xl p-0">
+          <SheetContent side="bottom" className="mx-1 flex flex-col rounded-t-4xl p-0 [--overlay-max-height:85vh]">
             <SheetHeader className="border-border border-b px-6 py-4">
               <SheetTitle>{t("ui:dateRange.customRange", "Custom range")}</SheetTitle>
             </SheetHeader>
@@ -249,7 +249,7 @@ export function DateRangeSelector({
               </div>
             </div>
 
-            <SheetFooter className="border-border flex-row gap-2 border-t px-6 py-4 pb-[calc(var(--inset-bottom,env(safe-area-inset-bottom,0px))+1rem)]">
+            <SheetFooter className="border-border flex-row gap-2 border-t px-6 py-4 pb-4">
               <Button
                 type="button"
                 variant="ghost"

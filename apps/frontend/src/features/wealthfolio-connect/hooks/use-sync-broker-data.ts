@@ -1,3 +1,4 @@
+import { cloudSubscriptionErrorMessage } from "@/features/devices-sync/utils/error-messages";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { syncBrokerData } from "../services/broker-service";
@@ -18,7 +19,9 @@ export function useSyncBrokerData() {
     onError: (error) => {
       toast.error(
         t("connect:sync.startFailed", {
-          error: error instanceof Error ? error.message : t("connect:errors.unknown"),
+          error:
+            cloudSubscriptionErrorMessage(error) ??
+            (error instanceof Error ? error.message : t("connect:errors.unknown")),
         }),
       );
     },

@@ -80,9 +80,9 @@ export const stagePickedDatabaseFileForRestore = (
 // ============================================================================
 
 /**
- * Open a URL in the browser.
+ * Open a URL in a new tab without exposing the opener or sending a referrer.
  */
 export const openUrlInBrowser = (url: string): Promise<void> => {
-  window.open(url, "_blank");
+  window.open(url, "_blank", "noopener,noreferrer");
   return Promise.resolve();
 };

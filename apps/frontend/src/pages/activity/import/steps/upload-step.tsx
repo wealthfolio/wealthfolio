@@ -64,6 +64,7 @@ import {
   mergeActivityMappingsForImportProfile,
   sanitizeImportMappingForProfile,
 } from "../utils/activity-import-profile";
+import { mergeDetectedParseConfig } from "../utils/import-flow-utils";
 import { badgeVariants } from "@wealthfolio/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,6 +296,7 @@ function formatConfigValue(t: TFunction, key: string, value: string | number | b
       ",": t("activity:import.parseSettings.valueComma"),
       ";": t("activity:import.parseSettings.valueSemicolon"),
       "\t": t("activity:import.parseSettings.valueTab"),
+      "\\t": t("activity:import.parseSettings.valueTab"),
     };
     return delimiterLabels[value as string] || String(value);
   }
@@ -599,6 +601,15 @@ export function UploadStep() {
       ? (state.selectedTemplateId ?? templates[0]?.id ?? null)
       : state.selectedTemplateId;
 
+  // Parses can finish out of order, e.g. a large file dropped just before a small one.
+  // Each parse takes a ticket and writes its result only if no parse has started since,
+  // so a late result cannot replace the data of the file or settings chosen after it.
+  const latestParseRef = useRef(0);
+  const startParse = useCallback(() => {
+    const ticket = ++latestParseRef.current;
+    return () => ticket === latestParseRef.current;
+  }, []);
+
   const applyTemplate = useCallback(
     async (template: ImportTemplateData, options?: { selectTemplate?: boolean }) => {
       const selectTemplate = options?.selectTemplate ?? true;
@@ -615,16 +626,23 @@ export function UploadStep() {
       // so auto-detected columns (e.g., ISIN) are merged with the saved template mappings.
       let headers = state.headers;
       if (state.file) {
+        const isLatestParse = startParse();
         try {
           const result = await parseCsv(state.file, nextParseConfig);
-          setParseError(null);
-          dispatch(setParsedData(result.headers, result.rows));
-          dispatch(setParseConfig(result.detectedConfig));
+          if (isLatestParse()) {
+            setParseError(null);
+            dispatch(setParsedData(result.headers, result.rows));
+            dispatch(
+              setParseConfig(mergeDetectedParseConfig(nextParseConfig, result.detectedConfig)),
+            );
+          }
           headers = result.headers;
         } catch (err) {
-          setParseError(
-            err instanceof Error ? err.message : t("activity:import.upload.failedToReparse"),
-          );
+          if (isLatestParse()) {
+            setParseError(
+              err instanceof Error ? err.message : t("activity:import.upload.failedToReparse"),
+            );
+          }
         }
       }
 
@@ -657,6 +675,7 @@ export function UploadStep() {
       dispatch,
       importProfile,
       importType,
+      startParse,
       state.accountId,
       state.file,
       state.parseConfig,
@@ -692,13 +711,18 @@ export function UploadStep() {
     dispatch(setParseConfig(baselineParseConfig));
     dispatch(setMapping(createEmptyHoldingsMapping(state.accountId || "")));
     if (state.file) {
+      const isLatestParse = startParse();
       parseCsv(state.file, baselineParseConfig)
         .then((result) => {
+          if (!isLatestParse()) return;
           setParseError(null);
           dispatch(setParsedData(result.headers, result.rows));
-          dispatch(setParseConfig(result.detectedConfig));
+          dispatch(
+            setParseConfig(mergeDetectedParseConfig(baselineParseConfig, result.detectedConfig)),
+          );
         })
         .catch((error) => {
+          if (!isLatestParse()) return;
           setParseError(
             error instanceof Error ? error.message : t("activity:import.upload.failedToParse"),
           );
@@ -710,6 +734,7 @@ export function UploadStep() {
     dispatch,
     importProfile,
     importType,
+    startParse,
     state.accountId,
     state.file,
     t,
@@ -719,8 +744,8 @@ export function UploadStep() {
   // Two-phase approach: fetch the linked template ID, then apply once templates are loaded.
   const [pendingLinkedTemplateId, setPendingLinkedTemplateId] = useState<string | null>(null);
   const prevAccountIdRef = useRef(state.accountId);
+  const accountChanged = prevAccountIdRef.current !== state.accountId;
   useEffect(() => {
-    const accountChanged = prevAccountIdRef.current !== state.accountId;
     prevAccountIdRef.current = state.accountId;
     if (accountChanged) {
       setPendingLinkedTemplateId(null);
@@ -733,13 +758,20 @@ export function UploadStep() {
         dispatch(setParseConfig(baselineParseConfig));
         dispatch(setMapping(createEmptyHoldingsMapping(state.accountId || "")));
         if (state.file) {
+          const isLatestParse = startParse();
           parseCsv(state.file, baselineParseConfig)
             .then((result) => {
+              if (!isLatestParse()) return;
               setParseError(null);
               dispatch(setParsedData(result.headers, result.rows));
-              dispatch(setParseConfig(result.detectedConfig));
+              dispatch(
+                setParseConfig(
+                  mergeDetectedParseConfig(baselineParseConfig, result.detectedConfig),
+                ),
+              );
             })
             .catch((error) => {
+              if (!isLatestParse()) return;
               setParseError(
                 error instanceof Error ? error.message : t("activity:import.upload.failedToParse"),
               );
@@ -764,11 +796,13 @@ export function UploadStep() {
       });
     // oxlint-disable-next-line react/exhaustive-deps
   }, [
+    accountChanged,
     applyTemplate,
     baselineParseConfig,
     dispatch,
     importProfile,
     importType,
+    startParse,
     state.accountId,
     state.file,
     state.selectedTemplateId,
@@ -795,7 +829,12 @@ export function UploadStep() {
   parseConfigRef.current = state.parseConfig;
 
   useEffect(() => {
-    if (!selectedAccount || state.parseConfig.defaultCurrency === selectedAccount.currency) {
+    // The account-change effect already resets the config and re-parses with its currency.
+    if (
+      accountChanged ||
+      !selectedAccount ||
+      state.parseConfig.defaultCurrency === selectedAccount.currency
+    ) {
       return;
     }
 
@@ -806,18 +845,21 @@ export function UploadStep() {
 
     if (fileRef.current) {
       const newConfig = { ...parseConfigRef.current, ...updates };
+      const isLatestParse = startParse();
       parseCsv(fileRef.current, newConfig)
         .then((result) => {
+          if (!isLatestParse()) return;
           setParseError(null);
           dispatch(setParsedData(result.headers, result.rows));
         })
         .catch((error) => {
+          if (!isLatestParse()) return;
           setParseError(
             error instanceof Error ? error.message : t("activity:import.upload.failedToParse"),
           );
         });
     }
-  }, [dispatch, selectedAccount, state.parseConfig.defaultCurrency, t]);
+  }, [accountChanged, dispatch, selectedAccount, startParse, state.parseConfig.defaultCurrency, t]);
 
   const handleAccountSelect = useCallback(
     (account: Account) => {
@@ -826,14 +868,18 @@ export function UploadStep() {
     [dispatch],
   );
 
+  // `useMutation`'s own callbacks also run for superseded mutations, hence the ticket.
   const { mutate: parseFile, isPending } = useMutation({
-    mutationFn: (file: File) => parseCsv(file, state.parseConfig),
-    onSuccess: (result) => {
+    mutationFn: ({ file }: { file: File; isLatestParse: () => boolean }) =>
+      parseCsv(file, state.parseConfig),
+    onSuccess: (result, { isLatestParse }) => {
+      if (!isLatestParse()) return;
       setParseError(null);
       dispatch(setParsedData(result.headers, result.rows));
-      dispatch(setParseConfig(result.detectedConfig));
+      dispatch(setParseConfig(mergeDetectedParseConfig(state.parseConfig, result.detectedConfig)));
     },
-    onError: (error) => {
+    onError: (error, { isLatestParse }) => {
+      if (!isLatestParse()) return;
       setParseError(
         error instanceof Error ? error.message : t("activity:import.upload.failedToParse"),
       );
@@ -842,15 +888,17 @@ export function UploadStep() {
 
   const handleFileSelect = useCallback(
     (file: File | null) => {
+      // Taking a ticket also discards parses still running for a removed file.
+      const isLatestParse = startParse();
       if (file) {
         dispatch(setFile(file));
-        parseFile(file);
+        parseFile({ file, isLatestParse });
       } else {
         dispatch(setFile(null as unknown as File));
         dispatch(setParsedData([], []));
       }
     },
-    [dispatch, parseFile],
+    [dispatch, parseFile, startParse],
   );
 
   const handleConfigChange = useCallback(
@@ -858,19 +906,22 @@ export function UploadStep() {
       dispatch(setParseConfig(updates));
       if (state.file) {
         const newConfig = { ...state.parseConfig, ...updates };
+        const isLatestParse = startParse();
         parseCsv(state.file, newConfig)
           .then((result) => {
+            if (!isLatestParse()) return;
             setParseError(null);
             dispatch(setParsedData(result.headers, result.rows));
           })
           .catch((error) => {
+            if (!isLatestParse()) return;
             setParseError(
               error instanceof Error ? error.message : t("activity:import.upload.failedToParse"),
             );
           });
       }
     },
-    [dispatch, state.file, state.parseConfig, t],
+    [dispatch, startParse, state.file, state.parseConfig, t],
   );
 
   const hasParseErrors = parseError !== null;

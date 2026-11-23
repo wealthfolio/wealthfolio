@@ -7,7 +7,7 @@ import { getExchangeDisplayName } from "@/lib/constants";
 import { normalizeCurrency } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { ProgressIndicator } from "@wealthfolio/ui/components/ui/progress-indicator";
+import { AssetPreviewFeedback } from "../components/asset-preview-feedback";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportAlert } from "../components/import-alert";
@@ -16,6 +16,7 @@ import {
   applyAssetResolution,
   buildImportAssetCandidateFromDraft,
   buildNewAssetFromSearchResult,
+  getUnreviewedAssetCandidates,
 } from "../utils/asset-review-utils";
 import { badgeVariants } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,25 @@ interface AssetDialogState {
   symbol: string;
   mode: "create" | "edit";
   initialAsset?: Partial<NewAsset>;
+}
+
+/** A manual asset for a row marked custom, under the name the import found for it. */
+function buildCustomAssetDraft(symbol: string, name: string, fallbackCurrency: string): NewAsset {
+  return buildNewAssetFromSearchResult(
+    {
+      symbol,
+      shortName: name,
+      longName: name,
+      exchange: "MANUAL",
+      index: "MANUAL",
+      quoteType: "EQUITY",
+      score: 0,
+      typeDisplay: "Custom Asset",
+      dataSource: "MANUAL",
+      quoteMode: "MANUAL",
+    },
+    fallbackCurrency,
+  );
 }
 
 function buildEditableAssetDraft(
@@ -53,6 +73,7 @@ function buildEditableAssetDraft(
       candidateDraft?.currency ||
       fallbackCurrency,
     instrumentType: item.draft?.instrumentType || candidateDraft?.instrumentType || "EQUITY",
+    instrumentTypeLabel: item.draft?.instrumentTypeLabel,
     instrumentSymbol:
       item.draft?.instrumentSymbol || item.draft?.displayCode || candidateDraft?.symbol,
     instrumentExchangeMic:
@@ -69,7 +90,7 @@ interface NeedsFixingRowProps {
   item: ImportAssetPreviewItem;
   symbol: string;
   symbolName?: string;
-  count: number;
+  countLabel: string;
   onSearch: (item: ImportAssetPreviewItem, result?: SymbolSearchResult) => void;
   onMarkCustom: () => void;
   onCreateAsset: () => void;
@@ -82,7 +103,7 @@ function NeedsFixingRow({
   item,
   symbol,
   symbolName,
-  count,
+  countLabel,
   onSearch,
   onMarkCustom,
   onCreateAsset,
@@ -107,10 +128,10 @@ function NeedsFixingRow({
           className="size-7 shrink-0"
         />
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
             <span className="text-2xs bg-warning-subtle text-warning-subtle-foreground rounded px-1.5 py-0.5 font-semibold">
-              {count}×
+              {countLabel}
             </span>
           </div>
           {symbolName && (
@@ -171,7 +192,7 @@ function NeedsFixingRow({
 interface AutoResolvedRowProps {
   item: ImportAssetPreviewItem;
   symbol: string;
-  count: number;
+  countLabel: string;
   isSuspicious: boolean;
   csvCurrency?: string;
   isSearchOpen: boolean;
@@ -183,7 +204,7 @@ interface AutoResolvedRowProps {
 function AutoResolvedRow({
   item,
   symbol,
-  count,
+  countLabel,
   isSuspicious,
   csvCurrency,
   isSearchOpen,
@@ -215,10 +236,10 @@ function AutoResolvedRow({
           className="size-7 shrink-0"
         />
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
             <span className="text-2xs bg-info-subtle text-info-subtle-foreground rounded px-1.5 py-0.5 font-semibold">
-              {count}×
+              {countLabel}
             </span>
           </div>
           {assetName && (
@@ -300,7 +321,7 @@ function AutoResolvedRow({
 interface ReadyAssetRowProps {
   item: ImportAssetPreviewItem;
   symbol: string;
-  count: number;
+  countLabel: string;
   isSearchOpen: boolean;
   onToggleSearch: () => void;
   onSearch: (item: ImportAssetPreviewItem, result?: SymbolSearchResult) => void;
@@ -310,7 +331,7 @@ interface ReadyAssetRowProps {
 function ReadyAssetRow({
   item,
   symbol,
-  count,
+  countLabel,
   isSearchOpen,
   onToggleSearch,
   onSearch,
@@ -340,7 +361,7 @@ function ReadyAssetRow({
           className="size-7 shrink-0"
         />
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
             <span
               className={cn(
@@ -348,7 +369,7 @@ function ReadyAssetRow({
                 "text-2xs rounded px-1.5 font-semibold",
               )}
             >
-              {count}×
+              {countLabel}
             </span>
           </div>
           {assetName && (
@@ -409,10 +430,17 @@ function ReadyAssetRow({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function AssetReviewStep() {
+interface AssetReviewStepProps {
+  isHoldingsMode?: boolean;
+}
+
+export function AssetReviewStep({ isHoldingsMode = false }: AssetReviewStepProps) {
   const { state, dispatch, previewAssets } = useImportContext();
   const { t } = useTranslation();
   const { draftActivities, assetPreviewItems, isPreviewingAssets } = state;
+  const countLabelKey = isHoldingsMode
+    ? "activity:import.upload.rows"
+    : "activity:import.assets.transactionCount";
   const [activeSearchKey, setActiveSearchKey] = useState<string | null>(null);
   const [assetDialog, setAssetDialog] = useState<AssetDialogState>({
     open: false,
@@ -518,19 +546,9 @@ export function AssetReviewStep() {
       const candidate = candidateMap.get(item.key);
       const symbol = candidate?.draft.symbol || item.key;
       const fallbackCurrency = candidate?.draft.currency || state.parseConfig.defaultCurrency;
-      const assetDraft = buildNewAssetFromSearchResult(
-        {
-          symbol,
-          shortName: symbol,
-          longName: symbol,
-          exchange: "MANUAL",
-          index: "MANUAL",
-          quoteType: "EQUITY",
-          score: 0,
-          typeDisplay: "Custom Asset",
-          dataSource: "MANUAL",
-          quoteMode: "MANUAL",
-        },
+      const assetDraft = buildCustomAssetDraft(
+        symbol,
+        candidate?.draft.symbolName || item.draft?.name || symbol,
         fallbackCurrency,
       );
       const nextDrafts = applyAssetResolution(draftActivities, item.key, assetDraft, {
@@ -560,19 +578,9 @@ export function AssetReviewStep() {
       const candidate = candidateMap.get(item.key);
       const symbol = candidate?.draft.symbol || item.key;
       const fallbackCurrency = candidate?.draft.currency || state.parseConfig.defaultCurrency;
-      const assetDraft = buildNewAssetFromSearchResult(
-        {
-          symbol,
-          shortName: symbol,
-          longName: symbol,
-          exchange: "MANUAL",
-          index: "MANUAL",
-          quoteType: "EQUITY",
-          score: 0,
-          typeDisplay: "Custom Asset",
-          dataSource: "MANUAL",
-          quoteMode: "MANUAL",
-        },
+      const assetDraft = buildCustomAssetDraft(
+        symbol,
+        candidate?.draft.symbolName || item.draft?.name || symbol,
         fallbackCurrency,
       );
       nextDrafts = applyAssetResolution(nextDrafts, item.key, assetDraft, {
@@ -679,46 +687,38 @@ export function AssetReviewStep() {
     );
   }
 
-  // ── Loading state ────────────────────────────────────────────────────────────
-  if (isPreviewingAssets || (assetPreviewItems.length === 0 && !state.assetPreviewError)) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <ProgressIndicator
-          message={t("activity:import.assets.resolvingMessage")}
-          description={t("activity:import.assets.resolvingDescription")}
-          className="border-none shadow-none"
-        />
-      </div>
-    );
-  }
-
-  // ── Error state ──────────────────────────────────────────────────────────────
-  if (state.assetPreviewError) {
-    return (
-      <ImportAlert
-        variant="destructive"
-        title={t("activity:import.assets.previewFailedTitle")}
-        description={state.assetPreviewError}
-      >
-        <div className="mt-3">
-          <Button size="sm" variant="outline" onClick={() => void previewAssets(draftActivities)}>
-            {t("activity:import.assets.retry")}
-          </Button>
-        </div>
-      </ImportAlert>
-    );
-  }
+  const remaining = getUnreviewedAssetCandidates(draftActivities, assetPreviewItems).length;
 
   return (
-    <div className="space-y-4">
+    <fieldset
+      disabled={isPreviewingAssets}
+      className="min-w-0 space-y-4"
+      aria-label={t("activity:import.steps.reviewAssets")}
+    >
+      <AssetPreviewFeedback
+        total={candidateMap.size}
+        remaining={remaining}
+        isChecking={isPreviewingAssets}
+        progress={state.assetPreviewProgress}
+        error={state.assetPreviewError}
+        onRetry={() => {
+          setActiveSearchKey(null);
+          setAssetDialog((current) => ({ ...current, open: false }));
+          void previewAssets(draftActivities, { retry: true });
+        }}
+      />
       {/* ── Summary banner ────────────────────────────────────────────────── */}
-      {needsFixing.length === 0 && autoResolvedItems.length === 0 && (
-        <ImportAlert
-          variant="success"
-          title={t("activity:import.assets.allResolvedTitle")}
-          description={t("activity:import.assets.allResolvedDescription")}
-        />
-      )}
+      {remaining === 0 &&
+        !isPreviewingAssets &&
+        !state.assetPreviewError &&
+        needsFixing.length === 0 &&
+        autoResolvedItems.length === 0 && (
+          <ImportAlert
+            variant="success"
+            title={t("activity:import.assets.allResolvedTitle")}
+            description={t("activity:import.assets.allResolvedDescription")}
+          />
+        )}
 
       {/* ── Needs Fixing section ──────────────────────────────────────────── */}
       {needsFixing.length > 0 && (
@@ -783,7 +783,7 @@ export function AssetReviewStep() {
                     item={item}
                     symbol={symbol}
                     symbolName={symbolName}
-                    count={count}
+                    countLabel={t(countLabelKey, { count })}
                     onSearch={handleSearchSelection}
                     onMarkCustom={() => handleMarkCustom(item)}
                     onCreateAsset={() =>
@@ -792,6 +792,9 @@ export function AssetReviewStep() {
                         key: item.key,
                         symbol,
                         mode: "create",
+                        initialAsset: item.draft
+                          ? { ...item.draft, quoteMode: "MANUAL" }
+                          : undefined,
                       })
                     }
                   />
@@ -878,7 +881,7 @@ export function AssetReviewStep() {
                         key={item.key}
                         item={item}
                         symbol={symbol}
-                        count={count}
+                        countLabel={t(countLabelKey, { count })}
                         isSuspicious={isSuspicious}
                         csvCurrency={csvCcy}
                         isSearchOpen={activeSearchKey === item.key}
@@ -953,7 +956,7 @@ export function AssetReviewStep() {
                     key={item.key}
                     item={item}
                     symbol={symbol}
-                    count={count}
+                    countLabel={t(countLabelKey, { count })}
                     isSearchOpen={activeSearchKey === item.key}
                     onToggleSearch={() =>
                       setActiveSearchKey((cur) => (cur === item.key ? null : item.key))
@@ -1008,7 +1011,7 @@ export function AssetReviewStep() {
             : handleManualCreate(payload))
         }
       />
-    </div>
+    </fieldset>
   );
 }
 

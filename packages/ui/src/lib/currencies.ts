@@ -200,6 +200,12 @@ export function getQuoteUnitCurrency(currency: string | null | undefined) {
   });
 }
 
+/** A typed code in upper case, as FX pairs are stored; quote units such as GBp keep their case. */
+export function canonicalCurrencyCode(code: string) {
+  const trimmed = code.trim();
+  return getQuoteUnitCurrency(trimmed)?.value ?? trimmed.toUpperCase();
+}
+
 /** Localize display text only; currency codes and custom values stay unchanged. */
 export function getCurrencyDisplayName(
   code: string,

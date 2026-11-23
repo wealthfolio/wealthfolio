@@ -418,7 +418,7 @@ export function BackupDeleteDialog({
     >
       <DialogContent
         className="sm:max-w-md"
-        mobileClassName="h-auto max-h-[85dvh] overflow-y-auto"
+        mobileClassName="h-auto [--overlay-max-height:85dvh] overflow-y-auto"
         showCloseButton={!pending}
       >
         <DialogHeader className="text-start">

@@ -2,6 +2,7 @@
 import type {
   AccountScope,
   Holding,
+  HoldingsListResponse,
   AllocationHoldings,
   IncomeSummary,
   AccountValuation,
@@ -36,8 +37,8 @@ export const getHoldings = async (filter: AccountScope): Promise<Holding[]> => {
 export const getHoldingsList = async (
   filter: AccountScope,
   options: { includeClosed?: boolean } = {},
-): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_holdings_list", {
+): Promise<HoldingsListResponse> => {
+  return invoke<HoldingsListResponse>("get_holdings_list", {
     filter,
     ...(options.includeClosed ? { includeClosed: true } : {}),
   });
@@ -149,9 +150,8 @@ export const calculatePerformanceSummary = async ({
   const response = await invoke<PerformanceResult>("calculate_performance_summary", args);
 
   if (!response || typeof response !== "object" || !response.scope?.id) {
-    logger.error(
-      `Invalid data received from calculate_performance_summary. Response: ${JSON.stringify(response)}`,
-    );
+    // The response can hold portfolio values; keep them out of the log.
+    logger.error("Invalid data received from calculate_performance_summary: missing scope id.");
     throw new Error("Received invalid performance summary data from backend.");
   }
 
@@ -192,8 +192,25 @@ export const getHolding = async (accountId: string, assetId: string): Promise<Ho
   return invoke<Holding | null>("get_holding", { accountId, assetId });
 };
 
+/**
+ * Every account's current holdings of an asset, for actions that record
+ * activities (option expiry). Rejects while any account is calculating: its
+ * last holdings may not reflect a recent trade.
+ */
 export const getAssetHoldings = async (assetId: string): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_asset_holdings", { assetId });
+  const scope = await getAssetHoldingsScope(assetId);
+  if (scope.incompleteAccounts.length > 0) throw new Error("Holdings scope is incomplete");
+  return scope.holdings;
+};
+
+export const getAssetHoldingsScope = async (
+  assetId: string,
+  filter?: AccountScope,
+): Promise<HoldingsListResponse> => {
+  return invoke<HoldingsListResponse>("get_asset_holdings", {
+    assetId,
+    ...(filter ? { filter } : {}),
+  });
 };
 
 export const getAssetLots = async (

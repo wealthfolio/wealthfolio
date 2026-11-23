@@ -8,10 +8,10 @@ export interface ThemeDefinition {
   mode?: "light" | "dark";
 }
 
-/** In picker order; the first is Classic, the base every theme inherits from. */
+/** In picker order. Classic is the base every theme inherits from. */
 export const themes: readonly ThemeDefinition[] = [
-  { id: "classic", name: "Classic", font: "font-mono" },
   { id: "signature", name: "Signature", font: "font-sans" },
+  { id: "classic", name: "Classic", font: "font-mono" },
   { id: "ember", name: "Ember" },
   { id: "cupertino", name: "Cupertino", font: "font-sans" },
   { id: "newspaper", name: "Newspaper" },

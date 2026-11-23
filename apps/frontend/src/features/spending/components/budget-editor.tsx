@@ -33,6 +33,11 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Sheet,
   SheetContent,
   SheetHeader,
@@ -44,6 +49,7 @@ import {
   TooltipTrigger,
   PrivacyAmount,
   useIsMobile,
+  useNumericDraft,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
@@ -52,6 +58,7 @@ import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import { useBudget, useBudgetMutations } from "../hooks/use-budget";
+import { groupAllocation, totalAllocation } from "../lib/budget-allocation";
 import { SPENDING_THEME, tint } from "../lib/theme";
 import type {
   BudgetCategoryRow,
@@ -68,7 +75,7 @@ import { EXTENDED_PALETTE } from "./color-picker";
 import { IconPicker } from "./icon-picker";
 import { badgeVariants } from "@wealthfolio/ui";
 
-const SPENDING_TAXONOMY = "spending_categories";
+const SAVINGS_TAXONOMY = "savings_categories";
 
 export type BudgetEditorMode = "setup" | "monthly";
 
@@ -161,23 +168,23 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
           onSaveGroupBuffer={saveGroupBuffer}
           onSaveCategoryTarget={saveCategoryTarget}
           onDeleteOverride={deleteMonthOverride}
-          onMoveCategory={(categoryId, groupId) =>
-            mutations.assignCategory.mutate({ categoryId, groupId })
+          onMoveCategory={(category, groupId) =>
+            mutations.assignCategory.mutate({
+              taxonomyId: category.taxonomyId,
+              categoryId: category.categoryId,
+              groupId,
+            })
           }
           onUpdateGroup={(patch) => mutations.updateGroup.mutate({ id: row.group.id, patch })}
-          onDeleteGroup={() => {
-            const target =
-              groups.find((g) => g.key === "other" && g.id !== row.group.id) ??
-              groups.find((g) => g.id !== row.group.id);
-            if (target) {
-              mutations.removeGroup.mutate({
-                id: row.group.id,
-                reassignToGroupId: target.id,
-              });
-            }
-          }}
-          canDelete={!row.group.isSystem && groups.some((g) => g.id !== row.group.id)}
+          onDeleteGroup={(reassignToGroupId) =>
+            mutations.removeGroup.mutate({ id: row.group.id, reassignToGroupId })
+          }
+          canDelete={row.group.key !== "other" && groups.some((g) => g.id !== row.group.id)}
           deletePending={mutations.removeGroup.isPending}
+          rolloverPending={mutations.removeRollover.isPending || mutations.upsertRollover.isPending}
+          onRemoveGroupRollover={(id, onSuccess) =>
+            mutations.removeRollover.mutate(id, { onSuccess })
+          }
           onSaveGroupRollover={(enabled, startingBalance) =>
             mutations.upsertRollover.mutate({
               targetType: "group",
@@ -193,12 +200,12 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
           onToggleCategoryRollover={(category, enabled) =>
             mutations.upsertRollover.mutate({
               targetType: "category",
-              taxonomyId: SPENDING_TAXONOMY,
+              taxonomyId: category.taxonomyId,
               categoryId: category.categoryId,
               enabled,
               startMonth: monthMode ? periodForWrite : currentMonthKey(),
               startingBalance:
-                findCategoryRollover(rolloverSettings, category.categoryId)?.startingBalance ?? "0",
+                findCategoryRollover(rolloverSettings, category)?.startingBalance ?? "0",
             })
           }
         />
@@ -297,7 +304,8 @@ function BudgetSummary({
 }) {
   const totals = budget.computed.totals;
   const groupRows = budget.computed.groupRows;
-  const planned = totals.spendingPlanned;
+  // Spending budgets and savings goals both take a share of income.
+  const planned = totalAllocation(totals);
   const income = totals.incomePlanned;
   const denominator = income > 0 ? income : planned;
   const allocatedPct = denominator > 0 ? planned / denominator : 0;
@@ -400,7 +408,7 @@ function SegmentedGroupBar({
     );
   }
 
-  const visibleRows = groupRows.filter((row) => row.plannedTotal > 0);
+  const visibleRows = groupRows.filter((row) => groupAllocation(row) > 0);
 
   return (
     <div className="bg-muted/40 mt-3 flex h-1.5 overflow-hidden rounded-full">
@@ -409,7 +417,7 @@ function SegmentedGroupBar({
           key={row.group.id}
           className="min-w-[3px] transition-all"
           style={{
-            width: `${Math.max(1, safePercent(row.plannedTotal, total) * 100)}%`,
+            width: `${Math.max(1, safePercent(groupAllocation(row), total) * 100)}%`,
             backgroundColor: row.group.color ?? SPENDING_THEME.deep,
           }}
         />
@@ -430,7 +438,8 @@ function GroupSummaryCell({
   const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const accent = row.group.color ?? SPENDING_THEME.deep;
-  const pct = safePercent(row.plannedTotal, denominator);
+  const allocation = groupAllocation(row);
+  const pct = safePercent(allocation, denominator);
   return (
     <div className="flex min-w-0 items-center gap-2 py-0.5">
       <span
@@ -445,7 +454,39 @@ function GroupSummaryCell({
         {numberFormatting.formatPercent(pct, { digits: 0 })}
       </span>
       <span className="text-foreground shrink-0 text-xs font-medium tabular-nums">
-        <PrivacyAmount value={row.plannedTotal} currency={currency} />
+        <PrivacyAmount value={allocation} currency={currency} />
+      </span>
+    </div>
+  );
+}
+
+/** Amount against a group's budget or goal; the text wraps under the bar. */
+function GroupProgress({
+  label,
+  value,
+  total,
+  accent,
+  currency,
+}: {
+  label?: string;
+  value: number;
+  total: number;
+  accent: string;
+  currency: string;
+}) {
+  const pct = safePercent(Math.max(0, value), total);
+  return (
+    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${Math.min(100, pct * 100)}%`, backgroundColor: accent }}
+        />
+      </div>
+      <span className="text-muted-foreground text-2xs tabular-nums">
+        {label && <span className="me-1">{label}</span>}
+        <PrivacyAmount value={value} currency={currency} /> /{" "}
+        <PrivacyAmount value={total} currency={currency} />
       </span>
     </div>
   );
@@ -469,6 +510,7 @@ function GroupBudgetSection({
   categoryPool,
   canDelete,
   deletePending,
+  rolloverPending,
   onSaveGroupBuffer,
   onSaveCategoryTarget,
   onDeleteOverride,
@@ -476,6 +518,7 @@ function GroupBudgetSection({
   onUpdateGroup,
   onDeleteGroup,
   onSaveGroupRollover,
+  onRemoveGroupRollover,
   onToggleCategoryRollover,
 }: {
   row: BudgetGroupRow;
@@ -489,23 +532,35 @@ function GroupBudgetSection({
   categoryPool: CategoryPoolEntry[];
   canDelete: boolean;
   deletePending: boolean;
+  rolloverPending: boolean;
   onSaveGroupBuffer: (row: BudgetGroupRow, amount: string) => void;
   onSaveCategoryTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
-  onMoveCategory: (categoryId: string, groupId: string) => void;
+  onMoveCategory: (category: BudgetCategoryRow, groupId: string) => void;
   onUpdateGroup: (patch: { name?: string; color?: string | null; icon?: string | null }) => void;
-  onDeleteGroup: () => void;
+  onDeleteGroup: (reassignToGroupId: string) => void;
   onSaveGroupRollover: (enabled: boolean, startingBalance?: string) => void;
+  onRemoveGroupRollover: (id: string, onSuccess: () => void) => void;
   onToggleCategoryRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmRemoveRolloverOpen, setConfirmRemoveRolloverOpen] = useState(false);
   const groupOverride = findGroupBufferTarget(targets, periodKey, row.group.id);
   const groupRollover = findGroupRollover(rolloverSettings, row.group.id);
+  const destinations = groups.filter(
+    (group) => group.id !== row.group.id && !findGroupRollover(rolloverSettings, group.id)?.enabled,
+  );
+  const [deleteDestination, setDeleteDestination] = useState("");
+  const selectedDestination = destinations.find((group) => group.id === deleteDestination);
+
   const accent = row.group.color ?? SPENDING_THEME.deep;
-  const spentPct = safePercent(Math.max(0, row.actual), row.plannedTotal);
+  // A group lists categories; spending and savings in it are shown apart.
+  const hasSavings = row.categories.some((c) => c.taxonomyId === SAVINGS_TAXONOMY);
+  const hasSpending =
+    !hasSavings || row.buffer > 0 || row.categories.some((c) => c.taxonomyId !== SAVINGS_TAXONOMY);
   const totalSuffix =
     mode === "setup"
       ? t("spending:budgetEditor.perDefaultMonth")
@@ -569,27 +624,28 @@ function GroupBudgetSection({
           <div className="text-foreground truncate text-sm font-semibold">
             {getBudgetGroupLabel(t, row.group.id, row.group.name)}
           </div>
-          {/* Spent of planned wraps under the bar rather than ending in an ellipsis. */}
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${Math.min(100, spentPct * 100)}%`,
-                  backgroundColor: accent,
-                }}
-              />
-            </div>
-            <span className="text-muted-foreground text-2xs tabular-nums">
-              <PrivacyAmount value={row.actual} currency={currency} /> /{" "}
-              <PrivacyAmount value={row.plannedTotal} currency={currency} />
-            </span>
-          </div>
+          {hasSpending && (
+            <GroupProgress
+              value={row.actual}
+              total={row.plannedTotal}
+              accent={accent}
+              currency={currency}
+            />
+          )}
+          {hasSavings && (
+            <GroupProgress
+              label={t("spending:budgetEditor.saved")}
+              value={row.savingsActual}
+              total={row.savingsTargetTotal}
+              accent={accent}
+              currency={currency}
+            />
+          )}
         </button>
 
         <div className="text-end">
           <div className="text-sm font-semibold tabular-nums">
-            <PrivacyAmount value={row.plannedTotal} currency={currency} />
+            <PrivacyAmount value={groupAllocation(row)} currency={currency} />
           </div>
           <div className="text-muted-foreground text-2xs tracking-wide uppercase">
             {totalSuffix}
@@ -628,6 +684,7 @@ function GroupBudgetSection({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   closeOnClick={false}
+                  disabled={rolloverPending}
                   onClick={() => {
                     onSaveGroupRollover(!groupRollover?.enabled);
                   }}
@@ -641,12 +698,26 @@ function GroupBudgetSection({
                       : t("spending:budgetEditor.off")}
                   </span>
                 </DropdownMenuItem>
+                {groupRollover && (
+                  <DropdownMenuItem
+                    closeOnClick={false}
+                    disabled={rolloverPending}
+                    onClick={() => setConfirmRemoveRolloverOpen(true)}
+                    className="text-destructive focus:text-destructive text-xs"
+                  >
+                    <Icons.Trash className="me-2 h-3.5 w-3.5" />
+                    {t("spending:budgetEditor.removeGroupRollover")}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   disabled={!canDelete}
                   closeOnClick={false}
                   onClick={() => {
-                    if (canDelete) setConfirmDeleteOpen(true);
+                    if (canDelete) {
+                      setDeleteDestination("");
+                      setConfirmDeleteOpen(true);
+                    }
                   }}
                   className="text-destructive focus:text-destructive text-xs"
                 >
@@ -660,6 +731,17 @@ function GroupBudgetSection({
       </div>
 
       {mode === "setup" && (
+        <RolloverRemovalDialog
+          name={getBudgetGroupLabel(t, row.group.id, row.group.name)}
+          settingId={groupRollover?.id}
+          open={confirmRemoveRolloverOpen}
+          onOpenChange={setConfirmRemoveRolloverOpen}
+          pending={rolloverPending}
+          onRemove={onRemoveGroupRollover}
+        />
+      )}
+
+      {mode === "setup" && (
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -669,22 +751,50 @@ function GroupBudgetSection({
                 })}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {row.categories.length > 0
-                  ? t("spending:budgetEditor.deleteGroupWithCategories", {
-                      count: row.categories.length,
-                    })
-                  : t("spending:budgetEditor.cannotUndo")}
+                {t("spending:budgetEditor.deleteGroupDescription")}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {groupRollover && (
+              <p className="text-destructive text-sm">
+                {t("spending:budgetEditor.deleteGroupRollover")}
+              </p>
+            )}
+            <Select
+              value={selectedDestination?.id ?? null}
+              onValueChange={(value) => setDeleteDestination(value ?? "")}
+              items={destinations.map((group) => ({
+                value: group.id,
+                label: getBudgetGroupLabel(t, group.id, group.name),
+              }))}
+            >
+              <SelectTrigger aria-label={t("spending:budgetEditor.moveToGroup")} className="w-full">
+                <SelectValue placeholder={t("spending:budgetEditor.moveToGroup")} />
+              </SelectTrigger>
+              <SelectContent>
+                {destinations.map((group) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {getBudgetGroupLabel(t, group.id, group.name)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {groups.some(
+              (group) =>
+                group.id !== row.group.id && findGroupRollover(rolloverSettings, group.id)?.enabled,
+            ) && (
+              <p className="text-muted-foreground text-sm">
+                {t("spending:budgetEditor.deleteGroupDestinationRollover")}
+              </p>
+            )}
             <AlertDialogFooter>
               <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={(event) => {
                   event.preventBaseUIHandler();
-                  onDeleteGroup();
+                  if (selectedDestination) onDeleteGroup(selectedDestination.id);
                   setConfirmDeleteOpen(false);
                 }}
-                disabled={deletePending}
+                disabled={deletePending || !!groupRollover || !selectedDestination}
                 variant="destructive"
               >
                 {deletePending ? t("spending:budgetEditor.deleting") : t("common:delete")}
@@ -706,7 +816,7 @@ function GroupBudgetSection({
           />
           {row.categories.map((category) => (
             <BudgetCategoryLine
-              key={category.categoryId}
+              key={`${category.taxonomyId}:${category.categoryId}`}
               row={category}
               groups={groups}
               target={findCategoryTarget(
@@ -716,10 +826,14 @@ function GroupBudgetSection({
                 category.categoryId,
               )}
               currency={currency}
-              groupTotal={row.plannedTotal}
+              groupTotal={groupAllocation(row)}
               monthMode={monthMode}
               mode={mode}
-              groupRolloverEnabled={row.rolloverEnabled}
+              rolloverEnabled={findCategoryRollover(rolloverSettings, category)?.enabled ?? false}
+              rolloverId={findCategoryRollover(rolloverSettings, category)?.id}
+              rolloverPending={rolloverPending}
+              onRemoveRollover={onRemoveGroupRollover}
+              groupRolloverEnabled={groupRollover?.enabled ?? false}
               onSaveTarget={onSaveCategoryTarget}
               onDeleteOverride={onDeleteOverride}
               onMoveCategory={onMoveCategory}
@@ -749,7 +863,7 @@ function AddCategoryRow({
   groupId: string;
   groupName: string;
   pool: CategoryPoolEntry[];
-  onMoveCategory: (categoryId: string, groupId: string) => void;
+  onMoveCategory: (category: BudgetCategoryRow, groupId: string) => void;
 }) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -775,7 +889,7 @@ function AddCategoryRow({
       setPendingMove(entry);
       setOpen(false);
     } else {
-      onMoveCategory(entry.category.categoryId, groupId);
+      onMoveCategory(entry.category, groupId);
       setOpen(false);
     }
   };
@@ -811,7 +925,7 @@ function AddCategoryRow({
         const accent = entry.category.color ?? SPENDING_THEME.deep;
         return (
           <button
-            key={entry.category.categoryId}
+            key={`${entry.category.taxonomyId}:${entry.category.categoryId}`}
             type="button"
             onClick={() => handlePick(entry)}
             className={cn(
@@ -885,7 +999,11 @@ function AddCategoryRow({
       {isMobile ? (
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger render={trigger} />
-          <SheetContent side="bottom" showCloseButton={false} className="pb-safe rounded-t-2xl p-0">
+          <SheetContent
+            side="bottom"
+            showCloseButton={false}
+            className="mx-1 rounded-t-4xl p-0 pb-6"
+          >
             {/* iOS-style drag indicator — backdrop tap and swipe-down dismiss the sheet */}
             <div className="flex justify-center pt-2 pb-1">
               <div className="bg-muted-foreground/30 h-1 w-10 rounded-full" />
@@ -949,7 +1067,7 @@ function AddCategoryRow({
             <AlertDialogAction
               onClick={() => {
                 if (pendingMove) {
-                  onMoveCategory(pendingMove.category.categoryId, groupId);
+                  onMoveCategory(pendingMove.category, groupId);
                   setPendingMove(null);
                 }
               }}
@@ -1000,9 +1118,12 @@ function GroupEditDialogBody({
   const [draftColor, setDraftColor] = useState(color);
   const [draftIcon, setDraftIcon] = useState<string | null>(group.icon ?? null);
   const [draftRollover, setDraftRollover] = useState(rolloverEnabled);
-  const [draftStartingBalance, setDraftStartingBalance] = useState(rolloverStartingBalance);
+  const startingBalanceDraft = useNumericDraft(Number(rolloverStartingBalance));
 
   const handleSave = () => {
+    const balance = startingBalanceDraft.read();
+    if (draftRollover && balance.status === "invalid") return;
+
     const patch: { name?: string; color?: string | null; icon?: string | null } = {};
     const trimmedName = draftName.trim();
     if (trimmedName && trimmedName !== group.name) patch.name = trimmedName;
@@ -1010,13 +1131,10 @@ function GroupEditDialogBody({
     if ((draftIcon ?? null) !== (group.icon ?? null)) patch.icon = draftIcon;
     if (Object.keys(patch).length > 0) onUpdate(patch);
 
-    const balanceChanged =
-      draftRollover && normalizeBalance(draftStartingBalance) !== rolloverStartingBalance;
+    const startingBalance = String(balance.status === "valid" ? balance.value : 0);
+    const balanceChanged = draftRollover && startingBalance !== rolloverStartingBalance;
     if (draftRollover !== rolloverEnabled || balanceChanged) {
-      onSaveRollover(
-        draftRollover,
-        draftRollover ? normalizeBalance(draftStartingBalance) : undefined,
-      );
+      onSaveRollover(draftRollover, draftRollover ? startingBalance : undefined);
     }
     onOpenChange(false);
   };
@@ -1097,8 +1215,7 @@ function GroupEditDialogBody({
                   id="rollover-starting-balance"
                   type="text"
                   inputMode="decimal"
-                  value={draftStartingBalance}
-                  onChange={(event) => setDraftStartingBalance(event.target.value)}
+                  {...startingBalanceDraft.inputProps}
                   placeholder="0"
                   className="bg-background border-input focus-visible:ring-ring/40 text-foreground placeholder:text-muted-foreground/70 h-8 w-full rounded-md border px-2 text-end text-xs tabular-nums outline-none focus-visible:ring-2"
                 />
@@ -1120,6 +1237,56 @@ function GroupEditDialogBody({
   );
 }
 
+function RolloverRemovalDialog({
+  name,
+  settingId,
+  open,
+  onOpenChange,
+  pending,
+  onRemove,
+}: {
+  name: string;
+  settingId: string | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  pending: boolean;
+  onRemove: (id: string, onSuccess: () => void) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!pending) onOpenChange(nextOpen);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("spending:budgetEditor.removeGroupRolloverTitle", { name })}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("spending:budgetEditor.removeGroupRolloverDescription")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>{t("common:cancel")}</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(event) => {
+              event.preventBaseUIHandler();
+              if (settingId && !pending) onRemove(settingId, () => onOpenChange(false));
+            }}
+            disabled={pending || !settingId}
+            variant="destructive"
+          >
+            {t("common:remove")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function BudgetCategoryLine({
   row,
   groups,
@@ -1128,6 +1295,10 @@ function BudgetCategoryLine({
   groupTotal,
   monthMode,
   mode,
+  rolloverEnabled,
+  rolloverId,
+  rolloverPending,
+  onRemoveRollover,
   groupRolloverEnabled,
   onSaveTarget,
   onDeleteOverride,
@@ -1141,19 +1312,45 @@ function BudgetCategoryLine({
   groupTotal: number;
   monthMode: boolean;
   mode: BudgetEditorMode;
+  rolloverEnabled: boolean;
+  rolloverId: string | undefined;
+  rolloverPending: boolean;
+  onRemoveRollover: (id: string, onSuccess: () => void) => void;
   groupRolloverEnabled: boolean;
   onSaveTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
-  onMoveCategory: (categoryId: string, groupId: string) => void;
+  onMoveCategory: (category: BudgetCategoryRow, groupId: string) => void;
   onToggleRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const [confirmRemoveRolloverOpen, setConfirmRemoveRolloverOpen] = useState(false);
   const numberFormatting = useNumberFormatting();
   const accent = row.color ?? SPENDING_THEME.deep;
   const hasOverride = monthMode && !!target;
-  const overBudget = row.target > 0 && row.actual > row.target;
+  // A savings target is a goal: going past it is ahead, never over budget,
+  // and its rollover stays its own when the group rolls over.
+  const isGoal = row.taxonomyId === SAVINGS_TAXONOMY;
+  const rolloverIsGroupWide = groupRolloverEnabled && !isGoal;
+  // With rollover on, last month's carry adds to (or, when negative, takes
+  // from) this month's target, so the row measures against what's available:
+  // budget left for an expense, still to save for a goal.
+  const carry = monthMode && row.rolloverEnabled ? row.rolloverIn : 0;
+  const showsCarry = carry !== 0;
+  const available = row.target + carry;
+  const overBudget =
+    !isGoal && (showsCarry ? row.remaining < 0 : row.target > 0 && row.actual > row.target);
   const sharePct = safePercent(row.target, groupTotal);
-  const usagePct = Math.min(1, safePercent(row.actual, row.target));
+  const usagePct =
+    showsCarry && available <= 0
+      ? Number(row.actual > 0)
+      : Math.min(1, safePercent(row.actual, available));
+  const remainingLabel = isGoal
+    ? row.remaining > 0
+      ? t("spending:budgetEditor.toGo")
+      : t("spending:budgetEditor.ahead")
+    : row.remaining < 0
+      ? t("spending:budgetEditor.over")
+      : t("spending:budgetEditor.left");
 
   return (
     <div className="group/row hover:bg-muted/15 flex items-center gap-2 px-3 py-1.5 text-xs transition-colors sm:gap-3 sm:px-4">
@@ -1164,8 +1361,23 @@ function BudgetCategoryLine({
       >
         <CategoryIcon icon={row.icon ?? null} className="h-3 w-3" />
       </span>
-      <span className="text-foreground min-w-0 flex-1 truncate">
-        {getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+      <span className="min-w-0 flex-1">
+        <span className="text-foreground block truncate">
+          {getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+        </span>
+        {showsCarry && (
+          <span className="text-muted-foreground text-2xs flex flex-wrap items-center gap-x-1 tabular-nums">
+            <Icons.Refresh className="h-2.5 w-2.5 shrink-0" aria-hidden />
+            <span>
+              <PrivacyAmount value={carry} currency={currency} />{" "}
+              {t("spending:budgetEditor.carriedIn")}
+            </span>
+            <span aria-hidden>·</span>
+            <span className={cn(overBudget && "text-destructive")}>
+              <PrivacyAmount value={Math.abs(row.remaining)} currency={currency} /> {remainingLabel}
+            </span>
+          </span>
+        )}
       </span>
 
       <div className="relative w-20 shrink-0">
@@ -1211,8 +1423,8 @@ function BudgetCategoryLine({
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4} className="text-xs">
           <PrivacyAmount value={row.actual} currency={currency} />{" "}
-          {t("spending:budgetEditor.spentOf")}{" "}
-          <PrivacyAmount value={row.target} currency={currency} />{" "}
+          {isGoal ? t("spending:budgetEditor.savedOf") : t("spending:budgetEditor.spentOf")}{" "}
+          <PrivacyAmount value={available} currency={currency} />{" "}
           {t("spending:budgetEditor.ofGroup", {
             pct: numberFormatting.formatPercent(sharePct, { digits: 0 }),
           })}
@@ -1237,7 +1449,7 @@ function BudgetCategoryLine({
             <>
               <DropdownMenuRadioGroup
                 value={row.groupId ?? ""}
-                onValueChange={(value) => onMoveCategory(row.categoryId, value)}
+                onValueChange={(value) => onMoveCategory(row, value)}
               >
                 <DropdownMenuLabel className="text-2xs font-semibold tracking-wide uppercase">
                   {t("spending:budgetEditor.moveToGroup")}
@@ -1256,23 +1468,34 @@ function BudgetCategoryLine({
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                disabled={groupRolloverEnabled}
+                disabled={rolloverIsGroupWide || rolloverPending}
                 closeOnClick={false}
                 onClick={() => {
-                  onToggleRollover(row, !row.rolloverEnabled);
+                  onToggleRollover(row, !rolloverEnabled);
                 }}
                 className="text-xs"
               >
                 <Icons.Refresh className="me-2 h-3.5 w-3.5" />
                 <span className="flex-1">{t("spending:budgetEditor.rollover")}</span>
                 <span className="text-muted-foreground text-2xs">
-                  {groupRolloverEnabled
+                  {rolloverIsGroupWide
                     ? t("spending:budgetEditor.groupWide")
-                    : row.rolloverEnabled
+                    : rolloverEnabled
                       ? t("spending:budgetEditor.on")
                       : t("spending:budgetEditor.off")}
                 </span>
               </DropdownMenuItem>
+              {rolloverId && (
+                <DropdownMenuItem
+                  closeOnClick={false}
+                  disabled={rolloverPending}
+                  onClick={() => setConfirmRemoveRolloverOpen(true)}
+                  className="text-destructive focus:text-destructive text-xs"
+                >
+                  <Icons.Trash className="me-2 h-3.5 w-3.5" />
+                  {t("spending:budgetEditor.removeGroupRollover")}
+                </DropdownMenuItem>
+              )}
             </>
           )}
           {hasOverride && (
@@ -1289,6 +1512,16 @@ function BudgetCategoryLine({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {mode === "setup" && (
+        <RolloverRemovalDialog
+          name={getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+          settingId={rolloverId}
+          open={confirmRemoveRolloverOpen}
+          onOpenChange={setConfirmRemoveRolloverOpen}
+          pending={rolloverPending}
+          onRemove={onRemoveRollover}
+        />
+      )}
     </div>
   );
 }
@@ -1311,7 +1544,7 @@ function GroupBufferLine({
   const { t } = useTranslation();
   const numberFormatting = useNumberFormatting();
   const hasOverride = monthMode && !!target;
-  const sharePct = safePercent(row.buffer, row.plannedTotal);
+  const sharePct = safePercent(row.buffer, groupAllocation(row));
   const label =
     mode === "setup"
       ? t("spending:budgetEditor.groupBufferDefault")
@@ -1750,6 +1983,16 @@ function BudgetTotalsPanel({
           destructive={totals.spendingRemaining < 0}
         />
         <TotalLine
+          label={t("spending:budgetEditor.savingsGoal")}
+          value={totals.savingsPlanned}
+          currency={currency}
+        />
+        <TotalLine
+          label={t("spending:budgetEditor.saved")}
+          value={totals.savingsActual}
+          currency={currency}
+        />
+        <TotalLine
           label={t("spending:cashFlow.income")}
           value={totals.incomePlanned}
           currency={currency}
@@ -1886,21 +2129,13 @@ function findGroupRollover(settings: BudgetRolloverSetting[], groupId: string) {
   return settings.find((setting) => setting.targetType === "group" && setting.groupId === groupId);
 }
 
-function findCategoryRollover(settings: BudgetRolloverSetting[], categoryId: string) {
+function findCategoryRollover(settings: BudgetRolloverSetting[], row: BudgetCategoryRow) {
   return settings.find(
     (setting) =>
       setting.targetType === "category" &&
-      setting.taxonomyId === SPENDING_TAXONOMY &&
-      setting.categoryId === categoryId,
+      setting.taxonomyId === row.taxonomyId &&
+      setting.categoryId === row.categoryId,
   );
-}
-
-function normalizeBalance(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "0";
-  const parsed = Number.parseFloat(trimmed);
-  if (!Number.isFinite(parsed)) return "0";
-  return String(parsed);
 }
 
 function safePercent(value: number, total: number) {

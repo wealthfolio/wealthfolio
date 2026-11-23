@@ -42,6 +42,7 @@ describe("AI account card labels", () => {
         type="tool-call"
         addResult={vi.fn()}
         resume={vi.fn()}
+        respondToApproval={vi.fn()}
       />,
     );
     expect(screen.getByText("Credit Card Accounts")).toBeInTheDocument();

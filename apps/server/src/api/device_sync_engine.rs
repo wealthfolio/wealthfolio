@@ -443,10 +443,6 @@ impl CredentialStore for ServerEnginePorts {
             .map_err(|err| err.to_string())
     }
 
-    async fn is_sync_allowed(&self) -> Result<bool, String> {
-        crate::api::connect::has_device_sync(&self.state).await
-    }
-
     fn get_sync_identity(&self) -> Option<SyncIdentity> {
         get_sync_identity_from_store(&self.state)
     }
@@ -707,7 +703,6 @@ fn sync_source_restore_required_error() -> String {
 pub async fn generate_snapshot_now(
     state: Arc<AppState>,
 ) -> Result<SyncSnapshotUploadResult, String> {
-    crate::api::connect::ensure_device_sync_subscription(&state).await?;
     ensure_device_sync_enabled()?;
     state
         .device_sync_runtime

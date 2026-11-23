@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Global build args
-ARG RUST_IMAGE=rust:1.98.1-alpine
+ARG RUST_IMAGE=rust:1.99.1-alpine
 
 # Stage 1: build frontend
 # Use --platform=$BUILDPLATFORM to run on the native runner (fast)

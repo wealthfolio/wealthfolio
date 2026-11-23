@@ -338,7 +338,7 @@ impl Resolver for RulesResolver {
             return self.resolve_amfi(context).map(|instrument| {
                 Ok(ResolvedInstrument {
                     instrument,
-                    source: ResolutionSource::Rules,
+                    source: ResolutionSource::Identifier,
                 })
             });
         }
@@ -934,7 +934,7 @@ mod tests {
 
         fund.preferred_provider = Some("AMFI".into());
         let resolved = resolver.resolve(&"AMFI".into(), &fund).unwrap().unwrap();
-        assert_eq!(resolved.source, ResolutionSource::Rules);
+        assert_eq!(resolved.source, ResolutionSource::Identifier);
         assert_eq!(resolved.instrument.to_symbol_string(), "INF879O01027");
     }
 
@@ -944,9 +944,11 @@ mod tests {
         let chosen = |ticker: &str| {
             let mut context = make_equity_context(ticker, None);
             context.preferred_provider = Some("AMFI".into());
-            resolver
-                .resolve(&"AMFI".into(), &context)
-                .map(|resolved| resolved.unwrap().instrument.to_symbol_string())
+            resolver.resolve(&"AMFI".into(), &context).map(|resolved| {
+                let resolved = resolved.unwrap();
+                assert_eq!(resolved.source, ResolutionSource::Identifier);
+                resolved.instrument.to_symbol_string()
+            })
         };
 
         assert_eq!(chosen("122639").as_deref(), Some("122639"));
@@ -970,16 +972,14 @@ mod tests {
     }
 
     #[test]
-    fn test_get_equity_currency_ignores_wrong_hint() {
-        // Simulates BATS@XLON: asset.quote_ccy="GBP" but Yahoo returns pence.
-        // The resolver should return "GBp" based on exchange metadata,
-        // regardless of what currency_hint says.
+    fn test_get_equity_currency_london_default_is_pence() {
         let resolver = RulesResolver::new();
         let currency = resolver.get_equity_currency(&Some("XLON".into()), &"YAHOO".into());
         assert_eq!(currency.as_deref(), Some("GBp"));
 
-        // Alpha Vantage correctly returns GBP (not pence) for XLON
+        // Alpha Vantage prices the LSE in pence too: its search reports
+        // TSCO.LON in GBX, and its daily close matches Yahoo's GBp one.
         let currency = resolver.get_equity_currency(&Some("XLON".into()), &"ALPHA_VANTAGE".into());
-        assert_eq!(currency.as_deref(), Some("GBP"));
+        assert_eq!(currency.as_deref(), Some("GBp"));
     }
 }

@@ -92,8 +92,15 @@ export function useBudgetMutations(periodKey?: string) {
   });
 
   const assignCategory = useMutation({
-    mutationFn: ({ categoryId, groupId }: { categoryId: string; groupId: string }) =>
-      assignCategoryToGroup(categoryId, groupId, periodKey),
+    mutationFn: ({
+      taxonomyId,
+      categoryId,
+      groupId,
+    }: {
+      taxonomyId: string;
+      categoryId: string;
+      groupId: string;
+    }) => assignCategoryToGroup(taxonomyId, categoryId, groupId, periodKey),
     onSuccess: invalidate,
     onError: () => toast.error(i18n.t("common:notifications.failed_to_move_category")),
   });

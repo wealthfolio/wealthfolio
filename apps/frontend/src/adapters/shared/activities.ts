@@ -15,10 +15,14 @@ import type {
   ImportActivitiesResult,
   ImportMappingData,
   ImportTemplateData,
+  ConvertToTransferRequest,
   InternalTransferPairRequest,
   InternalTransferPairResponse,
   TransferMatchCandidate,
   TransferMatchCandidateRequest,
+  TransferMatchReview,
+  TransferPairLinkRequest,
+  LinkTransferPairsResult,
   BrokerSyncProfileData,
   SaveBrokerSyncProfileRulesRequest,
 } from "@/lib/types";
@@ -249,6 +253,24 @@ export const saveInternalTransferPair = async (
   }
 };
 
+export const reviewConvertToTransferSplitEffects = (
+  request: ConvertToTransferRequest,
+): Promise<ActivitySplitEffect[]> =>
+  invoke("review_convert_to_transfer_split_effects", { request });
+
+export const convertToInternalTransfer = async (
+  request: ConvertToTransferRequest,
+): Promise<InternalTransferPairResponse> => {
+  try {
+    return await invoke<InternalTransferPairResponse>("convert_to_internal_transfer", {
+      request,
+    });
+  } catch (err) {
+    logger.error("Error converting activity into a transfer.");
+    throw err;
+  }
+};
+
 export const linkTransferActivities = async (
   activityAId: string,
   activityBId: string,
@@ -260,6 +282,27 @@ export const linkTransferActivities = async (
     });
   } catch (err) {
     logger.error("Error linking transfer activities.");
+    throw err;
+  }
+};
+
+export const reviewTransferMatches = async (): Promise<TransferMatchReview> => {
+  try {
+    return await invoke<TransferMatchReview>("review_transfer_matches");
+  } catch (err) {
+    logger.error("Error reviewing transfer matches.");
+    throw err;
+  }
+};
+
+/** Links each pair on its own; failures come back in `errors`, by index. */
+export const linkTransferPairs = async (
+  pairs: TransferPairLinkRequest[],
+): Promise<LinkTransferPairsResult> => {
+  try {
+    return await invoke<LinkTransferPairsResult>("link_transfer_pairs", { pairs });
+  } catch (err) {
+    logger.error("Error linking transfer pairs.");
     throw err;
   }
 };

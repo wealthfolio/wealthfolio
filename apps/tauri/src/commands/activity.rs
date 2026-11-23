@@ -4,10 +4,12 @@ use std::collections::HashMap;
 use log::debug;
 use wealthfolio_core::activities::{
     Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
-    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ImportActivitiesResult,
-    ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
-    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity, ParseConfig,
-    ParsedCsvResult, Sort, TransferMatchCandidate, TransferMatchCandidateRequest,
+    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ConvertToTransferRequest,
+    ImportActivitiesResult, ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData,
+    ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse,
+    LinkTransferPairsResult, NewActivity, ParseConfig, ParsedCsvResult, Sort,
+    TransferMatchCandidate, TransferMatchCandidateRequest, TransferMatchReview,
+    TransferPairLinkRequest,
 };
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::utils::time_utils::{
@@ -81,7 +83,7 @@ pub async fn create_activity(
         .activity_service()
         .create_activity(activity)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(created)
 }
@@ -123,7 +125,7 @@ pub async fn update_activity(
         .activity_service()
         .update_activity(activity)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(updated)
 }
@@ -172,6 +174,17 @@ pub async fn find_transfer_match_candidates(
 }
 
 #[tauri::command]
+pub async fn review_transfer_matches(state: ProfileAccess) -> Result<TransferMatchReview, String> {
+    debug!("Reviewing transfer matches...");
+    state
+        .context()?
+        .activity_service()
+        .review_transfer_matches()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn save_internal_transfer_pair(
     request: InternalTransferPairRequest,
     state: ProfileAccess,
@@ -182,7 +195,36 @@ pub async fn save_internal_transfer_pair(
         .activity_service()
         .save_internal_transfer_pair(request)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
+    context.health_service().clear_cache().await;
+    Ok(pair)
+}
+
+#[tauri::command]
+pub async fn review_convert_to_transfer_split_effects(
+    request: ConvertToTransferRequest,
+    state: ProfileAccess,
+) -> Result<Vec<ActivitySplitEffect>, String> {
+    state
+        .context()?
+        .activity_service()
+        .review_convert_to_transfer_split_effects(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn convert_to_internal_transfer(
+    request: ConvertToTransferRequest,
+    state: ProfileAccess,
+) -> Result<InternalTransferPairResponse, String> {
+    let context = state.context()?;
+    debug!("Converting activity into an internal transfer...");
+    let pair = context
+        .activity_service()
+        .convert_to_internal_transfer(request)
+        .await
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(pair)
 }
@@ -203,6 +245,25 @@ pub async fn link_transfer_activities(
         .map_err(|e| e.to_string())?;
     context.health_service().clear_cache().await;
     Ok(pair)
+}
+
+#[tauri::command]
+pub async fn link_transfer_pairs(
+    pairs: Vec<TransferPairLinkRequest>,
+    state: ProfileAccess,
+) -> Result<LinkTransferPairsResult, String> {
+    let context = state.context()?;
+    debug!("Linking transfer pairs...");
+    // Domain events handle recalculation automatically
+    let result = context
+        .activity_service()
+        .link_transfer_pairs(pairs)
+        .await
+        .map_err(|e| e.to_string())?;
+    if !result.linked.is_empty() {
+        context.health_service().clear_cache().await;
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -242,7 +303,7 @@ pub async fn save_activities(
         .activity_service()
         .bulk_mutate_activities(request)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(result)
 }
@@ -369,7 +430,7 @@ pub async fn import_activities(
         .activity_service()
         .import_activities(activities)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(result)
 }

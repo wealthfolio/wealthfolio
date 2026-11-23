@@ -35,7 +35,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
   return (
     <div
       className={cn({
-        "light:bg-secondary/50 hidden h-full pt-12 transition-[width] duration-300 ease-in-out md:flex md:flex-shrink-0 md:overflow-hidden": true,
+        "light:bg-secondary/50 hidden h-full pt-12 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:flex md:flex-shrink-0 md:overflow-hidden": true,
         "md:w-sidebar": !collapsed,
         "md:w-sidebar-collapsed": collapsed,
       })}
@@ -107,7 +107,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                     document.dispatchEvent(event);
                   }}
                   className={cn(
-                    "text-foreground [&_svg]:size-5! mb-4 h-12 transition-all duration-300",
+                    "text-foreground [&_svg]:size-5! mb-4 h-12 transition-all duration-300 motion-reduce:transition-colors",
                     collapsed
                       ? "justify-center rounded-md"
                       : "bg-muted/50 hover:bg-muted/80 justify-start rounded-full px-4 shadow-none",
@@ -167,7 +167,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                   variant="ghost"
                   onClick={logout}
                   className={cn(
-                    "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+                    "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300 motion-reduce:transition-colors",
                     collapsed ? "justify-center" : "justify-start",
                   )}
                   title={t("common:layout.logout")}
@@ -284,7 +284,7 @@ function NavItem({ item, collapsed, className, ...props }: NavItemProps) {
       className={cn(
         buttonVariants({ variant: isActive ? "secondary" : "ghost" }),
         cn(
-          "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+          "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300 motion-reduce:transition-colors",
           // The selected item is a flat fill, not a raised button.
           isActive && "bg-secondary hover:bg-secondary/80 border-transparent bg-none shadow-none",
           collapsed ? "justify-center" : "justify-start",
@@ -326,7 +326,7 @@ function AddonsMenu({ addons, collapsed, onSetPinned }: AddonsMenuProps) {
           <Button
             variant={hasActiveAddon ? "secondary" : "ghost"}
             className={cn(
-              "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+              "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300 motion-reduce:transition-colors",
               collapsed ? "justify-center" : "justify-start",
             )}
           />

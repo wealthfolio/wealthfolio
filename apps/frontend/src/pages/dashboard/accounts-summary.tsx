@@ -1,5 +1,7 @@
 "use client";
 
+import { isValuationComplete } from "@/lib/valuation";
+
 import { calculatePerformanceSummaries, performanceSummaryScopeKey } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentAccountValuations } from "@/hooks/use-current-account-valuations";
@@ -31,6 +33,8 @@ import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surf
 import { cn } from "@/lib/utils";
 
 interface AccountSummaryDisplayData {
+  isBaseUnavailable?: boolean;
+  isAccountUnavailable?: boolean;
   accountName: string;
   baseCurrency: string;
   totalValueBaseCurrency: number;
@@ -207,6 +211,9 @@ const AccountSummaryComponent = React.memo(
       ? (item.accountCurrency ?? item.baseCurrency)
       : item.baseCurrency;
 
+    const isValueUnavailable = useAccountCurrency
+      ? item.isAccountUnavailable
+      : item.isBaseUnavailable;
     const gainAmountToDisplay = useAccountCurrency
       ? item.totalGainLossAmountAccountCurrency
       : item.totalGainLossAmountBaseCurrency;
@@ -253,7 +260,7 @@ const AccountSummaryComponent = React.memo(
     } else if (shouldRenderNestedPlaceholder) {
       secondaryMetricContent = (
         <div
-          className="text-muted-foreground text-xs font-medium md:text-sm md:font-medium"
+          className="text-muted-foreground text-sm font-medium"
           data-testid="account-summary-secondary-placeholder"
         >
           -
@@ -266,7 +273,7 @@ const AccountSummaryComponent = React.memo(
           {gainAmountToDisplay != null && (
             <>
               <GainAmount
-                className="text-xs md:text-sm"
+                className="text-sm"
                 value={gainAmountToDisplay}
                 currency={gainDisplayCurrency}
                 displayCurrency={false}
@@ -274,7 +281,7 @@ const AccountSummaryComponent = React.memo(
               <Separator orientation="vertical" className="h-3 md:h-4" />
             </>
           )}
-          <GainPercent className="text-xs md:text-sm" value={gainPercentToDisplay} />
+          <GainPercent className="text-sm" value={gainPercentToDisplay} />
         </>
       );
       shouldExposeSecondaryMetric = true;
@@ -285,7 +292,7 @@ const AccountSummaryComponent = React.memo(
     const content = (
       <>
         <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-1.5">
-          <h3 className="flex items-center gap-1.5 text-sm leading-tight font-semibold md:text-base md:font-semibold">
+          <h3 className="flex items-center gap-1.5 text-base leading-tight font-semibold">
             <span className="truncate">{name}</span>
             {shouldShowWarning && (
               <Tooltip>
@@ -304,14 +311,18 @@ const AccountSummaryComponent = React.memo(
               </Tooltip>
             )}
           </h3>
-          <p className="text-muted-foreground truncate text-xs md:text-sm">{subText}</p>
+          <p className="text-muted-foreground truncate text-sm">{subText}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
           <div className="flex min-h-[3rem] flex-col items-end justify-center gap-1 md:gap-1.5">
-            <p className="text-sm leading-tight font-semibold md:text-base md:font-semibold">
-              <PrivacyAmount value={totalValue} currency={currency} />
+            <p className="text-base leading-tight font-semibold">
+              {isValueUnavailable ? (
+                t("performance:not_available")
+              ) : (
+                <PrivacyAmount value={totalValue} currency={currency} />
+              )}
             </p>
-            {secondaryMetricContent && (
+            {!isValueUnavailable && secondaryMetricContent && (
               <div
                 className="flex items-center gap-1.5 md:gap-2"
                 data-testid={
@@ -509,6 +520,8 @@ export const AccountsSummary = React.memo(
 
         return {
           accountName: acc.name,
+          isBaseUnavailable: !isValuationComplete(valuation.valueStatus),
+          isAccountUnavailable: !isValuationComplete(valuation.accountValueStatus),
           totalValueBaseCurrency,
           baseCurrency,
           totalGainLossAmountBaseCurrency: gainLossBaseCurrency,
@@ -641,6 +654,8 @@ export const AccountsSummary = React.memo(
 
           actualGroups.push({
             accountName: groupName,
+            isBaseUnavailable: groupAccounts.some((account) => account.isBaseUnavailable),
+            isAccountUnavailable: groupAccounts.some((account) => account.isBaseUnavailable),
             totalValueBaseCurrency,
             baseCurrency,
             totalGainLossAmountBaseCurrency: totalGainLossAmountBase,

@@ -1,8 +1,26 @@
-/** Counts an amount in whole units of `10 ** -decimals`. */
+import { DECIMAL_PRECISION } from "@/lib/constants";
+
+/**
+ * Decimals an amount needs to be counted exactly, ignoring trailing zeros,
+ * up to `DECIMAL_PRECISION`.
+ */
+export function significantDecimals(value: number | string | null | undefined): number {
+  const match = /^[+-]?\d*(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(String(value ?? "").trim());
+  if (!match) return 0;
+  const fractionDigits = (match[1] ?? "").replace(/0+$/, "").length;
+  const decimals = fractionDigits - Number(match[2] ?? 0);
+  return Math.min(Math.max(decimals, 0), DECIMAL_PRECISION);
+}
+
+/**
+ * Counts an amount in whole units of `10 ** -decimals`. Amounts and units must
+ * fit JS number precision.
+ */
 export function toSplitUnits(value: number | string | null | undefined, decimals: number): number {
   const parsed = typeof value === "number" ? value : Number.parseFloat(value ?? "0");
   if (!Number.isFinite(parsed)) return 0;
-  return Math.round(parsed * 10 ** decimals);
+  // Match the sent decimal text without floating-point multiplication drift.
+  return Number(parsed.toFixed(decimals).replace(".", ""));
 }
 
 export function splitUnitsToAmount(units: number, decimals: number): number {

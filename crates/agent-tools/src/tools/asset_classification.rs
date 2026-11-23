@@ -18,10 +18,10 @@ use wealthfolio_core::taxonomies::Category;
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
-use crate::tools::asset_taxonomies::{
-    asset_taxonomies, asset_to_dto, resolve_active_asset_match, validate_asset_taxonomy,
-    ActiveAssetResolution, ResolvedAssetDto,
+use crate::tools::asset_lookup::{
+    asset_to_dto, resolve_active_asset_match, ActiveAssetResolution, ResolvedAssetDto,
 };
+use crate::tools::asset_taxonomies::{asset_taxonomies, validate_asset_taxonomy};
 
 const AI_ASSIGNMENT_SOURCE: &str = "ai";
 

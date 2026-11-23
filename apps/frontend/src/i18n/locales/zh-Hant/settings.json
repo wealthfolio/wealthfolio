@@ -99,8 +99,16 @@
   "limits_add_button": "新增限額",
   "limits_add_aria": "新增投入上限",
   "limits_current_year": "目前年份（{{year}}）",
+  "limits_future_years": "未來年度",
   "limits_previous_years": "歷年",
   "limits_show_previous": "顯示",
+  "limits_projected_badge": "預測",
+  "limits_projected_description": "根據您 {{year}} 年的定期投入上限自動產生。新增它以自訂今年的金額。",
+  "limits_projected_add_button": "新增今年",
+  "limits_projected_add_aria": "新增 {{year}} 年的 {{group}} ({{accounts}})",
+  "limits_no_accounts_selected": "尚未選取帳戶",
+  "limits_choose_accounts": "選取帳戶",
+  "limits_accounts_more": "另外 {{number}} 個",
   "limits_empty_title": "{{year}} 年尚未設定投入上限",
   "limits_empty_description": "新增本年度的第一項投入上限。",
   "limits_add_first": "新增投入上限",
@@ -114,15 +122,12 @@
   "limits_delete_description": "此操作無法復原。",
   "limits_form_update_title": "更新投入上限",
   "limits_form_add_title": "新增投入上限",
-  "limits_form_update_description": "更新投入上限資訊",
   "limits_form_add_description": "新增投入上限。",
   "limits_form_group_name_label": "群組名稱",
   "limits_form_group_name_placeholder": "例如 TFSA、401(k)、RRSP",
-  "limits_form_group_name_description": "投入上限群組的名稱",
   "limits_form_group_name_required": "群組名稱為必填欄位",
   "limits_form_limit_amount_label": "限額金額",
   "limits_form_limit_amount_placeholder": "例如 6,000.00",
-  "limits_form_limit_amount_description": "允許投入的最高金額",
   "limits_form_limit_amount_number": "限額金額必須為正數。",
   "limits_form_limit_amount_non_negative": "限額金額不能為負數。",
   "limits_form_year_label": "年份",
@@ -131,14 +136,17 @@
   "limits_form_start_date_label": "開始日期",
   "limits_form_end_date_label": "結束日期",
   "limits_form_date_description": "日期預設為所選年份的 1 月 1 日至 12 月 31 日",
+  "limits_form_recurring_label": "每年重複",
+  "limits_form_recurring_description": "在您新增或編輯該年度之前，自動顯示金額相同的未來年度預測上限。",
+  "limits_form_accounts_label": "計入的帳戶",
+  "limits_form_accounts_description": "這些帳戶的提撥會計入此限額。",
+  "limits_form_accounts_selected": "已選 {{selected}}/{{total}}",
+  "limits_form_accounts_search": "搜尋帳戶",
+  "limits_form_accounts_no_match": "沒有符合的帳戶。",
+  "limits_form_accounts_empty": "尚無可接收提撥的帳戶。",
   "limits_form_updating": "正在更新……",
   "limits_form_saving": "正在儲存……",
   "limits_form_update_button": "更新",
-  "limits_select_accounts": "選取帳戶",
-  "limits_loading": "載入中…",
-  "limits_contributed": "已投入",
-  "limits_saving": "正在儲存……",
-  "limits_save_selected_accounts": "儲存所選帳戶",
   "addons_info_title": "擴充 Wealthfolio",
   "addons_info_description": "擴充功能可以為 Wealthfolio 加入新功能與自訂分析。",
   "addons_security_notice": "安全提醒：",
@@ -174,17 +182,139 @@
   "export_title": "資料匯出",
   "export_description": "保留投資組合的備份，或匯出資料以便在其他地方使用。",
   "export_tab_backup": "備份",
-  "export_section_description": "以不同格式匯出指定資料，供分析或外部使用。",
-  "export_format_title": "選取你偏好的格式",
-  "export_format_csv_description": "簡單且廣泛相容的試算表格式",
-  "export_format_json_description": "方便程式存取的結構化資料",
-  "export_customize_title": "自訂你的匯出",
-  "export_type_accounts_description": "你的財務帳戶",
-  "export_type_activities": "交易紀錄",
-  "export_type_activities_description": "完整的交易歷史與記錄",
-  "export_type_goals_description": "財務目標及進度追蹤",
-  "export_type_portfolio_history": "投資組合歷史",
-  "export_type_portfolio_history_description": "投資組合歷來的績效，包括估值、損益與現金流。",
+  "data_export": {
+    "intro": "可在試算表和其他應用程式中讀取的檔案。這些檔案無法還原到 Wealthfolio：如需移轉到其他裝置，請使用備份。",
+    "all_title": "匯出所有資料",
+    "all_description_csv": "一個 ZIP 檔，內含每個資料集各一個 CSV 檔，以及說明這些檔案的 README。",
+    "all_description_json": "一個 JSON 檔，每個資料集為其中一個區段。",
+    "all_info": "目標預測與貸款還款排程每天都會變動，因此不包含在內。請從該目標或貸款匯出。",
+    "all_info_label": "關於資料匯出",
+    "all_button": "全部匯出",
+    "all_pending": "正在匯出…",
+    "format_label": "檔案格式",
+    "include_archived": "包含已封存帳戶",
+    "include_archived_help": "加入已封存帳戶及其交易紀錄、批次與貸款還款。",
+    "dates_title": "日期",
+    "start_date": "從",
+    "end_date": "至",
+    "dates_help": "限制交易紀錄、賣出、價格、估值與歷史紀錄的日期範圍。留空則包含所有日期。",
+    "date_order_error": "開始日期晚於結束日期。",
+    "clear_dates": "清除日期",
+    "datasets_title": "選擇要匯出的內容",
+    "datasets_description": "一次下載一個資料集。",
+    "groups": {
+      "accounts": "帳戶與交易紀錄",
+      "investments": "投資",
+      "net-worth": "淨資產",
+      "spending": "支出與預算",
+      "planning": "規劃",
+      "organization": "整理"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "帳戶",
+        "description": "您的帳戶及其最新餘額，並標示已封存的帳戶"
+      },
+      "activities": {
+        "name": "交易紀錄",
+        "description": "每筆交易，包含現金餘額與支出類別"
+      },
+      "holdings": {
+        "name": "持有部位",
+        "description": "包含價值、成本與損益的部位"
+      },
+      "lots": {
+        "name": "批次",
+        "description": "未平倉與已平倉的批次及其成本基礎"
+      },
+      "realized-gains": {
+        "name": "已實現損益",
+        "description": "每筆賣出及其平倉的批次"
+      },
+      "manual-prices": {
+        "name": "手動價格",
+        "description": "您為自行定價的資產輸入的價格"
+      },
+      "income": {
+        "name": "收入",
+        "description": "每個帳戶每月的股利與利息"
+      },
+      "income-by-source": {
+        "name": "依來源分類收入",
+        "description": "每個持有部位的收入，包含全部時間與每年"
+      },
+      "assets-and-liabilities": {
+        "name": "資產與負債",
+        "description": "房產、車輛、貴重物品與貸款，以及貸款條件"
+      },
+      "asset-valuations": {
+        "name": "資產估值",
+        "description": "您為這些資產與負債記錄的每個價值"
+      },
+      "loan-payments": {
+        "name": "貸款還款",
+        "description": "與每筆貸款連結的還款"
+      },
+      "net-worth-history": {
+        "name": "淨資產歷史",
+        "description": "每日淨資產：投資、其他資產與負債"
+      },
+      "portfolio-history": {
+        "name": "投資組合歷史",
+        "description": "每個帳戶的每日價值"
+      },
+      "budgets": {
+        "name": "預算",
+        "description": "每個期間的金額與結轉設定"
+      },
+      "budget-actuals": {
+        "name": "預算與實際比較",
+        "description": "每個類別逐月的已預算、已花費與剩餘金額"
+      },
+      "budget-groups": {
+        "name": "預算分組",
+        "description": "分組及其中的類別"
+      },
+      "spending-rules": {
+        "name": "分類規則",
+        "description": "自動為交易分類的規則"
+      },
+      "spending-events": {
+        "name": "事件",
+        "description": "旅行和其他事件，以及每個事件的花費"
+      },
+      "goals": {
+        "name": "目標",
+        "description": "計畫設定、連結的帳戶與進度"
+      },
+      "contribution-limits": {
+        "name": "投入上限",
+        "description": "上限及其適用的帳戶"
+      },
+      "portfolios": {
+        "name": "投資組合",
+        "description": "帳戶分組"
+      },
+      "categories": {
+        "name": "類別",
+        "description": "所有分類中的每個類別，包括支出"
+      },
+      "classifications": {
+        "name": "資產分類",
+        "description": "每項資產所屬的類別"
+      }
+    },
+    "rows_one": "{{count}} 列",
+    "rows_other": "{{count}} 列",
+    "daily": "每日數值",
+    "holdings_today": "目前持有部位",
+    "none_yet": "尚無資料",
+    "download": "下載 {{name}}",
+    "downloading": "正在下載 {{name}}…",
+    "summary_error": "無法統計您的資料。您仍然可以匯出。",
+    "empty": "此資料集目前沒有可匯出的內容。",
+    "empty_all": "目前沒有可匯出的內容。"
+  },
   "backup_title": "本機備份",
   "backup_export_dialog_title": "匯出備份",
   "backup_export_protected": "設定密碼（建議）",
@@ -365,9 +495,6 @@
   "about_db_path": "資料庫路徑",
   "about_copy_db_path": "複製資料庫路徑",
   "about_copy_logs_dir": "複製記錄目錄",
-  "export_type_holdings_description": "目前持有部位，包含估值、績效、配置與金融工具資料",
-  "export_exporting_item": "正在匯出 {{name}}……",
-  "export_export_item": "匯出 {{name}}",
   "backup_unknown_date": "未知日期",
   "backup_creating_short": "正在儲存備份…",
   "backup_empty_title": "尚無備份",
@@ -1037,7 +1164,33 @@
       "tab_savings_other": "儲蓄（{{count}}）",
       "tab_expense_one": "支出（{{count}}）",
       "tab_income_one": "收入（{{count}}）",
-      "tab_savings_one": "儲蓄（{{count}}）"
+      "tab_savings_one": "儲蓄（{{count}}）",
+      "merge": {
+        "description": "將{{name}}的所有交易、規則和預算移至其他分類。",
+        "history": "歷史報表也將使用新分類。此操作無法復原。",
+        "destination": "移入…",
+        "choose": "選擇類別",
+        "budgets": "預算 · {{name}}",
+        "confirm": "移動並刪除",
+        "error": "合併失敗或資料已變更。請重新整理預覽、檢查目標後再試。",
+        "refresh": "重新整理預覽",
+        "none": "沒有符合條件的目標。請先解決以下限制，或建立合適的類別。",
+        "blocked": {
+          "invalid_destination": "請在同一支出、收入或儲蓄清單中選擇其他類別。",
+          "children": "請先移動或合併子類別。有子類別的類別無法合併。",
+          "asset_references": "請先移除資產分類和配置目標參照。",
+          "category_rollover": "請先移除兩個類別已儲存的結轉設定，包括已關閉的設定。",
+          "group_rollover": "跨群組移動前，請關閉相關支出群組的結轉。同群組內允許合併。",
+          "exclusions": "來源與目標的實際「從支出中排除」設定必須相同，包括繼承的排除設定。",
+          "budget_destination": "此類別有預算目標。兩個類別都必須位於頂層，讓這些目標持續生效。"
+        },
+        "period": "月份",
+        "current": "目前",
+        "added": "增加",
+        "after": "新合計",
+        "monthlyDefault": "每月預設",
+        "budgetHint": "其他月份使用每月預設金額。"
+      }
     },
     "events": {
       "heading": "支出事件",
@@ -1114,6 +1267,7 @@
   "fx_err_rate_negative": "匯率必須為非負數。",
   "fx_err_source_required": "資料來源為必填欄位",
   "fx_err_rate_invalid": "請輸入有效的匯率。",
+  "fx_err_quote_unit": "{{code}} 是 {{major}} 的輔幣單位。請改為輸入 {{major}} 的匯率。",
   "fx_from_currency": "來源幣別",
   "fx_to_currency": "目標幣別",
   "fx_select_currency": "選取幣別",
@@ -1255,6 +1409,8 @@
     "scope_locked_title": "「交易紀錄 — 提交／寫入」需要此權限",
     "scope_locked_market_data_title": "「市場資料 — 寫入」需要此權限",
     "scope_locked_classification_title": "「資產分類 — 套用/寫入」需要此權限",
+    "scope_locked_accounts_title": "「帳戶 — 寫入」需要此權限",
+    "scope_locked_holdings_title": "「持有部位 — 寫入」需要此權限",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "權杖",
     "scope": {
@@ -1304,7 +1460,7 @@
       },
       "market_data_write": {
         "label": "市場資料 — 寫入",
-        "description": "為現有資產儲存已審核的價格（報價）。需要持有部位與價值（讀取）範圍。"
+        "description": "儲存已審核的價格（報價），重新整理或取代資產的歷史價格，並變更資產的報價方式：代號、交易所、報價幣別、報價模式或資料來源。需要持有部位與價值（讀取）範圍。"
       },
       "spending_read": {
         "label": "查看支出",
@@ -1317,6 +1473,14 @@
       "budget_write": {
         "label": "管理預算",
         "description": "變更預設和每月預算、群組、緩衝金額及結轉。需要查看支出權限。"
+      },
+      "accounts_write": {
+        "label": "帳戶 — 寫入",
+        "description": "建立帳戶，並變更其名稱、類型、群組、帳號、追蹤模式，以及隱藏或封存狀態。需要帳戶（讀取）範圍。"
+      },
+      "holdings_write": {
+        "label": "持有部位 — 寫入",
+        "description": "為以持有部位追蹤的帳戶儲存持有部位快照（某一日期的部位與現金），並新增另類資產與負債。需要持有部位與價值（讀取）範圍。"
       }
     },
     "preset": {
@@ -1563,15 +1727,6 @@
       "addingFailed": "新增匯率時發生錯誤：{{error}}",
       "deletingFailed": "刪除匯率時發生錯誤：{{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "目前沒有可匯出的帳戶。",
-        "activities": "目前沒有可匯出的交易紀錄。",
-        "holdings": "目前沒有可匯出的持倉。",
-        "goals": "目前沒有可匯出的目標。",
-        "portfolio-history": "目前沒有可匯出的投資組合歷史紀錄。"
-      }
-    },
     "providerUpdateFailed": "無法更新資料來源 {{provider}} 的設定",
     "httpFailed": "HTTP 請求失敗。",
     "addonDownloadFailed": "無法下載外掛程式。",
@@ -1640,6 +1795,8 @@
       "performance_calculateHistory": "計算歷史績效",
       "performance_calculateSummary": "計算績效摘要",
       "performance_calculateAccountsSimple": "計算基本帳戶績效",
+      "allocation-targets_getAll": "查看您的資產配置目標",
+      "allocation-targets_getDrift": "將持倉與配置目標進行比較",
       "currency_getAll": "查看匯率",
       "currency_update": "更新匯率",
       "currency_add": "新增匯率",
@@ -1695,6 +1852,10 @@
       "accounts": {
         "name": "帳戶管理",
         "description": "存取帳戶資訊及設定"
+      },
+      "allocation-targets": {
+        "name": "資產配置目標",
+        "description": "唯讀存取您的資產配置目標及持倉與目標的比較"
       },
       "alternative-assets": {
         "name": "另類資產",
@@ -1768,6 +1929,34 @@
         "name": "網路存取",
         "description": "透過主機網路代理存取已宣告的外部 HTTPS 主機"
       }
+    }
+  },
+  "limits_detail": {
+    "back": "提撥限額",
+    "counted": "已計入提撥",
+    "annual_limit": "限額金額",
+    "remaining": "剩餘額度",
+    "used_percent": "已使用 {{percent}}",
+    "period_ends": "期間結束",
+    "over": "超出限額",
+    "activities": "提撥交易",
+    "group_counted": "提撥",
+    "group_not_counted": "未自動計入",
+    "group_not_counted_hint": "內部轉帳不會計入。如果資金來自您的帳戶之外，請編輯該活動並將其標示為外部。",
+    "edit_activity": "編輯活動",
+    "edit_activity_aria": "編輯{{activity}}",
+    "edit_activity_error": "無法開啟此活動。請再試一次。",
+    "count_activity": "將{{activity}}計入此限額",
+    "activity_unchanged": "僅變更此限額的使用量，不會變更帳戶交易。",
+    "save_success": "已儲存提撥處理方式。",
+    "save_error": "無法儲存提撥處理方式。",
+    "load_error": "無法載入此提撥限額。",
+    "no_activities": "此期間沒有提撥交易。",
+    "treatments": {
+      "counted": "已計入",
+      "excludedByUser": "您已排除",
+      "internalTransfer": "內部轉帳",
+      "notExternal": "未標記為外部"
     }
   }
 }

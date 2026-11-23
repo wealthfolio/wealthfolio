@@ -250,10 +250,7 @@ async fn browsers_databases_credentials_and_stale_scopes_are_isolated() {
         )
         .await;
         assert_eq!(status, StatusCode::FORBIDDEN);
-        assert!(
-            body.to_string().contains("Profile operations are running"),
-            "{body}"
-        );
+        assert_eq!(body["errorCode"], "PROFILE_BUSY");
     }
     send(
         &router,
@@ -907,6 +904,69 @@ async fn runtime_startup_failure_is_retryable_without_revoking_the_profile() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::LOCKED);
+}
+
+#[tokio::test]
+async fn mcp_requests_do_not_disclose_profile_startup_errors() {
+    use wealthfolio_storage_sqlite::db::DbAccess;
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = test_config(dir.path());
+    config.mcp_enabled = true;
+    let database = DbAccess::plaintext(&config.db_path);
+    database.prepare().unwrap();
+    database.run_migrations().unwrap();
+    // Same deterministic startup failure as the retry test above.
+    database
+        .connect_rusqlite()
+        .unwrap()
+        .execute(
+            "DELETE FROM app_settings WHERE setting_key = 'instance_id'",
+            [],
+        )
+        .unwrap();
+    let router = wealthfolio_server::api::app_router_from_config(&config)
+        .await
+        .unwrap();
+    let mcp = |authorization: Option<String>| {
+        let mut request = Request::builder()
+            .uri("/mcp")
+            .method("POST")
+            .header("content-type", "application/json")
+            .header("accept", "application/json, text/event-stream");
+        if let Some(authorization) = authorization {
+            request = request.header("authorization", authorization);
+        }
+        let router = router.clone();
+        async move {
+            let response = router
+                .oneshot(request.body(Body::from(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}"#)).unwrap())
+                .await
+                .unwrap();
+            let status = response.status();
+            let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            (status, String::from_utf8_lossy(&body).into_owned())
+        }
+    };
+
+    // Requests that cannot authenticate are rejected before the profile
+    // starts: a startup attempt would answer 500.
+    for authorization in [None, Some("Bearer not-a-token".to_string())] {
+        let (status, body) = mcp(authorization).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{body}");
+        assert!(body.contains("personal access token"), "{body}");
+    }
+
+    // A well-formed but unknown token needs the profile's database, so the
+    // profile starts and fails; the response keeps the details out.
+    let token = wealthfolio_server::mcp::auth::generate_token();
+    let (status, body) = mcp(Some(format!("Bearer {token}"))).await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
+    assert_eq!(
+        body,
+        "PROFILE_STARTUP_FAILED: The profile could not start. See the server log."
+    );
+    assert!(!body.contains("instance ID"), "{body}");
+    assert!(!body.contains(&*dir.path().to_string_lossy()), "{body}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

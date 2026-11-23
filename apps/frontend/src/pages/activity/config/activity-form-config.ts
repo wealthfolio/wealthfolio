@@ -8,6 +8,7 @@ import {
   QuoteMode,
 } from "@/lib/constants";
 import { isCashSymbol, isSecuritiesTransfer } from "@/lib/activity-utils";
+import { chargeLineDefaults, chargeLinesMetadata } from "@/lib/activity-charges";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
 import { BuyForm, type BuyFormValues } from "../components/forms/buy-form";
@@ -67,6 +68,7 @@ export interface ActivityFormComponentProps<T> {
   onCancel?: () => void;
   isLoading?: boolean;
   isEditing?: boolean;
+  originalActivity?: Partial<ActivityDetails>;
 }
 
 // Config for each activity type
@@ -85,6 +87,12 @@ function absNum(value: string | number | null | undefined): number | undefined {
   if (value == null) return undefined;
   const n = typeof value === "string" ? Number(value) : value;
   return Number.isFinite(n) ? Math.abs(n) : undefined;
+}
+
+// Metadata keys a form writes, merged over the stored blob by core; no key, no patch.
+function metadataPatch(...parts: (Record<string, unknown> | false | undefined)[]) {
+  const metadata: Record<string, unknown> = Object.assign({}, ...parts.filter(Boolean));
+  return Object.keys(metadata).length > 0 ? { metadata } : {};
 }
 
 // Base defaults shared by most forms
@@ -141,8 +149,9 @@ export const ACTIVITY_FORM_CONFIG: Record<
         quantity: absNum(activity?.quantity),
         unitPrice: absNum(activity?.unitPrice),
         amount: absNum(activity?.amount),
-        fee: absNum(activity?.fee) ?? 0,
-        tax: absNum(activity?.tax) ?? 0,
+        fee: absNum(activity?.fee) || undefined,
+        tax: absNum(activity?.tax) || undefined,
+        ...chargeLineDefaults(activity, ["fee", "tax"]),
         subtype: activity?.subtype ?? null,
         quoteMode:
           activity?.assetQuoteMode === QuoteMode.MANUAL ? QuoteMode.MANUAL : QuoteMode.MARKET,
@@ -215,11 +224,14 @@ export const ACTIVITY_FORM_CONFIG: Record<
         // multiplier, and this metadata exists solely to seed a brand-new
         // option asset at creation. Sending the default would write an
         // override the asset never asked for.
-        ...(d.symbolInstrumentType === InstrumentType.OPTION &&
-          d.contractMultiplier != null &&
-          d.contractMultiplier !== 100 && {
-            metadata: { [METADATA_CONTRACT_MULTIPLIER]: d.contractMultiplier },
-          }),
+        ...metadataPatch(
+          d.symbolInstrumentType === InstrumentType.OPTION &&
+            d.contractMultiplier != null &&
+            d.contractMultiplier !== 100 && {
+              [METADATA_CONTRACT_MULTIPLIER]: d.contractMultiplier,
+            },
+          chargeLinesMetadata(d),
+        ),
       };
     },
   },
@@ -231,13 +243,19 @@ export const ACTIVITY_FORM_CONFIG: Record<
       const base = {
         ...getBaseDefaults(activity, accounts),
         assetId: activity?.assetSymbol ?? activity?.assetId ?? "",
+        ...selectedExistingAsset(
+          activity?.assetSymbol,
+          activity?.assetId,
+          activity?.instrumentType,
+        ),
         symbolInstrumentType: activity?.instrumentType ?? undefined,
         symbolQuoteCcy: activity?.assetQuoteCcy ?? activity?.currency ?? undefined,
         quantity: absNum(activity?.quantity),
         unitPrice: absNum(activity?.unitPrice),
         amount: absNum(activity?.amount),
-        fee: absNum(activity?.fee) ?? 0,
-        tax: absNum(activity?.tax) ?? 0,
+        fee: absNum(activity?.fee) || undefined,
+        tax: absNum(activity?.tax) || undefined,
+        ...chargeLineDefaults(activity, ["fee", "tax"]),
         subtype: activity?.subtype ?? null,
         quoteMode:
           activity?.assetQuoteMode === QuoteMode.MANUAL ? QuoteMode.MANUAL : QuoteMode.MARKET,
@@ -310,11 +328,14 @@ export const ACTIVITY_FORM_CONFIG: Record<
         // multiplier, and this metadata exists solely to seed a brand-new
         // option asset at creation. Sending the default would write an
         // override the asset never asked for.
-        ...(d.symbolInstrumentType === InstrumentType.OPTION &&
-          d.contractMultiplier != null &&
-          d.contractMultiplier !== 100 && {
-            metadata: { [METADATA_CONTRACT_MULTIPLIER]: d.contractMultiplier },
-          }),
+        ...metadataPatch(
+          d.symbolInstrumentType === InstrumentType.OPTION &&
+            d.contractMultiplier != null &&
+            d.contractMultiplier !== 100 && {
+              [METADATA_CONTRACT_MULTIPLIER]: d.contractMultiplier,
+            },
+          chargeLinesMetadata(d),
+        ),
       };
     },
   },
@@ -372,7 +393,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
       ...getBaseDefaults(activity, accounts),
       symbol: activity?.assetSymbol ?? activity?.assetId ?? "",
       amount: absNum(activity?.amount),
-      tax: absNum(activity?.tax) ?? 0,
+      tax: absNum(activity?.tax) || undefined,
+      ...chargeLineDefaults(activity, ["tax"]),
       unitPrice: absNum(activity?.unitPrice),
       quantity: absNum(activity?.quantity),
       // Advanced options
@@ -410,6 +432,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
               providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
             }
           : undefined,
+        ...metadataPatch(chargeLinesMetadata(d)),
       };
     },
   },
@@ -599,7 +622,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
       ...getBaseDefaults(activity, accounts),
       symbol: activity?.assetSymbol ?? activity?.assetId ?? null,
       amount: absNum(activity?.amount),
-      tax: absNum(activity?.tax) ?? 0,
+      tax: absNum(activity?.tax) || undefined,
+      ...chargeLineDefaults(activity, ["tax"]),
       unitPrice: absNum(activity?.unitPrice),
       quantity: absNum(activity?.quantity),
       // Advanced options
@@ -636,6 +660,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
               providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
             }
           : undefined,
+        ...metadataPatch(chargeLinesMetadata(d)),
       };
     },
   },

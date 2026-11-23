@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ActivityType } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
 import type { ActivityDetails, CashBalanceScope } from "@/lib/types";
 import { ActivityTable } from "./activity-table";
 import { ActivityTableMobile } from "./activity-table-mobile";
@@ -288,5 +288,82 @@ describe("day-grouped activity cards", () => {
 
     expect(screen.getAllByText("Oct 14, 2026")).toHaveLength(2);
     expect(screen.queryByText("Wednesday, Oct 14, 2026")).toBeNull();
+  });
+});
+
+/** Income worth 85: a cash dividend names its paying asset like any other. */
+function income(
+  activityType: ActivityDetails["activityType"],
+  fields: Partial<ActivityDetails> = {},
+): ActivityDetails {
+  return {
+    ...row(`${activityType}-${fields.subtype ?? "cash"}`, null, null),
+    activityType,
+    assetId: "TESTCO",
+    assetSymbol: "TESTCO",
+    quantity: "0",
+    unitPrice: "0",
+    amount: "85",
+    ...fields,
+  };
+}
+
+const cashIncome = () => [
+  income(ActivityType.DIVIDEND),
+  income(ActivityType.INTEREST, { assetId: "SOL", assetSymbol: "SOL" }),
+];
+
+/** Income received as units, valued at 42.50 each. */
+const incomeInKind = () => [
+  income(ActivityType.DIVIDEND, {
+    subtype: ACTIVITY_SUBTYPES.DRIP,
+    quantity: "2",
+    unitPrice: "42.5",
+  }),
+  income(ActivityType.DIVIDEND, {
+    subtype: ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND,
+    quantity: "2",
+    unitPrice: "42.5",
+  }),
+  income(ActivityType.INTEREST, {
+    subtype: ACTIVITY_SUBTYPES.STAKING_REWARD,
+    assetId: "SOL",
+    assetSymbol: "SOL",
+    quantity: "2",
+    unitPrice: "42.5",
+  }),
+];
+
+function priceAmountCell() {
+  const header = screen.getByRole("columnheader", { name: /price\/amount/i });
+  const column = screen.getAllByRole("columnheader").indexOf(header);
+  const [, activityRow] = screen.getAllByRole("row");
+  return within(activityRow).getAllByRole("cell")[column];
+}
+
+describe("income in the Price/Amount slot", () => {
+  it.each(cashIncome())("shows the amount of a cash $activityType with a symbol", (activity) => {
+    renderTable([activity]);
+
+    expect(priceAmountCell()).toHaveTextContent("$85.00");
+  });
+
+  it.each(incomeInKind())("shows the unit price of a $subtype", (activity) => {
+    renderTable([activity]);
+
+    expect(priceAmountCell()).toHaveTextContent("$42.50");
+  });
+
+  it.each(cashIncome())("gives a detailed card the amount of a cash $activityType", (activity) => {
+    renderCards([activity], false);
+
+    expect(screen.queryByText("Price")).toBeNull();
+    expect(screen.getByText("Amount").parentElement).toHaveTextContent("$85.00");
+  });
+
+  it.each(incomeInKind())("gives a detailed card the unit price of a $subtype", (activity) => {
+    renderCards([activity], false);
+
+    expect(screen.getByText("Price").parentElement).toHaveTextContent("$42.50");
   });
 });
