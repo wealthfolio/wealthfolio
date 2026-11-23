@@ -3,13 +3,14 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Spinner, useNumberFormatting } from "@wealthfolio/ui";
 
 interface FileDropzoneProps {
   file: File | null;
   onFileChange: (file: File | null) => void;
   isLoading?: boolean;
-  accept?: string;
+  unfilteredPicker?: boolean;
   isValid?: boolean;
   error?: string | null;
 }
@@ -18,7 +19,7 @@ export const FileDropzone = ({
   file,
   onFileChange,
   isLoading = false,
-  accept = "*",
+  unfilteredPicker = false,
   isValid = true,
   error = null,
 }: FileDropzoneProps) => {
@@ -50,9 +51,17 @@ export const FileDropzone = ({
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onFileChange(e.target.files[0]);
+    const pickedFile = e.target.files?.[0];
+    if (!pickedFile) return;
+
+    // Android document providers can report a generic MIME type for a valid CSV.
+    if (unfilteredPicker && !pickedFile.name.toLowerCase().endsWith(".csv")) {
+      e.target.value = "";
+      toast.error(t("activity:import.upload.csvOnly"));
+      return;
     }
+
+    onFileChange(pickedFile);
   };
 
   const handleClick = () => {
@@ -139,7 +148,7 @@ export const FileDropzone = ({
         ref={fileInputRef}
         onChange={handleFileInputChange}
         className="hidden"
-        accept={accept}
+        accept={unfilteredPicker ? undefined : ".csv"}
         disabled={isLoading}
       />
 
