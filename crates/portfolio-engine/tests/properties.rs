@@ -759,7 +759,8 @@ fn p_txf_internal_pairs_cancel_at_portfolio_scope() {
 /// holdings account's observed snapshot, its units carried across the
 /// recorded splits since) and the public surfaces alone. Investments are Σ quantity × latest close (in the
 /// quote currency's major unit) × contract multiplier × FX into the account
-/// currency; cash is Σ bucket × FX. This walks `project` keyframes and
+/// currency, or the position's book cost (as stored, else its cost × FX)
+/// while no quote prices it; cash is Σ bucket × FX. This walks `project` keyframes and
 /// `resolve` surfaces directly, never `value`'s own bookkeeping, so it is an
 /// independent recomputation, not a restatement. Days that are not
 /// `COMPLETE` and assets with adjusted splits (the valuer's split factor is
@@ -793,9 +794,17 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                 if day.value_status != ValueStatus::Complete {
                     continue;
                 }
-                // What the account held: (asset, units, alternative) and cash.
+                // What the account held: (asset, units, alternative, cost, its
+                // currency and its stored book cost) and cash.
                 type Held<'a> = (
-                    Vec<(&'a AssetId, Decimal, bool)>,
+                    Vec<(
+                        &'a AssetId,
+                        Decimal,
+                        bool,
+                        Decimal,
+                        Currency,
+                        Option<Decimal>,
+                    )>,
                     Vec<(&'a Currency, Decimal)>,
                 );
                 let (positions, buckets): Held = if let Some(keyframes) = keyframes {
@@ -807,7 +816,16 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                             .state
                             .positions
                             .iter()
-                            .map(|(asset, p)| (asset, p.quantity, p.alternative))
+                            .map(|(asset, p)| {
+                                (
+                                    asset,
+                                    p.quantity,
+                                    p.alternative,
+                                    p.total_cost_basis,
+                                    p.currency.clone(),
+                                    p.cost_basis_account,
+                                )
+                            })
                             .collect(),
                         frame.state.cash.iter().map(|(c, a)| (c, *a)).collect(),
                     )
@@ -820,11 +838,15 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                             .positions
                             .iter()
                             .map(|(asset, p)| {
-                                let alternative = pipeline
-                                    .facts()
-                                    .assets()
-                                    .get(asset)
-                                    .is_some_and(|a| a.alternative);
+                                let facts = pipeline.facts().assets().get(asset);
+                                let alternative = facts.is_some_and(|a| a.alternative);
+                                let currency = p
+                                    .currency
+                                    .clone()
+                                    .or_else(|| facts.and_then(|a| a.quote_currency.clone()))
+                                    .unwrap_or_else(|| {
+                                        pipeline.facts().accounts()[account].currency.clone()
+                                    });
                                 // Its units, carried across the splits after
                                 // it (rules R1.5).
                                 let split: Decimal = pipeline
@@ -838,7 +860,14 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                                     })
                                     .map(|s| s.ratio)
                                     .product();
-                                (asset, p.quantity * split, alternative)
+                                (
+                                    asset,
+                                    p.quantity * split,
+                                    alternative,
+                                    p.total_cost_basis,
+                                    currency,
+                                    p.cost_basis_account,
+                                )
                             })
                             .collect(),
                         snapshot.cash.iter().map(|(c, a)| (c, *a)).collect(),
@@ -851,15 +880,36 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                     continue;
                 }
                 let mut investment = Decimal::ZERO;
-                for (asset, quantity, alternative) in &positions {
+                for (asset, quantity, alternative, cost, cost_currency, book_cost) in &positions {
                     if *alternative || quantity.is_zero() {
                         continue;
                     }
-                    let quote = pipeline
+                    let Some(quote) = pipeline
                         .surfaces()
                         .quotes
                         .latest_on_or_before(asset, day.date)
-                        .expect("a COMPLETE day prices every held position");
+                    else {
+                        // No quote yet: the position is worth its book cost,
+                        // as stored or else its cost at the day's rate, unless
+                        // it is an option contract (architecture §4.5).
+                        let option = pipeline
+                            .facts()
+                            .assets()
+                            .get(*asset)
+                            .is_some_and(|a| a.instrument == InstrumentClass::Option);
+                        assert!(
+                            !cost.is_zero() && !option,
+                            "{}: {account} {}: a COMPLETE day holds {asset} without a quote or a cost to stand in",
+                            scenario.id,
+                            day.date
+                        );
+                        investment += book_cost.unwrap_or_else(|| {
+                            *cost
+                                * fx.rate(cost_currency.as_str(), account_currency, day.date)
+                                    .expect("a COMPLETE day converts every cost it values")
+                        });
+                        continue;
+                    };
                     let (quote_major, unit) = policy.normalize_currency(quote.currency.as_str());
                     let rate = fx
                         .rate(quote_major, account_currency, day.date)

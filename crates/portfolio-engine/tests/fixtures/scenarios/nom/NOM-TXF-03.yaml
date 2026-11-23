@@ -63,9 +63,10 @@ expected_notes: >
   acc-1 inflow 900 COST_BASIS_FALLBACK (qty x unit_price, the capitalized
   fee is excluded from the flow), acc-2 inflow 800
   LEGACY_ACTIVITY_AMOUNT_FALLBACK; portfolio 01-05 inflow 1700 source MIXED.
-  Valuations on 01-05 carry an unpriced position (value_status
-  partialUnpriced, market value 0, total 95 / 100); from 01-06 market value
-  950, from 01-09 980. Basis status complete on both. TWR skips the unpriced
-  day: acc-1 (1045 - 100 - 900)/1000 x 1075/1045 - 1 = 7.5%; acc-2 20%;
+  Valuations on 01-05 value the position at its cost, no quote existing yet
+  (market value 905 / 800, total 1000 / 900, value_status complete); from
+  01-06 market value 950, from 01-09 980. Basis status complete on both.
+  TWR: acc-1 (1000 - 900)/100 x 1045/1000 x 1075/1045 - 1 = 7.5%; acc-2 20%;
   acc-2 IRR does not converge (diagnostic). Diagnostics carry the degraded
-  provenance and unpriced-position warnings at every scope.
+  provenance warning at every scope and a MissingQuote ("position valued at
+  its cost") per account.

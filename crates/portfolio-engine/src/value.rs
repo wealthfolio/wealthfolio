@@ -755,12 +755,49 @@ impl<'a> Valuer<'a> {
             }
             basis_status = basis_status.combine(position.basis_status());
             let Some(quote) = surfaces.quotes.latest_on_or_before(asset, day) else {
-                unpriced += 1;
+                // No observation yet: the position is worth its book cost,
+                // the cost basis the day reports for it, until a quote prices
+                // it (architecture §4.5). Without a cost, or a rate for it, it
+                // stays unpriced, and so does an option contract: its cost
+                // outlives its expiry.
+                let option = self
+                    .resolved
+                    .facts
+                    .assets
+                    .get(asset)
+                    .is_some_and(|a| a.instrument == InstrumentClass::Option);
+                let at_cost = (!option)
+                    .then(|| {
+                        position_book_cost(
+                            &self.fx,
+                            false,
+                            position.currency.as_str(),
+                            position.total_cost_basis,
+                            position.cost_basis_account,
+                            &account_currency,
+                            day,
+                        )
+                        .ok()
+                    })
+                    .flatten()
+                    .filter(|cost| !cost.is_zero());
+                let Some(at_cost) = at_cost else {
+                    unpriced += 1;
+                    self.report(
+                        DiagnosticCode::MissingQuote,
+                        format!("{}:{asset}", self.account),
+                        format!("no quote on or before {day} for {asset}; position unpriced"),
+                    );
+                    continue;
+                };
                 self.report(
                     DiagnosticCode::MissingQuote,
-                    format!("{}:{asset}", self.account),
-                    format!("no quote on or before {day} for {asset}; position unpriced"),
+                    format!("{}:{asset}:cost", self.account),
+                    format!("no quote on or before {day} for {asset}; position valued at its cost"),
                 );
+                investment += at_cost;
+                eligible += at_cost;
+                priced += 1;
                 continue;
             };
             let age = (day - quote.day).num_days();

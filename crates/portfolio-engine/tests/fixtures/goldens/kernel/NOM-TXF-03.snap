@@ -94,12 +94,12 @@ baseline:
             twr: "0.075"
             value_return: "0.75"
           risk:
-            drawdown_duration_days: 2
-            max_drawdown: "-0.905"
-            peak_date: 2025-01-04
-            recovery_date: 2025-01-06
-            trough_date: 2025-01-05
-            volatility: "26.21681348"
+            drawdown_duration_days: 1
+            max_drawdown: "0"
+            peak_date: 2025-01-02
+            recovery_date: ~
+            trough_date: 2025-01-03
+            volatility: "0.34817657"
           series:
             - date: 2025-01-02
               value: "0"
@@ -108,7 +108,7 @@ baseline:
             - date: 2025-01-04
               value: "0"
             - date: 2025-01-05
-              value: "-0.905"
+              value: "0"
             - date: 2025-01-06
               value: "0.045"
             - date: 2025-01-07
@@ -200,14 +200,14 @@ baseline:
           external_inflow_base: "900"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "905"
+          investment_market_value_base: "905"
           net_contribution: "1005"
           net_contribution_base: "1005"
-          performance_eligible_value_base: "95"
-          total_value: "95"
-          total_value_base: "95"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: complete
           book_basis: "1000"
           book_basis_base: "1000"
@@ -377,12 +377,12 @@ baseline:
             twr: "0.2"
             value_return: "1.8"
           risk:
-            drawdown_duration_days: 2
-            max_drawdown: "-0.88888889"
-            peak_date: 2025-01-04
-            recovery_date: 2025-01-06
-            trough_date: 2025-01-05
-            volatility: "25.10432401"
+            drawdown_duration_days: 1
+            max_drawdown: "0"
+            peak_date: 2025-01-02
+            recovery_date: ~
+            trough_date: 2025-01-03
+            volatility: "1.09807516"
           series:
             - date: 2025-01-02
               value: "0"
@@ -391,7 +391,7 @@ baseline:
             - date: 2025-01-04
               value: "0"
             - date: 2025-01-05
-              value: "-0.88888889"
+              value: "0"
             - date: 2025-01-06
               value: "0.16666667"
             - date: 2025-01-07
@@ -483,14 +483,14 @@ baseline:
           external_inflow_base: "800"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "800"
+          investment_market_value_base: "800"
           net_contribution: "900"
           net_contribution_base: "900"
-          performance_eligible_value_base: "100"
-          total_value: "100"
-          total_value_base: "100"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "900"
+          total_value: "900"
+          total_value_base: "900"
+          value_status: complete
         - basis_status: complete
           book_basis: "900"
           book_basis_base: "900"
@@ -572,8 +572,8 @@ baseline:
           total_value_base: "1080"
           value_status: complete
   diagnostics:
-    - "value/acc-1:aapl: Warning MissingQuote: no quote on or before 2025-01-05 for aapl; position unpriced"
-    - "value/acc-2:aapl: Warning MissingQuote: no quote on or before 2025-01-05 for aapl; position unpriced"
+    - "value/acc-1:aapl:cost: Warning MissingQuote: no quote on or before 2025-01-05 for aapl; position valued at its cost"
+    - "value/acc-2:aapl:cost: Warning MissingQuote: no quote on or before 2025-01-05 for aapl; position valued at its cost"
   portfolio:
     all_time:
       attribution:
@@ -601,12 +601,12 @@ baseline:
         twr: "0.13421053"
         value_return: "1.275"
       risk:
-        drawdown_duration_days: 2
-        max_drawdown: "-0.89736842"
-        peak_date: 2025-01-04
-        recovery_date: 2025-01-06
-        trough_date: 2025-01-05
-        volatility: "25.66312764"
+        drawdown_duration_days: 1
+        max_drawdown: "0"
+        peak_date: 2025-01-02
+        recovery_date: ~
+        trough_date: 2025-01-03
+        volatility: "0.70119711"
       series:
         - date: 2025-01-02
           value: "0"
@@ -615,7 +615,7 @@ baseline:
         - date: 2025-01-04
           value: "0"
         - date: 2025-01-05
-          value: "-0.89736842"
+          value: "0"
         - date: 2025-01-06
           value: "0.10263158"
         - date: 2025-01-07

@@ -2296,6 +2296,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_cost_rule_migration_marks_accounts_from_their_first_degraded_day() {
+        use diesel::connection::SimpleConnection;
+        let db = setup();
+        sql(
+            &db,
+            "INSERT INTO accounts (id, name, account_type, currency, is_default, is_active, \
+             created_at, updated_at, tracking_mode, is_archived) \
+             VALUES ('acc2', 'Complete', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'TRANSACTIONS', 0), \
+                    ('acc3', 'Already dirty', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'TRANSACTIONS', 0), \
+                    ('acc4', 'Archived', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'HOLDINGS', 1)",
+        );
+        consume_all(&db).await;
+        // acc3 is already waiting from an earlier day than its degraded one.
+        sql(
+            &db,
+            "UPDATE activities SET account_id = 'acc3', activity_date = '2025-01-03T00:00:00Z' WHERE id = 'sell-1'",
+        );
+        let waiting = dirty(&db, "acc3").unwrap();
+        for (account, day, status) in [
+            ("acc1", 2, "COMPLETE"),
+            ("acc1", 4, "UNAVAILABLE"),
+            ("acc1", 3, "PARTIAL_UNPRICED"),
+            ("acc2", 2, "COMPLETE"),
+            ("acc3", 6, "PARTIAL_UNPRICED"),
+            // An archived account is not valued, and a row whose account is
+            // gone names nothing to value.
+            ("acc4", 2, "PARTIAL_UNPRICED"),
+            ("gone", 2, "PARTIAL_UNPRICED"),
+        ] {
+            sql(
+                &db,
+                &format!(
+                    "INSERT INTO daily_account_valuation (id, account_id, valuation_date, \
+                     account_currency, base_currency, fx_rate_to_base, cash_balance, \
+                     investment_market_value, total_value, cost_basis, net_contribution, \
+                     external_flow_source, value_status, basis_status) \
+                     VALUES ('{account}-{day}', '{account}', '2025-01-0{day}', 'USD', 'USD', '1', \
+                     '0', '0', '0', '0', '0', 'NO_FLOW', '{status}', 'COMPLETE')"
+                ),
+            );
+        }
+
+        let mut conn = get_connection(&db.pool).unwrap();
+        conn.batch_execute(include_str!(
+            "../../../migrations/2026-11-23-000001_revalue_unquoted_positions/up.sql"
+        ))
+        .unwrap();
+
+        assert_eq!(dirty(&db, "acc1").as_deref(), Some("2025-01-03"));
+        assert_eq!(dirty(&db, "acc2"), None);
+        assert_eq!(dirty(&db, "acc3"), Some(waiting));
+        assert_eq!(dirty(&db, "acc4"), None);
+        assert_eq!(marker(&db, "gone"), None);
+        assert_eq!(dirty(&db, "@all"), None);
+    }
+
+    #[tokio::test]
     async fn an_fx_asset_arriving_after_its_rates_in_a_sync_batch_marks_its_conversions() {
         use wealthfolio_core::sync::{SyncEntity, SyncOperation};
         let db = setup();

@@ -23,6 +23,8 @@ const MISSING_ASSET_WARNING: &str =
     "Some asset details are missing, so this value may be incomplete.";
 const MISSING_QUOTE_WARNING: &str =
     "Some market prices are missing, so this value may be incomplete.";
+const VALUED_AT_COST_WARNING: &str =
+    "Some holdings have no market price yet and are valued at their cost.";
 const MISSING_FX_WARNING: &str = "Some exchange rates are missing, so the total is unavailable.";
 
 pub struct CurrentAccountValuationService<'a> {
@@ -451,18 +453,55 @@ where
         }
 
         let Some(quote_pair) = latest_quote_pairs.get(asset_id) else {
-            warn!(
-                "Missing latest quote for asset {} in account {}. Current market value treated as zero.",
-                asset_id, account.id
+            // No quote yet: the position is worth its book cost in the
+            // account currency, as the engine values the day (architecture
+            // §4.5). Without a cost, or a rate for it, it stays unpriced, and
+            // so does an option contract.
+            let (cost, cost_currency) =
+                normalize_amount(position.total_cost_basis, &position.currency);
+            let book_cost = if asset.instrument_type == Some(InstrumentType::Option) {
+                None
+            } else {
+                position.cost_basis_account.or_else(|| {
+                    cost_at_latest_rate(cost, cost_currency, &account.currency, latest_rate)
+                })
+            };
+            let Some(book_cost) = book_cost.filter(|cost| !cost.is_zero()) else {
+                warn!(
+                    "Missing latest quote for asset {} in account {}. Current market value treated as zero.",
+                    asset_id, account.id
+                );
+                valuation.value_status = valuation
+                    .value_status
+                    .combine(ValuationStatus::PartialUnpriced);
+                valuation.account_value_status = valuation
+                    .account_value_status
+                    .combine(ValuationStatus::PartialUnpriced);
+                summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
+                account_warnings.push(MISSING_QUOTE_WARNING.to_string());
+                continue;
+            };
+            holdings_count += 1;
+            // The account's own rate takes it to base, as it does the day's row.
+            let book_cost_base = converted_amount(
+                book_cost,
+                &mut summary_warnings,
+                &mut valuation.value_status,
+                &mut valuation.missing_fx,
+                asset_id,
+                latest_rate,
+                &account.currency,
+                base_currency,
             );
-            valuation.value_status = valuation
-                .value_status
-                .combine(ValuationStatus::PartialUnpriced);
-            valuation.account_value_status = valuation
-                .account_value_status
-                .combine(ValuationStatus::PartialUnpriced);
-            summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
-            account_warnings.push(MISSING_QUOTE_WARNING.to_string());
+            has_known_account_value = true;
+            has_known_base_value |= book_cost_base.is_some();
+            valuation.investment_market_value += book_cost;
+            valuation.investment_market_value_base += book_cost_base.unwrap_or_default();
+            if let Some(value) = book_cost_base {
+                add_total(&mut currency_base_totals, cost_currency, value);
+            }
+            summary_warnings.push(VALUED_AT_COST_WARNING.to_string());
+            account_warnings.push(VALUED_AT_COST_WARNING.to_string());
             continue;
         };
         holdings_count += 1;
@@ -531,6 +570,28 @@ where
         cash_local_totals,
         summary_warnings,
     }
+}
+
+/// A cost in `to` at the latest rate, for a position that stores no book cost
+/// in the account currency: `None` without a cost or a usable rate.
+fn cost_at_latest_rate<F, R>(
+    cost: Decimal,
+    from: &str,
+    to: &str,
+    latest_rate: &mut F,
+) -> Option<Decimal>
+where
+    F: FnMut(&str, &str) -> R,
+    R: Into<CurrentValuationRate>,
+{
+    if cost.is_zero() {
+        return None;
+    }
+    if from == to {
+        return Some(cost);
+    }
+    let lookup = latest_rate(from, to).into();
+    (lookup.warning.is_none() && lookup.rate > Decimal::ZERO).then(|| cost * lookup.rate)
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -112,7 +112,7 @@
       "title_one": "La copertura della valutazione è incompleta",
       "title_many": "{{count}} righe di valutazione hanno un valore di mercato incompleto",
       "title_other": "{{count}} righe di valutazione hanno un valore di mercato incompleto",
-      "message": "Alcune righe di valutazione generate hanno una copertura del valore di mercato incompleta. Il modulo Performance tutela la correttezza contrassegnando i rendimenti interessati come non disponibili o degradati; controlla i prezzi mancanti o le valutazioni manuali."
+      "message": "Alcune posizioni non avevano un prezzo di mercato in giorni in cui erano detenute. Finché non è disponibile un prezzo, la posizione è valutata al costo di carico; un contratto di opzione o una posizione senza costo di carico viene esclusa, e i rendimenti interessati sono contrassegnati come non disponibili o degradati. Controlla i prezzi mancanti o le valutazioni manuali."
     },
     "data_incomplete_valuation_basis": {
       "title_one": "La copertura del costo di carico è incompleta",

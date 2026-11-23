@@ -1,0 +1,50 @@
+id: PERF-HOLD-03
+title: A holdings snapshot's unquoted position is valued at its cost
+intent: >
+  PERF-HOLD-02 with a cost on nvda. The second observed snapshot introduces
+  nvda, which has no quotes, at an average cost of 40: until a quote prices
+  it the position is worth that cost (architecture §4.5). The rows stay
+  COMPLETE and the 01-08 transition is priced on both sides, so the dated
+  window keeps its value return instead of losing it to
+  UNPRICED_HOLDINGS_TRANSITION.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-h
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+  - id: nvda
+    quote_ccy: USD
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 104 }
+  - { asset: aapl, day: 2025-01-12, close: 112 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-02
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 500 }
+  - account: acc-h
+    date: 2025-01-08
+    positions:
+      - { asset: aapl, quantity: 10, average_cost: 90 }
+      - { asset: nvda, quantity: 5, average_cost: 40 }
+    cash: { USD: 300 }
+performance_windows:
+  - { label: dated, start: 2025-01-04, end: 2025-01-12 }
+expected_notes: >
+  Rows 01-02..01-07: COMPLETE, value 1000 + 500 = 1500, book_basis 1400. Rows
+  01-08..01-11: COMPLETE, value 1040 (aapl) + 200 (nvda at its cost) + 300 =
+  1540, cost_basis 1100, book_basis 1400; 01-12 value 1120 + 200 + 300 =
+  1620. Flow 01-08: the first snapshot at 01-08 prices is 1040 + 500 = 1540,
+  the same as the new one, so NO_FLOW: the 200 of cash that became nvda is
+  neither money in nor a loss. all_time: amount 1620 - 1400 = 220, percent
+  220/1400 = 0.15714286. dated (01-04..01-12): amount 1620 - 1500 = 120,
+  percent 0.08. A MissingQuote diagnostic ("position valued at its cost")
+  names nvda. Portfolio scope: its all-time amount is the period-start
+  unrealized delta 120 instead of 220 (same inconsistency as PERF-HOLD-01).

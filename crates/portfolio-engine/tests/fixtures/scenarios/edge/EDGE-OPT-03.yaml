@@ -19,4 +19,5 @@ activities:
   - { id: tin, account: acc-1, type: TRANSFER_IN, date: 2025-01-03T10:00:00Z, asset: opt, quantity: 1, unit_price: 2, metadata: { flow: { is_external: true } } }
 expected_notes: >
   Lot tin: 1 contract, basis 200. Inflow 200 on 01-03 (COST_BASIS_FALLBACK).
-  The position has no quote, so values from 01-03 are unavailable.
+  The position has no quote, and an option contract is not valued at its
+  cost (architecture §4.5), so values from 01-03 are partialUnpriced.

@@ -93,7 +93,7 @@
     "data_incomplete_valuation_value": {
       "title_one": "Valuation coverage is incomplete",
       "title_other": "{{count}} valuation rows have incomplete market value",
-      "message": "Some generated valuation rows have incomplete market value coverage. Performance protects correctness by marking affected returns unavailable or degraded; review missing prices or manual valuations."
+      "message": "Some holdings had no market price on days they were held. Until a price is available, a holding is valued at its cost; an option contract, or a holding without a cost, is left out and affected returns are marked unavailable or degraded. Review missing prices or manual valuations."
     },
     "data_incomplete_valuation_basis": {
       "title_one": "Cost basis coverage is incomplete",

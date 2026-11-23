@@ -31,7 +31,7 @@ baseline:
               total_cost_basis: "900"
             nvda:
               quantity: "5"
-              total_cost_basis: "200"
+              total_cost_basis: "0"
           source: OBSERVED
       lots: []
       performance:
@@ -45,8 +45,8 @@ baseline:
             realized_pnl: "0"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "20"
-          basis_status: complete
+            unrealized_pnl_change: "0"
+          basis_status: partialUnknown
           is_holdings_mode: true
           is_mixed_tracking_mode: false
           method: valueReturn
@@ -59,7 +59,7 @@ baseline:
             annualized_value_return: ~
             irr: ~
             twr: ~
-            value_return: "0.01428571"
+            value_return: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "-0.10666667"
@@ -91,13 +91,13 @@ baseline:
             - date: 2025-01-12
               value: "-0.05333333"
           summary:
-            amount: "20"
-            amount_status: complete
+            amount: ~
+            amount_status: unavailable
             basis: bookBasis
-            basis_status: complete
+            basis_status: partialUnknown
             method: valueReturn
-            percent: "0.01428571"
-            percent_status: complete
+            percent: ~
+            percent_status: unavailable
             quality: partial
         dated:
           attribution:
@@ -110,7 +110,7 @@ baseline:
             residual: "0"
             taxes: "0"
             unrealized_pnl_change: "0"
-          basis_status: complete
+          basis_status: partialUnknown
           is_holdings_mode: true
           is_mixed_tracking_mode: false
           method: valueReturn
@@ -138,7 +138,7 @@ baseline:
             amount: ~
             amount_status: unavailable
             basis: bookBasis
-            basis_status: complete
+            basis_status: partialUnknown
             method: valueReturn
             percent: ~
             percent_status: unavailable
@@ -265,13 +265,13 @@ baseline:
           total_value: "1500"
           total_value_base: "1500"
           value_status: complete
-        - basis_status: complete
-          book_basis: "1400"
-          book_basis_base: "1400"
+        - basis_status: partialUnknown
+          book_basis: "1200"
+          book_basis_base: "1200"
           cash_balance: "300"
           cash_balance_base: "300"
-          cost_basis: "1100"
-          cost_basis_base: "1100"
+          cost_basis: "900"
+          cost_basis_base: "900"
           date: 2025-01-08
           external_flow_source: UNPRICED_HOLDINGS_TRANSITION
           external_inflow_base: "0"
@@ -285,13 +285,13 @@ baseline:
           total_value: "1340"
           total_value_base: "1340"
           value_status: partialUnpriced
-        - basis_status: complete
-          book_basis: "1400"
-          book_basis_base: "1400"
+        - basis_status: partialUnknown
+          book_basis: "1200"
+          book_basis_base: "1200"
           cash_balance: "300"
           cash_balance_base: "300"
-          cost_basis: "1100"
-          cost_basis_base: "1100"
+          cost_basis: "900"
+          cost_basis_base: "900"
           date: 2025-01-09
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
@@ -305,13 +305,13 @@ baseline:
           total_value: "1340"
           total_value_base: "1340"
           value_status: partialUnpriced
-        - basis_status: complete
-          book_basis: "1400"
-          book_basis_base: "1400"
+        - basis_status: partialUnknown
+          book_basis: "1200"
+          book_basis_base: "1200"
           cash_balance: "300"
           cash_balance_base: "300"
-          cost_basis: "1100"
-          cost_basis_base: "1100"
+          cost_basis: "900"
+          cost_basis_base: "900"
           date: 2025-01-10
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
@@ -325,13 +325,13 @@ baseline:
           total_value: "1340"
           total_value_base: "1340"
           value_status: partialUnpriced
-        - basis_status: complete
-          book_basis: "1400"
-          book_basis_base: "1400"
+        - basis_status: partialUnknown
+          book_basis: "1200"
+          book_basis_base: "1200"
           cash_balance: "300"
           cash_balance_base: "300"
-          cost_basis: "1100"
-          cost_basis_base: "1100"
+          cost_basis: "900"
+          cost_basis_base: "900"
           date: 2025-01-11
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
@@ -345,13 +345,13 @@ baseline:
           total_value: "1340"
           total_value_base: "1340"
           value_status: partialUnpriced
-        - basis_status: complete
-          book_basis: "1400"
-          book_basis_base: "1400"
+        - basis_status: partialUnknown
+          book_basis: "1200"
+          book_basis_base: "1200"
           cash_balance: "300"
           cash_balance_base: "300"
-          cost_basis: "1100"
-          cost_basis_base: "1100"
+          cost_basis: "900"
+          cost_basis_base: "900"
           date: 2025-01-12
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
@@ -378,8 +378,8 @@ baseline:
         realized_pnl: "0"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "-80"
-      basis_status: complete
+        unrealized_pnl_change: "120"
+      basis_status: partialUnknown
       is_holdings_mode: true
       is_mixed_tracking_mode: false
       method: valueReturn
@@ -392,7 +392,7 @@ baseline:
         annualized_value_return: ~
         irr: ~
         twr: ~
-        value_return: "0.01428571"
+        value_return: ~
       risk:
         drawdown_duration_days: 1
         max_drawdown: "-0.10666667"
@@ -424,13 +424,13 @@ baseline:
         - date: 2025-01-12
           value: "-0.05333333"
       summary:
-        amount: "-80"
-        amount_status: complete
+        amount: ~
+        amount_status: unavailable
         basis: bookBasis
-        basis_status: complete
+        basis_status: partialUnknown
         method: valueReturn
-        percent: "0.01428571"
-        percent_status: complete
+        percent: ~
+        percent_status: unavailable
         quality: partial
     dated:
       attribution:
@@ -442,8 +442,8 @@ baseline:
         realized_pnl: "0"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "-80"
-      basis_status: complete
+        unrealized_pnl_change: "120"
+      basis_status: partialUnknown
       is_holdings_mode: true
       is_mixed_tracking_mode: false
       method: valueReturn
@@ -471,7 +471,7 @@ baseline:
         amount: ~
         amount_status: unavailable
         basis: bookBasis
-        basis_status: complete
+        basis_status: partialUnknown
         method: valueReturn
         percent: ~
         percent_status: unavailable

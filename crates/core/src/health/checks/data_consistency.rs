@@ -1051,7 +1051,7 @@ fn value_issue_copy(issues: &[&ConsistencyIssueInfo]) -> IssueCopy {
         return IssueCopy {
             title: "Price date needs review",
             plural_title: "price dates need review",
-            message: "Some trading days are missing exact market prices. Wealthfolio can carry forward the last available price, but syncing or adding the missing prices keeps daily values and returns accurate. If a date was a market holiday or the investment did not trade, dismiss this issue.",
+            message: "Some holdings had no market price on days they were held. Until a price is available, a holding is valued at its cost; an option contract, or a holding without a cost, is left out instead. Check the symbol so prices can sync, or switch the holding to manual pricing and add a price.",
         };
     }
 
@@ -1059,7 +1059,7 @@ fn value_issue_copy(issues: &[&ConsistencyIssueInfo]) -> IssueCopy {
         return IssueCopy {
             title: "Manual price date needs review",
             plural_title: "manual price dates need review",
-            message: "Some manual holdings are missing values on days they were held. Wealthfolio can carry forward the last value, but adding the missing dates keeps daily values and returns accurate. If a separate value is not needed for the date, dismiss this issue.",
+            message: "Some manual holdings had no value entered on days they were held. Until a value is entered, a holding is valued at its cost. Add a value dated on or before those days to keep daily values and returns accurate.",
         };
     }
 
@@ -1533,13 +1533,13 @@ fn valuation_diagnostic(
     let (title, explanation) = match reason {
         ValuationIssueReason::MissingMarketQuote => (
             "No price found",
-            "Wealthfolio is missing the exact market price for this holding on the affected date. \
-             It can carry forward the last available price, but syncing or adding the exact price keeps daily returns accurate. \
-             If this was a market holiday or the investment did not trade, dismiss this issue.",
+            "Wealthfolio has no market price for this holding on or before the affected dates. \
+             Until one is available the holding is valued at its cost; an option contract, or a holding without a cost, is left out instead. \
+             Check the symbol so prices can sync, or switch the holding to manual pricing and add a price.",
         ),
         ValuationIssueReason::MissingManualValuation => (
             "No value entered",
-            "This manual holding has no value entered for the affected date. Wealthfolio can carry forward the last value, but adding this date keeps daily returns accurate. If a separate value is not needed for this date, dismiss this issue.",
+            "This manual holding has no value entered on or before the affected dates. Until one is entered it is valued at its cost. Add a value dated on or before those dates to keep daily returns accurate.",
         ),
         ValuationIssueReason::MissingFxRate => (
             "No exchange rate",

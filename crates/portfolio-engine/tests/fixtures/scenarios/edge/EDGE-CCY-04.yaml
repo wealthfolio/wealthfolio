@@ -23,6 +23,7 @@ activities:
 quotes:
   - { asset: vod, day: 2025-01-06, close: 250 }
 expected_notes: >
-  Value 10 GBP on 01-01, 20 on 01-03, 15 on 01-04; from 01-06 15 + 10 x 250
-  GBp = 40 GBP. Inflow 10 GBP on 01-03, outflow 5 GBP on 01-04, inflow 25
-  GBP on 01-05 (cost, no quote that day). TWR 0 over the days with values.
+  Value 10 GBP on 01-01, 20 on 01-03, 15 on 01-04; on 01-05 15 + 25 (the
+  share at its cost of 2500 GBp, no quote that day) = 40 GBP; from 01-06 15
+  + 10 x 250 GBp = 40 GBP. Inflow 10 GBP on 01-03, outflow 5 GBP on 01-04,
+  inflow 25 GBP on 01-05 (cost, no quote that day). TWR 0 on every day.

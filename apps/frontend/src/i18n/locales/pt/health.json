@@ -112,7 +112,7 @@
       "title_one": "A cobertura de valoração está incompleta",
       "title_other": "{{count}} linhas de valoração têm valor de mercado incompleto",
       "title_many": "{{count}} linhas de valoração têm valor de mercado incompleto",
-      "message": "Algumas linhas de valoração geradas têm cobertura de valor de mercado incompleta. O desempenho protege a precisão marcando os retornos afetados como indisponíveis ou degradados; revise os preços ausentes ou as valorações manuais."
+      "message": "Algumas posições não tinham preço de mercado em dias em que foram mantidas. Até que haja um preço disponível, a posição é valorada ao seu custo de aquisição; um contrato de opção ou uma posição sem custo de aquisição é excluída, e os retornos afetados são marcados como indisponíveis ou degradados. Revise os preços ausentes ou as valorações manuais."
     },
     "data_incomplete_valuation_basis": {
       "title_one": "A cobertura do custo de aquisição está incompleta",

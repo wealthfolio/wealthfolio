@@ -183,25 +183,25 @@ baseline:
             twr: "0"
             value_return: "0"
           risk:
-            drawdown_duration_days: 6
-            max_drawdown: "-0.75"
+            drawdown_duration_days: 1
+            max_drawdown: "0"
             peak_date: 2025-01-02
-            recovery_date: 2025-01-08
-            trough_date: 2025-01-06
-            volatility: "12.94498473"
+            recovery_date: ~
+            trough_date: 2025-01-03
+            volatility: "0"
           series:
             - date: 2025-01-02
               value: "0"
             - date: 2025-01-03
-              value: "-0.25"
+              value: "0"
             - date: 2025-01-04
-              value: "-0.25"
+              value: "0"
             - date: 2025-01-05
-              value: "-0.25"
+              value: "0"
             - date: 2025-01-06
-              value: "-0.75"
+              value: "0"
             - date: 2025-01-07
-              value: "-0.75"
+              value: "0"
             - date: 2025-01-08
               value: "0"
             - date: 2025-01-09
@@ -251,14 +251,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "1500"
-          total_value: "1500"
-          total_value_base: "1500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -271,14 +271,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "1500"
-          total_value: "1500"
-          total_value_base: "1500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -291,14 +291,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "1500"
-          total_value: "1500"
-          total_value_base: "1500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -311,14 +311,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "1500"
+          investment_market_value_base: "1500"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "500"
-          total_value: "500"
-          total_value_base: "500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -331,14 +331,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "1500"
+          investment_market_value_base: "1500"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "500"
-          total_value: "500"
-          total_value_base: "500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: notApplicable
           book_basis: "500"
           book_basis_base: "500"
@@ -551,7 +551,7 @@ baseline:
             realized_pnl: "-120"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "-900"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
@@ -560,45 +560,45 @@ baseline:
           period_start: 2025-01-02
           quality: partial
           returns:
-            annualized_irr: ~
+            annualized_irr: "-0.90555309"
             annualized_twr: ~
             annualized_value_return: ~
-            irr: ~
-            twr: "-0.22733668"
-            value_return: "-0.51"
+            irr: "-0.05037151"
+            twr: "-0.03428571"
+            value_return: "-0.06"
           risk:
             drawdown_duration_days: 1
-            max_drawdown: "-0.37688442"
+            max_drawdown: "-0.03428571"
             peak_date: 2025-01-07
             recovery_date: ~
             trough_date: 2025-01-08
-            volatility: "3.69534931"
+            volatility: "0.23573115"
           series:
             - date: 2025-01-02
               value: "0"
             - date: 2025-01-03
-              value: "0.24"
+              value: "0"
             - date: 2025-01-04
-              value: "0.24"
+              value: "0"
             - date: 2025-01-05
-              value: "0.24"
+              value: "0"
             - date: 2025-01-06
-              value: "0.24"
+              value: "0"
             - date: 2025-01-07
-              value: "0.24"
+              value: "0"
             - date: 2025-01-08
-              value: "-0.22733668"
+              value: "-0.03428571"
             - date: 2025-01-09
-              value: "-0.22733668"
+              value: "-0.03428571"
             - date: 2025-01-10
-              value: "-0.22733668"
+              value: "-0.03428571"
           summary:
-            amount: "-1020"
+            amount: "-120"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "-0.22733668"
+            percent: "-0.03428571"
             percent_status: complete
             quality: partial
       tracking_mode: TRANSACTIONS
@@ -635,14 +635,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-480"
+          investment_market_value_base: "-480"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -655,14 +655,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-480"
+          investment_market_value_base: "-480"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -675,14 +675,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-480"
+          investment_market_value_base: "-480"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -695,14 +695,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-480"
+          investment_market_value_base: "-480"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "2000"
           book_basis_base: "2000"
@@ -715,14 +715,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-480"
+          investment_market_value_base: "-480"
           net_contribution: "2000"
           net_contribution_base: "2000"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "2000"
+          total_value: "2000"
+          total_value_base: "2000"
+          value_status: complete
         - basis_status: complete
           book_basis: "3380"
           book_basis_base: "3380"
@@ -735,14 +735,14 @@ baseline:
           external_inflow_base: "1500"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "900"
+          investment_market_value_base: "900"
           net_contribution: "3380"
           net_contribution_base: "3380"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "3380"
+          total_value: "3380"
+          total_value_base: "3380"
+          value_status: complete
         - basis_status: complete
           book_basis: "3380"
           book_basis_base: "3380"
@@ -755,14 +755,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "900"
+          investment_market_value_base: "900"
           net_contribution: "3380"
           net_contribution_base: "3380"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "3380"
+          total_value: "3380"
+          total_value_base: "3380"
+          value_status: complete
         - basis_status: complete
           book_basis: "3380"
           book_basis_base: "3380"
@@ -775,17 +775,17 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "900"
+          investment_market_value_base: "900"
           net_contribution: "3380"
           net_contribution_base: "3380"
-          performance_eligible_value_base: "2480"
-          total_value: "2480"
-          total_value_base: "2480"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "3380"
+          total_value: "3380"
+          total_value_base: "3380"
+          value_status: complete
   diagnostics:
-    - "value/acc-a:aapl: Warning MissingQuote: no quote on or before 2025-01-03 for aapl; position unpriced"
-    - "value/acc-b:aapl: Warning MissingQuote: no quote on or before 2025-01-03 for aapl; position unpriced"
+    - "value/acc-a:aapl:cost: Warning MissingQuote: no quote on or before 2025-01-03 for aapl; position valued at its cost"
+    - "value/acc-b:aapl:cost: Warning MissingQuote: no quote on or before 2025-01-03 for aapl; position valued at its cost"
   portfolio:
     all_time:
       attribution:
@@ -797,7 +797,7 @@ baseline:
         realized_pnl: "-120"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "-900"
+        unrealized_pnl_change: "0"
       basis_status: notApplicable
       is_holdings_mode: false
       is_mixed_tracking_mode: false
@@ -806,45 +806,45 @@ baseline:
       period_start: 2025-01-02
       quality: partial
       returns:
-        annualized_irr: "-0.99999854"
+        annualized_irr: "-0.75108734"
         annualized_twr: ~
         annualized_value_return: ~
-        irr: "-0.25495423"
-        twr: "-0.255"
-        value_return: "-0.255"
+        irr: "-0.03"
+        twr: "-0.03"
+        value_return: "-0.03"
       risk:
-        drawdown_duration_days: 4
-        max_drawdown: "-0.255"
-        peak_date: 2025-01-02
+        drawdown_duration_days: 1
+        max_drawdown: "-0.03"
+        peak_date: 2025-01-07
         recovery_date: ~
-        trough_date: 2025-01-06
-        volatility: "1.95062797"
+        trough_date: 2025-01-08
+        volatility: "0.20581106"
       series:
         - date: 2025-01-02
           value: "0"
         - date: 2025-01-03
-          value: "-0.005"
+          value: "0"
         - date: 2025-01-04
-          value: "-0.005"
+          value: "0"
         - date: 2025-01-05
-          value: "-0.005"
+          value: "0"
         - date: 2025-01-06
-          value: "-0.255"
+          value: "0"
         - date: 2025-01-07
-          value: "-0.255"
+          value: "0"
         - date: 2025-01-08
-          value: "-0.255"
+          value: "-0.03"
         - date: 2025-01-09
-          value: "-0.255"
+          value: "-0.03"
         - date: 2025-01-10
-          value: "-0.255"
+          value: "-0.03"
       summary:
-        amount: "-1020"
+        amount: "-120"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
         method: timeWeighted
-        percent: "-0.255"
+        percent: "-0.03"
         percent_status: complete
         quality: partial
   portfolio_flows:

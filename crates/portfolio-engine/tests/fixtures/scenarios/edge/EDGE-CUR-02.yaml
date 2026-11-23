@@ -44,6 +44,7 @@ expected_notes: >
   activity and the quote. The BUY books in CAD (the account currency): cash
   500 CAD (375 USD base at 0.75), a CAD position of 5 units with basis 500.
   The quote has no currency and the asset none to lend it, so it is
-  ignored: the position is unpriced (MissingQuote) and the days are
-  partialUnpriced; a hidden USD default would instead price it and convert
-  it as USD. Never a "" bucket, never a default currency.
+  ignored: the position has no quote (MissingQuote) and is valued at its
+  cost, 500 CAD in its own currency (375 USD base), so the days are complete
+  and the return is 0; a hidden USD default would instead price it and
+  convert it as USD. Never a "" bucket, never a default currency.
