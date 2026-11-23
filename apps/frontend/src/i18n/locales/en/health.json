@@ -300,5 +300,11 @@
     "insufficient_quantity": "This transaction removes {{requested}} units of {{asset}}, but only {{held}} were held. The remaining {{excess}} units have no cost basis.",
     "missing_final_cash": "This posted transaction has no final cash amount, so it did not change the cash balance.",
     "option_expiry_not_option": "This option expiry names {{asset}}, which is not an option contract, so it changed nothing. Link it to the contract that expired."
+  },
+  "dismissed": {
+    "title_one": "Dismissed issue ({{count}})",
+    "title_other": "Dismissed issues ({{count}})",
+    "description": "Hidden from the list and the badge. An issue comes back by itself when its data changes.",
+    "restore": "Show again"
   }
 }

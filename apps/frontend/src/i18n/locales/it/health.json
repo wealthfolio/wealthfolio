@@ -336,5 +336,12 @@
     "insufficient_quantity": "Questa transazione rimuove {{requested}} unità di {{asset}}, ma ne erano detenute solo {{held}}. Le {{excess}} unità rimanenti non hanno una base di costo.",
     "missing_final_cash": "Questa transazione contabilizzata non ha un importo finale in contanti, quindi non ha modificato il saldo di liquidità.",
     "option_expiry_not_option": "Questa scadenza di opzione indica {{asset}}, che non è un contratto di opzione, quindi non ha modificato nulla. Collegala al contratto scaduto."
+  },
+  "dismissed": {
+    "title_one": "Problema ignorato ({{count}})",
+    "title_many": "Problemi ignorati ({{count}})",
+    "title_other": "Problemi ignorati ({{count}})",
+    "description": "Nascosti dall'elenco e dal badge. Un problema ricompare da solo quando i suoi dati cambiano.",
+    "restore": "Mostra di nuovo"
   }
 }

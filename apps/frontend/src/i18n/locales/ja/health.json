@@ -299,5 +299,10 @@
     "insufficient_quantity": "この取引は{{asset}}を{{requested}}単位減らしますが、保有は{{held}}単位のみでした。残りの{{excess}}単位には取得原価がありません。",
     "missing_final_cash": "この計上済み取引には最終現金額がないため、現金残高は変更されませんでした。",
     "option_expiry_not_option": "このオプション満期は{{asset}}を指定していますが、オプション契約ではないため何も変更されませんでした。満期を迎えた契約に紐付けてください。"
+  },
+  "dismissed": {
+    "title_other": "非表示の問題({{count}})",
+    "description": "一覧とバッジには表示されません。データが変わると、問題は自動的に再表示されます。",
+    "restore": "再表示"
   }
 }

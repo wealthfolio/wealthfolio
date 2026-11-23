@@ -1,5 +1,9 @@
 {
   "valuation_incomplete": "Total indisponible : certains cours ou taux de change sont manquants.",
+  "valuation_incomplete_fx_one": "Total indisponible : aucun taux de change pour",
+  "valuation_incomplete_fx_many": "Total indisponible : aucun taux de change pour",
+  "valuation_incomplete_fx_other": "Total indisponible : aucun taux de change pour",
+  "view_in_health_center": "Voir dans le centre de santé",
   "known_subtotal": "Sous-total connu",
   "periodReturn": "Rendement {{period}}",
   "currentValue": "Valeur actuelle",

@@ -1,3 +1,4 @@
+import { IncompleteValuationNote } from "@/components/incomplete-valuation-note";
 import { isValuationComplete } from "@/lib/valuation";
 import { useTranslation } from "react-i18next";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
@@ -23,7 +24,7 @@ import { format } from "date-fns";
 import { useMemo } from "react";
 import { HealthStatusIndicator } from "@/components/health-status-icon";
 import { PrivacyToggle } from "@/components/privacy-toggle";
-import type { AccountScope } from "@/lib/types";
+import type { AccountScope, FxConversionIssue } from "@/lib/types";
 import { accountScopeKey } from "@/pages/allocation-targets/components/target-scope";
 import { AccountsSummary } from "./accounts-summary";
 import Balance from "./balance";
@@ -77,6 +78,31 @@ interface DashboardContentProps {
   scope?: AccountScope;
   scopeLabel?: string;
   accountIds?: string[];
+}
+
+/** N/A for the period's gain or return; an incomplete valuation says why. */
+function PeriodNotAvailable({
+  isIncomplete,
+  missingFx,
+  currency,
+}: {
+  isIncomplete: boolean;
+  missingFx?: FxConversionIssue[];
+  currency: string;
+}) {
+  const { t } = useTranslation();
+  const label = (
+    <span className="text-muted-foreground lg:text-md text-sm font-light">
+      {t("performance:not_available")}
+    </span>
+  );
+  return isIncomplete ? (
+    <IncompleteValuationNote missingFx={missingFx} currency={currency}>
+      {label}
+    </IncompleteValuationNote>
+  ) : (
+    label
+  );
 }
 
 export function DashboardContent({
@@ -147,10 +173,15 @@ export function DashboardContent({
 
   const hasIncompleteHistory =
     valuationHistory?.some((point) => !isValuationComplete(point.valueStatus)) ?? false;
-  const hasIncompletePeriod =
-    ((endDate === undefined || endDate >= todayISO) &&
-      !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)) ||
-    hasIncompleteHistory;
+  const isCurrentValuationInPeriodIncomplete =
+    (endDate === undefined || endDate >= todayISO) &&
+    !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus);
+  const hasIncompletePeriod = isCurrentValuationInPeriodIncomplete || hasIncompleteHistory;
+  // History points report no conversions, so only today's valuation, when it
+  // is part of the period, can name the missing ones.
+  const periodMissingFx = isCurrentValuationInPeriodIncomplete
+    ? portfolioCurrentValuation?.summary.missingFx
+    : undefined;
   const gainLossAmount = hasIncompletePeriod ? null : performancePeriodPnl(portfolioPerformance);
   const simpleReturn = hasIncompletePeriod ? null : performanceSummaryReturn(portfolioPerformance);
   const isCurrentValuationUnavailable =
@@ -223,6 +254,12 @@ export function DashboardContent({
               <Balance
                 isLoading={isCurrentValuationLoading}
                 isUnavailable={isCurrentValuationUnavailable}
+                incompleteValuation={
+                  portfolioCurrentValuation &&
+                  !isValuationComplete(portfolioCurrentValuation.summary.valueStatus)
+                    ? { missingFx: portfolioCurrentValuation.summary.missingFx }
+                    : undefined
+                }
                 targetValue={totalValue}
                 currency={baseCurrency}
                 displayCurrency={true}
@@ -241,9 +278,11 @@ export function DashboardContent({
             ) : (
               <>
                 {gainLossAmount == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">
-                    {t("performance:not_available")}
-                  </span>
+                  <PeriodNotAvailable
+                    isIncomplete={hasIncompletePeriod}
+                    missingFx={periodMissingFx}
+                    currency={baseCurrency}
+                  />
                 ) : (
                   <GainAmount
                     className="lg:text-md text-sm font-light"
@@ -255,9 +294,11 @@ export function DashboardContent({
                 {/* Stretch: the row centres its items, so an empty divider has no height. */}
                 <div className="border-secondary my-1 self-stretch border-e pe-2" />
                 {simpleReturn == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">
-                    {t("performance:not_available")}
-                  </span>
+                  <PeriodNotAvailable
+                    isIncomplete={hasIncompletePeriod}
+                    missingFx={periodMissingFx}
+                    currency={baseCurrency}
+                  />
                 ) : (
                   <GainPercent
                     className="lg:text-md text-sm font-light"

@@ -42,6 +42,9 @@ interface IssueDetailSheetProps {
   onFix: () => void;
   /** Runs a specific fix action from a diagnostic's "How to fix" list. */
   onRunFixAction: (action: FixAction) => void;
+  /** Set for a dismissed issue: the sheet offers to show it again. */
+  onRestore?: () => void;
+  isRestoring?: boolean;
   isDismissing: boolean;
   isFixing: boolean;
 }
@@ -423,6 +426,8 @@ export function IssueDetailSheet({
   onDismiss,
   onFix,
   onRunFixAction,
+  onRestore,
+  isRestoring = false,
   isDismissing,
   isFixing,
 }: IssueDetailSheetProps) {
@@ -853,21 +858,37 @@ export function IssueDetailSheet({
             </Link>
           )}
 
-          <ActionConfirm
-            confirmTitle={t("health:detail.dismissConfirm.title")}
-            confirmMessage={t("health:detail.dismissConfirm.message")}
-            confirmButtonText={t("health:detail.dismiss")}
-            confirmButtonVariant="default"
-            handleConfirm={onDismiss}
-            isPending={isDismissing}
-            pendingText={t("health:detail.dismissConfirm.pendingText")}
-            button={
-              <Button variant="ghost" className="text-muted-foreground w-full">
-                <Icons.EyeOff className="me-2 h-4 w-4" />
-                {t("health:detail.dismiss")}
-              </Button>
-            }
-          />
+          {onRestore ? (
+            <Button
+              variant="ghost"
+              className="text-muted-foreground w-full"
+              onClick={onRestore}
+              disabled={isRestoring}
+            >
+              {isRestoring ? (
+                <Spinner className="me-2 h-4 w-4" />
+              ) : (
+                <Icons.Eye className="me-2 h-4 w-4" />
+              )}
+              {t("health:dismissed.restore")}
+            </Button>
+          ) : (
+            <ActionConfirm
+              confirmTitle={t("health:detail.dismissConfirm.title")}
+              confirmMessage={t("health:detail.dismissConfirm.message")}
+              confirmButtonText={t("health:detail.dismiss")}
+              confirmButtonVariant="default"
+              handleConfirm={onDismiss}
+              isPending={isDismissing}
+              pendingText={t("health:detail.dismissConfirm.pendingText")}
+              button={
+                <Button variant="ghost" className="text-muted-foreground w-full">
+                  <Icons.EyeOff className="me-2 h-4 w-4" />
+                  {t("health:detail.dismiss")}
+                </Button>
+              }
+            />
+          )}
         </div>
       </SheetContent>
     </Sheet>

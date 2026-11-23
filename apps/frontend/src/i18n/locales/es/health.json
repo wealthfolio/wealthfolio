@@ -336,5 +336,12 @@
     "insufficient_quantity": "Esta transacción retira {{requested}} unidades de {{asset}}, pero solo había {{held}}. Las {{excess}} unidades restantes no tienen base de coste.",
     "missing_final_cash": "Esta transacción contabilizada no tiene un importe final en efectivo, por lo que no modificó el saldo de efectivo.",
     "option_expiry_not_option": "Este vencimiento de opción indica {{asset}}, que no es un contrato de opción, por lo que no cambió nada. Vincúlelo al contrato que venció."
+  },
+  "dismissed": {
+    "title_one": "Problema descartado ({{count}})",
+    "title_many": "Problemas descartados ({{count}})",
+    "title_other": "Problemas descartados ({{count}})",
+    "description": "Ocultos en la lista y en el indicador. Un problema vuelve por sí solo cuando cambian sus datos.",
+    "restore": "Mostrar de nuevo"
   }
 }

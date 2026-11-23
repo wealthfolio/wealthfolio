@@ -1,5 +1,6 @@
 "use client";
 
+import { IncompleteValuationNote } from "@/components/incomplete-valuation-note";
 import { isValuationComplete } from "@/lib/valuation";
 
 import { calculatePerformanceSummaries, performanceSummaryScopeKey } from "@/adapters";
@@ -13,6 +14,7 @@ import type {
   Account,
   CurrentAccountValuation,
   DateRange,
+  FxConversionIssue,
   PerformanceSummaryScope,
   TrackingMode,
 } from "@/lib/types";
@@ -35,6 +37,7 @@ import { cn } from "@/lib/utils";
 interface AccountSummaryDisplayData {
   isBaseUnavailable?: boolean;
   isAccountUnavailable?: boolean;
+  missingFx?: FxConversionIssue[];
   accountName: string;
   baseCurrency: string;
   totalValueBaseCurrency: number;
@@ -317,7 +320,9 @@ const AccountSummaryComponent = React.memo(
           <div className="flex min-h-[3rem] flex-col items-end justify-center gap-1 md:gap-1.5">
             <p className="text-base leading-tight font-semibold">
               {isValueUnavailable ? (
-                t("performance:not_available")
+                <IncompleteValuationNote missingFx={item.missingFx} currency={currency}>
+                  {t("performance:not_available")}
+                </IncompleteValuationNote>
               ) : (
                 <PrivacyAmount value={totalValue} currency={currency} />
               )}
@@ -522,6 +527,7 @@ export const AccountsSummary = React.memo(
           accountName: acc.name,
           isBaseUnavailable: !isValuationComplete(valuation.valueStatus),
           isAccountUnavailable: !isValuationComplete(valuation.accountValueStatus),
+          missingFx: valuation.missingFx,
           totalValueBaseCurrency,
           baseCurrency,
           totalGainLossAmountBaseCurrency: gainLossBaseCurrency,
@@ -656,6 +662,7 @@ export const AccountsSummary = React.memo(
             accountName: groupName,
             isBaseUnavailable: groupAccounts.some((account) => account.isBaseUnavailable),
             isAccountUnavailable: groupAccounts.some((account) => account.isBaseUnavailable),
+            missingFx: groupAccounts.flatMap((account) => account.missingFx ?? []),
             totalValueBaseCurrency,
             baseCurrency,
             totalGainLossAmountBaseCurrency: totalGainLossAmountBase,

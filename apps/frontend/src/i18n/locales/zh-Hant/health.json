@@ -300,5 +300,11 @@
     "insufficient_quantity": "此交易減少{{requested}}單位的{{asset}}，但僅持有{{held}}單位。剩餘{{excess}}單位沒有成本基礎。",
     "missing_final_cash": "此已入帳交易沒有最終現金金額，因此未改變現金餘額。",
     "option_expiry_not_option": "此選擇權到期紀錄指向的{{asset}}不是選擇權合約，因此沒有任何變更。請將其連結到已到期的合約。"
+  },
+  "dismissed": {
+    "title_one": "已忽略的問題（{{count}}）",
+    "title_other": "已忽略的問題（{{count}}）",
+    "description": "不會顯示在清單和徽章中。問題的資料變更後，會自動重新出現。",
+    "restore": "重新顯示"
   }
 }

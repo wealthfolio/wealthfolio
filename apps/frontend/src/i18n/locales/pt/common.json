@@ -1,5 +1,9 @@
 {
   "valuation_incomplete": "Total indisponível: faltam alguns preços ou taxas de câmbio.",
+  "valuation_incomplete_fx_one": "Total indisponível: falta a taxa de câmbio de",
+  "valuation_incomplete_fx_many": "Total indisponível: faltam as taxas de câmbio de",
+  "valuation_incomplete_fx_other": "Total indisponível: faltam as taxas de câmbio de",
+  "view_in_health_center": "Ver no Centro de integridade",
   "known_subtotal": "Subtotal conhecido",
   "periodReturn": "Retorno {{period}}",
   "currentValue": "Valor atual",

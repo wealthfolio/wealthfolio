@@ -1,6 +1,12 @@
 import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
+import { IncompleteValuationNote } from "@/components/incomplete-valuation-note";
 import { isValuationComplete } from "@/lib/valuation";
-import { AccountValuation, CurrentValuationSplit, PerformanceResult } from "@/lib/types";
+import {
+  AccountValuation,
+  CurrentValuationSplit,
+  FxConversionIssue,
+  PerformanceResult,
+} from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
 import { PerformanceGrid } from "@/pages/account/performance-grid";
 import {
@@ -30,6 +36,8 @@ import { CashBalanceDialog } from "./cash-balance-dialog";
 
 interface AccountMetricsProps {
   valuation?: AccountValuation | null;
+  /** Conversions the current valuation lacked, to explain an N/A. */
+  missingFx?: FxConversionIssue[];
   performance?: PerformanceResult | null;
   cashCurrencySplit?: CurrentValuationSplit[];
   className?: string;
@@ -89,6 +97,7 @@ function CashCurrencyBreakdown({ cashCurrencySplit, displayCurrency }: CashCurre
 
 const AccountMetrics: React.FC<AccountMetricsProps> = ({
   valuation,
+  missingFx,
   performance,
   cashCurrencySplit,
   className,
@@ -170,7 +179,9 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   const allTimeReturnValue = isValuationComplete(valuation.valueStatus) ? (
     <GainAmount value={allTimeReturnAmount} currency={displayCurrency} className="text-sm" />
   ) : (
-    <span className="text-muted-foreground text-xs">{t("account:not_available")}</span>
+    <IncompleteValuationNote missingFx={missingFx} currency={displayCurrency ?? ""}>
+      <span className="text-muted-foreground text-xs">{t("account:not_available")}</span>
+    </IncompleteValuationNote>
   );
   const unrealizedPnl = valuation.investmentMarketValue - valuation.costBasis;
   const canShowUnrealizedPnl = valuation.basisStatus === "complete";
