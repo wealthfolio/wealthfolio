@@ -186,6 +186,18 @@ describe("HealthPage dismissed issues", () => {
     expect(screen.getByText(issue.title)).toBeInTheDocument();
   });
 
+  it("opens a dismissed issue's details from the keyboard", async () => {
+    const user = userEvent.setup();
+    adapters.getHealthStatus.mockResolvedValue(withDismissed([issue]));
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Dismissed issue (1)" }));
+    screen.getByRole("button", { name: new RegExp(issue.title) }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent(issue.title);
+  });
+
   it("opens a dismissed issue's details with a way to show it again", async () => {
     const user = userEvent.setup();
     adapters.getHealthStatus.mockResolvedValue(withDismissed([issue]));

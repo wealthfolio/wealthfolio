@@ -238,26 +238,29 @@ function DismissedIssues({
           {issues.map((issue) => (
             <div
               key={issue.id}
-              className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors"
-              onClick={() => onOpen(issue)}
+              className="hover:bg-muted/50 flex items-center gap-3 px-3 py-2.5 transition-colors"
             >
-              <SeverityDot severity={issue.severity} />
-              <div className="min-w-0 flex-1">
-                <span className="line-clamp-2 block text-sm sm:line-clamp-1">
-                  {translateIssueText(t, issue, "title")}
+              {/* A button of its own, so the details open from the keyboard too. */}
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-start"
+                onClick={() => onOpen(issue)}
+              >
+                <SeverityDot severity={issue.severity} />
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2 block text-sm sm:line-clamp-1">
+                    {translateIssueText(t, issue, "title")}
+                  </span>
+                  <span className="text-muted-foreground block text-xs">
+                    {t(`health:${SEVERITY_LABEL_KEYS[issue.severity]}`)}
+                  </span>
                 </span>
-                <span className="text-muted-foreground block text-xs">
-                  {t(`health:${SEVERITY_LABEL_KEYS[issue.severity]}`)}
-                </span>
-              </div>
+              </button>
               <Button
                 size="sm"
                 variant="ghost"
                 className="h-7 shrink-0 px-2.5 text-xs"
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  onRestore(issue);
-                }}
+                onClick={() => onRestore(issue)}
                 disabled={isRestoring}
               >
                 <Icons.Eye className="me-1 h-3 w-3" />
@@ -361,8 +364,14 @@ export default function HealthPage() {
     fixMutation.mutate(action, {
       onSuccess: ({ status }) => {
         if (!status) return;
+        // A dismissed issue the fix did not resolve is still listed, among the dismissed.
         setSelectedIssue((current) =>
-          current && !status.issues.some((issue) => issue.id === current.id) ? null : current,
+          current &&
+          ![...status.issues, ...(status.dismissedIssues ?? [])].some(
+            (issue) => issue.id === current.id,
+          )
+            ? null
+            : current,
         );
       },
     });
