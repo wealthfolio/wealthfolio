@@ -13,7 +13,7 @@ import { type DateOrder, detectDateOrder, tryParseDate } from "@/lib/utils";
 import { isValid, parse, parseISO } from "date-fns";
 import { findMappedActivityType } from "./activity-type-mapping";
 import { getDateFnsPattern } from "./date-format-options";
-import { analyzeMappedNumericColumns, getMappedColumnValue } from "./numeric-format";
+import { analyzeMappedNumericColumns } from "./numeric-format";
 import { normalizeInstrumentType, splitInstrumentPrefixedSymbol } from "./instrument-type";
 import { buildImportAssetCandidateKey } from "./asset-review-utils";
 import { isinFallbackSymbol } from "./validation-utils";
@@ -56,6 +56,28 @@ export function isFieldMapped(value: string | string[] | undefined, headers: str
   if (!value) return false;
   if (Array.isArray(value)) return value.some((h) => headers.includes(h));
   return headers.includes(value);
+}
+
+/** Separator between the values of several columns mapped to the comment. */
+export const COMMENT_COLUMN_SEPARATOR = " | ";
+
+/**
+ * Resolve a field's value from a row. Several columns mapped to the comment
+ * are joined; for any other field they are fallbacks (first non-empty wins).
+ */
+export function resolveMappedValue(
+  field: ImportFormat,
+  mappedHeader: string | string[] | undefined,
+  getValue: (header: string) => string | undefined,
+): string | undefined {
+  if (!mappedHeader) return undefined;
+  if (!Array.isArray(mappedHeader)) return getValue(mappedHeader);
+
+  const values = mappedHeader
+    .map((header) => getValue(header)?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (field !== ImportFormat.COMMENT) return values[0];
+  return values.length > 0 ? values.join(COMMENT_COLUMN_SEPARATOR) : undefined;
 }
 
 export function mergeIssueMaps(
@@ -743,10 +765,11 @@ export function createDraftActivities(
     headerIndex[header] = idx;
   });
 
-  // Get column value — supports fallback columns when mapping is an array
-  const getColumnValue = (row: string[], field: ImportFormat): string | undefined => {
-    return getMappedColumnValue(row, headerIndex, fieldMappings[field]);
-  };
+  const getColumnValue = (row: string[], field: ImportFormat): string | undefined =>
+    resolveMappedValue(field, fieldMappings[field], (header) => {
+      const idx = headerIndex[header];
+      return idx === undefined ? undefined : row[idx];
+    });
   const numericColumns = analyzeMappedNumericColumns(
     headers,
     parsedRows.filter(

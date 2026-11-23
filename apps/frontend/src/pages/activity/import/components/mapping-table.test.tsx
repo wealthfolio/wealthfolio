@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { ActivityType, ImportFormat, ImportType } from "@/lib/types";
 import type { CsvRowData, ImportMappingData } from "@/lib/types";
 import { MappingTable } from "./mapping-table";
@@ -70,5 +71,53 @@ describe("MappingTable symbol mappings", () => {
     );
 
     expect(screen.getByText("VTI")).toBeInTheDocument();
+  });
+});
+
+describe("MappingTable comment columns", () => {
+  beforeAll(() => {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("selects several comment columns in CSV column order", async () => {
+    const user = userEvent.setup();
+    const handleColumnMapping = vi.fn();
+    const mapping: ImportMappingData = {
+      accountId: "account-1",
+      importType: ImportType.ACTIVITY,
+      name: "",
+      fieldMappings: { [ImportFormat.COMMENT]: "Purpose" },
+      activityMappings: {},
+      symbolMappings: {},
+      accountMappings: {},
+      symbolMappingMeta: {},
+    };
+
+    render(
+      <MappingTable
+        mapping={mapping}
+        headers={["Payee", "Purpose"]}
+        data={[]}
+        accounts={[]}
+        handleColumnMapping={handleColumnMapping}
+        handleActivityTypeMapping={vi.fn()}
+        handleSymbolMapping={vi.fn()}
+        handleAccountIdMapping={vi.fn()}
+        getMappedValue={() => ""}
+        invalidSymbols={[]}
+        invalidAccounts={[]}
+        visibleFields={[ImportFormat.COMMENT]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Purpose" }));
+    await user.click(await screen.findByRole("option", { name: "Payee" }));
+
+    expect(handleColumnMapping).toHaveBeenCalledWith(ImportFormat.COMMENT, ["Payee", "Purpose"]);
   });
 });
