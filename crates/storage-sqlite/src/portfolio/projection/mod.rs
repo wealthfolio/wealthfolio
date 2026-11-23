@@ -2304,7 +2304,8 @@ mod tests {
             "INSERT INTO accounts (id, name, account_type, currency, is_default, is_active, \
              created_at, updated_at, tracking_mode, is_archived) \
              VALUES ('acc2', 'Complete', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'TRANSACTIONS', 0), \
-                    ('acc3', 'Already dirty', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'TRANSACTIONS', 0)",
+                    ('acc3', 'Already dirty', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'TRANSACTIONS', 0), \
+                    ('acc4', 'Archived', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'HOLDINGS', 1)",
         );
         consume_all(&db).await;
         // acc3 is already waiting from an earlier day than its degraded one.
@@ -2319,7 +2320,9 @@ mod tests {
             ("acc1", 3, "PARTIAL_UNPRICED"),
             ("acc2", 2, "COMPLETE"),
             ("acc3", 6, "PARTIAL_UNPRICED"),
-            // A row whose account is gone names nothing to value.
+            // An archived account is not valued, and a row whose account is
+            // gone names nothing to value.
+            ("acc4", 2, "PARTIAL_UNPRICED"),
             ("gone", 2, "PARTIAL_UNPRICED"),
         ] {
             sql(
@@ -2344,6 +2347,7 @@ mod tests {
         assert_eq!(dirty(&db, "acc1").as_deref(), Some("2025-01-03"));
         assert_eq!(dirty(&db, "acc2"), None);
         assert_eq!(dirty(&db, "acc3"), Some(waiting));
+        assert_eq!(dirty(&db, "acc4"), None);
         assert_eq!(marker(&db, "gone"), None);
         assert_eq!(dirty(&db, "@all"), None);
     }

@@ -453,54 +453,55 @@ where
         }
 
         let Some(quote_pair) = latest_quote_pairs.get(asset_id) else {
-            // No quote yet: the position is worth what it cost, at the latest
-            // rate, as the engine values the day (architecture §4.5). Without
-            // a cost, or a rate for it, it stays unpriced, and so does an
-            // option contract.
+            // No quote yet: the position is worth its book cost in the
+            // account currency, as the engine values the day (architecture
+            // §4.5). Without a cost, or a rate for it, it stays unpriced, and
+            // so does an option contract.
             let (cost, cost_currency) =
                 normalize_amount(position.total_cost_basis, &position.currency);
-            let cost = if asset.instrument_type == Some(InstrumentType::Option) {
-                Decimal::ZERO
+            let book_cost = if asset.instrument_type == Some(InstrumentType::Option) {
+                None
             } else {
-                cost
+                position.cost_basis_account.or_else(|| {
+                    cost_at_latest_rate(cost, cost_currency, &account.currency, latest_rate)
+                })
             };
-            let cost_base = cost_at_latest_rate(cost, cost_currency, base_currency, latest_rate);
-            let cost_account =
-                cost_at_latest_rate(cost, cost_currency, &account.currency, latest_rate);
-            if cost_base.is_none() || cost_account.is_none() {
+            let Some(book_cost) = book_cost.filter(|cost| !cost.is_zero()) else {
                 warn!(
                     "Missing latest quote for asset {} in account {}. Current market value treated as zero.",
                     asset_id, account.id
                 );
+                valuation.value_status = valuation
+                    .value_status
+                    .combine(ValuationStatus::PartialUnpriced);
+                valuation.account_value_status = valuation
+                    .account_value_status
+                    .combine(ValuationStatus::PartialUnpriced);
+                summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
+                account_warnings.push(MISSING_QUOTE_WARNING.to_string());
+                continue;
+            };
+            holdings_count += 1;
+            // The account's own rate takes it to base, as it does the day's row.
+            let book_cost_base = converted_amount(
+                book_cost,
+                &mut summary_warnings,
+                &mut valuation.value_status,
+                &mut valuation.missing_fx,
+                asset_id,
+                latest_rate,
+                &account.currency,
+                base_currency,
+            );
+            has_known_account_value = true;
+            has_known_base_value |= book_cost_base.is_some();
+            valuation.investment_market_value += book_cost;
+            valuation.investment_market_value_base += book_cost_base.unwrap_or_default();
+            if let Some(value) = book_cost_base {
+                add_total(&mut currency_base_totals, cost_currency, value);
             }
-            match cost_base {
-                Some(value) => {
-                    holdings_count += 1;
-                    has_known_base_value = true;
-                    valuation.investment_market_value_base += value;
-                    add_total(&mut currency_base_totals, cost_currency, value);
-                    summary_warnings.push(VALUED_AT_COST_WARNING.to_string());
-                }
-                None => {
-                    valuation.value_status = valuation
-                        .value_status
-                        .combine(ValuationStatus::PartialUnpriced);
-                    summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
-                }
-            }
-            match cost_account {
-                Some(value) => {
-                    has_known_account_value = true;
-                    valuation.investment_market_value += value;
-                    account_warnings.push(VALUED_AT_COST_WARNING.to_string());
-                }
-                None => {
-                    valuation.account_value_status = valuation
-                        .account_value_status
-                        .combine(ValuationStatus::PartialUnpriced);
-                    account_warnings.push(MISSING_QUOTE_WARNING.to_string());
-                }
-            }
+            summary_warnings.push(VALUED_AT_COST_WARNING.to_string());
+            account_warnings.push(VALUED_AT_COST_WARNING.to_string());
             continue;
         };
         holdings_count += 1;
@@ -571,8 +572,8 @@ where
     }
 }
 
-/// A position's cost in `to` at the latest rate, standing in for a market
-/// value no quote gives: `None` without a cost or a usable rate.
+/// A cost in `to` at the latest rate, for a position that stores no book cost
+/// in the account currency: `None` without a cost or a usable rate.
 fn cost_at_latest_rate<F, R>(
     cost: Decimal,
     from: &str,

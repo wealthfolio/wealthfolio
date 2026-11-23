@@ -53,5 +53,7 @@ expected_notes: >
   and the matching P&L reason; summary amount and percent unavailable; series
   holds only the 01-04 zero point; risk fields null. Both windows also warn
   "External cash flow provenance is incomplete". No "unpriced positions"
-  warning is emitted on the holdings path. Portfolio scope mirrors the
-  account.
+  warning is emitted on the holdings path. Portfolio scope: returns and
+  amounts null as for the account; its all-time attribution carries the
+  period-start unrealized delta 120 where the account's is 0 (same
+  inconsistency as PERF-HOLD-01).

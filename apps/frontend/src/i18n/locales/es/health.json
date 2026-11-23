@@ -112,7 +112,7 @@
       "title_one": "La cobertura de valoración está incompleta",
       "title_other": "{{count}} filas de valoración tienen un valor de mercado incompleto",
       "title_many": "{{count}} filas de valoración tienen un valor de mercado incompleto",
-      "message": "Algunas posiciones no tenían precio de mercado en días en que se mantuvieron. Hasta que haya un precio disponible, la posición se valora a su coste y no muestra ganancia ni pérdida; si tampoco tiene coste, las rentabilidades afectadas se marcan como no disponibles o degradadas. Revisa los precios faltantes o las valoraciones manuales."
+      "message": "Algunas posiciones no tenían precio de mercado en días en que se mantuvieron. Hasta que haya un precio disponible, la posición se valora a su coste; un contrato de opción o una posición sin coste se excluye, y las rentabilidades afectadas se marcan como no disponibles o degradadas. Revisa los precios faltantes o las valoraciones manuales."
     },
     "data_incomplete_valuation_basis": {
       "title_one": "La cobertura del coste base está incompleta",

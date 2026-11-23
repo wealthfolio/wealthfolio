@@ -755,10 +755,11 @@ impl<'a> Valuer<'a> {
             }
             basis_status = basis_status.combine(position.basis_status());
             let Some(quote) = surfaces.quotes.latest_on_or_before(asset, day) else {
-                // No observation yet: the position is worth what it cost, at
-                // the day's rate, until a quote prices it (architecture §4.5).
-                // Without a cost, or a rate for it, it stays unpriced, and so
-                // does an option contract: its cost outlives its expiry.
+                // No observation yet: the position is worth its book cost,
+                // the cost basis the day reports for it, until a quote prices
+                // it (architecture §4.5). Without a cost, or a rate for it, it
+                // stays unpriced, and so does an option contract: its cost
+                // outlives its expiry.
                 let option = self
                     .resolved
                     .facts
@@ -772,7 +773,7 @@ impl<'a> Valuer<'a> {
                             false,
                             position.currency.as_str(),
                             position.total_cost_basis,
-                            None,
+                            position.cost_basis_account,
                             &account_currency,
                             day,
                         )

@@ -759,8 +759,8 @@ fn p_txf_internal_pairs_cancel_at_portfolio_scope() {
 /// holdings account's observed snapshot, its units carried across the
 /// recorded splits since) and the public surfaces alone. Investments are Σ quantity × latest close (in the
 /// quote currency's major unit) × contract multiplier × FX into the account
-/// currency, or the position's cost × FX while no quote prices it; cash is
-/// Σ bucket × FX. This walks `project` keyframes and
+/// currency, or the position's book cost (as stored, else its cost × FX)
+/// while no quote prices it; cash is Σ bucket × FX. This walks `project` keyframes and
 /// `resolve` surfaces directly, never `value`'s own bookkeeping, so it is an
 /// independent recomputation, not a restatement. Days that are not
 /// `COMPLETE` and assets with adjusted splits (the valuer's split factor is
@@ -794,10 +794,17 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                 if day.value_status != ValueStatus::Complete {
                     continue;
                 }
-                // What the account held: (asset, units, alternative, cost and
-                // its currency) and cash.
+                // What the account held: (asset, units, alternative, cost, its
+                // currency and its stored book cost) and cash.
                 type Held<'a> = (
-                    Vec<(&'a AssetId, Decimal, bool, Decimal, Currency)>,
+                    Vec<(
+                        &'a AssetId,
+                        Decimal,
+                        bool,
+                        Decimal,
+                        Currency,
+                        Option<Decimal>,
+                    )>,
                     Vec<(&'a Currency, Decimal)>,
                 );
                 let (positions, buckets): Held = if let Some(keyframes) = keyframes {
@@ -816,6 +823,7 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                                     p.alternative,
                                     p.total_cost_basis,
                                     p.currency.clone(),
+                                    p.cost_basis_account,
                                 )
                             })
                             .collect(),
@@ -858,6 +866,7 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                                     alternative,
                                     p.total_cost_basis,
                                     currency,
+                                    p.cost_basis_account,
                                 )
                             })
                             .collect(),
@@ -871,7 +880,7 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                     continue;
                 }
                 let mut investment = Decimal::ZERO;
-                for (asset, quantity, alternative, cost, cost_currency) in &positions {
+                for (asset, quantity, alternative, cost, cost_currency, book_cost) in &positions {
                     if *alternative || quantity.is_zero() {
                         continue;
                     }
@@ -880,9 +889,9 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                         .quotes
                         .latest_on_or_before(asset, day.date)
                     else {
-                        // No quote yet: the position is worth its cost, at
-                        // the day's rate, unless it is an option contract
-                        // (architecture §4.5).
+                        // No quote yet: the position is worth its book cost,
+                        // as stored or else its cost at the day's rate, unless
+                        // it is an option contract (architecture §4.5).
                         let option = pipeline
                             .facts()
                             .assets()
@@ -894,10 +903,11 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
                             scenario.id,
                             day.date
                         );
-                        let rate = fx
-                            .rate(cost_currency.as_str(), account_currency, day.date)
-                            .expect("a COMPLETE day converts every cost it values");
-                        investment += *cost * rate;
+                        investment += book_cost.unwrap_or_else(|| {
+                            *cost
+                                * fx.rate(cost_currency.as_str(), account_currency, day.date)
+                                    .expect("a COMPLETE day converts every cost it values")
+                        });
                         continue;
                     };
                     let (quote_major, unit) = policy.normalize_currency(quote.currency.as_str());

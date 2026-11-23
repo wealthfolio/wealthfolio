@@ -1054,6 +1054,75 @@ fn unquoted_position_cost_converts_at_the_latest_rate_and_scales_minor_units() {
 }
 
 #[test]
+fn unquoted_position_uses_its_stored_book_cost_before_any_rate() {
+    // 100 EUR booked as 150 CAD when bought: the row's cost basis, whatever
+    // EUR is worth today. The account's own rate then takes it to base.
+    let mut position = costed_position("cad", "unquoted", dec!(4), "EUR", dec!(100));
+    position.cost_basis_account = Some(dec!(150));
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &[account("cad", "CAD")],
+        &HashMap::from([(
+            "cad".into(),
+            snapshot(
+                "cad",
+                "CAD",
+                HashMap::from([("unquoted".into(), position)]),
+                HashMap::new(),
+            ),
+        )]),
+        &HashMap::from([("unquoted".into(), asset("unquoted", AssetKind::Investment))]),
+        &HashMap::new(),
+        "USD",
+        Utc::now(),
+        true,
+        latest_rate,
+    );
+    assert_eq!(result.summary.value_status, ValuationStatus::Complete);
+    assert_eq!(result.accounts[0].total_value, dec!(150));
+    assert_eq!(result.summary.total_value_base, dec!(120));
+}
+
+#[test]
+fn unquoted_position_at_cost_still_needs_the_account_rate_to_base() {
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &[account("cad", "CAD")],
+        &HashMap::from([(
+            "cad".into(),
+            snapshot(
+                "cad",
+                "CAD",
+                HashMap::from([(
+                    "unquoted".into(),
+                    costed_position("cad", "unquoted", dec!(4), "CAD", dec!(100)),
+                )]),
+                HashMap::new(),
+            ),
+        )]),
+        &HashMap::from([("unquoted".into(), asset("unquoted", AssetKind::Investment))]),
+        &HashMap::new(),
+        "USD",
+        Utc::now(),
+        true,
+        |from, to| CurrentValuationRate {
+            rate: Decimal::ONE,
+            warning: (from != to)
+                .then(|| "Some exchange rates are missing, so the total is unavailable.".into()),
+        },
+    );
+
+    // Known in the account's currency; in base it is a missing rate, named.
+    let account = &result.accounts[0];
+    assert_eq!(account.account_value_status, ValuationStatus::Complete);
+    assert_eq!(account.total_value, dec!(100));
+    assert_eq!(result.summary.value_status, ValuationStatus::Unavailable);
+    assert_eq!(result.summary.missing_fx.len(), 1);
+    assert_eq!(result.summary.missing_fx[0].from_currency, "CAD");
+    assert_eq!(result.summary.missing_fx[0].to_currency, "USD");
+}
+
+#[test]
 fn unquoted_position_whose_cost_has_no_rate_stays_unpriced() {
     let result = calculate_current_valuation_response_from_snapshots(
         "all",
