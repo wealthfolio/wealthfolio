@@ -10,6 +10,11 @@ interface IncompleteValuationNoteProps {
   children: ReactNode;
   /** Conversions the valuation lacked, when it reports them. */
   missingFx?: FxConversionIssue[];
+  /**
+   * The currency of the missing value. A valuation reports conversions into
+   * other currencies too, which do not explain this N/A.
+   */
+  currency: string;
   className?: string;
 }
 
@@ -21,10 +26,17 @@ interface IncompleteValuationNoteProps {
 export function IncompleteValuationNote({
   children,
   missingFx,
+  currency,
   className,
 }: IncompleteValuationNoteProps) {
   const { t } = useTranslation();
-  const pairs = [...new Set((missingFx ?? []).map((i) => `${i.fromCurrency} → ${i.toCurrency}`))];
+  const pairs = [
+    ...new Set(
+      (missingFx ?? [])
+        .filter((issue) => issue.toCurrency.toUpperCase() === currency.toUpperCase())
+        .map((issue) => `${issue.fromCurrency} → ${issue.toCurrency}`),
+    ),
+  ];
 
   return (
     <Popover>

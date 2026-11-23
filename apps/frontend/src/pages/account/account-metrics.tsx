@@ -179,7 +179,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   const allTimeReturnValue = isValuationComplete(valuation.valueStatus) ? (
     <GainAmount value={allTimeReturnAmount} currency={displayCurrency} className="text-sm" />
   ) : (
-    <IncompleteValuationNote missingFx={missingFx}>
+    <IncompleteValuationNote missingFx={missingFx} currency={displayCurrency ?? ""}>
       <span className="text-muted-foreground text-xs">{t("account:not_available")}</span>
     </IncompleteValuationNote>
   );

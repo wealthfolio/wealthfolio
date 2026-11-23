@@ -320,7 +320,7 @@ const AccountSummaryComponent = React.memo(
           <div className="flex min-h-[3rem] flex-col items-end justify-center gap-1 md:gap-1.5">
             <p className="text-base leading-tight font-semibold">
               {isValueUnavailable ? (
-                <IncompleteValuationNote missingFx={item.missingFx}>
+                <IncompleteValuationNote missingFx={item.missingFx} currency={currency}>
                   {t("performance:not_available")}
                 </IncompleteValuationNote>
               ) : (

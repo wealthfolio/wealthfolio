@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculatePerformanceSummary } from "@/adapters";
 import { AccountsSummary } from "./accounts-summary";
@@ -293,6 +294,61 @@ describe("DashboardContent", () => {
 
     expect(screen.getAllByText("N/A")).toHaveLength(2);
     expect(screen.queryAllByRole("button", { name: "N/A" })).toHaveLength(2 * notes);
+  });
+
+  it("does not name today's missing rates for a past period's N/A", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-02T12:00:00Z"));
+    window.localStorage.setItem(
+      "dashboard-period",
+      JSON.stringify({ kind: "range", from: "2026-05-01", to: "2026-05-31" }),
+    );
+    try {
+      mockUseSettingsContext.mockReturnValue({
+        settings: { baseCurrency: "USD", timezone: "UTC" },
+      } as ReturnType<typeof useSettingsContext>);
+      mockCurrentValuation();
+      const current = mockUseCurrentValuation({ type: "all" });
+      mockUseCurrentValuation.mockReturnValue({
+        ...current,
+        currentValuation: {
+          ...current.currentValuation!,
+          summary: {
+            ...current.currentValuation!.summary,
+            valueStatus: "partialUnpriced",
+            missingFx: [{ itemId: "x", fromCurrency: "GBP", toCurrency: "USD" }],
+          },
+        },
+      });
+      mockUseHoldings.mockReturnValue({ holdings: [], isLoading: false } as unknown as ReturnType<
+        typeof useHoldings
+      >);
+      mockUseValuationHistory.mockReturnValue({
+        valuationHistory: [
+          { valuationDate: "2026-05-30", totalValueBase: 0, valueStatus: "unavailable" },
+          { valuationDate: "2026-05-31", totalValueBase: 125, valueStatus: "complete" },
+        ],
+        isLoading: false,
+      } as ReturnType<typeof useValuationHistory>);
+      mockUseQuery.mockReturnValue({ isLoading: false, data: null } as unknown as ReturnType<
+        typeof useQuery
+      >);
+      render(
+        <MemoryRouter>
+          <DashboardContent />
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getAllByRole("button", { name: "N/A" })[0]!);
+
+      expect(
+        await screen.findByText("Total unavailable: some prices or exchange rates are missing."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/GBP/)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem("dashboard-period");
+      vi.useRealTimers();
+    }
   });
 
   it.each([

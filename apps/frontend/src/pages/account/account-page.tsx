@@ -666,7 +666,9 @@ const AccountPage = () => {
   const missingFx = currentAccountValuation?.missingFx;
   const withIncompleteNote = (isIncomplete: boolean, notAvailable: ReactNode) =>
     isIncomplete ? (
-      <IncompleteValuationNote missingFx={missingFx}>{notAvailable}</IncompleteValuationNote>
+      <IncompleteValuationNote missingFx={missingFx} currency={displayedValueCurrency}>
+        {notAvailable}
+      </IncompleteValuationNote>
     ) : (
       notAvailable
     );

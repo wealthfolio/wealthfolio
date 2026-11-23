@@ -151,12 +151,13 @@ export function NetWorthContent() {
     historyData?.some((point) => !isValuationComplete(point.valueStatus)) ?? false;
   const hasIncompleteValuation =
     !isValuationComplete(netWorthData?.valueStatus) || hasIncompleteHistory;
+  const historyMissingFx = useMemo(
+    () => historyData?.flatMap((point) => point.missingFx ?? []) ?? [],
+    [historyData],
+  );
   const missingFx = useMemo(
-    () => [
-      ...(netWorthData?.missingFx ?? []),
-      ...(historyData?.flatMap((point) => point.missingFx ?? []) ?? []),
-    ],
-    [netWorthData?.missingFx, historyData],
+    () => [...(netWorthData?.missingFx ?? []), ...historyMissingFx],
+    [netWorthData?.missingFx, historyMissingFx],
   );
 
   const velocity = useMemo(() => computeVelocity(parsedHistory), [parsedHistory]);
@@ -282,7 +283,7 @@ export function NetWorthContent() {
                 </div>
               ) : parsedHistory.length < 2 ? (
                 hasIncompleteHistory ? (
-                  <IncompleteValuationNote missingFx={missingFx}>
+                  <IncompleteValuationNote missingFx={historyMissingFx} currency={currency}>
                     <span className="text-muted-foreground text-sm">
                       {t("performance:not_available")}
                     </span>

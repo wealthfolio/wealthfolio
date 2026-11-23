@@ -84,9 +84,11 @@ interface DashboardContentProps {
 function PeriodNotAvailable({
   isIncomplete,
   missingFx,
+  currency,
 }: {
   isIncomplete: boolean;
   missingFx?: FxConversionIssue[];
+  currency: string;
 }) {
   const { t } = useTranslation();
   const label = (
@@ -95,7 +97,9 @@ function PeriodNotAvailable({
     </span>
   );
   return isIncomplete ? (
-    <IncompleteValuationNote missingFx={missingFx}>{label}</IncompleteValuationNote>
+    <IncompleteValuationNote missingFx={missingFx} currency={currency}>
+      {label}
+    </IncompleteValuationNote>
   ) : (
     label
   );
@@ -169,10 +173,15 @@ export function DashboardContent({
 
   const hasIncompleteHistory =
     valuationHistory?.some((point) => !isValuationComplete(point.valueStatus)) ?? false;
-  const hasIncompletePeriod =
-    ((endDate === undefined || endDate >= todayISO) &&
-      !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)) ||
-    hasIncompleteHistory;
+  const isCurrentValuationInPeriodIncomplete =
+    (endDate === undefined || endDate >= todayISO) &&
+    !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus);
+  const hasIncompletePeriod = isCurrentValuationInPeriodIncomplete || hasIncompleteHistory;
+  // History points report no conversions, so only today's valuation, when it
+  // is part of the period, can name the missing ones.
+  const periodMissingFx = isCurrentValuationInPeriodIncomplete
+    ? portfolioCurrentValuation?.summary.missingFx
+    : undefined;
   const gainLossAmount = hasIncompletePeriod ? null : performancePeriodPnl(portfolioPerformance);
   const simpleReturn = hasIncompletePeriod ? null : performanceSummaryReturn(portfolioPerformance);
   const isCurrentValuationUnavailable =
@@ -271,7 +280,8 @@ export function DashboardContent({
                 {gainLossAmount == null ? (
                   <PeriodNotAvailable
                     isIncomplete={hasIncompletePeriod}
-                    missingFx={portfolioCurrentValuation?.summary.missingFx}
+                    missingFx={periodMissingFx}
+                    currency={baseCurrency}
                   />
                 ) : (
                   <GainAmount
@@ -286,7 +296,8 @@ export function DashboardContent({
                 {simpleReturn == null ? (
                   <PeriodNotAvailable
                     isIncomplete={hasIncompletePeriod}
-                    missingFx={portfolioCurrentValuation?.summary.missingFx}
+                    missingFx={periodMissingFx}
+                    currency={baseCurrency}
                   />
                 ) : (
                   <GainPercent

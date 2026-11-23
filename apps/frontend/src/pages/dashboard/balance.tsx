@@ -99,7 +99,7 @@ const Balance: React.FC<BalanceProps> = ({
         data-testid="portfolio-balance"
       >
         {incompleteValuation ? (
-          <IncompleteValuationNote missingFx={incompleteValuation.missingFx}>
+          <IncompleteValuationNote missingFx={incompleteValuation.missingFx} currency={currency}>
             {t("performance:not_available")}
           </IncompleteValuationNote>
         ) : (

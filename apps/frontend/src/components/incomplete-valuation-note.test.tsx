@@ -7,7 +7,9 @@ import { IncompleteValuationNote } from "./incomplete-valuation-note";
 function renderNote(props: Partial<Parameters<typeof IncompleteValuationNote>[0]> = {}) {
   render(
     <MemoryRouter>
-      <IncompleteValuationNote {...props}>N/A</IncompleteValuationNote>
+      <IncompleteValuationNote currency="EUR" {...props}>
+        N/A
+      </IncompleteValuationNote>
     </MemoryRouter>,
   );
 }
@@ -60,13 +62,41 @@ describe("IncompleteValuationNote", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("leaves out conversions into another currency than the missing value's", async () => {
+    const user = userEvent.setup();
+    renderNote({
+      currency: "eur",
+      missingFx: [
+        { itemId: "a", fromCurrency: "EUR", toCurrency: "USD" },
+        { itemId: "b", fromCurrency: "GBP", toCurrency: "EUR" },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "N/A" }));
+
+    expect(await screen.findByText(/no exchange rate for/)).toHaveTextContent(
+      "Total unavailable: no exchange rate for GBP → EUR",
+    );
+  });
+
+  it("falls back to the generic reason when no missing conversion is into its currency", async () => {
+    const user = userEvent.setup();
+    renderNote({ missingFx: [{ itemId: "a", fromCurrency: "EUR", toCurrency: "USD" }] });
+
+    await user.click(screen.getByRole("button", { name: "N/A" }));
+
+    expect(
+      await screen.findByText("Total unavailable: some prices or exchange rates are missing."),
+    ).toBeInTheDocument();
+  });
+
   it("does not follow or toggle the card around it", async () => {
     const user = userEvent.setup();
     const onCardClick = vi.fn();
     render(
       <MemoryRouter>
         <div onClick={onCardClick}>
-          <IncompleteValuationNote>N/A</IncompleteValuationNote>
+          <IncompleteValuationNote currency="EUR">N/A</IncompleteValuationNote>
         </div>
       </MemoryRouter>,
     );
