@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAccountImportMapping, listImportTemplates, parseCsv } from "@/adapters";
@@ -9,7 +10,7 @@ import { ImportProvider } from "../context";
 import { createDefaultActivityTemplate } from "../utils/default-activity-template";
 import { UploadStep } from "./upload-step";
 
-const { accounts } = vi.hoisted(() => {
+const { accounts, platform } = vi.hoisted(() => {
   const accounts: Account[] = [
     {
       id: "account-1",
@@ -24,7 +25,7 @@ const { accounts } = vi.hoisted(() => {
       updatedAt: new Date(0),
     },
   ];
-  return { accounts };
+  return { accounts, platform: { isMobile: false, isAndroid: false, isTauri: false } };
 });
 
 vi.mock("@/adapters", () => ({
@@ -34,7 +35,8 @@ vi.mock("@/adapters", () => ({
   linkAccountTemplate: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/hooks/use-accounts", () => ({ useAccounts: () => ({ accounts }) }));
-vi.mock("@/hooks/use-platform", () => ({ usePlatform: () => ({ isMobile: false }) }));
+vi.mock("@/hooks/use-platform", () => ({ usePlatform: () => platform }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/components/account-selector", () => ({ AccountSelector: () => null }));
 vi.mock("@/components/account-selector-mobile", () => ({ AccountSelectorMobile: () => null }));
 vi.mock("../components/template-picker", () => ({
@@ -85,9 +87,13 @@ function renderUploadStep() {
       </ImportProvider>
     </QueryClientProvider>,
   );
-  const dropzone = container.querySelector('input[type="file"]')?.parentElement;
-  if (!dropzone) throw new Error("file dropzone not found");
-  return (file: File) => fireEvent.drop(dropzone, { dataTransfer: { files: [file] } });
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+  const dropzone = input?.parentElement;
+  if (!input || !dropzone) throw new Error("file dropzone not found");
+  return {
+    input,
+    drop: (file: File) => fireEvent.drop(dropzone, { dataTransfer: { files: [file] } }),
+  };
 }
 
 const previewHeaders = () =>
@@ -110,19 +116,49 @@ const savedMapping = (templateId?: string): ImportMappingData => ({
 const delimiterParsedWith = (file: File) =>
   vi.mocked(parseCsv).mock.calls.find(([parsed]) => parsed === file)?.[1].delimiter;
 
-describe("UploadStep delimiter for a second file", () => {
-  beforeEach(() => {
-    vi.mocked(parseCsv).mockReset();
-    vi.mocked(parseCsv).mockImplementation(fakeParseCsv);
-    vi.mocked(listImportTemplates).mockResolvedValue([]);
-    vi.mocked(getAccountImportMapping).mockResolvedValue(savedMapping());
+beforeEach(() => {
+  Object.assign(platform, { isMobile: false, isAndroid: false, isTauri: false });
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(parseCsv).mockReset();
+  vi.mocked(parseCsv).mockImplementation(fakeParseCsv);
+  vi.mocked(listImportTemplates).mockResolvedValue([]);
+  vi.mocked(getAccountImportMapping).mockResolvedValue(savedMapping());
+});
+
+describe("UploadStep file picker", () => {
+  it("rejects other extensions and previews a CSV with a generic MIME type on Android", async () => {
+    Object.assign(platform, { isMobile: true, isAndroid: true, isTauri: true });
+    const { input } = renderUploadStep();
+    expect(input).not.toHaveAttribute("accept");
+
+    const incompatible = new File(["not CSV"], "statement.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [incompatible] } });
+    expect(toast.error).toHaveBeenCalledWith("CSV only");
+    expect(parseCsv).not.toHaveBeenCalled();
+
+    const csv = new File([commaFile()], "statement.CSV", { type: "application/octet-stream" });
+    fireEvent.change(input, { target: { files: [csv] } });
+    await screen.findByText("2 rows");
+    expect(parseCsv).toHaveBeenCalledWith(csv, expect.anything());
   });
 
+  it.each([
+    { name: "Android browser", isMobile: true, isAndroid: true, isTauri: false },
+    { name: "iOS app", isMobile: true, isAndroid: false, isTauri: true },
+    { name: "desktop app", isMobile: false, isAndroid: false, isTauri: true },
+  ])("keeps the CSV picker filter in the $name", (runtime) => {
+    Object.assign(platform, runtime);
+    const { input } = renderUploadStep();
+    expect(input).toHaveAttribute("accept", ".csv");
+  });
+});
+
+describe("UploadStep delimiter for a second file", () => {
   it.each([
     { flow: "after removing the first file", removeFirst: true },
     { flow: "when dropped over the first file", removeFirst: false },
   ])("auto-detects the delimiter of a second file $flow", async ({ removeFirst }) => {
-    const drop = renderUploadStep();
+    const { drop } = renderUploadStep();
 
     drop(semicolonFile());
     await screen.findByText("1 row");
@@ -174,7 +210,7 @@ describe("UploadStep delimiter for a second file", () => {
     };
     vi.mocked(listImportTemplates).mockResolvedValue([template]);
     vi.mocked(getAccountImportMapping).mockResolvedValue(savedMapping(template.id));
-    const drop = renderUploadStep();
+    const { drop } = renderUploadStep();
     await screen.findByText(template.id);
 
     const second = file();

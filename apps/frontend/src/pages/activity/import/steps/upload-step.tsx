@@ -566,7 +566,7 @@ export function UploadStep() {
   const { t } = useTranslation();
   const [parseError, setParseError] = useState<string | null>(null);
   const { accounts } = useAccounts();
-  const { isMobile } = usePlatform();
+  const { isMobile, isAndroid, isTauri } = usePlatform();
 
   // Derive import type from the selected account's tracking mode
   const selectedAccount = useMemo(
@@ -997,7 +997,7 @@ export function UploadStep() {
               file={state.file}
               onFileChange={handleFileSelect}
               isLoading={isPending}
-              accept=".csv"
+              unfilteredPicker={isTauri && isAndroid}
               isValid={!hasParseErrors}
               error={parseError}
             />
