@@ -1,20 +1,25 @@
 id: EDGE-QT-03
-title: Held asset with no quotes at all - partialUnpriced and unavailable
+title: Held asset with no quotes at all - valued at its cost, else partialUnpriced or unavailable
 intent: >
-  Two accounts pin the priced/cash status rules of
-  `InvestmentValuation::value_status`. acc-partial holds a priced asset, an
-  asset that has NO quotes anywhere, and residual cash: the unquoted
-  position contributes a typed zero and the rows are `partialUnpriced`.
-  acc-unavail holds only the unquoted asset with exactly zero cash left:
-  no priced position and no cash means `unavailable`, and performance must
-  report TWR, IRR, value return and the headline amount as not applicable
-  rather than a silent zero or total-loss return.
+  Three accounts pin how a held asset with NO quotes anywhere is valued
+  (architecture §4.5). acc-cost bought it for 200: until a quote prices it
+  the position is worth what it cost, the rows stay `complete` and the
+  purchase is no loss. acc-partial and acc-unavail hold it without a cost
+  (a zero-price BUY), so nothing can stand in for the missing quote.
+  acc-partial also holds a priced asset and cash: the unquoted position
+  contributes a typed zero and the rows are `partialUnpriced`. acc-unavail
+  holds only the unquoted asset with no cash: no priced position and no cash
+  means `unavailable`, and performance must report TWR, IRR, value return
+  and the headline amount as not applicable rather than a silent zero or
+  total-loss return.
 markers: [L]
 policy:
   base_currency: USD
   timezone: UTC
   as_of: 2025-01-10
 accounts:
+  - id: acc-cost
+    currency: USD
   - id: acc-partial
     currency: USD
   - id: acc-unavail
@@ -27,6 +32,27 @@ assets:
     symbol: UNPRICED
     quote_ccy: USD
 activities:
+  - id: dep-cost
+    account: acc-cost
+    type: DEPOSIT
+    date: 2025-01-02T09:00:00Z
+    amount: 1000
+  - id: buy-priced-cost
+    account: acc-cost
+    type: BUY
+    date: 2025-01-03T09:00:00Z
+    asset: priced
+    quantity: 5
+    unit_price: 100
+    amount: 500
+  - id: buy-unpriced-cost
+    account: acc-cost
+    type: BUY
+    date: 2025-01-03T09:30:00Z
+    asset: unpriced
+    quantity: 4
+    unit_price: 50
+    amount: 200
   - id: dep-partial
     account: acc-partial
     type: DEPOSIT
@@ -46,37 +72,36 @@ activities:
     date: 2025-01-03T11:00:00Z
     asset: unpriced
     quantity: 4
-    unit_price: 50
-    amount: 200
-  - id: dep-unavail
-    account: acc-unavail
-    type: DEPOSIT
-    date: 2025-01-02T12:00:00Z
-    amount: 200
+    unit_price: 0
+    amount: 0
   - id: buy-unpriced-unavail
     account: acc-unavail
     type: BUY
     date: 2025-01-03T12:00:00Z
     asset: unpriced
     quantity: 4
-    unit_price: 50
-    amount: 200
+    unit_price: 0
+    amount: 0
 quotes:
   - { asset: priced, day: 2025-01-03, close: 100 }
   - { asset: priced, day: 2025-01-08, close: 110 }
 expected_notes: >
-  acc-partial: 01-02 complete (cash 1000); from 01-03 cash 300, investment
-  500 (priced only; unpriced contributes 0), total 800, cost_basis 700,
-  value_status partialUnpriced; 01-08 investment 550, total 850;
-  performance_eligible_value_base = priced + cash; performance carries the
-  "unpriced held positions" warning (quality partial) and computes a -15%
-  TWR on the priced subset (the 200 spent on the unpriced asset reads as a
-  loss). acc-unavail: 01-02 complete (cash 200); from 01-03 cash 0,
-  investment 0, total 0, cost_basis 200, value_status unavailable; TWR, IRR,
-  value return and the headline amount are all unavailable ("valuation
-  coverage is unavailable at the period start or end"). Legacy reported a
-  -100% value return and a -200 amount here, i.e. a silent total loss for an
-  asset it simply could not price (ledgered). Portfolio scope: the
+  acc-cost: 01-02 complete (cash 1000); from 01-03 cash 300, investment
+  500 (priced) + 200 (unpriced at its cost) = 700, total 1000, cost_basis
+  700, value_status complete: buying the unquoted asset is no loss. 01-08
+  investment 550 + 200 = 750, total 1050. TWR, IRR and value return 5%,
+  amount 50, quality ok; the series carries a MissingQuote diagnostic
+  ("position valued at its cost"). Before this rule the position
+  contributed zero, the rows were partialUnpriced and the 200 spent read
+  as a -15% return. acc-partial: 01-02 complete (cash 1000); from 01-03
+  cash 500, investment 500 (priced only; the costless unquoted position
+  contributes 0), total 1000, cost_basis 500, value_status partialUnpriced;
+  01-08 investment 550, total 1050; performance_eligible_value_base =
+  priced + cash; performance carries the "unpriced held positions" warning
+  (quality partial) and computes a 5% TWR on the priced subset.
+  acc-unavail: rows from 01-03, cash 0, investment 0, total 0, cost_basis
+  0, value_status unavailable; TWR, IRR, value return and the headline
+  amount are all unavailable ("valuation coverage is unavailable at the
+  period start or end"), never a silent zero. Portfolio scope: the
   unavailable account rows make every aggregate day from 01-03 unavailable,
-  so the portfolio TWR, value return and amount are null as well (legacy:
-  value_return -29.17%, amount -350).
+  so the portfolio TWR, value return and amount are null as well.

@@ -93,7 +93,7 @@
     "data_incomplete_valuation_value": {
       "title_one": "Bewertungsabdeckung ist unvollständig",
       "title_other": "{{count}} Bewertungszeilen haben einen unvollständigen Marktwert",
-      "message": "Einige generierte Bewertungszeilen haben eine unvollständige Marktwertabdeckung. Die Performance schützt die Korrektheit, indem betroffene Renditen als nicht verfügbar oder eingeschränkt markiert werden; überprüfen Sie fehlende Kurse oder manuelle Bewertungen."
+      "message": "Für einige Positionen gab es an Tagen, an denen sie gehalten wurden, keinen Marktkurs. Bis ein Kurs verfügbar ist, wird eine Position zu ihren Anschaffungskosten bewertet und zeigt weder Gewinn noch Verlust; fehlen auch die Anschaffungskosten, werden betroffene Renditen als nicht verfügbar oder eingeschränkt markiert. Überprüfen Sie fehlende Kurse oder manuelle Bewertungen."
     },
     "data_incomplete_valuation_basis": {
       "title_one": "Kostenbasisabdeckung ist unvollständig",

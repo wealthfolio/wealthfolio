@@ -127,25 +127,25 @@ baseline:
             twr: "0"
             value_return: "0"
           risk:
-            drawdown_duration_days: 6
-            max_drawdown: "-0.5"
+            drawdown_duration_days: 1
+            max_drawdown: "0"
             peak_date: 2025-01-02
-            recovery_date: 2025-01-08
+            recovery_date: ~
             trough_date: 2025-01-03
-            volatility: "6.24473936"
+            volatility: "0"
           series:
             - date: 2025-01-02
               value: "0"
             - date: 2025-01-03
-              value: "-0.5"
+              value: "0"
             - date: 2025-01-04
-              value: "-0.5"
+              value: "0"
             - date: 2025-01-05
-              value: "-0.5"
+              value: "0"
             - date: 2025-01-06
-              value: "-0.5"
+              value: "0"
             - date: 2025-01-07
-              value: "-0.5"
+              value: "0"
             - date: 2025-01-08
               value: "0"
             - date: 2025-01-09
@@ -199,14 +199,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "1000"
           net_contribution_base: "1000"
-          performance_eligible_value_base: "500"
-          total_value: "500"
-          total_value_base: "500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: complete
           book_basis: "1000"
           book_basis_base: "1000"
@@ -219,14 +219,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "1000"
           net_contribution_base: "1000"
-          performance_eligible_value_base: "500"
-          total_value: "500"
-          total_value_base: "500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: complete
           book_basis: "1000"
           book_basis_base: "1000"
@@ -239,14 +239,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "1000"
           net_contribution_base: "1000"
-          performance_eligible_value_base: "500"
-          total_value: "500"
-          total_value_base: "500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: complete
           book_basis: "1000"
           book_basis_base: "1000"
@@ -259,14 +259,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "1000"
           net_contribution_base: "1000"
-          performance_eligible_value_base: "500"
-          total_value: "500"
-          total_value_base: "500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: complete
           book_basis: "1000"
           book_basis_base: "1000"
@@ -279,14 +279,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "500"
+          investment_market_value_base: "500"
           net_contribution: "1000"
           net_contribution_base: "1000"
-          performance_eligible_value_base: "500"
-          total_value: "500"
-          total_value_base: "500"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: notApplicable
           book_basis: "500"
           book_basis_base: "500"
@@ -388,7 +388,7 @@ baseline:
           total_value_base: "500"
           value_status: complete
   diagnostics:
-    - "value/acc-1:priv: Warning MissingQuote: no quote on or before 2025-01-03 for priv; position unpriced"
+    - "value/acc-1:priv:cost: Warning MissingQuote: no quote on or before 2025-01-03 for priv; position valued at its cost"
   portfolio:
     all_time:
       attribution:
@@ -416,25 +416,25 @@ baseline:
         twr: "0"
         value_return: "0"
       risk:
-        drawdown_duration_days: 6
-        max_drawdown: "-0.5"
+        drawdown_duration_days: 1
+        max_drawdown: "0"
         peak_date: 2025-01-02
-        recovery_date: 2025-01-08
+        recovery_date: ~
         trough_date: 2025-01-03
-        volatility: "6.24473936"
+        volatility: "0"
       series:
         - date: 2025-01-02
           value: "0"
         - date: 2025-01-03
-          value: "-0.5"
+          value: "0"
         - date: 2025-01-04
-          value: "-0.5"
+          value: "0"
         - date: 2025-01-05
-          value: "-0.5"
+          value: "0"
         - date: 2025-01-06
-          value: "-0.5"
+          value: "0"
         - date: 2025-01-07
-          value: "-0.5"
+          value: "0"
         - date: 2025-01-08
           value: "0"
         - date: 2025-01-09

@@ -927,3 +927,206 @@ fn unpriced_positions_remain_distinct_from_missing_fx() {
             .any(|warning| warning.contains("market prices")));
     }
 }
+
+fn costed_position(
+    account_id: &str,
+    asset_id: &str,
+    quantity: Decimal,
+    currency: &str,
+    total_cost_basis: Decimal,
+) -> Position {
+    Position {
+        average_cost: total_cost_basis / quantity,
+        total_cost_basis,
+        ..position(account_id, asset_id, quantity, currency, false)
+    }
+}
+
+#[test]
+fn unquoted_position_with_a_cost_is_valued_at_its_cost() {
+    let accounts = [account("usd", "USD")];
+    let assets = HashMap::from([("unquoted".into(), asset("unquoted", AssetKind::Investment))]);
+    for cash in [dec!(0), dec!(100)] {
+        let snapshots = HashMap::from([(
+            "usd".into(),
+            snapshot(
+                "usd",
+                "USD",
+                HashMap::from([(
+                    "unquoted".into(),
+                    costed_position("usd", "unquoted", dec!(10), "USD", dec!(250)),
+                )]),
+                HashMap::from([("USD".into(), cash)]),
+            ),
+        )]);
+        let result = calculate_current_valuation_response_from_snapshots(
+            "all",
+            &accounts,
+            &snapshots,
+            &assets,
+            &HashMap::new(),
+            "USD",
+            Utc::now(),
+            true,
+            |_, _| Decimal::ONE,
+        );
+
+        // A missing quote neither blanks the total nor counts the holding as zero.
+        assert_eq!(result.summary.value_status, ValuationStatus::Complete);
+        assert_eq!(result.summary.investment_market_value_base, dec!(250));
+        assert_eq!(result.summary.total_value_base, cash + dec!(250));
+        assert_eq!(
+            result.summary.holdings_count,
+            if cash.is_zero() { 1 } else { 2 }
+        );
+        assert!(result.summary.missing_fx.is_empty());
+        let account = &result.accounts[0];
+        assert_eq!(account.value_status, ValuationStatus::Complete);
+        assert_eq!(account.account_value_status, ValuationStatus::Complete);
+        assert_eq!(account.total_value, cash + dec!(250));
+        // The stand-in is said, not silent.
+        for warnings in [&result.summary.warnings, &account.warnings] {
+            assert_eq!(
+                warnings,
+                &vec![
+                    "Some holdings have no market price yet and are valued at their cost."
+                        .to_string()
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn unquoted_position_cost_converts_at_the_latest_rate_and_scales_minor_units() {
+    // An EUR cost in a CAD account on a USD base.
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &[account("cad", "CAD")],
+        &HashMap::from([(
+            "cad".into(),
+            snapshot(
+                "cad",
+                "CAD",
+                HashMap::from([(
+                    "unquoted".into(),
+                    costed_position("cad", "unquoted", dec!(4), "EUR", dec!(100)),
+                )]),
+                HashMap::new(),
+            ),
+        )]),
+        &HashMap::from([("unquoted".into(), asset("unquoted", AssetKind::Investment))]),
+        &HashMap::new(),
+        "USD",
+        Utc::now(),
+        true,
+        latest_rate,
+    );
+    assert_eq!(result.summary.value_status, ValuationStatus::Complete);
+    assert_eq!(result.summary.total_value_base, dec!(110));
+    assert_eq!(result.accounts[0].total_value, dec!(137.5));
+
+    // A cost booked in pence is 25 pounds, not 2500.
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &[account("gbp", "GBP")],
+        &HashMap::from([(
+            "gbp".into(),
+            snapshot(
+                "gbp",
+                "GBP",
+                HashMap::from([(
+                    "unquoted".into(),
+                    costed_position("gbp", "unquoted", dec!(10), "GBp", dec!(2500)),
+                )]),
+                HashMap::new(),
+            ),
+        )]),
+        &HashMap::from([("unquoted".into(), asset("unquoted", AssetKind::Investment))]),
+        &HashMap::new(),
+        "GBP",
+        Utc::now(),
+        true,
+        |_, _| Decimal::ONE,
+    );
+    assert_eq!(result.summary.value_status, ValuationStatus::Complete);
+    assert_eq!(result.summary.total_value_base, dec!(25));
+}
+
+#[test]
+fn unquoted_position_whose_cost_has_no_rate_stays_unpriced() {
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &[account("usd", "USD")],
+        &HashMap::from([(
+            "usd".into(),
+            snapshot(
+                "usd",
+                "USD",
+                HashMap::from([(
+                    "unquoted".into(),
+                    costed_position("usd", "unquoted", dec!(4), "EUR", dec!(100)),
+                )]),
+                HashMap::from([("USD".into(), dec!(100))]),
+            ),
+        )]),
+        &HashMap::from([("unquoted".into(), asset("unquoted", AssetKind::Investment))]),
+        &HashMap::new(),
+        "USD",
+        Utc::now(),
+        true,
+        |from, to| CurrentValuationRate {
+            rate: Decimal::ONE,
+            warning: (from != to)
+                .then(|| "Some exchange rates are missing, so the total is unavailable.".into()),
+        },
+    );
+
+    // As before the cost rule: a known subtotal, never the unconverted cost.
+    assert_eq!(
+        result.summary.value_status,
+        ValuationStatus::PartialUnpriced
+    );
+    assert_eq!(result.summary.total_value_base, dec!(100));
+    assert!(result.summary.missing_fx.is_empty());
+    assert!(result
+        .summary
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("market prices are missing")));
+}
+
+#[test]
+fn unquoted_option_contract_is_not_valued_at_its_cost() {
+    // Its cost would outlive its expiry, so it stays unpriced as before.
+    let mut option = asset("option", AssetKind::Investment);
+    option.instrument_type = Some(InstrumentType::Option);
+    let result = calculate_current_valuation_response_from_snapshots(
+        "all",
+        &[account("usd", "USD")],
+        &HashMap::from([(
+            "usd".into(),
+            snapshot(
+                "usd",
+                "USD",
+                HashMap::from([(
+                    "option".into(),
+                    costed_position("usd", "option", dec!(1), "USD", dec!(200)),
+                )]),
+                HashMap::from([("USD".into(), dec!(100))]),
+            ),
+        )]),
+        &HashMap::from([("option".into(), option)]),
+        &HashMap::new(),
+        "USD",
+        Utc::now(),
+        true,
+        |_, _| Decimal::ONE,
+    );
+
+    assert_eq!(
+        result.summary.value_status,
+        ValuationStatus::PartialUnpriced
+    );
+    assert_eq!(result.summary.total_value_base, dec!(100));
+}

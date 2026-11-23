@@ -23,6 +23,8 @@ const MISSING_ASSET_WARNING: &str =
     "Some asset details are missing, so this value may be incomplete.";
 const MISSING_QUOTE_WARNING: &str =
     "Some market prices are missing, so this value may be incomplete.";
+const VALUED_AT_COST_WARNING: &str =
+    "Some holdings have no market price yet and are valued at their cost.";
 const MISSING_FX_WARNING: &str = "Some exchange rates are missing, so the total is unavailable.";
 
 pub struct CurrentAccountValuationService<'a> {
@@ -451,18 +453,54 @@ where
         }
 
         let Some(quote_pair) = latest_quote_pairs.get(asset_id) else {
-            warn!(
-                "Missing latest quote for asset {} in account {}. Current market value treated as zero.",
-                asset_id, account.id
-            );
-            valuation.value_status = valuation
-                .value_status
-                .combine(ValuationStatus::PartialUnpriced);
-            valuation.account_value_status = valuation
-                .account_value_status
-                .combine(ValuationStatus::PartialUnpriced);
-            summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
-            account_warnings.push(MISSING_QUOTE_WARNING.to_string());
+            // No quote yet: the position is worth what it cost, at the latest
+            // rate, as the engine values the day (architecture §4.5). Without
+            // a cost, or a rate for it, it stays unpriced, and so does an
+            // option contract.
+            let (cost, cost_currency) =
+                normalize_amount(position.total_cost_basis, &position.currency);
+            let cost = if asset.instrument_type == Some(InstrumentType::Option) {
+                Decimal::ZERO
+            } else {
+                cost
+            };
+            let cost_base = cost_at_latest_rate(cost, cost_currency, base_currency, latest_rate);
+            let cost_account =
+                cost_at_latest_rate(cost, cost_currency, &account.currency, latest_rate);
+            if cost_base.is_none() || cost_account.is_none() {
+                warn!(
+                    "Missing latest quote for asset {} in account {}. Current market value treated as zero.",
+                    asset_id, account.id
+                );
+            }
+            match cost_base {
+                Some(value) => {
+                    holdings_count += 1;
+                    has_known_base_value = true;
+                    valuation.investment_market_value_base += value;
+                    add_total(&mut currency_base_totals, cost_currency, value);
+                    summary_warnings.push(VALUED_AT_COST_WARNING.to_string());
+                }
+                None => {
+                    valuation.value_status = valuation
+                        .value_status
+                        .combine(ValuationStatus::PartialUnpriced);
+                    summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
+                }
+            }
+            match cost_account {
+                Some(value) => {
+                    has_known_account_value = true;
+                    valuation.investment_market_value += value;
+                    account_warnings.push(VALUED_AT_COST_WARNING.to_string());
+                }
+                None => {
+                    valuation.account_value_status = valuation
+                        .account_value_status
+                        .combine(ValuationStatus::PartialUnpriced);
+                    account_warnings.push(MISSING_QUOTE_WARNING.to_string());
+                }
+            }
             continue;
         };
         holdings_count += 1;
@@ -531,6 +569,28 @@ where
         cash_local_totals,
         summary_warnings,
     }
+}
+
+/// A position's cost in `to` at the latest rate, standing in for a market
+/// value no quote gives: `None` without a cost or a usable rate.
+fn cost_at_latest_rate<F, R>(
+    cost: Decimal,
+    from: &str,
+    to: &str,
+    latest_rate: &mut F,
+) -> Option<Decimal>
+where
+    F: FnMut(&str, &str) -> R,
+    R: Into<CurrentValuationRate>,
+{
+    if cost.is_zero() {
+        return None;
+    }
+    if from == to {
+        return Some(cost);
+    }
+    let lookup = latest_rate(from, to).into();
+    (lookup.warning.is_none() && lookup.rate > Decimal::ZERO).then(|| cost * lookup.rate)
 }
 
 #[allow(clippy::too_many_arguments)]

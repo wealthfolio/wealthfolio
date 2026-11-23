@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 34
 ---
 as_of: 2025-01-06
 base_currency: USD
@@ -125,35 +124,35 @@ baseline:
             annualized_twr: ~
             annualized_value_return: ~
             irr: "0"
-            twr: "0.00833333"
+            twr: "0"
             value_return: "0"
           risk:
             drawdown_duration_days: 1
-            max_drawdown: "-0.08333333"
-            peak_date: 2025-01-03
+            max_drawdown: "0"
+            peak_date: 2025-01-01
             recovery_date: ~
-            trough_date: 2025-01-04
-            volatility: "1.23270145"
+            trough_date: 2025-01-02
+            volatility: "0"
           series:
             - date: 2025-01-01
               value: "0"
             - date: 2025-01-02
-              value: "0.1"
+              value: "0"
             - date: 2025-01-03
-              value: "0.1"
+              value: "0"
             - date: 2025-01-04
-              value: "0.00833333"
+              value: "0"
             - date: 2025-01-05
-              value: "0.00833333"
+              value: "0"
             - date: 2025-01-06
-              value: "0.00833333"
+              value: "0"
           summary:
             amount: "0"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.00833333"
+            percent: "0"
             percent_status: complete
             quality: partial
       tracking_mode: TRANSACTIONS
@@ -190,14 +189,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-10"
+          investment_market_value_base: "-10"
           net_contribution: "100"
           net_contribution_base: "100"
-          performance_eligible_value_base: "110"
-          total_value: "110"
-          total_value_base: "110"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "100"
+          total_value: "100"
+          total_value_base: "100"
+          value_status: complete
         - basis_status: complete
           book_basis: "100"
           book_basis_base: "100"
@@ -210,14 +209,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-10"
+          investment_market_value_base: "-10"
           net_contribution: "100"
           net_contribution_base: "100"
-          performance_eligible_value_base: "110"
-          total_value: "110"
-          total_value_base: "110"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "100"
+          total_value: "100"
+          total_value_base: "100"
+          value_status: complete
         - basis_status: notApplicable
           book_basis: "110"
           book_basis_base: "110"
@@ -374,7 +373,7 @@ baseline:
             realized_pnl: "0"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "30"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
@@ -383,19 +382,19 @@ baseline:
           period_start: 2025-01-01
           quality: partial
           returns:
-            annualized_irr: ~
+            annualized_irr: "-0.00000004"
             annualized_twr: ~
             annualized_value_return: ~
-            irr: ~
-            twr: "0.3"
-            value_return: "0.3"
+            irr: "0"
+            twr: "0"
+            value_return: "0"
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
             peak_date: 2025-01-01
             recovery_date: ~
             trough_date: 2025-01-02
-            volatility: "2.24240881"
+            volatility: "0"
           series:
             - date: 2025-01-01
               value: "0"
@@ -406,16 +405,16 @@ baseline:
             - date: 2025-01-04
               value: "0"
             - date: 2025-01-05
-              value: "0.3"
+              value: "0"
             - date: 2025-01-06
-              value: "0.3"
+              value: "0"
           summary:
-            amount: "30"
+            amount: "0"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.3"
+            percent: "0"
             percent_status: complete
             quality: partial
       tracking_mode: TRANSACTIONS
@@ -512,14 +511,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "30"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-30"
+          investment_market_value_base: "-30"
           net_contribution: "70"
           net_contribution_base: "70"
-          performance_eligible_value_base: "100"
-          total_value: "100"
-          total_value_base: "100"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "70"
+          total_value: "70"
+          total_value_base: "70"
+          value_status: complete
         - basis_status: complete
           book_basis: "70"
           book_basis_base: "70"
@@ -532,18 +531,18 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-30"
+          investment_market_value_base: "-30"
           net_contribution: "70"
           net_contribution_base: "70"
-          performance_eligible_value_base: "100"
-          total_value: "100"
-          total_value_base: "100"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "70"
+          total_value: "70"
+          total_value_base: "70"
+          value_status: complete
   diagnostics:
     - "project/out-1: Warning InsufficientQuantity: TRANSFER_OUT of 2 x with only 1 held; the 1 units beyond the position have no lot"
-    - "value/acc-a:x: Warning MissingQuote: no quote on or before 2025-01-02 for x; position unpriced"
-    - "value/acc-b:x: Warning MissingQuote: no quote on or before 2025-01-05 for x; position unpriced"
+    - "value/acc-a:x:cost: Warning MissingQuote: no quote on or before 2025-01-02 for x; position valued at its cost"
+    - "value/acc-b:x:cost: Warning MissingQuote: no quote on or before 2025-01-05 for x; position valued at its cost"
   portfolio:
     all_time:
       attribution:
@@ -555,7 +554,7 @@ baseline:
         realized_pnl: "0"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "30"
+        unrealized_pnl_change: "0"
       basis_status: notApplicable
       is_holdings_mode: false
       is_mixed_tracking_mode: false
@@ -564,39 +563,39 @@ baseline:
       period_start: 2025-01-01
       quality: partial
       returns:
-        annualized_irr: "32620.24805811"
+        annualized_irr: "0"
         annualized_twr: ~
         annualized_value_return: ~
-        irr: "0.15288624"
-        twr: "0.15"
-        value_return: "0.15"
+        irr: "0"
+        twr: "0"
+        value_return: "0"
       risk:
         drawdown_duration_days: 1
-        max_drawdown: "0"
-        peak_date: 2025-01-01
+        max_drawdown: "-0.04761905"
+        peak_date: 2025-01-04
         recovery_date: ~
-        trough_date: 2025-01-02
-        volatility: "0.78506607"
+        trough_date: 2025-01-05
+        volatility: "0.65934451"
       series:
         - date: 2025-01-01
           value: "0"
         - date: 2025-01-02
-          value: "0.05"
+          value: "0"
         - date: 2025-01-03
-          value: "0.05"
+          value: "0"
         - date: 2025-01-04
           value: "0.05"
         - date: 2025-01-05
-          value: "0.15"
+          value: "0"
         - date: 2025-01-06
-          value: "0.15"
+          value: "0"
       summary:
-        amount: "30"
+        amount: "0"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
         method: timeWeighted
-        percent: "0.15"
+        percent: "0"
         percent_status: complete
         quality: partial
   portfolio_flows:

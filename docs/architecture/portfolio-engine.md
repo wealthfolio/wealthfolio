@@ -610,9 +610,21 @@ product shows when the inputs are imperfect.
   never dropped: a missing row is a silently wrong total, whereas a marked row
   is a fact the reader and the health check can act on. Chart consumers skip
   unavailable days rather than plotting a partial value.
-- **A day is `PartialUnpriced`** when some held position has no quote anywhere.
-  It contributes zero to market value, the day's returns are computed on the
-  priced subset, and a warning says so.
+- **A position no quote prices yet is worth what it cost.** Until the first
+  quote on or before the day, a held position is valued at its cost, converted
+  from its own currency at the day's rate, and the day stays `Complete`. Buying
+  it, or receiving it in a transfer that flows at cost (rules R2.4), is then no
+  loss, and its first quote is one gain or loss instead of a fall to zero and a
+  rebound. A `MissingQuote` diagnostic names the position and the health check
+  keeps reporting it. The cost includes capitalised fees, so a fee reads as a
+  loss only once a quote arrives. An option contract is not valued this way:
+  its cost would outlive its expiry, which the engine does not know. Fixtures:
+  EDGE-QT-03, PERF-TWR-03.
+- **A day is `PartialUnpriced`** when some held position has no quote and
+  nothing to stand in for it: no cost, no rate for that cost, or an option
+  contract. It contributes zero to market value, the day's returns are computed
+  on the priced subset, and a warning says so. Fixtures: EDGE-QT-03,
+  PERF-HOLD-02, EDGE-OPT-03.
 - **Returns follow coverage.** TWR excludes any day pair touching an unavailable
   day or an unknown flow. When a period **endpoint** is unavailable, IRR, value
   return, the headline amount and the P&L breakdown are all unavailable: a gain
@@ -648,9 +660,10 @@ product shows when the inputs are imperfect.
   rejects the event or makes the day or metric unavailable, with a
   `ValueOutOfRange` diagnostic.
 - **An unpriceable holding is not a total loss.** A position whose asset has no
-  quote makes the day unavailable rather than valuing it at zero, which would
-  otherwise report a complete −100 % return for an asset the system simply could
-  not price.
+  quote is valued at its cost (above). When it has no cost either and nothing
+  else in the account can be valued, the day is unavailable rather than valued
+  at zero, which would otherwise report a complete −100 % return for an asset
+  the system simply could not price.
 - **A carried quote or rate is visible when it matters.** Prices carry forward
   from the last observation and FX rates resolve to the nearest observation in
   either direction. A carry of a week or more is reported once per account and

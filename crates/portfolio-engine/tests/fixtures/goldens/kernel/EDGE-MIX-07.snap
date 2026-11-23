@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 34
 ---
 as_of: 2025-01-05
 base_currency: USD
@@ -291,33 +290,33 @@ baseline:
             annualized_twr: ~
             annualized_value_return: ~
             irr: "0.01428813"
-            twr: "0.02360656"
+            twr: "0.01363636"
             value_return: "0.015"
           risk:
             drawdown_duration_days: 1
-            max_drawdown: "-0.08606557"
-            peak_date: 2025-01-02
+            max_drawdown: "0"
+            peak_date: 2025-01-01
             recovery_date: ~
-            trough_date: 2025-01-03
-            volatility: "1.59160616"
+            trough_date: 2025-01-02
+            volatility: "0.12942533"
           series:
             - date: 2025-01-01
               value: "0"
             - date: 2025-01-02
-              value: "0.12"
+              value: "0"
             - date: 2025-01-03
-              value: "0.02360656"
+              value: "0.01363636"
             - date: 2025-01-04
-              value: "0.02360656"
+              value: "0.01363636"
             - date: 2025-01-05
-              value: "0.02360656"
+              value: "0.01363636"
           summary:
             amount: "20"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.02360656"
+            percent: "0.01363636"
             percent_status: complete
             quality: partial
       tracking_mode: TRANSACTIONS
@@ -354,14 +353,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-120"
+          investment_market_value_base: "-120"
           net_contribution: "1000"
           net_contribution_base: "1000"
-          performance_eligible_value_base: "1120"
-          total_value: "1120"
-          total_value_base: "1120"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: notApplicable
           book_basis: "1115"
           book_basis_base: "1115"
@@ -423,7 +422,7 @@ baseline:
           total_value_base: "1115"
           value_status: complete
   diagnostics:
-    - "value/acc-t:x: Warning MissingQuote: no quote on or before 2025-01-02 for x; position unpriced"
+    - "value/acc-t:x:cost: Warning MissingQuote: no quote on or before 2025-01-02 for x; position valued at its cost"
   portfolio:
     all_time:
       attribution:

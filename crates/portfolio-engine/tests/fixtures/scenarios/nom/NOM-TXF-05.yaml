@@ -46,6 +46,7 @@ expected_notes: >
   Position priv 10 (basis 500) from 01-03 to 01-07, gone from 01-08; lot
   buy-1 closed 01-08 by out-1; disposal out-1 proceeds 500 = basis, realized
   0. net_contribution 1000 -> 500 on 01-08. Flows (account and portfolio):
-  01-08 outflow 500 REMOVED_LOT_BASIS_FALLBACK. Valuations 01-03..01-07 hold
-  an unpriced position (investment_market_value 0, value_status degraded);
+  01-08 outflow 500 REMOVED_LOT_BASIS_FALLBACK. Valuations 01-03..01-07 value
+  the unquoted position at its cost (investment_market_value 500, total 1000,
+  value_status complete), so the delivery at the same 500 is no gain or loss;
   from 01-08 total value 500 complete. Attribution: distributions 500.

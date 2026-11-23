@@ -112,7 +112,7 @@
       "title_one": "La couverture de valorisation est incomplète",
       "title_other": "{{count}} lignes de valorisation ont une valeur de marché incomplète",
       "title_many": "{{count}} lignes de valorisation ont une valeur de marché incomplète",
-      "message": "Certaines lignes de valorisation générées ont une couverture de valeur de marché incomplète. La performance protège l'exactitude en marquant les rendements concernés comme indisponibles ou dégradés ; vérifiez les cours manquants ou les valorisations manuelles."
+      "message": "Certaines positions n'avaient pas de cours de marché certains jours où elles étaient détenues. Tant qu'aucun cours n'est disponible, la position est valorisée à son coût de revient et n'affiche ni gain ni perte ; si elle n'a pas non plus de coût de revient, les rendements concernés sont marqués comme indisponibles ou dégradés. Vérifiez les cours manquants ou les valorisations manuelles."
     },
     "data_incomplete_valuation_basis": {
       "title_one": "La couverture du coût de revient est incomplète",

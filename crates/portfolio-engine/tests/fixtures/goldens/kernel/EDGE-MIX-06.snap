@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 34
 ---
 as_of: 2025-01-05
 base_currency: USD
@@ -301,7 +300,7 @@ baseline:
             realized_pnl: "8"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "-65"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
@@ -310,37 +309,37 @@ baseline:
           period_start: 2025-01-01
           quality: partial
           returns:
-            annualized_irr: "-0.9938611"
+            annualized_irr: "0.9999851"
             annualized_twr: ~
             annualized_value_return: ~
-            irr: "-0.0542497"
-            twr: "-0.04785366"
-            value_return: "-0.057"
+            irr: "0.00761974"
+            twr: "0.00727273"
+            value_return: "0.008"
           risk:
             drawdown_duration_days: 1
-            max_drawdown: "-0.09146341"
-            peak_date: 2025-01-02
+            max_drawdown: "0"
+            peak_date: 2025-01-01
             recovery_date: ~
-            trough_date: 2025-01-03
-            volatility: "1.14656321"
+            trough_date: 2025-01-02
+            volatility: "0.06924492"
           series:
             - date: 2025-01-01
               value: "0"
             - date: 2025-01-02
-              value: "0.048"
+              value: "0"
             - date: 2025-01-03
-              value: "-0.04785366"
+              value: "0.00727273"
             - date: 2025-01-04
-              value: "-0.04785366"
+              value: "0.00727273"
             - date: 2025-01-05
-              value: "-0.04785366"
+              value: "0.00727273"
           summary:
-            amount: "-57"
+            amount: "8"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "-0.04785366"
+            percent: "0.00727273"
             percent_status: complete
             quality: partial
       tracking_mode: TRANSACTIONS
@@ -377,14 +376,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "-48"
+          investment_market_value_base: "-48"
           net_contribution: "1000"
           net_contribution_base: "1000"
-          performance_eligible_value_base: "1048"
-          total_value: "1048"
-          total_value_base: "1048"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1000"
+          total_value: "1000"
+          total_value_base: "1000"
+          value_status: complete
         - basis_status: complete
           book_basis: "1108"
           book_basis_base: "1108"
@@ -397,14 +396,14 @@ baseline:
           external_inflow_base: "100"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "65"
+          investment_market_value_base: "65"
           net_contribution: "1113"
           net_contribution_base: "1113"
-          performance_eligible_value_base: "1043"
-          total_value: "1043"
-          total_value_base: "1043"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1108"
+          total_value: "1108"
+          total_value_base: "1108"
+          value_status: complete
         - basis_status: complete
           book_basis: "1108"
           book_basis_base: "1108"
@@ -417,14 +416,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "65"
+          investment_market_value_base: "65"
           net_contribution: "1113"
           net_contribution_base: "1113"
-          performance_eligible_value_base: "1043"
-          total_value: "1043"
-          total_value_base: "1043"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1108"
+          total_value: "1108"
+          total_value_base: "1108"
+          value_status: complete
         - basis_status: complete
           book_basis: "1108"
           book_basis_base: "1108"
@@ -437,16 +436,16 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "65"
+          investment_market_value_base: "65"
           net_contribution: "1113"
           net_contribution_base: "1113"
-          performance_eligible_value_base: "1043"
-          total_value: "1043"
-          total_value_base: "1043"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "1108"
+          total_value: "1108"
+          total_value_base: "1108"
+          value_status: complete
   diagnostics:
-    - "value/acc-t:x: Warning MissingQuote: no quote on or before 2025-01-02 for x; position unpriced"
+    - "value/acc-t:x:cost: Warning MissingQuote: no quote on or before 2025-01-02 for x; position valued at its cost"
   portfolio:
     all_time:
       attribution:
@@ -458,7 +457,7 @@ baseline:
         realized_pnl: "8"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "-65"
+        unrealized_pnl_change: "0"
       basis_status: notApplicable
       is_holdings_mode: false
       is_mixed_tracking_mode: true
@@ -472,7 +471,7 @@ baseline:
         annualized_value_return: ~
         irr: ~
         twr: ~
-        value_return: "-0.05181818"
+        value_return: "0.00727273"
       risk:
         drawdown_duration_days: ~
         max_drawdown: ~
@@ -482,12 +481,12 @@ baseline:
         volatility: ~
       series: []
       summary:
-        amount: "-57"
+        amount: "8"
         amount_status: complete
         basis: mixed
         basis_status: notApplicable
         method: valueReturn
-        percent: "-0.05181818"
+        percent: "0.00727273"
         percent_status: complete
         quality: partial
   portfolio_flows:

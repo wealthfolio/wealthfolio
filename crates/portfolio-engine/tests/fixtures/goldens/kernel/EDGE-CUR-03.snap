@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 34
 ---
 as_of: 2025-01-05
 base_currency: USD
@@ -71,21 +70,21 @@ baseline:
           method: timeWeighted
           period_end: 2025-01-05
           period_start: 2025-01-03
-          quality: partial
+          quality: ok
           returns:
-            annualized_irr: ~
+            annualized_irr: "-0.00000004"
             annualized_twr: ~
             annualized_value_return: ~
-            irr: ~
-            twr: ~
-            value_return: ~
+            irr: "0"
+            twr: "0"
+            value_return: "0"
           risk:
-            drawdown_duration_days: ~
-            max_drawdown: ~
-            peak_date: ~
+            drawdown_duration_days: 1
+            max_drawdown: "0"
+            peak_date: 2025-01-03
             recovery_date: ~
-            trough_date: ~
-            volatility: ~
+            trough_date: 2025-01-04
+            volatility: "0"
           series:
             - date: 2025-01-03
               value: "0"
@@ -94,14 +93,14 @@ baseline:
             - date: 2025-01-05
               value: "0"
           summary:
-            amount: ~
-            amount_status: unavailable
+            amount: "0"
+            amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: ~
-            percent_status: unavailable
-            quality: partial
+            percent: "0"
+            percent_status: complete
+            quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: complete
@@ -116,14 +115,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "0.5"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "20"
+          investment_market_value_base: "10"
           net_contribution: "20"
           net_contribution_base: "10"
-          performance_eligible_value_base: "0"
-          total_value: "0"
-          total_value_base: "0"
-          value_status: unavailable
+          performance_eligible_value_base: "10"
+          total_value: "20"
+          total_value_base: "10"
+          value_status: complete
         - basis_status: complete
           book_basis: "20"
           book_basis_base: "10"
@@ -136,14 +135,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "0.5"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "20"
+          investment_market_value_base: "10"
           net_contribution: "20"
           net_contribution_base: "10"
-          performance_eligible_value_base: "0"
-          total_value: "0"
-          total_value_base: "0"
-          value_status: unavailable
+          performance_eligible_value_base: "10"
+          total_value: "20"
+          total_value_base: "10"
+          value_status: complete
         - basis_status: complete
           book_basis: "20"
           book_basis_base: "10"
@@ -156,14 +155,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "0.5"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "20"
+          investment_market_value_base: "10"
           net_contribution: "20"
           net_contribution_base: "10"
-          performance_eligible_value_base: "0"
-          total_value: "0"
-          total_value_base: "0"
-          value_status: unavailable
+          performance_eligible_value_base: "10"
+          total_value: "20"
+          total_value_base: "10"
+          value_status: complete
     acc-usd:
       currency: USD
       disposals:
@@ -316,14 +315,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "10"
+          investment_market_value_base: "10"
           net_contribution: "0"
           net_contribution_base: "0"
-          performance_eligible_value_base: "-10"
-          total_value: "-10"
-          total_value_base: "-10"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "0"
+          total_value: "0"
+          total_value_base: "0"
+          value_status: complete
         - basis_status: complete
           book_basis: "0"
           book_basis_base: "0"
@@ -336,14 +335,14 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "0"
-          investment_market_value_base: "0"
+          investment_market_value: "10"
+          investment_market_value_base: "10"
           net_contribution: "0"
           net_contribution_base: "0"
-          performance_eligible_value_base: "-10"
-          total_value: "-10"
-          total_value_base: "-10"
-          value_status: partialUnpriced
+          performance_eligible_value_base: "0"
+          total_value: "0"
+          total_value_base: "0"
+          value_status: complete
         - basis_status: notApplicable
           book_basis: "-10"
           book_basis_base: "-10"
@@ -406,8 +405,8 @@ baseline:
           value_status: complete
   diagnostics:
     - "normalize/x: Warning MissingCurrency: asset has no quote currency; its positions take the currency of the activity that opens them and its quotes need an explicit currency"
-    - "value/acc-cad:x: Warning MissingQuote: no quote on or before 2025-01-03 for x; position unpriced"
-    - "value/acc-usd:x: Warning MissingQuote: no quote on or before 2025-01-01 for x; position unpriced"
+    - "value/acc-cad:x:cost: Warning MissingQuote: no quote on or before 2025-01-03 for x; position valued at its cost"
+    - "value/acc-usd:x:cost: Warning MissingQuote: no quote on or before 2025-01-01 for x; position valued at its cost"
   portfolio:
     all_time:
       attribution:
@@ -453,8 +452,8 @@ baseline:
         - date: 2025-01-05
           value: "0"
       summary:
-        amount: ~
-        amount_status: unavailable
+        amount: "0"
+        amount_status: complete
         basis: marketValue
         basis_status: notApplicable
         method: timeWeighted
