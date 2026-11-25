@@ -144,6 +144,35 @@ describe("CashActivityForm payee", () => {
     expect(setActivityPayee).toHaveBeenCalledWith("created", "Corner Bakery", onFile.payees);
   });
 
+  it("creates a new transaction after a save failed in a form closed since", async () => {
+    const user = userEvent.setup();
+    let finish: (activity: Activity) => void = () => undefined;
+    vi.mocked(createActivity).mockReturnValueOnce(
+      new Promise<Activity>((resolve) => (finish = resolve)),
+    );
+    vi.mocked(setActivityPayee).mockRejectedValueOnce(new Error("offline"));
+    const form = (open: boolean) => (
+      <CashActivityForm open={open} onOpenChange={vi.fn()} intent="expense" />
+    );
+    const view = render(form(true), { wrapper });
+    await pickPayee(user, "Corner Bakery");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(createActivity).toHaveBeenCalledTimes(1));
+
+    // Closed and opened again while the first save is on its way; it then
+    // creates its transaction and fails on the payee.
+    view.rerender(form(false));
+    view.rerender(form(true));
+    finish({ id: "first" } as Activity);
+    await waitFor(() => expect(setActivityPayee).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    // The new form's save is a new transaction, not an update of the old one.
+    await waitFor(() => expect(createActivity).toHaveBeenCalledTimes(2));
+    expect(updateActivity).not.toHaveBeenCalled();
+  });
+
   it("does not create the transaction again when saving after its payee failed", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

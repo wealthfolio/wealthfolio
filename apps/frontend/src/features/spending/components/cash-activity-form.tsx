@@ -297,13 +297,15 @@ export function CashActivityForm({
   // field only until they do.
   const payeeEdited = useRef(false);
   // A new transaction is created before its category, event and payee are
-  // written. This is what a save that failed part-way has already written, so
-  // the next one carries on with the same transaction instead of adding another.
-  const created = useRef<CreatedActivity | null>(null);
+  // written. `created` is what a save that failed part-way has already written,
+  // so the next one carries on with the same transaction instead of adding
+  // another. It belongs to one opening of the form: a save still running when
+  // the form is opened again reports to the opening it started in.
+  const session = useRef<{ created: CreatedActivity | null }>({ created: null });
   useEffectOnChange(() => {
     if (open) {
       payeeEdited.current = false;
-      created.current = null;
+      session.current = { created: null };
     }
   }, [open, activity?.id]);
   useEffect(() => {
@@ -443,8 +445,16 @@ export function CashActivityForm({
     }
   }, [activityTypeOptions, form, selectedAccount, watchType]);
 
+  const invalidateSaved = () => {
+    invalidateSpendingCaches(qc);
+    // A new name becomes a new payee, which the suggestions and filters list.
+    qc.invalidateQueries({ queryKey: QueryKeys.taxonomy(PAYEES_TAXONOMY_ID) });
+    qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
+    qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
+  };
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      const saving = session.current;
       const dateStr = values.activityDate.toISOString();
       const account = spendingAccounts.find((a) => a.id === values.accountId);
       // The account's currency is only the default. Taking it unconditionally
@@ -502,17 +512,17 @@ export function CashActivityForm({
           comment: values.notes ?? null,
           metadata: cashActivityFlowMetadata(values.activityType, subtype),
         };
-        if (created.current) {
+        if (saving.created) {
           // An earlier attempt created it: bring it up to what the form says now.
-          saved = await updateActivity({ id: created.current.id, ...create });
+          saved = await updateActivity({ id: saving.created.id, ...create });
         } else {
           saved = await createActivity(create);
-          created.current = { id: saved.id, category: "", eventId: null, payeeName: "" };
+          saving.created = { id: saved.id, category: "", eventId: null, payeeName: "" };
         }
       }
       // What is on file to compare against: the activity being edited, or what
       // an earlier attempt at this new one got to write.
-      const written = created.current;
+      const written = saving.created;
 
       // Sync category assignment
       const newCategory = values.category;
@@ -548,15 +558,11 @@ export function CashActivityForm({
         if (written) written.payeeName = newPayeeName;
       }
 
+      saving.created = null;
       return saved;
     },
     onSuccess: () => {
-      created.current = null;
-      invalidateSpendingCaches(qc);
-      // A new name becomes a new payee, which the suggestions and filters list.
-      qc.invalidateQueries({ queryKey: QueryKeys.taxonomy(PAYEES_TAXONOMY_ID) });
-      qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
-      qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
+      invalidateSaved();
       toast.success(
         isEditing
           ? t("spending:cashForm.activityUpdated")
@@ -571,7 +577,7 @@ export function CashActivityForm({
     onError: (e: unknown) => {
       if (isActivityEditCancelled(e)) return;
       // The transaction itself may have been created before the step that failed.
-      if (created.current) invalidateSpendingCaches(qc);
+      if (session.current.created) invalidateSaved();
       toast.error(t("spending:cashForm.saveFailed", { message: (e as Error).message ?? e }));
     },
   });
