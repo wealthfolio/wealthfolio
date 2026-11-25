@@ -210,11 +210,16 @@ impl CashActivityService {
             .map_err(|e| anyhow::anyhow!(e.to_string()))?
             .map(|taxonomy| taxonomy.categories)
             .unwrap_or_default();
-        if !payees.iter().any(|payee| payee.id == destination_id) {
-            return Err(SpendingError::InvalidInput {
-                message: "The payee to merge into does not exist".to_string(),
+        for (payee_id, message) in [
+            (source_id, "The payee to merge does not exist"),
+            (destination_id, "The payee to merge into does not exist"),
+        ] {
+            if !payees.iter().any(|payee| payee.id == payee_id) {
+                return Err(SpendingError::InvalidInput {
+                    message: message.to_string(),
+                }
+                .into());
             }
-            .into());
         }
         self.assignments
             .reassign_category(PAYEES_TAXONOMY, source_id, destination_id)
@@ -2260,6 +2265,14 @@ mod tests {
         }
     }
 
+    thread_local! {
+        /// The event each activity is tagged to, and the events themselves,
+        /// for a test that sets them. Each test runs on its own thread.
+        static EVENT_TAGS: std::cell::RefCell<std::collections::HashMap<String, String>> =
+            std::cell::RefCell::default();
+        static EVENTS: std::cell::RefCell<Vec<Event>> = std::cell::RefCell::default();
+    }
+
     #[derive(Default)]
     struct MockActivityEventsRepo;
 
@@ -2276,9 +2289,14 @@ mod tests {
 
         async fn list_for_activities(
             &self,
-            _: &[String],
+            ids: &[String],
         ) -> Result<std::collections::HashMap<String, String>> {
-            Ok(std::collections::HashMap::new())
+            Ok(EVENT_TAGS.with_borrow(|tags| {
+                tags.iter()
+                    .filter(|(activity_id, _)| ids.contains(activity_id))
+                    .map(|(activity_id, event_id)| (activity_id.clone(), event_id.clone()))
+                    .collect()
+            }))
         }
 
         async fn list_for_event(&self, _: &str) -> Result<Vec<String>> {
@@ -2338,7 +2356,7 @@ mod tests {
         }
 
         async fn list(&self) -> Result<Vec<Event>> {
-            Ok(Vec::new())
+            Ok(EVENTS.with_borrow(Clone::clone))
         }
 
         async fn get(&self, _: &str) -> Result<Option<Event>> {
@@ -3010,6 +3028,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn search_follows_a_label_filter_on_events_and_their_types() {
+        use crate::insight::{ActivityLabel, ActivityLabelFilter};
+        let (service, _, _) = make_service_with(vec![
+            cash_row("hotel", "WITHDRAWAL", 400, "USD"),
+            cash_row("cake", "WITHDRAWAL", 30, "USD"),
+            cash_row("untagged", "WITHDRAWAL", 70, "USD"),
+        ]);
+        let event = |id: &str, event_type_id: &str| Event {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: None,
+            event_type_id: event_type_id.to_string(),
+            start_date: "2026-01-01T00:00:00Z".to_string(),
+            end_date: "2026-01-02T00:00:00Z".to_string(),
+            created_at: now_naive(),
+            updated_at: now_naive(),
+        };
+        EVENTS.set(vec![event("trip", "travel"), event("birthday", "party")]);
+        EVENT_TAGS.set(std::collections::HashMap::from([
+            ("hotel".to_string(), "trip".to_string()),
+            ("cake".to_string(), "birthday".to_string()),
+        ]));
+        let ids = |include: Vec<ActivityLabel>, exclude: Vec<ActivityLabel>| {
+            let request = CashActivitySearchRequest {
+                label_filter: Some(ActivityLabelFilter { include, exclude }),
+                sort_dir: SortDirection::Asc,
+                limit: 50,
+                ..Default::default()
+            };
+            async {
+                let mut ids = search_ids(&service, request).await;
+                ids.sort_unstable();
+                ids
+            }
+        };
+        let travel = || ActivityLabel::EventType {
+            event_type_id: "travel".to_string(),
+        };
+        let birthday = || ActivityLabel::Event {
+            event_id: "birthday".to_string(),
+        };
+
+        assert_eq!(ids(vec![travel()], vec![]).await, vec!["hotel"]);
+        assert_eq!(ids(vec![birthday()], vec![]).await, vec!["cake"]);
+        assert_eq!(ids(vec![], vec![travel()]).await, vec!["cake", "untagged"]);
+        assert_eq!(
+            ids(vec![], vec![travel(), birthday()]).await,
+            vec!["untagged"]
+        );
+    }
+
+    #[tokio::test]
     async fn moving_a_payees_activities_needs_another_payee_that_exists() {
         let payee = |id: &str| Category {
             taxonomy_id: PAYEES_TAXONOMY.to_string(),
@@ -3030,6 +3100,10 @@ mod tests {
             .is_err());
         assert!(service
             .move_payee_activities("payee_old", "payee_gone")
+            .await
+            .is_err());
+        assert!(service
+            .move_payee_activities("payee_gone", "payee_new")
             .await
             .is_err());
         assert_eq!(
