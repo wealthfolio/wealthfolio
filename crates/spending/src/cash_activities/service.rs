@@ -1053,6 +1053,14 @@ impl CashActivityService {
             let activity = self
                 .ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id)
                 .await?;
+            // Reviewed splits are what a category may replace. On any other
+            // label they would stand for a review the category never had.
+            if item.expected_splits.is_some() && !is_category_taxonomy(&item.taxonomy_id) {
+                return Err(SpendingError::InvalidInput {
+                    message: "Only a category can replace reviewed splits".to_string(),
+                }
+                .into());
+            }
             // Only a category has to match the activity's cash-flow bucket. A
             // payee says who it was with, so any activity in scope can have one.
             if is_category_taxonomy(&item.taxonomy_id) {
@@ -4699,6 +4707,34 @@ mod tests {
 
         assert_eq!(written.len(), 2);
         assert_eq!(assignment_repo.batches.lock().unwrap().as_slice(), &[2]);
+    }
+
+    #[tokio::test]
+    async fn reviewed_splits_on_a_payee_do_not_stand_for_the_categorys_review() {
+        let (service, assignment_repo, _) = make_service(activity("WITHDRAWAL"));
+        let item = |taxonomy_id: &str, category_id: &str, expected_splits| BulkCategoryAssignment {
+            activity_id: "activity-1".to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            expected_splits,
+        };
+
+        // The splits to replace are keyed by activity: taken from the payee,
+        // they would let an unreviewed category clear them, or overrule the
+        // ones the category was reviewed against.
+        for batch in [
+            [
+                item(SPENDING_TAXONOMY, "groceries", None),
+                item(PAYEES_TAXONOMY, "payee_bakery", Some(Vec::new())),
+            ],
+            [
+                item(PAYEES_TAXONOMY, "payee_bakery", Some(Vec::new())),
+                item(SPENDING_TAXONOMY, "groceries", Some(Vec::new())),
+            ],
+        ] {
+            assert!(service.bulk_assign_categories(&batch).await.is_err());
+        }
+        assert!(assignment_repo.batches.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
