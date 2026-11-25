@@ -208,10 +208,13 @@ export function CategoryTransactionsSheet({
   // The Transactions page can narrow by some label filters and not others.
   // Where it cannot, there is no link: it would open on a wider list.
   const { data: events } = useSpendingEvents();
-  const labelParams = useMemo(
-    () => labelFilterTransactionParams(labelFilter, events ?? NO_EVENTS),
-    [labelFilter, events],
-  );
+  const labelParams = useMemo(() => {
+    // An event type is named by its events: until they have loaded, the link
+    // would name too few.
+    const namesEventType = labelFilter?.include?.some((label) => label.kind === "eventType");
+    if (!events && namesEventType) return null;
+    return labelFilterTransactionParams(labelFilter, events ?? NO_EVENTS);
+  }, [labelFilter, events]);
   const transactionsLink = useMemo(() => {
     if (!labelParams) return null;
     if (!category) return "/activities?tab=spending";

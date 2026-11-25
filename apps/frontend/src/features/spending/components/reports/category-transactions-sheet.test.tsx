@@ -38,10 +38,13 @@ vi.mock("../../hooks/use-cash-activity-search", () => ({
   },
 }));
 
-vi.mock("../../hooks/use-spending-events", () => {
-  const events = { data: [{ id: "trip-1", eventTypeId: "travel" }] };
-  return { useSpendingEvents: () => events };
+const spendingEvents = vi.hoisted(() => {
+  const loaded = { data: [{ id: "trip-1", eventTypeId: "travel" }] as unknown[] | undefined };
+  return { loaded, current: loaded };
 });
+vi.mock("../../hooks/use-spending-events", () => ({
+  useSpendingEvents: () => spendingEvents.current,
+}));
 
 const spendingSettings = vi.hoisted(() => ({ excludedCategoryIds: [] as string[] }));
 
@@ -234,6 +237,26 @@ describe("CategoryTransactionsSheet", () => {
 
       rerender(sheet({ labelFilter: { include: [{ kind: "eventType", eventTypeId: "travel" }] } }));
       expect(href()?.getAttribute("href")).toMatch(/&events=trip-1$/);
+    });
+
+    it("waits for the events before naming those of an event type", () => {
+      spendingEvents.current = { data: undefined };
+      try {
+        const party = { kind: "event", eventId: "party" } as const;
+        const travel = { kind: "eventType", eventTypeId: "travel" } as const;
+        const payee = { kind: "category", taxonomyId: "payees", categoryId: "p1" } as const;
+        // Naming the party alone would leave the travel events out.
+        const { rerender } = render(sheet({ labelFilter: { include: [party, travel] } }));
+        expect(href()).not.toBeInTheDocument();
+
+        // These need no event list.
+        rerender(sheet({ labelFilter: { include: [party] } }));
+        expect(href()?.getAttribute("href")).toMatch(/&events=party$/);
+        rerender(sheet({ labelFilter: { include: [payee] } }));
+        expect(href()?.getAttribute("href")).toMatch(/&payees=p1$/);
+      } finally {
+        spendingEvents.current = spendingEvents.loaded;
+      }
     });
 
     it("is not offered for a filter the Transactions page cannot show", () => {
