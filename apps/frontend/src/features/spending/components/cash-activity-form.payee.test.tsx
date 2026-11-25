@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createActivity, updateActivity } from "@/adapters";
@@ -64,6 +65,7 @@ vi.mock("./quick-event-popover", () => ({
     </>
   ),
 }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/adapters", () => ({
   createActivity: vi.fn(),
   updateActivity: vi.fn((payload: unknown) => Promise.resolve(payload)),
@@ -255,6 +257,84 @@ describe("CashActivityForm payee", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(assignActivityCategory).toHaveBeenLastCalledWith("act-1", "spending_categories", "a");
     expect(setActivityEvent).toHaveBeenLastCalledWith("act-1", null);
+  });
+
+  it("does not close again once dismissed, when a save still running then succeeds", async () => {
+    const user = userEvent.setup();
+    let finish: (activity: Activity) => void = () => undefined;
+    vi.mocked(createActivity).mockReturnValueOnce(
+      new Promise<Activity>((resolve) => (finish = resolve)),
+    );
+    // The page's close also navigates: a second call would pull the user back.
+    const onOpenChange = vi.fn();
+    const view = render(<CashActivityForm open onOpenChange={onOpenChange} intent="expense" />, {
+      wrapper,
+    });
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(createActivity).toHaveBeenCalledTimes(1));
+
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    view.unmount();
+    finish({ id: "first" } as Activity);
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports an earlier edit as updated when it ends under a new entry", async () => {
+    const user = userEvent.setup();
+    let finish: (activity: Activity) => void = () => undefined;
+    vi.mocked(updateActivity).mockReturnValueOnce(
+      new Promise<Activity>((resolve) => (finish = resolve)),
+    );
+    const view = render(<CashActivityForm open onOpenChange={vi.fn()} activity={charge} />, {
+      wrapper,
+    });
+    await user.click(screen.getByRole("button", { name: /update/i }));
+    await waitFor(() => expect(updateActivity).toHaveBeenCalledTimes(1));
+
+    view.rerender(<CashActivityForm open onOpenChange={vi.fn()} intent="expense" />);
+    finish(charge);
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Activity updated."));
+  });
+
+  it("asks before closing an edit left different from what a failed save wrote", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const client = new QueryClient();
+    const refreshed = vi.spyOn(client, "invalidateQueries");
+    vi.mocked(setActivityPayee).mockRejectedValueOnce(new Error("offline"));
+    const filed = { ...charge, categoryTaxonomyId: "spending_categories", categoryId: "a" };
+    render(
+      <QueryClientProvider client={client}>
+        <CashActivityForm open onOpenChange={onOpenChange} activity={filed} />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Category b" }));
+    await pickPayee(user, "Corner Bakery");
+    await user.click(screen.getByRole("button", { name: /update/i }));
+    await waitFor(() => expect(setActivityPayee).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled());
+
+    // Category b is on file now. Back to a, with the payee cleared, the form
+    // shows what it opened with, which is not what closing would leave saved.
+    await user.click(screen.getByRole("button", { name: "Category a" }));
+    await user.click(screen.getByTestId("payee-field"));
+    await user.click(await screen.findByText("No payee"));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    // Not refreshed while the form is open: that would reset what is being retried.
+    expect(refreshed).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    // The lists still show category a: they are told once the form is gone.
+    expect(refreshed).toHaveBeenCalled();
   });
 
   it("does not create the transaction again when saving after its payee failed", async () => {

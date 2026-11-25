@@ -212,6 +212,8 @@ interface CashActivityFormProps {
 interface SaveSession {
   /** The new transaction, once a save has created it. */
   createdId: string | null;
+  /** An edit is on file that the lists have not been refreshed for. */
+  unrefreshed: boolean;
   /** Each one as last written; unset while it is still as the form opened with. */
   written: {
     /** `taxonomyId:categoryId`, or "" for none. */
@@ -220,7 +222,7 @@ interface SaveSession {
     payeeName?: string;
   };
 }
-const newSaveSession = (): SaveSession => ({ createdId: null, written: {} });
+const newSaveSession = (): SaveSession => ({ createdId: null, unrefreshed: false, written: {} });
 
 export function CashActivityForm({
   open,
@@ -312,10 +314,8 @@ export function CashActivityForm({
   // when the form is opened again reports to the opening it started in.
   const session = useRef(newSaveSession());
   useEffectOnChange(() => {
-    if (open) {
-      payeeEdited.current = false;
-      session.current = newSaveSession();
-    }
+    if (open) payeeEdited.current = false;
+    session.current = newSaveSession();
   }, [open, activity?.id]);
   useEffect(() => {
     if (open && !payeeEdited.current) setPayeeName(savedPayeeName);
@@ -509,6 +509,7 @@ export function CashActivityForm({
         };
         const [reviewed] = await reviewEdits([update]);
         saved = await updateActivity(reviewed);
+        saving.unrefreshed = true;
       } else {
         const create: ActivityCreate = {
           accountId: values.accountId,
@@ -571,26 +572,31 @@ export function CashActivityForm({
       saving.createdId = null;
       return saved;
     },
-    // The opening the save belongs to, for when it ends in another one.
-    onMutate: () => session.current,
-    onSuccess: (_saved, _values, owner) => {
+    // The opening the save belongs to and what it says once saved, for when it
+    // ends in another opening, which can be of another kind of entry.
+    onMutate: () => ({
+      owner: session.current,
+      savedMessage: isEditing
+        ? t("spending:cashForm.activityUpdated")
+        : intent === "expense"
+          ? t("spending:cashForm.expenseAdded")
+          : intent === "income"
+            ? t("spending:cashForm.incomeAdded")
+            : t("spending:cashForm.activityCreated"),
+    }),
+    onSuccess: (_saved, _values, { owner, savedMessage }) => {
+      owner.unrefreshed = false;
       invalidateSaved();
-      toast.success(
-        isEditing
-          ? t("spending:cashForm.activityUpdated")
-          : intent === "expense"
-            ? t("spending:cashForm.expenseAdded")
-            : intent === "income"
-              ? t("spending:cashForm.incomeAdded")
-              : t("spending:cashForm.activityCreated"),
-      );
-      // A form opened since is another entry: it stays open.
+      toast.success(savedMessage);
+      // A form dismissed or opened again since is not this save's to close.
       if (owner === session.current) onOpenChange(false);
     },
-    onError: (e: unknown, _values, owner) => {
+    onError: (e: unknown, _values, context) => {
       if (isActivityEditCancelled(e)) return;
       // The transaction itself may have been created before the step that failed.
-      if (owner?.createdId) invalidateSaved();
+      // A failed edit is refreshed when the form is dismissed instead: a refreshed
+      // activity would reset the fields being retried.
+      if (context?.owner.createdId) invalidateSaved();
       toast.error(t("spending:cashForm.saveFailed", { message: (e as Error).message ?? e }));
     },
   });
@@ -615,25 +621,37 @@ export function CashActivityForm({
   // Read during render so the form tracks them for the close check below.
   // A successful save closes the sheet itself; a failed one leaves the input to protect.
   const { dirtyFields } = form.formState;
+  // Closes the form on the user's word. A save still running is then no longer
+  // this form's: it must not close, or navigate away from, what is opened next.
+  const dismiss = () => {
+    if (session.current.unrefreshed) invalidateSaved();
+    session.current = newSaveSession();
+    onOpenChange(false);
+  };
   const handleSheetOpenChange = (next: boolean) => {
     // Typed input is kept unless the user says to drop it. Picking the type of a new
-    // entry is not input; changing an existing one's type, or its event, is.
+    // entry is not input; changing an existing one's type, or its event, is. After a
+    // save that failed part-way, a choice is unsaved when it differs from what was
+    // written, even if it is back to what the form opened with.
+    const { written } = session.current;
     const hasUnsavedInput =
       Object.keys(dirtyFields).some((field) => isEditing || field !== "activityType") ||
-      eventId !== (activity?.eventId ?? null) ||
-      payeeName.trim() !== savedPayeeName;
+      (written.category !== undefined && form.getValues("category") !== written.category) ||
+      eventId !== (written.eventId !== undefined ? written.eventId : (activity?.eventId ?? null)) ||
+      payeeName.trim() !== (written.payeeName ?? savedPayeeName);
     if (!next && hasUnsavedInput) {
       setConfirmDiscard(true);
       return;
     }
-    onOpenChange(next);
+    if (next) onOpenChange(next);
+    else dismiss();
   };
 
   const handleTransferAction = async () => {
     if (!onTransferClick) return;
     const isValid = await form.trigger("accountId");
     if (!isValid || !watchAccountId) return;
-    onOpenChange(false);
+    dismiss();
     onTransferClick(watchAccountId);
   };
 
@@ -803,7 +821,7 @@ export function CashActivityForm({
           variant="outline"
           className="w-full justify-start gap-2"
           onClick={() => {
-            onOpenChange(false);
+            dismiss();
             onConvertToTransfer();
           }}
         >
@@ -816,7 +834,7 @@ export function CashActivityForm({
   const reclassificationField = (
     <CashActivityReclassification
       activity={activity}
-      onSuccess={() => onOpenChange(false)}
+      onSuccess={dismiss}
       disabled={saveMutation.isPending}
     />
   );
@@ -1412,7 +1430,7 @@ export function CashActivityForm({
       <DiscardChangesDialog
         open={confirmDiscard}
         onOpenChange={setConfirmDiscard}
-        onDiscard={() => onOpenChange(false)}
+        onDiscard={dismiss}
       />
     </>
   );
