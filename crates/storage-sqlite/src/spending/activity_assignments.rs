@@ -968,6 +968,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_payee_that_fails_to_write_takes_back_the_categories_written_before_it() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
+            insert_account_and_activity(&mut conn, "other", "MANUAL");
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+
+        let failed = repo
+            .assign_many_single_select_clearing_splits(
+                vec![
+                    manual("ordinary", "spending_categories", "cat_groceries"),
+                    // No such payee: the foreign key refuses the row.
+                    manual("other", "payees", "payee_missing"),
+                ],
+                HashMap::new(),
+            )
+            .await;
+
+        assert!(failed.is_err());
+        assert!(repo.list_for_activity("ordinary").await.unwrap().is_empty());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(outbox_count(&mut conn), 0);
+    }
+
+    #[tokio::test]
+    async fn a_batch_of_payees_alone_replaces_a_payee_and_leaves_the_splits() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+            insert_payee(&mut conn, "payee_bakery");
+            insert_payee(&mut conn, "payee_water");
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        for payee in ["payee_bakery", "payee_water"] {
+            repo.assign_many_single_select_clearing_splits(
+                vec![manual("split-activity", "payees", payee)],
+                HashMap::new(),
+            )
+            .await
+            .expect("a payee is not refused by splits");
+        }
+
+        let filed: Vec<String> = repo
+            .list_for_activity("split-activity")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|assignment| assignment.category_id)
+            .collect();
+        assert_eq!(filed, vec!["payee_water"]);
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            1
+        );
+    }
+
+    #[tokio::test]
     async fn a_payee_and_a_category_are_written_together_and_the_payee_keeps_its_splits() {
         let (pool, writer, _dir) = setup_db();
         {
