@@ -7,6 +7,7 @@ import { createActivity, updateActivity } from "@/adapters";
 import type { Activity, TaxonomyCategory } from "@/lib/types";
 import { render, screen, waitFor } from "@/test/render";
 
+import { assignActivityCategory, setActivityEvent } from "../adapters/cash-activities";
 import { setActivityPayee } from "../lib/payee";
 import { CashActivityForm } from "./cash-activity-form";
 
@@ -29,6 +30,40 @@ vi.mock("../hooks/use-activity-payee", () => ({
   useActivityPayee: () => ({ payees: onFile.payees, payeeName: onFile.payeeName }),
 }));
 vi.mock("../lib/payee", () => ({ PAYEES_TAXONOMY_ID: "payees", setActivityPayee: vi.fn() }));
+vi.mock("../adapters/cash-activities", () => ({
+  assignActivityCategory: vi.fn(),
+  unassignActivityCategory: vi.fn(),
+  setActivityEvent: vi.fn(),
+}));
+// An edit is reviewed for its splits first; these activities have none.
+vi.mock("./activity-split-review-provider", () => ({
+  useActivitySplitReview: () => (edits: unknown[]) => Promise.resolve(edits),
+  isActivityEditCancelled: () => false,
+}));
+// The category and event pickers, reduced to the picks these tests make.
+vi.mock("./quick-categorize-popover", () => ({
+  QuickCategorizePopover: ({ onSelect }: { onSelect: (tax: string, id: string) => void }) => (
+    <>
+      {["a", "b"].map((id) => (
+        <button key={id} type="button" onClick={() => onSelect("spending_categories", id)}>
+          Category {id}
+        </button>
+      ))}
+    </>
+  ),
+}));
+vi.mock("./quick-event-popover", () => ({
+  QuickEventPopover: (props: { onSelect: (id: string) => void; onClear: () => void }) => (
+    <>
+      <button type="button" onClick={() => props.onSelect("trip")}>
+        Event trip
+      </button>
+      <button type="button" onClick={props.onClear}>
+        No event
+      </button>
+    </>
+  ),
+}));
 vi.mock("@/adapters", () => ({
   createActivity: vi.fn(),
   updateActivity: vi.fn((payload: unknown) => Promise.resolve(payload)),
@@ -171,6 +206,55 @@ describe("CashActivityForm payee", () => {
     // The new form's save is a new transaction, not an update of the old one.
     await waitFor(() => expect(createActivity).toHaveBeenCalledTimes(2));
     expect(updateActivity).not.toHaveBeenCalled();
+  });
+
+  it("leaves a form opened since open when an earlier save succeeds", async () => {
+    const user = userEvent.setup();
+    let finish: (activity: Activity) => void = () => undefined;
+    vi.mocked(createActivity).mockReturnValueOnce(
+      new Promise<Activity>((resolve) => (finish = resolve)),
+    );
+    const onOpenChange = vi.fn();
+    const form = (open: boolean) => (
+      <CashActivityForm open={open} onOpenChange={onOpenChange} intent="expense" />
+    );
+    const view = render(form(true), { wrapper });
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(createActivity).toHaveBeenCalledTimes(1));
+
+    view.rerender(form(false));
+    view.rerender(form(true));
+    finish({ id: "first" } as Activity);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("saves the final category and event of an edit retried after a later write failed", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    vi.mocked(setActivityPayee).mockRejectedValueOnce(new Error("offline"));
+    const filed = { ...charge, categoryTaxonomyId: "spending_categories", categoryId: "a" };
+    render(<CashActivityForm open onOpenChange={onOpenChange} activity={filed} />, { wrapper });
+    await user.click(screen.getByRole("button", { name: "Category b" }));
+    await user.click(screen.getByRole("button", { name: "Event trip" }));
+    await pickPayee(user, "Corner Bakery");
+
+    // The category and the event are saved; the payee after them fails.
+    await user.click(screen.getByRole("button", { name: /update/i }));
+    await waitFor(() => expect(setActivityPayee).toHaveBeenCalledTimes(1));
+    expect(assignActivityCategory).toHaveBeenLastCalledWith("act-1", "spending_categories", "b");
+    expect(setActivityEvent).toHaveBeenLastCalledWith("act-1", "trip");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    // Back to what the form opened with, which is no longer what is on file.
+    await user.click(screen.getByRole("button", { name: "Category a" }));
+    await user.click(screen.getByRole("button", { name: "No event" }));
+    await user.click(screen.getByRole("button", { name: /update/i }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(assignActivityCategory).toHaveBeenLastCalledWith("act-1", "spending_categories", "a");
+    expect(setActivityEvent).toHaveBeenLastCalledWith("act-1", null);
   });
 
   it("does not create the transaction again when saving after its payee failed", async () => {

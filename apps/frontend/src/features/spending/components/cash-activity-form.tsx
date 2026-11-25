@@ -204,14 +204,23 @@ interface CashActivityFormProps {
   intent?: "expense" | "income";
 }
 
-/** A new transaction already created, and what has been written for it since. */
-interface CreatedActivity {
-  id: string;
-  /** `taxonomyId:categoryId`, or "" for none. */
-  category: string;
-  eventId: string | null;
-  payeeName: string;
+/**
+ * What the saves of one opening of the form have got to write. A save writes
+ * the transaction, then its category, event and payee, and can fail between
+ * two of them: the next one starts from what is on file by then.
+ */
+interface SaveSession {
+  /** The new transaction, once a save has created it. */
+  createdId: string | null;
+  /** Each one as last written; unset while it is still as the form opened with. */
+  written: {
+    /** `taxonomyId:categoryId`, or "" for none. */
+    category?: string;
+    eventId?: string | null;
+    payeeName?: string;
+  };
 }
+const newSaveSession = (): SaveSession => ({ createdId: null, written: {} });
 
 export function CashActivityForm({
   open,
@@ -296,16 +305,16 @@ export function CashActivityForm({
   // The payee on file can load after the user has picked one: it seeds the
   // field only until they do.
   const payeeEdited = useRef(false);
-  // A new transaction is created before its category, event and payee are
-  // written. `created` is what a save that failed part-way has already written,
-  // so the next one carries on with the same transaction instead of adding
-  // another. It belongs to one opening of the form: a save still running when
-  // the form is opened again reports to the opening it started in.
-  const session = useRef<{ created: CreatedActivity | null }>({ created: null });
+  // A save that failed part-way has written some of the transaction. The next
+  // one carries on from there: it does not create the transaction again, and it
+  // compares each choice with what was written, not with what the form opened
+  // with. The record belongs to one opening of the form: a save still running
+  // when the form is opened again reports to the opening it started in.
+  const session = useRef(newSaveSession());
   useEffectOnChange(() => {
     if (open) {
       payeeEdited.current = false;
-      session.current = { created: null };
+      session.current = newSaveSession();
     }
   }, [open, activity?.id]);
   useEffect(() => {
@@ -512,56 +521,59 @@ export function CashActivityForm({
           comment: values.notes ?? null,
           metadata: cashActivityFlowMetadata(values.activityType, subtype),
         };
-        if (saving.created) {
+        if (saving.createdId) {
           // An earlier attempt created it: bring it up to what the form says now.
-          saved = await updateActivity({ id: saving.created.id, ...create });
+          saved = await updateActivity({ id: saving.createdId, ...create });
         } else {
           saved = await createActivity(create);
-          saving.created = { id: saved.id, category: "", eventId: null, payeeName: "" };
+          saving.createdId = saved.id;
         }
       }
-      // What is on file to compare against: the activity being edited, or what
-      // an earlier attempt at this new one got to write.
-      const written = saving.created;
+      // What is on file to compare against: what an earlier attempt wrote, or
+      // else what the form opened with.
+      const written = saving.written;
 
       // Sync category assignment
       const newCategory = values.category;
-      const oldCategory = written
-        ? written.category
-        : activity?.categoryTaxonomyId && activity?.categoryId
+      const oldCategory =
+        written.category ??
+        (activity?.categoryTaxonomyId && activity?.categoryId
           ? `${activity.categoryTaxonomyId}:${activity.categoryId}`
-          : "";
+          : "");
       if (newCategory !== oldCategory) {
         if (oldCategory) {
           const [oldTax] = oldCategory.split(":");
           await unassignActivityCategory(saved.id, oldTax);
-          if (written) written.category = "";
+          written.category = "";
         }
         if (newCategory) {
           const [tax, cat] = newCategory.split(":");
           await assignActivityCategory(saved.id, tax, cat);
-          if (written) written.category = newCategory;
+          written.category = newCategory;
         }
       }
 
       // Sync event_id if changed
-      const oldEventId = written ? written.eventId : (activity?.eventId ?? null);
+      const oldEventId =
+        written.eventId !== undefined ? written.eventId : (activity?.eventId ?? null);
       if (eventId !== oldEventId) {
         await setActivityEvent(saved.id, eventId);
-        if (written) written.eventId = eventId;
+        written.eventId = eventId;
       }
 
       // Sync the payee if changed
       const newPayeeName = payeeName.trim();
-      if (newPayeeName !== (written ? written.payeeName : savedPayeeName)) {
+      if (newPayeeName !== (written.payeeName ?? savedPayeeName)) {
         await setActivityPayee(saved.id, payeeName, payees);
-        if (written) written.payeeName = newPayeeName;
+        written.payeeName = newPayeeName;
       }
 
-      saving.created = null;
+      saving.createdId = null;
       return saved;
     },
-    onSuccess: () => {
+    // The opening the save belongs to, for when it ends in another one.
+    onMutate: () => session.current,
+    onSuccess: (_saved, _values, owner) => {
       invalidateSaved();
       toast.success(
         isEditing
@@ -572,12 +584,13 @@ export function CashActivityForm({
               ? t("spending:cashForm.incomeAdded")
               : t("spending:cashForm.activityCreated"),
       );
-      onOpenChange(false);
+      // A form opened since is another entry: it stays open.
+      if (owner === session.current) onOpenChange(false);
     },
-    onError: (e: unknown) => {
+    onError: (e: unknown, _values, owner) => {
       if (isActivityEditCancelled(e)) return;
       // The transaction itself may have been created before the step that failed.
-      if (session.current.created) invalidateSaved();
+      if (owner?.createdId) invalidateSaved();
       toast.error(t("spending:cashForm.saveFailed", { message: (e as Error).message ?? e }));
     },
   });
