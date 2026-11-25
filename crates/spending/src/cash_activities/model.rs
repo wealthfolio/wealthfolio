@@ -263,6 +263,17 @@ pub struct SpendingContext {
     pub excluded_category_ids: Vec<String>,
 }
 
+/// What still points at a payee, on every account: what its delete is refused
+/// for, so a payee with none of either can be deleted.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PayeeReferences {
+    /// Activities filed under the payee.
+    pub transactions: usize,
+    /// Categorization rules that set the payee.
+    pub rules: usize,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EffectiveCategoryAllocation {

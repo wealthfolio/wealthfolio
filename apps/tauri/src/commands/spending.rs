@@ -657,6 +657,34 @@ pub async fn get_payee_usage(
         .map_err(|_| "Failed to count payee usage".into())
 }
 
+/// What still points at a payee, on every account: what its delete is refused for.
+#[tauri::command]
+pub async fn get_payee_references(
+    payee_id: String,
+    state: ProfileAccess,
+) -> Result<wealthfolio_spending::cash_activities::PayeeReferences, String> {
+    state
+        .context()?
+        .cash_activity_service()
+        .payee_references(&payee_id)
+        .map_err(|_| "Failed to count payee references".into())
+}
+
+/// Files every activity of one payee under another, on every account.
+#[tauri::command]
+pub async fn move_payee_activities(
+    source_id: String,
+    destination_id: String,
+    state: ProfileAccess,
+) -> Result<usize, String> {
+    state
+        .context()?
+        .cash_activity_service()
+        .move_payee_activities(&source_id, &destination_id)
+        .await
+        .map_err(|e| format!("Failed to move the payee's activities: {}", e))
+}
+
 #[tauri::command]
 pub async fn upsert_budget_target(
     target: NewBudgetTarget,

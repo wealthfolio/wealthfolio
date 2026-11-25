@@ -367,6 +367,8 @@ pub fn run() {
             commands::spending::get_budget_readonly,
             commands::spending::get_spending_context,
             commands::spending::get_payee_usage,
+            commands::spending::get_payee_references,
+            commands::spending::move_payee_activities,
             commands::spending::upsert_budget_target,
             commands::spending::delete_budget_target,
             commands::spending::upsert_budget_rollover_setting,

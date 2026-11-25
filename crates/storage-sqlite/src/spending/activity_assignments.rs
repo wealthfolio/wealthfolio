@@ -610,6 +610,41 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
         Ok(result)
     }
 
+    async fn reassign_category(
+        &self,
+        taxonomy_id: &str,
+        from_category_id: &str,
+        to_category_id: &str,
+    ) -> Result<usize> {
+        let taxonomy_id = taxonomy_id.to_string();
+        let from_category_id = from_category_id.to_string();
+        let to_category_id = to_category_id.to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        self.writer
+            .exec_tx(move |tx| {
+                let moved = diesel::update(
+                    activity_taxonomy_assignments::table
+                        .filter(activity_taxonomy_assignments::taxonomy_id.eq(&taxonomy_id))
+                        .filter(activity_taxonomy_assignments::category_id.eq(&from_category_id)),
+                )
+                .set((
+                    activity_taxonomy_assignments::category_id.eq(&to_category_id),
+                    activity_taxonomy_assignments::updated_at.eq(&now),
+                ))
+                .returning(ActivityTaxonomyAssignmentDB::as_returning())
+                .get_results::<ActivityTaxonomyAssignmentDB>(tx.conn())
+                .map_err(StorageError::from)?;
+                for assignment in &moved {
+                    if should_sync_activity_local_id_outbox(tx.conn(), &assignment.activity_id)? {
+                        tx.update(assignment)?;
+                    }
+                }
+                Ok(moved.len())
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
     async fn delete(&self, id: &str) -> Result<()> {
         let id = id.to_string();
         self.writer
@@ -964,6 +999,60 @@ mod tests {
                 .unwrap(),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn reassigning_a_category_moves_its_assignments_and_keeps_their_source() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            for id in ["by-hand", "by-rule", "elsewhere"] {
+                insert_account_and_activity(&mut conn, id, "MANUAL");
+            }
+            for id in ["payee_old", "payee_new", "payee_other"] {
+                insert_payee(&mut conn, id);
+            }
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        repo.assign_many_single_select(vec![
+            manual("by-hand", "payees", "payee_old"),
+            NewActivityTaxonomyAssignment {
+                source: "rule".to_string(),
+                ..manual("by-rule", "payees", "payee_old")
+            },
+            manual("elsewhere", "payees", "payee_other"),
+        ])
+        .await
+        .expect("file under payees");
+        let outbox_before = outbox_count(&mut get_connection(&pool).expect("conn"));
+
+        let moved = repo
+            .reassign_category("payees", "payee_old", "payee_new")
+            .await
+            .expect("reassign");
+
+        assert_eq!(moved, 2);
+        let filed = |assignments: Vec<ActivityTaxonomyAssignment>| {
+            assignments
+                .into_iter()
+                .map(|a| (a.category_id, a.source))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            filed(repo.list_for_activity("by-hand").await.unwrap()),
+            vec![("payee_new".to_string(), "manual".to_string())]
+        );
+        assert_eq!(
+            filed(repo.list_for_activity("by-rule").await.unwrap()),
+            vec![("payee_new".to_string(), "rule".to_string())]
+        );
+        assert_eq!(
+            filed(repo.list_for_activity("elsewhere").await.unwrap()),
+            vec![("payee_other".to_string(), "manual".to_string())]
+        );
+        // Each moved assignment is sent to the other devices.
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(outbox_count(&mut conn), outbox_before + 2);
     }
 
     #[tokio::test]

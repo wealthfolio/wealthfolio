@@ -33,9 +33,9 @@ import type { TaxonomyCategory } from "@/lib/types";
 import { invalidateSpendingCaches } from "../lib/invalidation";
 import { cn } from "@/lib/utils";
 
-import { getPayeeUsage } from "../adapters/cash-activities";
+import { getPayeeReferences, getPayeeUsage } from "../adapters/cash-activities";
 import { ensurePayee, findPayee, PAYEES_TAXONOMY_ID } from "../lib/payee";
-import { getPayeeReferences, mergePayee } from "../lib/payee-merge";
+import { mergePayee } from "../lib/payee-merge";
 
 /** Query key of the per-payee transaction counts. */
 const PAYEE_USAGE_KEY = "payee-usage";
@@ -241,7 +241,7 @@ function DeletePayeeDialog({ payee, others, onClose }: DeletePayeeDialogProps) {
     },
   });
   const pending = remove.isPending || merge.isPending;
-  const used = !!usage.data && (usage.data.transactions > 0 || usage.data.rules.length > 0);
+  const used = !!usage.data && (usage.data.transactions > 0 || usage.data.rules > 0);
   const destination = others.find((other) => other.id === destinationId);
 
   const confirm = async () => {
@@ -280,7 +280,7 @@ function DeletePayeeDialog({ payee, others, onClose }: DeletePayeeDialogProps) {
                   ? t("settings:spending.payees.merge_description", {
                       name: payee.name,
                       transactions: usage.data?.transactions ?? 0,
-                      rules: usage.data?.rules.length ?? 0,
+                      rules: usage.data?.rules ?? 0,
                     })
                   : t("settings:spending.payees.delete_confirm", { name: payee.name })}
           </AlertDialogDescription>

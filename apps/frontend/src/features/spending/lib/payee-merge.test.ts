@@ -2,22 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deleteCategory } from "@/adapters";
 
-import { bulkAssignCategories, searchCashActivities } from "../adapters/cash-activities";
+import { movePayeeActivities } from "../adapters/cash-activities";
 import { listCategorizationRules, updateCategorizationRule } from "../adapters/rules";
-import { getPayeeReferences, mergePayee } from "./payee-merge";
+import { mergePayee } from "./payee-merge";
 
 vi.mock("@/adapters", () => ({ deleteCategory: vi.fn(() => Promise.resolve()) }));
 vi.mock("../adapters/cash-activities", () => ({
-  searchCashActivities: vi.fn(),
-  bulkAssignCategories: vi.fn(() => Promise.resolve([])),
+  movePayeeActivities: vi.fn(() => Promise.resolve(3)),
 }));
 vi.mock("../adapters/rules", () => ({
   listCategorizationRules: vi.fn(),
   updateCategorizationRule: vi.fn(() => Promise.resolve()),
 }));
 
-const page = (ids: string[], totalCount: number) =>
-  ({ items: ids.map((id) => ({ id })), totalCount }) as never;
 const rule = (id: string, taxonomyId: string, categoryId: string) =>
   ({ id, taxonomyId, categoryId }) as never;
 
@@ -31,53 +28,46 @@ beforeEach(() => {
   ]);
 });
 
-describe("getPayeeReferences", () => {
-  it("counts the payee's transactions and lists the rules that set it", async () => {
-    vi.mocked(searchCashActivities).mockResolvedValue(page(["a1"], 7));
-
-    const usage = await getPayeeReferences("old");
-
-    expect(searchCashActivities).toHaveBeenCalledWith(
-      expect.objectContaining({ payeeIds: ["old"] }),
-    );
-    expect(usage.transactions).toBe(7);
-    expect(usage.rules.map((r) => r.id)).toEqual(["r-old"]);
-  });
-});
-
 describe("mergePayee", () => {
-  it("moves every page of transactions, then the rules, then deletes the payee", async () => {
-    vi.mocked(searchCashActivities)
-      .mockResolvedValueOnce(page(["a1", "a2"], 3))
-      .mockResolvedValueOnce(page(["a3"], 1))
-      .mockResolvedValueOnce(page([], 0));
+  it("moves the transactions, then the rules, then deletes the payee", async () => {
+    const steps: string[] = [];
+    vi.mocked(movePayeeActivities).mockImplementationOnce(async () => {
+      steps.push("transactions");
+      return 3;
+    });
+    vi.mocked(updateCategorizationRule).mockImplementationOnce(async () => {
+      steps.push("rules");
+      return undefined as never;
+    });
+    vi.mocked(deleteCategory).mockImplementationOnce(async () => {
+      steps.push("delete");
+      return undefined as never;
+    });
 
     await mergePayee("old", "new");
 
-    expect(vi.mocked(bulkAssignCategories).mock.calls.map(([items]) => items)).toEqual([
-      [
-        { activityId: "a1", taxonomyId: "payees", categoryId: "new" },
-        { activityId: "a2", taxonomyId: "payees", categoryId: "new" },
-      ],
-      [{ activityId: "a3", taxonomyId: "payees", categoryId: "new" }],
-    ]);
+    // Not a search of the Spending accounts: a transaction outside them would
+    // be left behind and the delete refused.
+    expect(movePayeeActivities).toHaveBeenCalledWith("old", "new");
     expect(updateCategorizationRule).toHaveBeenCalledTimes(1);
     expect(updateCategorizationRule).toHaveBeenCalledWith("r-old", { categoryId: "new" });
     expect(deleteCategory).toHaveBeenCalledWith("payees", "old");
+    expect(steps).toEqual(["transactions", "rules", "delete"]);
   });
 
-  it("stops without deleting when a page does not shrink the total", async () => {
-    vi.mocked(searchCashActivities).mockResolvedValue(page(["a1"], 5));
+  it("does not delete the payee when its transactions could not be moved", async () => {
+    vi.mocked(movePayeeActivities).mockRejectedValueOnce(new Error("offline"));
 
-    await expect(mergePayee("old", "new")).rejects.toThrow("not making progress");
+    await expect(mergePayee("old", "new")).rejects.toThrow("offline");
 
+    expect(updateCategorizationRule).not.toHaveBeenCalled();
     expect(deleteCategory).not.toHaveBeenCalled();
   });
 
   it("refuses to merge a payee into itself", async () => {
     await expect(mergePayee("old", "old")).rejects.toThrow();
 
-    expect(searchCashActivities).not.toHaveBeenCalled();
+    expect(movePayeeActivities).not.toHaveBeenCalled();
     expect(deleteCategory).not.toHaveBeenCalled();
   });
 });

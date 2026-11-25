@@ -144,3 +144,36 @@ export const getPayeeUsage = async (): Promise<Record<string, number>> => {
     throw error;
   }
 };
+
+/** What still points at a payee: it can only be deleted once nothing does. */
+export interface PayeeReferences {
+  /** Transactions filed under it, on every account, in Spending or not. */
+  transactions: number;
+  /** Rules that set it. */
+  rules: number;
+}
+
+export const getPayeeReferences = async (payeeId: string): Promise<PayeeReferences> => {
+  try {
+    return await invoke<PayeeReferences>("get_payee_references", { payeeId });
+  } catch (error) {
+    logger.error("Error counting payee references.");
+    throw error;
+  }
+};
+
+/**
+ * Files every transaction of one payee under another, on every account, in
+ * one write. Returns how many moved.
+ */
+export const movePayeeActivities = async (
+  sourceId: string,
+  destinationId: string,
+): Promise<number> => {
+  try {
+    return await invoke<number>("move_payee_activities", { sourceId, destinationId });
+  } catch (error) {
+    logger.error("Error moving a payee's transactions.");
+    throw error;
+  }
+};

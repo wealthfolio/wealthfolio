@@ -15,11 +15,11 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
 }));
-vi.mock("../adapters/cash-activities", () => ({ getPayeeUsage: mocks.usage }));
-vi.mock("../lib/payee-merge", () => ({
+vi.mock("../adapters/cash-activities", () => ({
+  getPayeeUsage: mocks.usage,
   getPayeeReferences: mocks.references,
-  mergePayee: mocks.merge,
 }));
+vi.mock("../lib/payee-merge", () => ({ mergePayee: mocks.merge }));
 vi.mock("../lib/payee", () => ({
   PAYEES_TAXONOMY_ID: "payees",
   ensurePayee: mocks.ensure,
@@ -109,7 +109,7 @@ describe("rename", () => {
 
 describe("delete", () => {
   it("deletes a payee nothing uses", async () => {
-    mocks.references.mockResolvedValue({ transactions: 0, rules: [] });
+    mocks.references.mockResolvedValue({ transactions: 0, rules: 0 });
     const user = setup();
 
     await user.click(screen.getByRole("button", { name: "Delete City Water" }));
@@ -123,7 +123,7 @@ describe("delete", () => {
   });
 
   it("asks where a payee in use should go before it can be deleted", async () => {
-    mocks.references.mockResolvedValue({ transactions: 4, rules: [{ id: "r1" }] });
+    mocks.references.mockResolvedValue({ transactions: 4, rules: 1 });
     const user = setup();
 
     await user.click(screen.getByRole("button", { name: "Delete Corner Bakery" }));
@@ -131,6 +131,22 @@ describe("delete", () => {
     const confirm = await screen.findByRole("button", { name: "Merge and delete" });
     expect(screen.getByText(/transactions: 4, rules: 1/)).toBeInTheDocument();
     expect(confirm).toBeDisabled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("merges a payee whose only transactions are on accounts outside Spending", async () => {
+    // The list counts the Spending accounts only: none there, two elsewhere.
+    mocks.references.mockResolvedValue({ transactions: 2, rules: 0 });
+    mocks.merge.mockResolvedValue(undefined);
+    const user = setup();
+
+    await user.click(screen.getByRole("button", { name: "Delete City Water" }));
+    expect(await screen.findByText(/transactions: 2, rules: 0/)).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Corner Bakery" }));
+    await user.click(screen.getByRole("button", { name: "Merge and delete" }));
+
+    expect(mocks.merge).toHaveBeenCalledWith("p-water", "p-bakery");
     expect(mocks.remove).not.toHaveBeenCalled();
   });
 });

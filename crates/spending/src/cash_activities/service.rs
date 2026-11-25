@@ -21,7 +21,7 @@ use super::{
     model::{
         CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
         CashActivitySortField, CashActivityStatusFilter, CashFlowBucket, CurrencyNet, NetSummary,
-        SortDirection, TransferLinkStatus, NO_PAYEE_ID,
+        PayeeReferences, SortDirection, TransferLinkStatus, NO_PAYEE_ID,
     },
     CASH_ACTIVITY_TYPES,
 };
@@ -171,6 +171,53 @@ impl CashActivityService {
             *usage.entry(payee).or_default() += 1;
         }
         Ok(usage)
+    }
+
+    /// What still points at a payee. Unlike [`Self::payee_usage`] it counts
+    /// the activities of every account, in Spending or not: it is the count
+    /// the payee's delete is refused for.
+    pub fn payee_references(&self, payee_id: &str) -> Result<PayeeReferences> {
+        let references = self
+            .taxonomy_service
+            .get_category_references(PAYEES_TAXONOMY, payee_id)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        Ok(PayeeReferences {
+            transactions: references.spending_assignments,
+            rules: references.rules,
+        })
+    }
+
+    /// Files under `destination_id` every activity filed under `source_id`,
+    /// and returns how many moved. It is the first step of merging two
+    /// payees, so it reaches the activities of every account: one left behind
+    /// on an account no longer in Spending would keep the source from being
+    /// deleted. Each assignment keeps its source (manual or rule).
+    pub async fn move_payee_activities(
+        &self,
+        source_id: &str,
+        destination_id: &str,
+    ) -> Result<usize> {
+        if source_id == destination_id {
+            return Err(SpendingError::InvalidInput {
+                message: "A payee cannot be merged into itself".to_string(),
+            }
+            .into());
+        }
+        let payees = self
+            .taxonomy_service
+            .get_taxonomy(PAYEES_TAXONOMY)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?
+            .map(|taxonomy| taxonomy.categories)
+            .unwrap_or_default();
+        if !payees.iter().any(|payee| payee.id == destination_id) {
+            return Err(SpendingError::InvalidInput {
+                message: "The payee to merge into does not exist".to_string(),
+            }
+            .into());
+        }
+        self.assignments
+            .reassign_category(PAYEES_TAXONOMY, source_id, destination_id)
+            .await
     }
 
     /// The payee each of these activities is filed under, by activity id.
@@ -2083,6 +2130,17 @@ mod tests {
             unimplemented!()
         }
 
+        async fn reassign_category(&self, taxonomy: &str, from: &str, to: &str) -> Result<usize> {
+            let mut moved = 0;
+            for row in self.assignments.lock().unwrap().iter_mut() {
+                if row.taxonomy_id == taxonomy && row.category_id == from {
+                    row.category_id = to.to_string();
+                    moved += 1;
+                }
+            }
+            Ok(moved)
+        }
+
         async fn delete(&self, _: &str) -> Result<()> {
             unimplemented!()
         }
@@ -2879,6 +2937,46 @@ mod tests {
         let ids: Vec<&str> = found.items.iter().map(|i| i.activity.id.as_str()).collect();
         assert_eq!(ids, vec!["bakery"]);
         assert_eq!(found.total_count, 1);
+    }
+
+    #[tokio::test]
+    async fn moving_a_payees_activities_needs_another_payee_that_exists() {
+        let payee = |id: &str| Category {
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            ..spending_category(id, None)
+        };
+        let (service, assignment_repo, _) = make_service_full(
+            vec![cash_row("bakery", "WITHDRAWAL", 30, "USD")],
+            MockFx::none(),
+            Vec::new(),
+            vec![payee("payee_old"), payee("payee_new")],
+        );
+        *assignment_repo.assignments.lock().unwrap() =
+            vec![payee_assignment("bakery", "payee_old")];
+
+        assert!(service
+            .move_payee_activities("payee_old", "payee_old")
+            .await
+            .is_err());
+        assert!(service
+            .move_payee_activities("payee_old", "payee_gone")
+            .await
+            .is_err());
+        assert_eq!(
+            assignment_repo.assignments.lock().unwrap()[0].category_id,
+            "payee_old"
+        );
+
+        let moved = service
+            .move_payee_activities("payee_old", "payee_new")
+            .await
+            .unwrap();
+
+        assert_eq!(moved, 1);
+        assert_eq!(
+            assignment_repo.assignments.lock().unwrap()[0].category_id,
+            "payee_new"
+        );
     }
 
     fn payee_assignment(activity_id: &str, payee_id: &str) -> ActivityTaxonomyAssignment {

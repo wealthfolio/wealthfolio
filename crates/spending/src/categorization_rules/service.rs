@@ -878,6 +878,9 @@ mod tests {
             }
             Ok(rows)
         }
+        async fn reassign_category(&self, _: &str, _: &str, _: &str) -> Result<usize> {
+            unimplemented!()
+        }
         async fn delete(&self, _id: &str) -> Result<()> {
             unimplemented!()
         }
