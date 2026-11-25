@@ -42,7 +42,7 @@ import {
 } from "../lib/year-period";
 import { getActivitySpendingAmount, getVisibleSpendingAmount } from "../lib/constants";
 import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
-import { labelFilterKeeps } from "../lib/label-filter";
+import { labelFilterKeeps, labelFilterRulesOutEvent } from "../lib/label-filter";
 import {
   addMonthsToMonthKey,
   currentMonthKey,
@@ -555,6 +555,16 @@ export default function SpendingInsightsPage({
     isError: eventsErrored,
     refetch: refetchEvents,
   } = useEventSpendingSummaries(eventsRequest);
+  // An event the filter leaves out by itself, like a trip without travel, has
+  // no place among the events: listed at zero it would count as days of no
+  // spending, in the events' combined lift and against the normal pace.
+  const shownEvents = useMemo(
+    () =>
+      labelFilter
+        ? events.filter((event) => !labelFilterRulesOutEvent(labelFilter, event))
+        : events,
+    [events, labelFilter],
+  );
 
   const onJumpToBreakdown = useCallback(() => {
     const el = document.getElementById("breakdown");
@@ -867,8 +877,9 @@ export default function SpendingInsightsPage({
             heatmapActivities={heatmapActivities}
             accountTypeById={accountTypeById}
             dailySpendByDate={heatmapDailySpendByDate}
-            events={events}
+            events={shownEvents}
             eventsErrored={eventsErrored}
+            eventsFilteredOut={shownEvents.length < events.length}
             onRetryEvents={() => refetchEvents()}
             taxonomyCategories={displaySpendingCategories}
             currency={heatmapInsight?.currency ?? baseCurrency}

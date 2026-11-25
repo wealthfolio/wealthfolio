@@ -33,6 +33,8 @@ export interface WhenWhereStageProps {
   /** True when the events query failed. Used to render an error state instead of
    * the "Create event" empty CTA, which would otherwise mask the failure. */
   eventsErrored?: boolean;
+  /** The period has events that the label filter leaves out, so `events` lacks them. */
+  eventsFilteredOut?: boolean;
   onRetryEvents?: () => void;
   taxonomyCategories: TaxonomyCategory[];
   currency: string;
@@ -56,6 +58,7 @@ export function WhenWhereStage({
   dailySpendByDate,
   events,
   eventsErrored = false,
+  eventsFilteredOut = false,
   onRetryEvents,
   taxonomyCategories,
   currency,
@@ -100,11 +103,12 @@ export function WhenWhereStage({
             the empty CTA below would mask the failure. */}
         {eventsErrored ? (
           <EventsErrorCard onRetry={onRetryEvents} />
-        ) : events.length === 0 && windowOffset === 0 ? (
+        ) : events.length === 0 && windowOffset === 0 && !eventsFilteredOut ? (
           /* Empty + offset=0 (current period, no events ever tagged here): show the
               "tag your first event" CTA. Empty + offset>0 (paginated to a quiet
               historical window): render the timeline card empty so the < > arrows
-              stay reachable. */
+              stay reachable. Empty because the label filter leaves the period's
+              events out: empty too, since events are tagged there. */
           <EmptyEventsCard rangeStart={rangeStart} rangeEnd={rangeEnd} />
         ) : (
           <>

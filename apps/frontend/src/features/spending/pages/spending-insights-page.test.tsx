@@ -28,6 +28,11 @@ const { insightQuery, eventsQuery, cashQuery, sheetProps, testSettings, taxonomy
     testSettings: { timezone: "America/Toronto", hidden: false },
   }),
 );
+// What the event summaries return; a test sets the period's events.
+const eventSummaries = vi.hoisted(() => {
+  const none: { eventId: string; eventTypeId: string }[] = [];
+  return { none, current: none };
+});
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({
     settings: { baseCurrency: "USD", timezone: testSettings.timezone },
@@ -59,7 +64,7 @@ vi.mock("../hooks/use-spending-events", () => ({
   useSpendingEvents: () => ({ data: [] }),
   useEventSpendingSummaries: (request: unknown) => {
     eventsQuery(request);
-    return { data: [] };
+    return { data: eventSummaries.current };
   },
 }));
 vi.mock("../components/reports/insights/where-i-am-stage", () => ({
@@ -76,11 +81,23 @@ vi.mock("../components/reports/insights/what-changed-stage", () => ({
   ),
 }));
 vi.mock("../components/reports/insights/when-where-stage", () => ({
-  WhenWhereStage: ({ taxonomyCategories }: { taxonomyCategories: TaxonomyCategory[] }) => (
+  WhenWhereStage: ({
+    taxonomyCategories,
+    events,
+    eventsFilteredOut,
+  }: {
+    taxonomyCategories: TaxonomyCategory[];
+    events: { eventId: string }[];
+    eventsFilteredOut: boolean;
+  }) => (
     <div>
       When stage
       <output data-testid="report-category-names">
         {taxonomyCategories.map((row) => row.name).join(" / ")}
+      </output>
+      <output data-testid="stage-events">
+        {events.map((event) => event.eventId).join(" / ")}
+        {eventsFilteredOut ? " (some left out)" : ""}
       </output>
     </div>
   ),
@@ -91,16 +108,25 @@ vi.mock("../components/reports/category-transactions-sheet", () => ({
     return null;
   },
 }));
-// The two facets, reduced to one pick: only the spending at one payee.
+// The two facets, reduced to two picks: only the spending at one payee, and
+// all spending but that of travel events.
 vi.mock("../components/spending-label-filter", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../components/spending-label-filter")>()),
   SpendingLabelFilter: ({ onChange }: { onChange: (next: LabelSelection) => void }) => (
-    <button
-      type="button"
-      onClick={() => onChange({ only: new Set(["payee:p1"]), without: new Set() })}
-    >
-      Only Corner Bakery
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => onChange({ only: new Set(["payee:p1"]), without: new Set() })}
+      >
+        Only Corner Bakery
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange({ only: new Set(), without: new Set(["eventType:travel"]) })}
+      >
+        Without travel
+      </button>
+    </>
   ),
 }));
 vi.mock("../components/reports/heatmap-cell-sheet", () => ({ HeatmapCellSheet: () => null }));
@@ -181,6 +207,28 @@ it("narrows the events and the category transactions by the picked labels", asyn
   // Their amounts sit beside the heatmap and totals, which the insight narrows.
   expect(eventsQuery.mock.lastCall?.[0]).toMatchObject({ filter });
   expect(sheetProps.mock.lastCall?.[0].labelFilter).toEqual(filter);
+});
+
+it("leaves the events a label filter rules out off the When & where stage", async () => {
+  eventSummaries.current = [
+    { eventId: "trip", eventTypeId: "travel" },
+    { eventId: "party", eventTypeId: "birthday" },
+  ];
+  try {
+    const user = setup("when");
+    expect(screen.getByTestId("stage-events")).toHaveTextContent("trip / party");
+
+    // The trip may have no spending at the bakery, but it still took place.
+    await user.click(screen.getByRole("button", { name: "Only Corner Bakery" }));
+    expect(screen.getByTestId("stage-events")).toHaveTextContent("trip / party");
+
+    // Without travel there is no trip: at zero it would drag the events' lift down.
+    await user.click(screen.getByRole("button", { name: "Without travel" }));
+    expect(screen.getByTestId("stage-events")).toHaveTextContent("party (some left out)");
+    expect(screen.getByTestId("stage-events")).not.toHaveTextContent("trip");
+  } finally {
+    eventSummaries.current = eventSummaries.none;
+  }
 });
 
 describe("This month comparisons", () => {

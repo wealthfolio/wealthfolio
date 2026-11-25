@@ -71,3 +71,27 @@ export function labelFilterTransactionParams(
   // No event to name: an empty list would read as no filter at all.
   return eventIds.size > 0 ? { events: [...eventIds].join(",") } : null;
 }
+
+/**
+ * Whether a label filter leaves out every activity tagged to an event, by the
+ * event alone: the filter leaves the event or its type out, or keeps only
+ * events and event types that this one is not among. Such an event has no
+ * place in a report narrowed by the filter. An event whose activities the
+ * filter may keep or not by their other labels, like a payee, is not ruled
+ * out, even when none of them is kept.
+ */
+export function labelFilterRulesOutEvent(
+  filter: ActivityLabelFilter,
+  event: { eventId: string; eventTypeId: string },
+): boolean {
+  const names = (label: ActivityLabel) =>
+    (label.kind === "event" && label.eventId === event.eventId) ||
+    (label.kind === "eventType" && label.eventTypeId === event.eventTypeId);
+  const include = filter.include ?? [];
+  if ((filter.exclude ?? []).some(names)) return true;
+  return (
+    include.length > 0 &&
+    include.every((label) => label.kind !== "category") &&
+    !include.some(names)
+  );
+}

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ActivitySplit, ActivityTaxonomyAssignment } from "../types/cash-activity";
 import type { ActivityLabel, ActivityLabelFilter } from "../types/insight";
-import { labelFilterKeeps, labelFilterTransactionParams } from "./label-filter";
+import {
+  labelFilterKeeps,
+  labelFilterRulesOutEvent,
+  labelFilterTransactionParams,
+} from "./label-filter";
 
 const payee = (categoryId: string): ActivityLabel => ({
   kind: "category",
@@ -121,5 +125,55 @@ describe("labelFilterTransactionParams", () => {
       ),
     ).toBeNull();
     expect(labelFilterTransactionParams({ include: [type("wedding")] }, events)).toBeNull();
+  });
+});
+
+describe("labelFilterRulesOutEvent", () => {
+  const trip = { eventId: "trip-1", eventTypeId: "travel" };
+  const event = (eventId: string): ActivityLabel => ({ kind: "event", eventId });
+  const type = (eventTypeId: string): ActivityLabel => ({ kind: "eventType", eventTypeId });
+
+  it("rules out an event left out by itself or by its type", () => {
+    expect(labelFilterRulesOutEvent({ exclude: [type("travel")] }, trip)).toBe(true);
+    expect(labelFilterRulesOutEvent({ exclude: [event("trip-1")] }, trip)).toBe(true);
+    expect(labelFilterRulesOutEvent({ exclude: [type("birthday"), event("party")] }, trip)).toBe(
+      false,
+    );
+  });
+
+  it("rules out an event that is not among the only events and types kept", () => {
+    expect(labelFilterRulesOutEvent({ include: [type("birthday"), event("party")] }, trip)).toBe(
+      true,
+    );
+    expect(labelFilterRulesOutEvent({ include: [type("birthday"), event("trip-1")] }, trip)).toBe(
+      false,
+    );
+    expect(labelFilterRulesOutEvent({ include: [type("travel")] }, trip)).toBe(false);
+  });
+
+  it("keeps an event whose activities a payee could still keep", () => {
+    // Nothing spent at the bakery on the trip is a low trip, not no trip.
+    expect(labelFilterRulesOutEvent({ include: [payee("bakery")] }, trip)).toBe(false);
+    expect(labelFilterRulesOutEvent({ include: [payee("bakery"), type("birthday")] }, trip)).toBe(
+      false,
+    );
+    expect(labelFilterRulesOutEvent({ exclude: [payee("bakery")] }, trip)).toBe(false);
+    expect(labelFilterRulesOutEvent({}, trip)).toBe(false);
+  });
+
+  it("agrees with what the filter keeps of the event's activities", () => {
+    const filters: ActivityLabelFilter[] = [
+      { exclude: [type("travel")] },
+      { include: [type("birthday")] },
+      { include: [payee("bakery"), type("birthday")] },
+      { include: [type("travel")], exclude: [payee("bakery")] },
+    ];
+    for (const filter of filters) {
+      const keepsSome = [activity("bakery", "trip-1"), activity(null, "trip-1")].some((tagged) =>
+        labelFilterKeeps(filter, tagged, typeByEvent),
+      );
+      // Ruled out means none of its activities can be kept.
+      if (labelFilterRulesOutEvent(filter, trip)) expect(keepsSome).toBe(false);
+    }
   });
 });
