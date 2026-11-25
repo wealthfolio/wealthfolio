@@ -260,6 +260,28 @@ export default function SpendingCategoriesPage() {
   };
 
   const renderCategoryList = (categoryList: CategoryNode[], isExpenseList = false) => {
+    // With no category of any kind the tabs still show, so the payees stay in reach.
+    if (total === 0) {
+      return (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Icons.Tag />
+            </EmptyMedia>
+            <EmptyTitle>{t("settings:spending.categories.empty_title")}</EmptyTitle>
+            <EmptyDescription>
+              {t("settings:spending.categories.empty_description")}
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={handleAddCategory}>
+              <Icons.Plus className="me-2 h-4 w-4" />
+              {t("settings:spending.categories.add")}
+            </Button>
+          </EmptyContent>
+        </Empty>
+      );
+    }
     if (categoryList.length === 0) {
       return (
         <div className="text-muted-foreground py-8 text-center text-sm">
@@ -319,24 +341,6 @@ export default function SpendingCategoriesPage() {
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
-        ) : total === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Icons.Tag />
-              </EmptyMedia>
-              <EmptyTitle>{t("settings:spending.categories.empty_title")}</EmptyTitle>
-              <EmptyDescription>
-                {t("settings:spending.categories.empty_description")}
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={handleAddCategory}>
-                <Icons.Plus className="me-2 h-4 w-4" />
-                {t("settings:spending.categories.add")}
-              </Button>
-            </EmptyContent>
-          </Empty>
         ) : (
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full max-w-xl grid-cols-4">
