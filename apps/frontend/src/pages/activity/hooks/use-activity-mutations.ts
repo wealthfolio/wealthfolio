@@ -5,6 +5,7 @@ import {
   useInternalTransferPairSplitReview,
 } from "@/features/spending/components/activity-split-review-provider";
 import {
+  convertToInternalTransfer,
   createActivity,
   deleteActivity,
   linkTransferActivities,
@@ -22,6 +23,7 @@ import {
   ActivityCreate,
   ActivityDetails,
   ActivityUpdate,
+  ConvertToTransferRequest,
   InternalTransferPairRequest,
   InternalTransferPairResponse,
 } from "@/lib/types";
@@ -329,6 +331,21 @@ export function useActivityMutations(
     },
   });
 
+  // Links a transfer with a plain deposit or withdrawal, which becomes its other side.
+  const convertToTransferMutation = useMutation({
+    mutationFn: (request: ConvertToTransferRequest) => convertToInternalTransfer(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast.success(i18n.t("activity:transfer_match.convert_success"));
+    },
+    onError: (error: unknown) => {
+      logger.error(`Error converting to a transfer: ${String(error)}`);
+      toast.error(i18n.t("activity:transfer_match.convert_error"), {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
+
   const unlinkTransferActivitiesMutation = useMutation({
     mutationFn: ({ activityAId, activityBId }: { activityAId: string; activityBId: string }) =>
       unlinkTransferActivities(activityAId, activityBId),
@@ -514,6 +531,7 @@ export function useActivityMutations(
     saveActivitiesMutation,
     saveInternalTransferPairMutation,
     linkTransferActivitiesMutation,
+    convertToTransferMutation,
     unlinkTransferActivitiesMutation,
   };
 }

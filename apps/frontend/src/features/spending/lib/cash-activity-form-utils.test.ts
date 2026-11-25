@@ -1,6 +1,11 @@
 import { AccountType } from "@/lib/constants";
 
-import { cashActivityFlowMetadata, resolveCashActivitySubtype } from "./cash-activity-form-utils";
+import {
+  cashActivityFlowMetadata,
+  describeTypeChange,
+  linkableTransferType,
+  resolveCashActivitySubtype,
+} from "./cash-activity-form-utils";
 
 describe("resolveCashActivitySubtype", () => {
   it("sets reimbursement subtype for new cash-account credits", () => {
@@ -103,5 +108,84 @@ describe("cashActivityFlowMetadata", () => {
         flow: { is_external: true },
       }),
     ).toEqual({});
+  });
+});
+
+describe("a saved transfer's boundary", () => {
+  it("is kept while the row stays a transfer, and external when it becomes one", () => {
+    const metadata = { flow: { is_external: true } };
+    expect(cashActivityFlowMetadata("TRANSFER_IN", null, metadata, "TRANSFER_OUT")).toEqual(
+      metadata,
+    );
+    expect(cashActivityFlowMetadata("TRANSFER_IN", null, undefined, "TRANSFER_IN")).toBeUndefined();
+    // Its other side is not tracked until it is linked, whatever it was before.
+    expect(
+      cashActivityFlowMetadata("TRANSFER_IN", null, { flow: { is_external: false } }, "DEPOSIT"),
+    ).toEqual({ flow: { is_external: true } });
+    expect(cashActivityFlowMetadata("TRANSFER_IN", null, undefined, "WITHDRAWAL")).toEqual({
+      flow: { is_external: true },
+    });
+  });
+});
+
+describe("describeTypeChange", () => {
+  const card = AccountType.CREDIT_CARD;
+
+  it("says a card's refund/credit becomes a payment without moving the balance", () => {
+    expect(
+      describeTypeChange(
+        { activityType: "CREDIT", subtype: "REFUND" },
+        { activityType: "TRANSFER_IN" },
+        card,
+      ),
+    ).toEqual({ effect: "cardPayment", reversesBalance: false });
+  });
+
+  it("flags a charge becoming a payment as reversing the balance", () => {
+    expect(
+      describeTypeChange({ activityType: "WITHDRAWAL" }, { activityType: "TRANSFER_IN" }, card),
+    ).toEqual({ effect: "cardPayment", reversesBalance: true });
+  });
+
+  it("says a bank's one-sided transfer still counts until it is linked", () => {
+    expect(
+      describeTypeChange(
+        { activityType: "WITHDRAWAL" },
+        { activityType: "TRANSFER_OUT" },
+        AccountType.CASH,
+      ),
+    ).toEqual({ effect: "transferOut", reversesBalance: false });
+  });
+
+  it("names the report effect when a bank transfer becomes spending", () => {
+    expect(
+      describeTypeChange(
+        { activityType: "TRANSFER_OUT" },
+        { activityType: "WITHDRAWAL" },
+        AccountType.CASH,
+      ),
+    ).toEqual({ effect: "spending", reversesBalance: false });
+  });
+
+  it("says nothing when reports and the balance are unaffected", () => {
+    expect(
+      describeTypeChange({ activityType: "FEE" }, { activityType: "WITHDRAWAL" }, AccountType.CASH),
+    ).toBeNull();
+    expect(
+      describeTypeChange({ activityType: "WITHDRAWAL" }, { activityType: "WITHDRAWAL" }, card),
+    ).toBeNull();
+  });
+});
+
+describe("linkableTransferType", () => {
+  it("makes a card's credit, but not a bank's, the card's payment", () => {
+    expect(linkableTransferType("CREDIT", AccountType.CREDIT_CARD)).toBe("TRANSFER_IN");
+    expect(linkableTransferType("CREDIT", AccountType.CASH)).toBeUndefined();
+  });
+
+  it("keeps a cash flow's direction", () => {
+    expect(linkableTransferType("WITHDRAWAL", AccountType.CREDIT_CARD)).toBe("TRANSFER_OUT");
+    expect(linkableTransferType("DEPOSIT", AccountType.CASH)).toBe("TRANSFER_IN");
+    expect(linkableTransferType("FEE", AccountType.CASH)).toBeUndefined();
   });
 });

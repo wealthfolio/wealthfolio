@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "變更為{{type}}",
-    "description": "變更已儲存的交易類型，清除子類型並更新轉帳中繼資料。現金變動、帳戶、金額、日期、幣別、備註和類別保持不變；現金流和績效報告可能改變。不包含未儲存的編輯。",
+    "description": "只更改類型。金額、日期、帳戶、備註和分類保持不變，但報告的統計方式可能不同。未儲存的編輯不包含在內。",
     "external": "此轉帳將標記為外部轉帳。使用「關聯轉帳」將其與另一個帳戶配對。",
     "linked": "此交易屬於一個轉帳群組。請先解除轉帳關聯，再重新開啟編輯以變更類型。兩筆交易均會保留。"
   },
@@ -546,7 +546,10 @@
     "marked_external": "已標記為外部",
     "load_error": "無法載入待配對的轉帳。",
     "empty_title": "所有轉帳都已配對",
-    "empty_desc": "沒有缺少另一端的轉帳。"
+    "empty_desc": "沒有缺少另一端的轉帳。",
+    "section_card_credit": "可能是繳款的信用卡退款",
+    "section_card_credit_hint": "另一個帳戶轉出了相同金額。如果是信用卡繳款，請連結；如果是真正的退款，請略過。",
+    "card_credit_hint": "已記為信用卡退款。連結後將變為信用卡繳款。"
   },
   "form": {
     "section_conversion": "基金轉換",
@@ -1490,10 +1493,10 @@
     },
     "creditCard": {
       "charge": "消費",
-      "payment": "還款",
-      "transfer": "餘額轉移／預借現金",
-      "refund": "退款／入帳",
-      "interest": "利息費用"
+      "payment": "繳款",
+      "transfer": "預借現金 / 餘額代償",
+      "refund": "退款",
+      "interest": "利息"
     }
   },
   "validation": {

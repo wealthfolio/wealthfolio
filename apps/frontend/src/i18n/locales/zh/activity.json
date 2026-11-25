@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "更改为{{type}}",
-    "description": "更改已保存的交易类型，清除子类型并更新转账元数据。现金变动、账户、金额、日期、币种、备注和类别保持不变；现金流和业绩报告可能改变。不包含未保存的编辑。",
+    "description": "只更改类型。金额、日期、账户、备注和分类保持不变，但报告的统计方式可能不同。未保存的编辑不包括在内。",
     "external": "该转账将标记为外部转账。使用“关联转账”将其与另一个账户配对。",
     "linked": "该交易属于一个转账组。请先解除转账关联，再重新打开编辑以更改类型。两笔交易均会保留。"
   },
@@ -543,7 +543,10 @@
     "marked_external": "已标记为外部",
     "load_error": "无法加载待匹配的转账。",
     "empty_title": "所有转账都已匹配",
-    "empty_desc": "没有缺少另一端的转账。"
+    "empty_desc": "没有缺少另一端的转账。",
+    "section_card_credit": "可能是还款的信用卡退款",
+    "section_card_credit_hint": "另一个账户转出了相同金额。如果是信用卡还款，请关联；如果是真正的退款，请跳过。",
+    "card_credit_hint": "已记为信用卡退款。关联后将变为信用卡还款。"
   },
   "form": {
     "section_conversion": "基金转换",
@@ -1472,9 +1475,9 @@
     "creditCard": {
       "charge": "消费",
       "payment": "还款",
-      "transfer": "余额转移 / 现金预借",
-      "refund": "退款 / 入账",
-      "interest": "利息费用"
+      "transfer": "预借现金 / 余额转移",
+      "refund": "退款",
+      "interest": "利息"
     }
   },
   "validation": {

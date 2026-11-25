@@ -1,7 +1,7 @@
 {
   "cash_reclassification": {
     "action": "Cambia in {{type}}",
-    "description": "Il tipo della transazione salvata viene modificato, il sottotipo cancellato e i metadati di trasferimento aggiornati. Movimento di cassa, conto, importo, data, valuta, note e categoria restano invariati; i report sui flussi e sui rendimenti possono cambiare. Le modifiche non salvate sono escluse.",
+    "description": "Cambia solo il tipo. Importo, data, conto, note e categoria restano invariati, ma i report potrebbero conteggiarlo diversamente. Le modifiche non salvate non sono incluse.",
     "external": "Il trasferimento sarà contrassegnato come esterno. Usa Collega trasferimento per associarlo a un altro conto.",
     "linked": "Questa transazione appartiene a un gruppo di trasferimenti. Scollega prima il trasferimento, poi riapri Modifica. Entrambe le transazioni vengono conservate."
   },
@@ -562,7 +562,10 @@
     "marked_external": "Segnato come esterno",
     "load_error": "Impossibile caricare i trasferimenti da abbinare.",
     "empty_title": "Tutti i trasferimenti sono abbinati",
-    "empty_desc": "A nessun trasferimento manca l’altro lato."
+    "empty_desc": "A nessun trasferimento manca l’altro lato.",
+    "section_card_credit": "Rimborsi della carta che potrebbero essere pagamenti",
+    "section_card_credit_hint": "Lo stesso importo è uscito da un altro conto. Se ha pagato la carta, collegali; se è un vero rimborso, saltalo.",
+    "card_credit_hint": "Salvato come rimborso sulla carta. Collegandolo diventa il pagamento della carta."
   },
   "form": {
     "section_conversion": "Switch",
@@ -1550,11 +1553,11 @@
       "issuesTitle_other": "Sono presenti problemi con {{count}} voci di movimento."
     },
     "creditCard": {
-      "charge": "Addebito",
+      "charge": "Acquisto",
       "payment": "Pagamento",
-      "transfer": "Trasferimento saldo / Anticipo contante",
-      "refund": "Rimborso / Accredito",
-      "interest": "Addebito interessi"
+      "transfer": "Anticipo contante / Trasferimento saldo",
+      "refund": "Rimborso",
+      "interest": "Interessi"
     }
   },
   "validation": {

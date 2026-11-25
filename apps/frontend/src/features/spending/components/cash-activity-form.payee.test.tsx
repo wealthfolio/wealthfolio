@@ -68,6 +68,7 @@ vi.mock("./quick-event-popover", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/adapters", () => ({
   createActivity: vi.fn(),
+  findTransferMatchCandidates: vi.fn(() => Promise.resolve([])),
   updateActivity: vi.fn((payload: unknown) => Promise.resolve(payload)),
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -335,6 +336,32 @@ describe("CashActivityForm payee", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     // The lists still show category a: they are told once the form is gone.
     expect(refreshed).toHaveBeenCalled();
+  });
+
+  it("asks before leaving to link a transfer with a payee picked and not saved", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onLinkTransfer = vi.fn();
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={onOpenChange}
+        onLinkTransfer={onLinkTransfer}
+        activity={{ ...charge, activityType: "TRANSFER_IN" } as Activity}
+      />,
+      { wrapper },
+    );
+    await pickPayee(user, "Corner Bakery");
+
+    await user.click(screen.getByRole("button", { name: /An account I don't track/ }));
+
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onLinkTransfer).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onLinkTransfer).toHaveBeenCalledTimes(1);
   });
 
   it("does not create the transaction again when saving after its payee failed", async () => {

@@ -345,7 +345,7 @@ function TransactionCardImpl({
                       },
                     ]
                   : []),
-                ...(onLinkTransfer && canConvertToTransfer(a)
+                ...(onLinkTransfer && canConvertToTransfer(a, account?.accountType)
                   ? [
                       {
                         icon: Icons.ArrowLeftRight,
