@@ -204,6 +204,15 @@ interface CashActivityFormProps {
   intent?: "expense" | "income";
 }
 
+/** A new transaction already created, and what has been written for it since. */
+interface CreatedActivity {
+  id: string;
+  /** `taxonomyId:categoryId`, or "" for none. */
+  category: string;
+  eventId: string | null;
+  payeeName: string;
+}
+
 export function CashActivityForm({
   open,
   onOpenChange,
@@ -284,9 +293,26 @@ export function CashActivityForm({
   // assignment, after the activity. `savedPayeeName` is what is on file.
   const { payees, payeeName: savedPayeeName } = useActivityPayee(activity?.id ?? null);
   const [payeeName, setPayeeName] = useState(savedPayeeName);
+  // The payee on file can load after the user has picked one: it seeds the
+  // field only until they do.
+  const payeeEdited = useRef(false);
+  // A new transaction is created before its category, event and payee are
+  // written. This is what a save that failed part-way has already written, so
+  // the next one carries on with the same transaction instead of adding another.
+  const created = useRef<CreatedActivity | null>(null);
+  useEffectOnChange(() => {
+    if (open) {
+      payeeEdited.current = false;
+      created.current = null;
+    }
+  }, [open, activity?.id]);
   useEffect(() => {
-    if (open) setPayeeName(savedPayeeName);
-  }, [open, savedPayeeName]);
+    if (open && !payeeEdited.current) setPayeeName(savedPayeeName);
+  }, [open, activity?.id, savedPayeeName]);
+  const changePayeeName = (name: string) => {
+    payeeEdited.current = true;
+    setPayeeName(name);
+  };
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   // The amount starts at 0 in the form, but shows as an empty field with a grey "0"
   // hint until something is typed, and again once it is cleared.
@@ -476,40 +502,56 @@ export function CashActivityForm({
           comment: values.notes ?? null,
           metadata: cashActivityFlowMetadata(values.activityType, subtype),
         };
-        saved = await createActivity(create);
+        if (created.current) {
+          // An earlier attempt created it: bring it up to what the form says now.
+          saved = await updateActivity({ id: created.current.id, ...create });
+        } else {
+          saved = await createActivity(create);
+          created.current = { id: saved.id, category: "", eventId: null, payeeName: "" };
+        }
       }
+      // What is on file to compare against: the activity being edited, or what
+      // an earlier attempt at this new one got to write.
+      const written = created.current;
 
       // Sync category assignment
       const newCategory = values.category;
-      const oldCategory =
-        activity?.categoryTaxonomyId && activity?.categoryId
+      const oldCategory = written
+        ? written.category
+        : activity?.categoryTaxonomyId && activity?.categoryId
           ? `${activity.categoryTaxonomyId}:${activity.categoryId}`
           : "";
       if (newCategory !== oldCategory) {
         if (oldCategory) {
           const [oldTax] = oldCategory.split(":");
           await unassignActivityCategory(saved.id, oldTax);
+          if (written) written.category = "";
         }
         if (newCategory) {
           const [tax, cat] = newCategory.split(":");
           await assignActivityCategory(saved.id, tax, cat);
+          if (written) written.category = newCategory;
         }
       }
 
       // Sync event_id if changed
-      const oldEventId = activity?.eventId ?? null;
+      const oldEventId = written ? written.eventId : (activity?.eventId ?? null);
       if (eventId !== oldEventId) {
         await setActivityEvent(saved.id, eventId);
+        if (written) written.eventId = eventId;
       }
 
       // Sync the payee if changed
-      if (payeeName.trim() !== savedPayeeName) {
+      const newPayeeName = payeeName.trim();
+      if (newPayeeName !== (written ? written.payeeName : savedPayeeName)) {
         await setActivityPayee(saved.id, payeeName, payees);
+        if (written) written.payeeName = newPayeeName;
       }
 
       return saved;
     },
     onSuccess: () => {
+      created.current = null;
       invalidateSpendingCaches(qc);
       // A new name becomes a new payee, which the suggestions and filters list.
       qc.invalidateQueries({ queryKey: QueryKeys.taxonomy(PAYEES_TAXONOMY_ID) });
@@ -528,6 +570,8 @@ export function CashActivityForm({
     },
     onError: (e: unknown) => {
       if (isActivityEditCancelled(e)) return;
+      // The transaction itself may have been created before the step that failed.
+      if (created.current) invalidateSpendingCaches(qc);
       toast.error(t("spending:cashForm.saveFailed", { message: (e as Error).message ?? e }));
     },
   });
@@ -981,7 +1025,7 @@ export function CashActivityForm({
   );
 
   const payeeField = (
-    <PayeeField value={payeeName} onChange={setPayeeName} payees={payees} isMobile={isMobile} />
+    <PayeeField value={payeeName} onChange={changePayeeName} payees={payees} isMobile={isMobile} />
   );
 
   const notesField = (
