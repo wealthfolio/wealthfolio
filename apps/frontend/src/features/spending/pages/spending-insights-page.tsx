@@ -828,6 +828,7 @@ export default function SpendingInsightsPage({
             payees={payeesTaxonomy.data?.categories ?? EMPTY_TAXONOMY}
             currency={insight?.currency ?? baseCurrency}
             range={range}
+            timezone={appTimezone}
           />
         )}
 

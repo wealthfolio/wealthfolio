@@ -22,14 +22,18 @@ const range = {
   months: 1,
 } as ReportsRange;
 
-function renderCard(rows: CategoryBreakdownRow[]) {
+function renderCard(
+  rows: CategoryBreakdownRow[],
+  period: { range: ReportsRange; timezone?: string } = { range },
+) {
   return render(
     <MemoryRouter>
       <TopPayeesCard
         rows={rows}
         payees={[payee("p1", "Corner Bakery"), payee("p2", "City Water")]}
         currency="USD"
-        range={range}
+        range={period.range}
+        timezone={period.timezone}
       />
     </MemoryRouter>,
   );
@@ -52,6 +56,30 @@ it("links each payee to its transactions in the period", () => {
     "href",
     "/activities?tab=spending&payees=p1&from=2026-05-01&to=2026-05-31",
   );
+});
+
+it("dates the link by the application's timezone, not the browser's", () => {
+  // May 2026 in Auckland and in Honolulu: each starts or ends on another day in UTC.
+  const auckland = {
+    start: new Date("2026-04-30T12:00:00.000Z"),
+    end: new Date("2026-05-31T11:59:59.999Z"),
+    days: 31,
+    months: 1,
+  } as ReportsRange;
+  const honolulu = {
+    start: new Date("2026-05-01T10:00:00.000Z"),
+    end: new Date("2026-06-01T09:59:59.999Z"),
+    days: 31,
+    months: 1,
+  } as ReportsRange;
+  const href = "/activities?tab=spending&payees=p1&from=2026-05-01&to=2026-05-31";
+
+  const first = renderCard([row("p1", 80)], { range: auckland, timezone: "Pacific/Auckland" });
+  expect(screen.getByRole("link")).toHaveAttribute("href", href);
+  first.unmount();
+
+  renderCard([row("p1", 80)], { range: honolulu, timezone: "Pacific/Honolulu" });
+  expect(screen.getByRole("link")).toHaveAttribute("href", href);
 });
 
 it("renders nothing while no spending in the period has a payee", () => {

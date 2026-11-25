@@ -6,10 +6,10 @@ import { PrivacyAmount } from "@wealthfolio/ui";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 
 import type { TaxonomyCategory } from "@/lib/types";
-import { formatDateISO } from "@/lib/utils";
 
 import { UNCATEGORIZED_CATEGORY_ID } from "../../../lib/insight-projection";
 import type { ReportsRange } from "../../../lib/reports-period";
+import { formatZonedDateKey } from "../../../lib/timezone";
 import type { CategoryBreakdownRow } from "../../../types/report";
 
 /** How many payees the card lists. The rest are one filter away in the list. */
@@ -22,6 +22,8 @@ interface TopPayeesCardProps {
   currency: string;
   /** The period shown, carried into each payee's link to its transactions. */
   range: ReportsRange;
+  /** The application's timezone, which the period's days are in. */
+  timezone?: string | null;
 }
 
 /**
@@ -29,7 +31,7 @@ interface TopPayeesCardProps {
  * its transactions. Renders nothing until some spending in the period has a
  * payee.
  */
-export function TopPayeesCard({ rows, payees, currency, range }: TopPayeesCardProps) {
+export function TopPayeesCard({ rows, payees, currency, range, timezone }: TopPayeesCardProps) {
   const { t } = useTranslation();
   const nameById = useMemo(() => new Map(payees.map((p) => [p.id, p.name])), [payees]);
   const top = useMemo(
@@ -47,8 +49,8 @@ export function TopPayeesCard({ rows, payees, currency, range }: TopPayeesCardPr
     const params = new URLSearchParams({
       tab: "spending",
       payees: payeeId,
-      from: formatDateISO(range.start),
-      to: formatDateISO(range.end),
+      from: formatZonedDateKey(range.start, timezone),
+      to: formatZonedDateKey(range.end, timezone),
     });
     return `/activities?${params.toString()}`;
   };
