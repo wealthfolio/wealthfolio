@@ -384,9 +384,13 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
             return Ok(Vec::new());
         }
 
+        // Only a category stands in the place of an activity's splits. Any
+        // other label, like a payee, is written beside them in the same
+        // transaction: its activity's splits are neither checked nor cleared.
         let mut seen_activity_ids = HashSet::new();
         let activity_ids = items
             .iter()
+            .filter(|item| is_category_taxonomy(&item.taxonomy_id))
             .filter_map(|item| {
                 if seen_activity_ids.insert(item.activity_id.clone()) {
                     Some(item.activity_id.clone())
@@ -864,6 +868,94 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            1
+        );
+    }
+
+    fn insert_payee(conn: &mut SqliteConnection, id: &str) {
+        diesel::sql_query(format!(
+            "INSERT INTO taxonomy_categories \
+             (id, taxonomy_id, name, key, color, sort_order, created_at, updated_at) \
+             VALUES ('{id}', 'payees', '{id}', '{id}', '#5B7C99', 0, '2026-01-01', '2026-01-01')",
+        ))
+        .execute(conn)
+        .expect("insert payee");
+    }
+
+    fn manual(
+        activity_id: &str,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> NewActivityTaxonomyAssignment {
+        NewActivityTaxonomyAssignment {
+            id: None,
+            activity_id: activity_id.to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            weight: 10_000,
+            source: "manual".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_category_leaves_the_payees_of_its_batch_unwritten() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+            insert_payee(&mut conn, "payee_bakery");
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+
+        let refused = repo
+            .assign_many_single_select_clearing_splits(
+                vec![
+                    manual("ordinary", "payees", "payee_bakery"),
+                    // Its splits were not reviewed, so the batch is refused.
+                    manual("split-activity", "spending_categories", "cat_groceries"),
+                ],
+                HashMap::new(),
+            )
+            .await;
+
+        assert!(refused.is_err());
+        assert!(repo.list_for_activity("ordinary").await.unwrap().is_empty());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(outbox_count(&mut conn), 0);
+    }
+
+    #[tokio::test]
+    async fn a_payee_and_a_category_are_written_together_and_the_payee_keeps_its_splits() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+            insert_payee(&mut conn, "payee_bakery");
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+
+        let written = repo
+            .assign_many_single_select_clearing_splits(
+                vec![
+                    manual("split-activity", "payees", "payee_bakery"),
+                    manual("ordinary", "spending_categories", "cat_groceries"),
+                ],
+                HashMap::new(),
+            )
+            .await
+            .expect("a payee is not refused by splits");
+
+        assert_eq!(written.len(), 2);
         let mut conn = get_connection(&pool).expect("conn");
         assert_eq!(
             spending_activity_splits::table

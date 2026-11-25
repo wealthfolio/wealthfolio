@@ -1001,19 +1001,13 @@ impl CashActivityService {
                 .into());
             }
         }
-        // A category replaces the activity's splits, and is refused while
-        // unreviewed splits are in the way. Any other label, like a payee,
+        // One write, so the batch is saved whole or not at all. In it a
+        // category replaces the activity's splits, and is refused while
+        // unreviewed splits are in the way; any other label, like a payee,
         // sits beside the splits and is written without touching them.
-        let (categories, others): (Vec<_>, Vec<_>) = items
-            .iter()
-            .cloned()
-            .partition(|item| is_category_taxonomy(&item.taxonomy_id));
-        let mut written = self
-            .assignments
-            .assign_many_single_select_clearing_splits(&categories)
-            .await?;
-        written.extend(self.assignments.assign_many_single_select(&others).await?);
-        Ok(written)
+        self.assignments
+            .assign_many_single_select_clearing_splits(items)
+            .await
     }
 
     pub async fn list_splits(&self, activity_id: &str) -> Result<Vec<ActivitySplit>> {
@@ -2006,6 +2000,8 @@ mod tests {
     struct MockAssignmentRepo {
         cleared: Mutex<Vec<(String, String)>>,
         assignments: Mutex<Vec<ActivityTaxonomyAssignment>>,
+        /// How many rows each write through the split-aware path carried.
+        batches: Mutex<Vec<usize>>,
     }
 
     #[async_trait]
@@ -2035,8 +2031,6 @@ mod tests {
             unimplemented!()
         }
 
-        /// The write that leaves splits alone. Its rows get a `beside-` id so a
-        /// test can tell which write an assignment went through.
         async fn assign_many_single_select(
             &self,
             items: Vec<NewActivityTaxonomyAssignment>,
@@ -2044,7 +2038,7 @@ mod tests {
             let rows: Vec<ActivityTaxonomyAssignment> = items
                 .into_iter()
                 .map(|item| ActivityTaxonomyAssignment {
-                    id: format!("beside-{}", item.activity_id),
+                    id: format!("asg-{}", item.activity_id),
                     activity_id: item.activity_id,
                     taxonomy_id: item.taxonomy_id,
                     category_id: item.category_id,
@@ -2063,6 +2057,7 @@ mod tests {
             items: Vec<NewActivityTaxonomyAssignment>,
             _: std::collections::HashMap<String, Vec<crate::activity_splits::ActivitySplit>>,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            self.batches.lock().unwrap().push(items.len());
             let rows: Vec<ActivityTaxonomyAssignment> = items
                 .into_iter()
                 .map(|item| ActivityTaxonomyAssignment {
@@ -4389,38 +4384,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_payee_is_written_beside_the_splits_and_a_category_replaces_them() {
-        let (service, assignment_repo, _) = make_service(activity("WITHDRAWAL"));
-
-        service
-            .bulk_assign_categories(&[BulkCategoryAssignment {
-                activity_id: "activity-1".to_string(),
-                taxonomy_id: PAYEES_TAXONOMY.to_string(),
-                category_id: "payee_bakery".to_string(),
+    async fn a_batch_of_payees_and_categories_is_one_write() {
+        let other = Activity {
+            id: "activity-2".to_string(),
+            ..activity("WITHDRAWAL")
+        };
+        let (service, assignment_repo, _) = make_service_with(vec![activity("WITHDRAWAL"), other]);
+        let item =
+            |activity_id: &str, taxonomy_id: &str, category_id: &str| BulkCategoryAssignment {
+                activity_id: activity_id.to_string(),
+                taxonomy_id: taxonomy_id.to_string(),
+                category_id: category_id.to_string(),
                 expected_splits: None,
-            }])
-            .await
-            .unwrap();
-        service
-            .assign_category("activity-1", SPENDING_TAXONOMY, "groceries")
+            };
+
+        let written = service
+            .bulk_assign_categories(&[
+                item("activity-1", PAYEES_TAXONOMY, "payee_bakery"),
+                item("activity-2", SPENDING_TAXONOMY, "groceries"),
+            ])
             .await
             .unwrap();
 
-        let written: Vec<(String, String)> = assignment_repo
-            .assignments
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|row| (row.taxonomy_id.clone(), row.id.clone()))
-            .collect();
-        assert_eq!(
-            written,
-            vec![
-                // Not through the write that clears or is refused by splits.
-                (PAYEES_TAXONOMY.to_string(), "beside-activity-1".to_string()),
-                (SPENDING_TAXONOMY.to_string(), "asg-activity-1".to_string()),
-            ]
-        );
+        assert_eq!(written.len(), 2);
+        // Two writes could save the categories and then fail on the payees.
+        assert_eq!(assignment_repo.batches.lock().unwrap().as_slice(), &[2]);
     }
 
     #[tokio::test]
