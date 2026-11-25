@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { Activity } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -294,7 +294,14 @@ it("keeps the payees in reach while there are no categories", () => {
 
   fireEvent.click(screen.getByRole("tab", { name: "Expense (0)" }));
 
-  expect(screen.getByText("No categories")).toBeInTheDocument();
-  expect(screen.getAllByRole("button", { name: "Add category" }).length).toBeGreaterThan(0);
+  const panel = within(screen.getByRole("tabpanel"));
+  expect(panel.getByText("No categories")).toBeInTheDocument();
+  expect(panel.getByRole("button", { name: "Add category" })).toBeInTheDocument();
   expect(screen.queryByTestId("payee-manager")).not.toBeInTheDocument();
+
+  // And back, from the empty state, by the tab itself.
+  fireEvent.click(screen.getByRole("tab", { name: "Payees (0)" }));
+
+  expect(screen.getByTestId("payee-manager")).toBeInTheDocument();
+  expect(screen.queryByText("No categories")).not.toBeInTheDocument();
 });
