@@ -1,5 +1,5 @@
 import { ActivityType } from "@/lib/constants";
-import type { ActivityBulkMutationRequest, Account } from "@/lib/types";
+import type { ActivityBulkMutationRequest, Account, TaxonomyCategory } from "@/lib/types";
 import { act, render } from "@/test/render";
 import type { useDataGrid } from "@wealthfolio/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -106,10 +106,15 @@ function activity(overrides: Partial<CashActivity> = {}): CashActivity {
 
 const NOTHING_SAVED = { created: [], updated: [], deleted: [], createdMappings: [], errors: [] };
 
-function renderGrid(items: CashActivity[]) {
-  render(
+function renderGrid(items: CashActivity[], payees?: TaxonomyCategory[]) {
+  return render(gridElement(items, payees));
+}
+
+function gridElement(items: CashActivity[], payees?: TaxonomyCategory[]) {
+  return (
     <SpendingActivityDataGrid
       items={items}
+      payees={payees}
       accounts={[ACCOUNT]}
       categories={new Map()}
       sorting={[{ id: "date", desc: true }]}
@@ -129,7 +134,7 @@ function renderGrid(items: CashActivity[]) {
       onLinkTransfer={() => undefined}
       onUnlinkTransfer={() => undefined}
       onLoanPayment={() => undefined}
-    />,
+    />
   );
 }
 
@@ -236,6 +241,33 @@ describe("SpendingActivityDataGrid", () => {
     await save();
     expect(harness.bulkAssign).toHaveBeenCalledTimes(2);
     expect(harness.toolbar.hasUnsavedChanges).toBe(false);
+  });
+
+  it("redraws a row's payee cell when its payee is renamed", () => {
+    const filed = activity({
+      assignments: [
+        {
+          id: "asg-payee",
+          activityId: "a1",
+          taxonomyId: "payees",
+          categoryId: "p1",
+          weight: 1,
+          source: "manual",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ],
+    });
+    const payee = (name: string) => [{ id: "p1", name } as TaxonomyCategory];
+    const payeeRenderKey = () =>
+      harness.options.columns.find((column) => column.id === "payee")?.meta?.getRenderKey;
+    const view = renderGrid([filed], payee("Corner Bakery"));
+    const before = payeeRenderKey()?.(rows()[0]);
+    expect(before).toBeDefined();
+
+    view.rerender(gridElement([filed], payee("The Corner Bakery")));
+
+    expect(payeeRenderKey()?.(rows()[0])).not.toBe(before);
   });
 
   it("restores the saved rows on Cancel even when the data does not change", () => {

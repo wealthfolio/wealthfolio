@@ -338,6 +338,10 @@ export function SpendingActivityDataGrid({
     () => (payees ?? []).map((payee) => ({ value: payee.id, label: payee.name })),
     [payees],
   );
+  const payeeLabelById = useMemo(
+    () => new Map(payeeOptions.map((option) => [option.value, option.label])),
+    [payeeOptions],
+  );
 
   // --- Columns -------------------------------------------------------------
   const columns = useMemo<ColumnDef<SpendingGridRow>[]>(
@@ -500,7 +504,11 @@ export function SpendingActivityDataGrid({
               enableSorting: false,
               meta: {
                 renderKey: `${payeeOptions.length}`,
-                getRenderKey: (row) => rowPayeeId(row.id),
+                // The label too: a renamed payee keeps its id.
+                getRenderKey: (row) => {
+                  const payeeId = rowPayeeId(row.id);
+                  return `${payeeId}:${payeeLabelById.get(payeeId) ?? ""}`;
+                },
                 cell: {
                   variant: "select",
                   options: () => payeeOptions,
@@ -577,6 +585,7 @@ export function SpendingActivityDataGrid({
       optionsVersion,
       originals,
       rowPayeeId,
+      payeeLabelById,
       payees,
       payeeOptions,
       rowActions,
