@@ -224,6 +224,8 @@ interface SaveSession {
   createdId: string | null;
   /** An edit is on file that the lists have not been refreshed for. */
   unrefreshed: boolean;
+  /** A save succeeded while this was still the form's opening, and closed it. */
+  closedBySave: boolean;
   /** Each one as last written; unset while it is still as the form opened with. */
   written: {
     /** `taxonomyId:categoryId`, or "" for none. */
@@ -232,7 +234,12 @@ interface SaveSession {
     payeeName?: string;
   };
 }
-const newSaveSession = (): SaveSession => ({ createdId: null, unrefreshed: false, written: {} });
+const newSaveSession = (): SaveSession => ({
+  createdId: null,
+  unrefreshed: false,
+  closedBySave: false,
+  written: {},
+});
 
 export function CashActivityForm({
   open,
@@ -600,14 +607,21 @@ export function CashActivityForm({
       invalidateSaved();
       toast.success(savedMessage);
       // A form dismissed or opened again since is not this save's to close.
-      if (owner === session.current) onOpenChange(false);
+      if (owner === session.current) {
+        owner.closedBySave = true;
+        onOpenChange(false);
+      }
     },
     onError: (e: unknown, _values, context) => {
       if (isActivityEditCancelled(e)) return;
       // The transaction itself may have been created before the step that failed.
       // A failed edit is refreshed when the form is dismissed instead: a refreshed
-      // activity would reset the fields being retried.
-      if (context?.owner.createdId) invalidateSaved();
+      // activity would reset the fields being retried. Already dismissed, there
+      // is nothing to reset and no later dismissal to refresh it.
+      const owner = context?.owner;
+      if (owner?.createdId || (owner?.unrefreshed && owner !== session.current)) {
+        invalidateSaved();
+      }
       toast.error(t("spending:cashForm.saveFailed", { message: (e as Error).message ?? e }));
     },
   });
@@ -917,9 +931,11 @@ export function CashActivityForm({
   const [pendingLink, setPendingLink] = useState<{ counterpartId?: string } | null>(null);
   const startLink = (counterpartId?: string) => {
     if (linkSavesFirst) {
+      // A form dismissed or opened again while it saves no longer leads to the link.
+      const owner = session.current;
       void form.handleSubmit(async (values) => {
         const saved = await saveMutation.mutateAsync(values).catch(() => null);
-        if (saved) onLinkTransfer?.(undefined, saved);
+        if (saved && owner.closedBySave) onLinkTransfer?.(undefined, saved);
       })();
       return;
     }

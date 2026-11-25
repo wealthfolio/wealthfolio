@@ -517,6 +517,35 @@ describe("CashActivityForm type change", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("does not go on to link once the form was opened again while it saved", async () => {
+    const user = userEvent.setup();
+    let finish: (activity: Activity) => void = () => undefined;
+    vi.mocked(updateActivity).mockReturnValueOnce(
+      new Promise<Activity>((resolve) => (finish = resolve)),
+    );
+    const onLinkTransfer = vi.fn();
+    const charge = { ...foreignCharge, currency: "CAD", fxRate: null } as unknown as Activity;
+    const form = (open: boolean) => (
+      <CashActivityForm
+        open={open}
+        onOpenChange={vi.fn()}
+        onLinkTransfer={onLinkTransfer}
+        activity={charge}
+      />
+    );
+    const view = render(form(true), { wrapper });
+    await chooseType(user, "Payment");
+    await user.click(screen.getByRole("button", { name: new RegExp(untracked) }));
+    await waitFor(() => expect(updateActivity).toHaveBeenCalledTimes(1));
+
+    view.rerender(form(false));
+    view.rerender(form(true));
+    finish({ ...charge, activityType: "TRANSFER_IN" } as Activity);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Update" })).toBeEnabled());
+    expect(onLinkTransfer).not.toHaveBeenCalled();
+  });
+
   it("says a card's payment made a purchase adds to what is owed", async () => {
     const user = userEvent.setup();
     render(

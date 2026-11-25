@@ -364,6 +364,34 @@ describe("CashActivityForm payee", () => {
     expect(onLinkTransfer).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes the lists when an edit closed since is saved in part", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+    const refreshed = vi.spyOn(client, "invalidateQueries");
+    let finish: (activity: Activity) => void = () => undefined;
+    vi.mocked(updateActivity).mockReturnValueOnce(
+      new Promise<Activity>((resolve) => (finish = resolve)),
+    );
+    vi.mocked(setActivityPayee).mockRejectedValueOnce(new Error("offline"));
+    const form = (open: boolean) => (
+      <QueryClientProvider client={client}>
+        <CashActivityForm open={open} onOpenChange={vi.fn()} activity={charge} />
+      </QueryClientProvider>
+    );
+    const view = render(form(true));
+    await pickPayee(user, "Corner Bakery");
+    await user.click(screen.getByRole("button", { name: /update/i }));
+    await waitFor(() => expect(updateActivity).toHaveBeenCalledTimes(1));
+
+    // Closed while the update is on its way: it then lands, and the payee fails.
+    view.rerender(form(false));
+    finish(charge);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    // No form is left to refresh them when it closes.
+    expect(refreshed).toHaveBeenCalled();
+  });
+
   it("does not create the transaction again when saving after its payee failed", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
