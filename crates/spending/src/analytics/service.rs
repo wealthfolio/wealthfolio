@@ -19,17 +19,20 @@ use crate::activity_allocations::{
     allocations_for_taxonomy, group_assignments, group_splits, AssignmentsByActivity,
     SplitsByActivity,
 };
-use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
+use crate::activity_assignments::{
+    ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentRepositoryTrait,
+};
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
     neutral_transfer_groups, SpendingClassification,
 };
-use crate::activity_splits::ActivitySplitRepositoryTrait;
+use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait};
 use crate::budget::service::category_meta;
 use crate::category_exclusions::{
     excluded_spending_native, split_spending_allocations, ExclusionIndex,
 };
 use crate::events::EventsService;
+use crate::insight::label_filter::{ActivityLabelFilter, ActivityLabels};
 use crate::settings::SpendingSettingsService;
 
 const SPENDING_TAXONOMY: &str = "spending_categories";
@@ -957,6 +960,33 @@ fn group_activities_by_visible_event(
     by_event
 }
 
+/// Drops from each event the tagged activities a label filter leaves out, the
+/// way the same filter narrows a spending insight, so an event's amounts can
+/// sit beside totals narrowed by it. `type_by_event` maps an event to its type.
+fn retain_labelled_event_activities(
+    by_event: &mut HashMap<String, Vec<Activity>>,
+    filter: &ActivityLabelFilter,
+    assignments: &[ActivityTaxonomyAssignment],
+    splits: &[ActivitySplit],
+    type_by_event: &HashMap<String, String>,
+) {
+    let event_by_activity: HashMap<String, String> = by_event
+        .iter()
+        .flat_map(|(event_id, activities)| {
+            activities
+                .iter()
+                .map(move |activity| (activity.id.clone(), event_id.clone()))
+        })
+        .collect();
+    let mut labels = ActivityLabels::default();
+    labels.add_assignments(assignments);
+    labels.add_splits(splits);
+    labels.add_events(&event_by_activity, type_by_event);
+    for activities in by_event.values_mut() {
+        activities.retain(|activity| filter.keeps(&activity.id, &labels));
+    }
+}
+
 fn empty_summary(period: &str) -> SpendingSummary {
     SpendingSummary {
         period: period.to_string(),
@@ -1462,12 +1492,25 @@ impl AnalyticsService {
             .assignment_repo
             .list_for_activities(&all_activity_ids)
             .await?;
+        let all_splits = self
+            .split_repo
+            .list_for_activities(&all_activity_ids)
+            .await?;
+        if let Some(filter) = req.filter.as_ref().filter(|filter| !filter.is_empty()) {
+            let type_by_event: HashMap<String, String> = visible_events
+                .iter()
+                .map(|ev| (ev.event.id.clone(), ev.event.event_type_id.clone()))
+                .collect();
+            retain_labelled_event_activities(
+                &mut by_event,
+                filter,
+                &all_assignments,
+                &all_splits,
+                &type_by_event,
+            );
+        }
         let assignments_by_activity = group_assignments(all_assignments);
-        let splits_by_activity = group_splits(
-            self.split_repo
-                .list_for_activities(&all_activity_ids)
-                .await?,
-        );
+        let splits_by_activity = group_splits(all_splits);
 
         let mut out = Vec::with_capacity(visible_events.len());
         for ev in visible_events {
@@ -2315,6 +2358,59 @@ mod tests {
             .collect::<Vec<_>>();
         ids.sort_unstable();
         assert_eq!(ids, vec!["deposit", "flight", "meal"]);
+    }
+
+    #[test]
+    fn event_summary_counts_only_the_activities_a_label_filter_keeps() {
+        use crate::insight::ActivityLabel;
+        let (bakery, _) = spending_activity("bakery", "WITHDRAWAL", 30, "food", 6);
+        let (hotel, _) = spending_activity("hotel", "WITHDRAWAL", 400, "travel", 6);
+        let (party, _) = spending_activity("party", "WITHDRAWAL", 90, "food", 6);
+        let grouped = || {
+            HashMap::from([
+                ("holiday".to_string(), vec![bakery.clone(), hotel.clone()]),
+                ("birthday".to_string(), vec![party.clone()]),
+            ])
+        };
+        let payee = assignment("bakery", "payees", "payee_bakery");
+        let type_by_event = HashMap::from([
+            ("holiday".to_string(), "travel-type".to_string()),
+            ("birthday".to_string(), "party-type".to_string()),
+        ]);
+        let kept = |filter: ActivityLabelFilter| {
+            let mut by_event = grouped();
+            retain_labelled_event_activities(
+                &mut by_event,
+                &filter,
+                std::slice::from_ref(&payee),
+                &[],
+                &type_by_event,
+            );
+            let mut ids: Vec<String> = by_event
+                .into_values()
+                .flatten()
+                .map(|activity| activity.id)
+                .collect();
+            ids.sort_unstable();
+            ids
+        };
+
+        let only_bakery = kept(ActivityLabelFilter {
+            include: vec![ActivityLabel::Category {
+                taxonomy_id: "payees".to_string(),
+                category_id: "payee_bakery".to_string(),
+            }],
+            exclude: Vec::new(),
+        });
+        assert_eq!(only_bakery, vec!["bakery"]);
+
+        let without_travel = kept(ActivityLabelFilter {
+            include: Vec::new(),
+            exclude: vec![ActivityLabel::EventType {
+                event_type_id: "travel-type".to_string(),
+            }],
+        });
+        assert_eq!(without_travel, vec!["party"]);
     }
 
     #[test]

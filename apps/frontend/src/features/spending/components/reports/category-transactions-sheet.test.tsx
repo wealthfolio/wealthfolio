@@ -7,6 +7,7 @@ import type { TaxonomyCategory } from "@/lib/types";
 
 import type { DrilldownBucket } from "../../lib/category-drilldown";
 import type { CashActivity } from "../../types/cash-activity";
+import type { ActivityLabelFilter } from "../../types/insight";
 import { CategoryTransactionsSheet } from "./category-transactions-sheet";
 
 // The transaction list renders each note in a tooltip; irrelevant here, and
@@ -105,7 +106,12 @@ function setSearchResult(items: CashActivity[]) {
   };
 }
 
-function sheet({ rangeEnd = RANGE_END, rangeDays = RANGE_DAYS, daysElapsed = RANGE_DAYS } = {}) {
+function sheet({
+  rangeEnd = RANGE_END,
+  rangeDays = RANGE_DAYS,
+  daysElapsed = RANGE_DAYS,
+  labelFilter = undefined as ActivityLabelFilter | undefined,
+} = {}) {
   return (
     <MemoryRouter>
       <FormattingProvider locale="en-US" uiLocale="en" timezone="UTC">
@@ -121,6 +127,7 @@ function sheet({ rangeEnd = RANGE_END, rangeDays = RANGE_DAYS, daysElapsed = RAN
           daysElapsed={daysElapsed}
           isStatsLoading={false}
           currency="USD"
+          labelFilter={labelFilter}
         />
       </FormattingProvider>
     </MemoryRouter>
@@ -188,6 +195,19 @@ describe("CategoryTransactionsSheet", () => {
       startDate: RANGE_START.toISOString(),
       endDate: end.toISOString(),
     });
+  });
+
+  it("searches with the label filter its stats were narrowed by", () => {
+    const labelFilter: ActivityLabelFilter = {
+      include: [{ kind: "category", taxonomyId: "payees", categoryId: "p1" }],
+      exclude: [{ kind: "eventType", eventTypeId: "travel" }],
+    };
+    const { rerender } = render(sheet({ labelFilter }));
+    // Sent to the server, which counts and pages what the filter keeps.
+    expect(searchResult.lastRequest).toMatchObject({ labelFilter });
+
+    rerender(sheet());
+    expect(searchResult.lastRequest).not.toHaveProperty("labelFilter");
   });
 
   it("labels the window with its calendar length", () => {

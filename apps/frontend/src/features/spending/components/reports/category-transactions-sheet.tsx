@@ -34,6 +34,7 @@ import {
 } from "../../lib/category-drilldown";
 import { descendantCategoryIds } from "../../lib/category-rollup";
 import { getActivitySpendingAmount } from "../../lib/constants";
+import type { ActivityLabelFilter } from "../../types/insight";
 import { CategoryIcon } from "../category-chips";
 
 interface CategoryTransactionsSheetProps {
@@ -61,6 +62,11 @@ interface CategoryTransactionsSheetProps {
    *  from the transaction list's own. */
   isStatsLoading: boolean;
   currency: string;
+  /**
+   * The label filter `buckets` was narrowed by. The list is searched with the
+   * same one, so its rows and count are the ones the stats add up.
+   */
+  labelFilter?: ActivityLabelFilter;
 }
 
 /**
@@ -95,6 +101,7 @@ export function CategoryTransactionsSheet({
   daysElapsed,
   isStatsLoading,
   currency,
+  labelFilter,
 }: CategoryTransactionsSheetProps) {
   const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -135,8 +142,9 @@ export function CategoryTransactionsSheet({
       endDate: endIso,
       sortBy: "date" as const,
       sortDir: "desc" as const,
+      ...(labelFilter ? { labelFilter } : {}),
     }),
-    [ids, startIso, endIso],
+    [ids, startIso, endIso, labelFilter],
   );
 
   const {

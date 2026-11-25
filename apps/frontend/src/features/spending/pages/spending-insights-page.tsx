@@ -540,12 +540,15 @@ export default function SpendingInsightsPage({
     [heatmapInsight],
   );
 
+  // Narrowed like the heatmap and its daily totals, which the events are
+  // drawn over and compared with.
   const eventsRequest = useMemo(
     () => ({
       startDate: eventsRange.start.toISOString(),
       endDate: eventsRange.end.toISOString(),
+      ...(labelFilter ? { filter: labelFilter } : {}),
     }),
-    [eventsRange],
+    [eventsRange, labelFilter],
   );
   const {
     data: events = [],
@@ -894,6 +897,7 @@ export default function SpendingInsightsPage({
         daysElapsed={categorySheetInsight?.headline.pace.daysElapsed ?? 0}
         isStatsLoading={stage === "changed" ? isWhatChangedLoading : isInsightLoading}
         currency={categorySheetInsight?.currency ?? baseCurrency}
+        labelFilter={labelFilter}
       />
 
       <HeatmapCellSheet

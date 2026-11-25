@@ -453,6 +453,7 @@ impl SpendingExportSource for SpendingDataExportSource {
                     start_date: None,
                     end_date: None,
                     currency: Some(currency.to_string()),
+                    filter: None,
                 },
                 timezone,
             )

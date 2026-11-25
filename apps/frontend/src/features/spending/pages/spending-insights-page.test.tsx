@@ -14,16 +14,20 @@ import zhSpending from "@/i18n/locales/zh/spending.json";
 import type { TaxonomyCategory } from "@/lib/types";
 import { FormattingProvider, stripBidiControls } from "@wealthfolio/ui";
 import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
+import type { LabelSelection } from "../components/spending-label-filter";
 import type { SpendingInsight } from "../types/insight";
 import SpendingInsightsPage from "./spending-insights-page";
 
-const { insightQuery, eventsQuery, cashQuery, testSettings, taxonomyData } = vi.hoisted(() => ({
-  taxonomyData: { categories: [] as TaxonomyCategory[] },
-  insightQuery: vi.fn(),
-  eventsQuery: vi.fn(),
-  cashQuery: vi.fn(),
-  testSettings: { timezone: "America/Toronto", hidden: false },
-}));
+const { insightQuery, eventsQuery, cashQuery, sheetProps, testSettings, taxonomyData } = vi.hoisted(
+  () => ({
+    sheetProps: vi.fn(),
+    taxonomyData: { categories: [] as TaxonomyCategory[] },
+    insightQuery: vi.fn(),
+    eventsQuery: vi.fn(),
+    cashQuery: vi.fn(),
+    testSettings: { timezone: "America/Toronto", hidden: false },
+  }),
+);
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({
     settings: { baseCurrency: "USD", timezone: testSettings.timezone },
@@ -82,7 +86,22 @@ vi.mock("../components/reports/insights/when-where-stage", () => ({
   ),
 }));
 vi.mock("../components/reports/category-transactions-sheet", () => ({
-  CategoryTransactionsSheet: () => null,
+  CategoryTransactionsSheet: (props: unknown) => {
+    sheetProps(props);
+    return null;
+  },
+}));
+// The two facets, reduced to one pick: only the spending at one payee.
+vi.mock("../components/spending-label-filter", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../components/spending-label-filter")>()),
+  SpendingLabelFilter: ({ onChange }: { onChange: (next: LabelSelection) => void }) => (
+    <button
+      type="button"
+      onClick={() => onChange({ only: new Set(["payee:p1"]), without: new Set() })}
+    >
+      Only Corner Bakery
+    </button>
+  ),
 }));
 vi.mock("../components/reports/heatmap-cell-sheet", () => ({ HeatmapCellSheet: () => null }));
 
@@ -146,6 +165,22 @@ it("keeps desktop toolbar controls in sync and clears them when leaving the tab"
   expect(sharedPick()).toEqual({ kind: "spending", code: "MTD" });
   await user.click(screen.getByRole("button", { name: "Leave Spending" }));
   expect(toolbar).toBeEmptyDOMElement();
+});
+
+it("narrows the events and the category transactions by the picked labels", async () => {
+  const user = setup("when");
+  const filter = {
+    include: [{ kind: "category", taxonomyId: "payees", categoryId: "p1" }],
+    exclude: [],
+  };
+  expect(eventsQuery.mock.lastCall?.[0]).not.toHaveProperty("filter");
+  expect(sheetProps.mock.lastCall?.[0].labelFilter).toBeUndefined();
+
+  await user.click(screen.getByRole("button", { name: "Only Corner Bakery" }));
+
+  // Their amounts sit beside the heatmap and totals, which the insight narrows.
+  expect(eventsQuery.mock.lastCall?.[0]).toMatchObject({ filter });
+  expect(sheetProps.mock.lastCall?.[0].labelFilter).toEqual(filter);
 });
 
 describe("This month comparisons", () => {

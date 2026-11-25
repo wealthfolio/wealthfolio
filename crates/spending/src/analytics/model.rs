@@ -153,6 +153,10 @@ pub struct EventSummariesRequest {
     pub end_date: Option<String>,
     /// Defaults to base currency (set by caller)
     pub currency: Option<String>,
+    /// Counts only the tagged activities this keeps, the way the same filter
+    /// narrows a spending insight. Every event in the window is still listed.
+    #[serde(default)]
+    pub filter: Option<crate::insight::ActivityLabelFilter>,
 }
 
 /// One spending summary for a named period (TOTAL, YTD, LAST_YEAR, TWO_YEARS_AGO).

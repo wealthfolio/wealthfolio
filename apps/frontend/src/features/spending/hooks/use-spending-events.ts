@@ -18,6 +18,7 @@ import {
 } from "../adapters/events";
 import type {
   EventSpendingSummary,
+  EventSummariesRequest,
   EventType,
   NewEventType,
   NewSpendingEvent,
@@ -45,7 +46,9 @@ export function useSpendingEvents() {
   });
 }
 
-export function useEventSpendingSummaries(request: { startDate: string; endDate: string }) {
+export function useEventSpendingSummaries(
+  request: EventSummariesRequest & { startDate: string; endDate: string },
+) {
   return useQuery<EventSpendingSummary[], Error>({
     queryKey: [QueryKeys.SPENDING_EVENTS, "summaries", request],
     queryFn: () => getEventSpendingSummaries(request),

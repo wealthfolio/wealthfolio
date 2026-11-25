@@ -75,6 +75,10 @@ pub struct CashActivitySearchRequest {
     /// Filter to activities filed under any of these payees. [`NO_PAYEE_ID`]
     /// among them also keeps the activities that have no payee.
     pub payee_ids: Option<Vec<String>>,
+    /// Narrows the rows by the labels they carry (payees, events, event
+    /// types), the way the same filter narrows a spending insight.
+    #[serde(default)]
+    pub label_filter: Option<crate::insight::ActivityLabelFilter>,
     /// Status: All / NeedsReview / Uncategorized / Categorized.
     #[serde(default)]
     pub status: CashActivityStatusFilter,

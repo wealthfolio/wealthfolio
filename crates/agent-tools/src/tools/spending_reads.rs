@@ -639,6 +639,7 @@ impl AgentTool for GetEventSpendingSummaries {
                     start_date: args.start_date,
                     end_date: args.end_date,
                     currency: Some(currency),
+                    filter: None,
                 },
                 &timezone,
             )

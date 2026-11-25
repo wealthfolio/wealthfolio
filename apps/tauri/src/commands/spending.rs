@@ -908,6 +908,7 @@ pub async fn get_event_spending_summaries(
         start_date: None,
         end_date: None,
         currency: None,
+        filter: None,
     });
     if req.currency.is_none() {
         req.currency = Some(context.get_base_currency());

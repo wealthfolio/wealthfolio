@@ -41,6 +41,7 @@ use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait, NewAct
 use crate::category_exclusions::{excluded_spending_native, ExclusionIndex};
 use crate::error::SpendingError;
 use crate::events::EventsService;
+use crate::insight::label_filter::ActivityLabels;
 use crate::settings::SpendingSettingsService;
 
 const SPENDING_TAXONOMY: &str = "spending_categories";
@@ -602,6 +603,27 @@ impl CashActivityService {
                 Some(payee) => payees.contains(payee),
                 None => wants_none,
             });
+        }
+
+        if let Some(filter) = req.label_filter.as_ref().filter(|f| !f.is_empty()) {
+            let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
+            let mut labels = ActivityLabels::default();
+            labels.add_assignments(&self.assignments.list_for_activities(&ids).await?);
+            labels.add_splits(&self.splits.list_for_activities(&ids).await?);
+            if filter.uses_events() {
+                let type_by_event: HashMap<String, String> = self
+                    .events
+                    .list_events()
+                    .await?
+                    .into_iter()
+                    .map(|event| (event.id, event.event_type_id))
+                    .collect();
+                labels.add_events(
+                    &self.activity_events.list_for_activities(&ids).await?,
+                    &type_by_event,
+                );
+            }
+            activities.retain(|a| filter.keeps(&a.id, &labels));
         }
 
         if let Some(ids) = req.activity_ids.as_ref() {
@@ -2937,6 +2959,54 @@ mod tests {
         let ids: Vec<&str> = found.items.iter().map(|i| i.activity.id.as_str()).collect();
         assert_eq!(ids, vec!["bakery"]);
         assert_eq!(found.total_count, 1);
+    }
+
+    #[tokio::test]
+    async fn search_follows_a_label_filter_and_counts_what_it_keeps() {
+        use crate::insight::{ActivityLabel, ActivityLabelFilter};
+        let (service, assignment_repo, _) = make_service_with(vec![
+            cash_row("bakery", "WITHDRAWAL", 30, "USD"),
+            cash_row("water", "WITHDRAWAL", 50, "USD"),
+            cash_row("unfiled", "WITHDRAWAL", 70, "USD"),
+        ]);
+        *assignment_repo.assignments.lock().unwrap() = vec![
+            payee_assignment("bakery", "payee_bakery"),
+            payee_assignment("water", "payee_water"),
+        ];
+        let bakery = || ActivityLabel::Category {
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            category_id: "payee_bakery".to_string(),
+        };
+        let search = |filter: ActivityLabelFilter| {
+            service.search(
+                CashActivitySearchRequest {
+                    label_filter: Some(filter),
+                    limit: 1,
+                    ..Default::default()
+                },
+                None,
+                "UTC",
+            )
+        };
+
+        let only = search(ActivityLabelFilter {
+            include: vec![bakery()],
+            exclude: Vec::new(),
+        })
+        .await
+        .unwrap();
+        assert_eq!(only.items[0].activity.id, "bakery");
+        assert_eq!(only.total_count, 1);
+
+        // The count covers every page, which a filter applied to one page could not.
+        let without = search(ActivityLabelFilter {
+            include: Vec::new(),
+            exclude: vec![bakery()],
+        })
+        .await
+        .unwrap();
+        assert_eq!(without.items.len(), 1);
+        assert_eq!(without.total_count, 2);
     }
 
     #[tokio::test]
