@@ -1033,6 +1033,68 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_split_activity_takes_a_category_and_a_payee_in_one_batch_once_reviewed() {
+        let (pool, writer, _dir) = setup_db();
+        let reviewed = {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+            insert_payee(&mut conn, "payee_bakery");
+            spending_activity_splits::table
+                .load::<ActivitySplitDB>(&mut conn)
+                .unwrap()
+                .into_iter()
+                .map(ActivitySplit::from)
+                .collect::<Vec<_>>()
+        };
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        let batch = || {
+            vec![
+                manual("split-activity", "payees", "payee_bakery"),
+                manual("split-activity", "spending_categories", "cat_groceries"),
+            ]
+        };
+        let split_count = || {
+            let mut conn = get_connection(&pool).expect("conn");
+            spending_activity_splits::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap()
+        };
+
+        // The category would replace splits nobody reviewed: neither is written.
+        assert!(repo
+            .assign_many_single_select_clearing_splits(batch(), HashMap::new())
+            .await
+            .is_err());
+        assert!(repo
+            .list_for_activity("split-activity")
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(split_count(), 1);
+
+        let written = repo
+            .assign_many_single_select_clearing_splits(
+                batch(),
+                HashMap::from([("split-activity".to_string(), reviewed)]),
+            )
+            .await
+            .expect("reviewed splits are replaced by the category");
+
+        assert_eq!(written.len(), 2);
+        assert_eq!(
+            repo.list_for_activity("split-activity")
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
+        // Cleared for the category; a payee alone leaves them, as tested above.
+        assert_eq!(split_count(), 0);
+    }
+
+    #[tokio::test]
     async fn a_payee_and_a_category_are_written_together_and_the_payee_keeps_its_splits() {
         let (pool, writer, _dir) = setup_db();
         {

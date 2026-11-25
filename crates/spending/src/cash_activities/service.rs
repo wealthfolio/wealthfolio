@@ -1030,14 +1030,21 @@ impl CashActivityService {
         &self,
         items: &[BulkCategoryAssignment],
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
-        let mut activity_ids = HashSet::new();
+        let mut labels = HashSet::new();
+        let mut categorized = HashSet::new();
         let mut categories_by_taxonomy: HashMap<String, Vec<String>> = HashMap::new();
         // Read at most once for the whole batch, when the first row gets this
         // far: it loads every activity on the Spending accounts, which costs
         // too much to repeat for each row.
         let mut bucket_context = None;
         for item in items {
-            if !activity_ids.insert(&item.activity_id) {
+            // An activity has one category, of whichever bucket it is in, and
+            // one label of each other taxonomy: a batch can give it a category
+            // and a payee, but neither of them twice.
+            let repeated = !labels.insert((&item.activity_id, &item.taxonomy_id))
+                || (is_category_taxonomy(&item.taxonomy_id)
+                    && !categorized.insert(&item.activity_id));
+            if repeated {
                 return Err(SpendingError::InvalidInput {
                     message: "Category batch repeats an activity".to_string(),
                 }
@@ -4650,6 +4657,47 @@ mod tests {
 
         assert_eq!(written.len(), 2);
         // Two writes could save the categories and then fail on the payees.
+        assert_eq!(assignment_repo.batches.lock().unwrap().as_slice(), &[2]);
+    }
+
+    #[tokio::test]
+    async fn a_batch_gives_an_activity_a_category_and_a_payee_but_neither_twice() {
+        let (service, assignment_repo, _) = make_service(activity("WITHDRAWAL"));
+        let item = |taxonomy_id: &str, category_id: &str| BulkCategoryAssignment {
+            activity_id: "activity-1".to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            expected_splits: None,
+        };
+
+        // The same payee twice, two payees, and two categories of two buckets.
+        for repeated in [
+            [
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+            ],
+            [
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+                item(PAYEES_TAXONOMY, "payee_water"),
+            ],
+            [
+                item(SPENDING_TAXONOMY, "groceries"),
+                item(SAVINGS_TAXONOMY, "holiday_fund"),
+            ],
+        ] {
+            assert!(service.bulk_assign_categories(&repeated).await.is_err());
+        }
+        assert!(assignment_repo.batches.lock().unwrap().is_empty());
+
+        let written = service
+            .bulk_assign_categories(&[
+                item(SPENDING_TAXONOMY, "groceries"),
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+            ])
+            .await
+            .expect("a category and a payee are two labels of the activity");
+
+        assert_eq!(written.len(), 2);
         assert_eq!(assignment_repo.batches.lock().unwrap().as_slice(), &[2]);
     }
 
