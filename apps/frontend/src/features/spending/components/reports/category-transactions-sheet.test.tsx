@@ -38,6 +38,11 @@ vi.mock("../../hooks/use-cash-activity-search", () => ({
   },
 }));
 
+vi.mock("../../hooks/use-spending-events", () => {
+  const events = { data: [{ id: "trip-1", eventTypeId: "travel" }] };
+  return { useSpendingEvents: () => events };
+});
+
 const spendingSettings = vi.hoisted(() => ({ excludedCategoryIds: [] as string[] }));
 
 vi.mock("../../hooks/use-spending-settings", () => ({
@@ -208,6 +213,36 @@ describe("CategoryTransactionsSheet", () => {
 
     rerender(sheet());
     expect(searchResult.lastRequest).not.toHaveProperty("labelFilter");
+  });
+
+  describe("the link to the Transactions page", () => {
+    const href = () => screen.queryByRole("link", { name: /Open in Transactions/ });
+
+    it("names the category and the period when no label is picked", () => {
+      render(sheet());
+
+      expect(href()?.getAttribute("href")).toMatch(
+        /^\/activities\?tab=spending&category=housing&from=/,
+      );
+      expect(href()?.getAttribute("href")).not.toMatch(/payees|events/);
+    });
+
+    it("carries the included payees, and the events of an included type", () => {
+      const payee = { kind: "category", taxonomyId: "payees", categoryId: "p1" } as const;
+      const { rerender } = render(sheet({ labelFilter: { include: [payee] } }));
+      expect(href()?.getAttribute("href")).toMatch(/&payees=p1$/);
+
+      rerender(sheet({ labelFilter: { include: [{ kind: "eventType", eventTypeId: "travel" }] } }));
+      expect(href()?.getAttribute("href")).toMatch(/&events=trip-1$/);
+    });
+
+    it("is not offered for a filter the Transactions page cannot show", () => {
+      const travel = { kind: "eventType", eventTypeId: "travel" } as const;
+      render(sheet({ labelFilter: { exclude: [travel] } }));
+
+      // It would open on every transaction of the category, travel included.
+      expect(href()).not.toBeInTheDocument();
+    });
   });
 
   it("labels the window with its calendar length", () => {

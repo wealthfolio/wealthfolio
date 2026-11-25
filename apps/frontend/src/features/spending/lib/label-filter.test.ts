@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ActivitySplit, ActivityTaxonomyAssignment } from "../types/cash-activity";
 import type { ActivityLabel, ActivityLabelFilter } from "../types/insight";
-import { labelFilterKeeps } from "./label-filter";
+import { labelFilterKeeps, labelFilterTransactionParams } from "./label-filter";
 
 const payee = (categoryId: string): ActivityLabel => ({
   kind: "category",
@@ -69,5 +69,57 @@ describe("labelFilterKeeps", () => {
     expect(labelFilterKeeps({ include: [category("gifts")] }, split, typeByEvent)).toBe(true);
     expect(labelFilterKeeps({ include: [category("household")] }, split, typeByEvent)).toBe(false);
     expect(labelFilterKeeps({ include: [payee("bakery")] }, split, typeByEvent)).toBe(true);
+  });
+});
+
+describe("labelFilterTransactionParams", () => {
+  const events = [
+    { id: "trip-1", eventTypeId: "travel" },
+    { id: "trip-2", eventTypeId: "travel" },
+    { id: "party", eventTypeId: "birthday" },
+  ];
+  const event = (eventId: string): ActivityLabel => ({ kind: "event", eventId });
+  const type = (eventTypeId: string): ActivityLabel => ({ kind: "eventType", eventTypeId });
+
+  it("adds nothing when no label is picked", () => {
+    expect(labelFilterTransactionParams(undefined, events)).toEqual({});
+    expect(labelFilterTransactionParams({ include: [], exclude: [] }, events)).toEqual({});
+  });
+
+  it("names the included payees", () => {
+    const filter = { include: [payee("bakery"), payee("water")] };
+
+    expect(labelFilterTransactionParams(filter, events)).toEqual({ payees: "bakery,water" });
+  });
+
+  it("names the included events, an event type being all of its events", () => {
+    const filter = { include: [type("travel"), event("party"), event("trip-1")] };
+
+    expect(labelFilterTransactionParams(filter, events)).toEqual({
+      events: "trip-1,trip-2,party",
+    });
+  });
+
+  it("has no equivalent for what the Transactions page cannot narrow by", () => {
+    // Left out.
+    expect(labelFilterTransactionParams({ exclude: [payee("bakery")] }, events)).toBeNull();
+    expect(
+      labelFilterTransactionParams(
+        { include: [payee("water")], exclude: [type("travel")] },
+        events,
+      ),
+    ).toBeNull();
+    // A payee or an event: the page would list a payee and an event.
+    expect(
+      labelFilterTransactionParams({ include: [payee("bakery"), event("party")] }, events),
+    ).toBeNull();
+    // A category that is not a payee, and a type with no event to name.
+    expect(
+      labelFilterTransactionParams(
+        { include: [{ kind: "category", taxonomyId: "spending_categories", categoryId: "food" }] },
+        events,
+      ),
+    ).toBeNull();
+    expect(labelFilterTransactionParams({ include: [type("wedding")] }, events)).toBeNull();
   });
 });

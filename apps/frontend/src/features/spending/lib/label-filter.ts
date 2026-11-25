@@ -1,5 +1,6 @@
 import type { CashActivity } from "../types/cash-activity";
 import type { ActivityLabel, ActivityLabelFilter } from "../types/insight";
+import { PAYEES_TAXONOMY_ID } from "./payee";
 
 type LabelledActivity = Pick<CashActivity, "assignments" | "splits" | "eventId">;
 
@@ -34,4 +35,39 @@ export function labelFilterKeeps(
   const include = filter.include ?? [];
   const exclude = filter.exclude ?? [];
   return (include.length === 0 || include.some(carries)) && !exclude.some(carries);
+}
+
+/**
+ * The Transactions page's URL filters that list exactly what a label filter
+ * keeps, or `null` when they cannot. That page narrows by payees and by
+ * events, and by both at once only as "and": so it can show a filter that
+ * includes payees alone, or events and event types alone (a type being all of
+ * its events), and nothing that leaves labels out.
+ */
+export function labelFilterTransactionParams(
+  filter: ActivityLabelFilter | undefined,
+  events: readonly { id: string; eventTypeId: string }[],
+): { payees?: string; events?: string } | null {
+  const include = filter?.include ?? [];
+  if ((filter?.exclude ?? []).length > 0) return null;
+  if (include.length === 0) return {};
+  if (include.every((label) => label.kind === "category")) {
+    const payees = include.filter(
+      (label) => label.kind === "category" && label.taxonomyId === PAYEES_TAXONOMY_ID,
+    );
+    if (payees.length !== include.length) return null;
+    return { payees: payees.map((label) => label.categoryId).join(",") };
+  }
+  if (include.some((label) => label.kind === "category")) return null;
+  const eventIds = new Set<string>();
+  for (const label of include) {
+    if (label.kind === "event") eventIds.add(label.eventId);
+    if (label.kind === "eventType") {
+      for (const event of events) {
+        if (event.eventTypeId === label.eventTypeId) eventIds.add(event.id);
+      }
+    }
+  }
+  // No event to name: an empty list would read as no filter at all.
+  return eventIds.size > 0 ? { events: [...eventIds].join(",") } : null;
 }
