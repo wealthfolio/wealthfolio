@@ -91,15 +91,22 @@ export default function SpendingRulesPage() {
   const [presetFilter, setPresetFilter] = useState<string | null>(null);
   const [confirmRerunAllOpen, setConfirmRerunAllOpen] = useState(false);
 
-  const isLoading = rulesLoading || spending.isLoading || income.isLoading || savings.isLoading;
+  const isLoading =
+    rulesLoading || spending.isLoading || income.isLoading || savings.isLoading || payees.isLoading;
   const hasLoadError =
-    rulesErrored || presetsErrored || spending.isError || income.isError || savings.isError;
+    rulesErrored ||
+    presetsErrored ||
+    spending.isError ||
+    income.isError ||
+    savings.isError ||
+    payees.isError;
   const loadError =
     rulesError?.message ??
     presetsError?.message ??
     spending.error?.message ??
     income.error?.message ??
     savings.error?.message ??
+    payees.error?.message ??
     t("settings:spending.rules.load_error");
 
   const { categoryOptions, categoryMeta } = useMemo(() => {
