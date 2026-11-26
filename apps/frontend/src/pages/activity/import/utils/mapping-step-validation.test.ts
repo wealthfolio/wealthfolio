@@ -75,4 +75,28 @@ describe("canProceedFromActivityMappingStep with fallback column lists", () => {
       }),
     ).toBe(true);
   });
+
+  it("ignores the account of a row mapped to skip", () => {
+    const headers = ["Date", "Action", "Qty", "Price", "Symbol", "acct", "acct2"];
+    const keptRows = [
+      ["2026-10-01", "BUY", "10", "9.99", "AAPL", "", ""],
+      ["2026-10-02", "NOTE", "", "", "", "", "unknown-acct"],
+    ];
+    const mapping = mappingWith({
+      [ImportFormat.SYMBOL]: "Symbol",
+      [ImportFormat.ACCOUNT]: ["acct", "acct2"],
+    });
+    mapping.activityMappings = { ...mapping.activityMappings, _SKIP_: ["NOTE"] };
+
+    expect(
+      canProceedFromActivityMappingStep({
+        importProfile: DEFAULT_ACTIVITY_IMPORT_PROFILE,
+        mapping,
+        headers,
+        keptRows,
+        accountId: "acct-1",
+        accounts,
+      }),
+    ).toBe(true);
+  });
 });

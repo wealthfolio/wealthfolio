@@ -54,6 +54,11 @@ export function canProceedFromActivityMappingStep({
     return false;
   }
 
+  const activityMappings = isTransactionImportProfile(importProfile)
+    ? mergeActivityMappingsForImportProfile(mapping.activityMappings, importProfile)
+    : mapping.activityMappings || {};
+  const atCols = headerIndices(mapping.fieldMappings[ImportFormat.ACTIVITY_TYPE], headers);
+
   if (mapping.fieldMappings[ImportFormat.ACCOUNT]) {
     const accountCols = headerIndices(mapping.fieldMappings[ImportFormat.ACCOUNT], headers);
     if (accountCols.length === 0) {
@@ -62,6 +67,14 @@ export function canProceedFromActivityMappingStep({
 
     const validAccountIds = new Set((accounts ?? []).map((account) => account.id));
     for (const row of keptRows) {
+      // Draft creation drops a row mapped to skip, so its account never matters
+      const csvActivityType = firstNonBlank(row, atCols);
+      if (
+        csvActivityType &&
+        findMappedActivityType(csvActivityType, activityMappings) === ACTIVITY_SKIP
+      ) {
+        continue;
+      }
       const rawAccount = firstNonBlank(row, accountCols);
       if (!rawAccount) {
         if (!accountId && !mapping.accountMappings?.[""]) {
@@ -82,15 +95,10 @@ export function canProceedFromActivityMappingStep({
 
   const activityTypeMapping = mapping.fieldMappings[ImportFormat.ACTIVITY_TYPE];
   if (activityTypeMapping) {
-    const activityMappings = isTransactionImportProfile(importProfile)
-      ? mergeActivityMappingsForImportProfile(mapping.activityMappings, importProfile)
-      : mapping.activityMappings || {};
-    const atIndices = headerIndices(activityTypeMapping, headers);
-
-    if (atIndices.length > 0) {
+    if (atCols.length > 0) {
       const uniqueValues = new Set<string>();
       keptRows.forEach((row) => {
-        const value = firstNonBlank(row, atIndices);
+        const value = firstNonBlank(row, atCols);
         if (value) uniqueValues.add(value);
       });
 
@@ -113,7 +121,6 @@ export function canProceedFromActivityMappingStep({
 
   const symbolCols = headerIndices(mapping.fieldMappings[ImportFormat.SYMBOL], headers);
   if (symbolCols.length > 0) {
-    const atCols = headerIndices(mapping.fieldMappings[ImportFormat.ACTIVITY_TYPE], headers);
     const subtypeCols = headerIndices(mapping.fieldMappings[ImportFormat.SUBTYPE], headers);
     const isinCols = headerIndices(mapping.fieldMappings[ImportFormat.ISIN], headers);
     const symbolsNeedingResolution = new Set<string>();
