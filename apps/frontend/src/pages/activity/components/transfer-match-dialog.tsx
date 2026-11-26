@@ -34,7 +34,6 @@ import {
   CollapsibleTrigger,
   Icons,
   Input,
-  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -730,7 +729,7 @@ function CandidateButton({
             />
           )}
         </span>
-        <span className="text-muted-foreground block truncate text-xs">
+        <span className="text-muted-foreground block truncate text-xs" title={note}>
           {dateFormatting.formatDateTime(normalized.date)}
           {note ? ` · ${note}` : ""}
         </span>
@@ -1539,7 +1538,8 @@ function ManualTransferSearch({
               count: filteredManualResults.length,
             })}
           </div>
-          <ScrollArea className="max-h-72 overflow-y-auto">
+          {/* Not ScrollArea: its content grows to the widest note, so rows would scroll sideways instead of truncating. */}
+          <div className="max-h-72 overflow-y-auto">
             <div className="pe-3">
               {filteredManualResults.length > 0 ? (
                 <CandidateList>
@@ -1559,7 +1559,7 @@ function ManualTransferSearch({
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       ) : null}
     </div>

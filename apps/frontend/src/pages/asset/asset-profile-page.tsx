@@ -1725,7 +1725,7 @@ export const AssetProfilePage = () => {
                   isMobile={false}
                 />
               </TabsContent>
-              <TabsContent value="history" className="pt-6">
+              <TabsContent value="history" className="space-y-4">
                 <AlternativeAssetContent
                   loanActions={altAssetActions.loanActions}
                   onEditDetails={altAssetActions.openEditDetails}
