@@ -71,6 +71,25 @@ it("finds both preferred and remaining icons", async () => {
   expect(screen.getByRole("button", { name: "a arrow down" })).toBeInTheDocument();
 });
 
+it("moves keyboard focus without changing the selected icon", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(<IconPicker value="lucide:banknote" onChange={onChange} />);
+  await user.click(screen.getByRole("button", { name: "banknote" }));
+  await user.tab();
+  const dialog = within(screen.getByRole("dialog"));
+  const wallet = dialog.getByRole("button", { name: "wallet" });
+  const banknote = dialog.getByRole("button", { name: "banknote" });
+  expect(wallet).toHaveFocus();
+  expect(wallet).toHaveAttribute("aria-pressed", "false");
+  expect(banknote).toHaveAttribute("aria-pressed", "true");
+  await user.keyboard("{ArrowRight}");
+  expect(banknote).toHaveFocus();
+  expect(onChange).not.toHaveBeenCalled();
+  await user.keyboard("{Enter}");
+  expect(onChange).toHaveBeenCalledWith(null);
+});
+
 it("navigates horizontally in RTL", async () => {
   const user = userEvent.setup();
   render(

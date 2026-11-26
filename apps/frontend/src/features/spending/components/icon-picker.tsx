@@ -239,7 +239,7 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
                                 setOpen(false);
                               }}
                               className={cn(
-                                "hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+                                "hover:bg-muted focus-visible:bg-muted focus-visible:outline-ring flex h-8 w-8 items-center justify-center rounded-md transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid",
                                 isActive && "bg-muted ring-foreground/40 ring-1 ring-inset",
                               )}
                               title={label}
