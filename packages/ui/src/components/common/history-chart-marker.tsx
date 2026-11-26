@@ -1,11 +1,5 @@
 export type HistoryChartMarkerVariant = "snapshot" | "buy" | "sell" | "split" | "activity";
-export type HistoryChartMarkerTone =
-  | "success"
-  | "destructive"
-  | "secondary"
-  | "warning"
-  | "info"
-  | "default";
+export type HistoryChartMarkerTone = "success" | "destructive" | "secondary" | "warning" | "info" | "default";
 export type TradeMarkerVariant = Extract<HistoryChartMarkerVariant, "buy" | "sell">;
 
 export interface RechartsMarkerShapeProps {
