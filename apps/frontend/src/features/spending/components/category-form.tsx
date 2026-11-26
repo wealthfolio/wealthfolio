@@ -24,6 +24,7 @@ import {
 import type { CategoryNode } from "./category-item";
 import { ColorPicker } from "./color-picker";
 import { IconPicker } from "./icon-picker";
+import { getInheritedCategoryIcon } from "../lib/category-icons";
 
 export interface CategoryFormValues {
   name: string;
@@ -97,7 +98,7 @@ export function CategoryForm({
     defaultValues: {
       name: category?.name ?? "",
       color: category?.color ?? parentCategory?.color ?? PRESET_COLORS[0],
-      icon: category?.icon ?? parentCategory?.icon ?? null,
+      icon: category ? (category.icon ?? null) : getInheritedCategoryIcon(parentCategory?.icon),
       excluded: initialExcluded,
       parentId: category?.parentId ?? null,
     },

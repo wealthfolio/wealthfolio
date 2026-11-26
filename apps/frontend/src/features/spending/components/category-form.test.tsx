@@ -64,3 +64,37 @@ it("locks the parent picker for a category with a budget target", () => {
   expect(screen.getByRole("combobox", { name: "Parent category" })).toBeDisabled();
   expect(screen.getByText(/budget targets/i)).toBeInTheDocument();
 });
+
+it("preserves a legacy icon when editing other category fields", async () => {
+  const user = userEvent.setup();
+  const onSubmit = vi.fn();
+  render(
+    <CategoryForm category={{ ...home, icon: "Home" }} onSubmit={onSubmit} onCancel={vi.fn()} />,
+  );
+
+  await user.clear(screen.getByLabelText("Name"));
+  await user.type(screen.getByLabelText("Name"), "Housing");
+  await user.click(screen.getByRole("button", { name: /save changes/i }));
+  expect(onSubmit).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "Housing", icon: "Home" }),
+    expect.anything(),
+  );
+});
+
+it("uses a Lucide equivalent when creating a subcategory", async () => {
+  const user = userEvent.setup();
+  const onSubmit = vi.fn();
+  render(
+    <CategoryForm
+      parentCategory={{ ...home, icon: "Home" }}
+      onSubmit={onSubmit}
+      onCancel={vi.fn()}
+    />,
+  );
+  await user.type(screen.getByLabelText("Name"), "Rent");
+  await user.click(screen.getByRole("button", { name: /create/i }));
+  expect(onSubmit).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "Rent", icon: "lucide:house" }),
+    expect.anything(),
+  );
+});

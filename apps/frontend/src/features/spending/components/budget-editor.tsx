@@ -220,7 +220,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
               mutations.createGroup.mutate({
                 name: t("spending:budgetEditor.newGroup"),
                 // No colour: the group shows the theme's Spending colour until one is picked.
-                icon: "Folder",
+                icon: "lucide:folder",
               })
             }
             className="text-muted-foreground hover:text-foreground h-8 gap-1.5 px-2 text-xs"

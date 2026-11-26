@@ -6,6 +6,8 @@
  * while the UI can choose the concrete icon implementation centrally.
  */
 import { Icons, type Icon as PhosphorIcon } from "@wealthfolio/ui";
+import { TagIcon } from "lucide-react";
+import { iconNames, type IconName } from "lucide-react/dynamic";
 
 const ICON_MAP: Record<string, PhosphorIcon> = {
   AlertCircle: Icons.AlertCircle,
@@ -62,11 +64,92 @@ const ICON_MAP: Record<string, PhosphorIcon> = {
   Wrench: Icons.Wrench,
 };
 
-/** Resolve a stored Lucide-style icon name to an app icon component (Tag fallback). */
-export function resolveCategoryIcon(name: string | null | undefined): PhosphorIcon {
-  if (name && ICON_MAP[name]) return ICON_MAP[name];
-  return Icons.Tag;
+const lucideIconNames = new Set<string>(iconNames);
+const preferredIconNames = [
+  "wallet",
+  "banknote",
+  "coins",
+  "credit-card",
+  "landmark",
+  "piggy-bank",
+  "receipt",
+  "badge-dollar-sign",
+  "briefcase",
+  "building-2",
+  "chart-no-axes-combined",
+  "trending-up",
+  "hand-coins",
+  "circle-dollar-sign",
+  "percent",
+  "arrow-left-right",
+  "house",
+  "shopping-cart",
+  "shopping-bag",
+  "utensils-crossed",
+  "coffee",
+  "pizza",
+  "apple",
+  "wine",
+  "car",
+  "fuel",
+  "train-front",
+  "bus",
+  "bike",
+  "plane",
+  "circle-parking",
+  "wrench",
+  "zap",
+  "droplet",
+  "flame",
+  "wifi",
+  "smartphone",
+  "laptop",
+  "tv",
+  "lightbulb",
+  "heart-pulse",
+  "stethoscope",
+  "pill",
+  "dumbbell",
+  "graduation-cap",
+  "book-open",
+  "baby",
+  "paw-print",
+  "gift",
+  "shirt",
+  "scissors",
+  "sofa",
+  "gamepad-2",
+  "film",
+  "music",
+  "shield-check",
+] satisfies IconName[];
+
+export const LUCIDE_CATEGORY_ICON_NAMES = [
+  ...new Set<IconName>([...preferredIconNames, ...[...iconNames].sort()]),
+];
+
+export function getLucideCategoryIconName(name: string | null | undefined): IconName | null {
+  if (!name?.startsWith("lucide:")) return null;
+  const iconName = name.slice("lucide:".length);
+  return lucideIconNames.has(iconName) ? (iconName as IconName) : null;
 }
 
-/** All known category icon name keys (the same names the seeds use). */
-export const CATEGORY_ICON_NAMES = Object.keys(ICON_MAP).sort();
+/** Resolve a legacy icon name to an app icon component. */
+export function resolveCategoryIcon(name: string | null | undefined): PhosphorIcon {
+  if (name && Object.hasOwn(ICON_MAP, name)) return ICON_MAP[name];
+  return TagIcon;
+}
+
+export function getInheritedCategoryIcon(name: string | null | undefined): string | null {
+  if (!name) return null;
+  if (getLucideCategoryIconName(name)) return name;
+  if (!Object.hasOwn(ICON_MAP, name)) return null;
+  const lucideName =
+    name === "Home"
+      ? "house"
+      : name
+          .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+          .replace(/([a-z])([0-9])/g, "$1-$2")
+          .toLowerCase();
+  return lucideIconNames.has(lucideName) ? `lucide:${lucideName}` : null;
+}
