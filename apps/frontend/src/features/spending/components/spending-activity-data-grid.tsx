@@ -5,6 +5,9 @@ import {
   Button,
   DataGrid,
   Icons,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   useDataGrid,
   type CellSelectOption,
   type UpdateCell,
@@ -48,6 +51,8 @@ import {
   isCreditCardAccountType,
 } from "../lib/constants";
 import { invalidateSpendingCaches } from "../lib/invalidation";
+import { payeeIdOf } from "../lib/payee";
+import { PayeeCommand } from "./payee-field";
 import {
   applySpendingRules,
   categoryTaxonomyFor,
@@ -102,6 +107,13 @@ interface SpendingActivityDataGridProps extends SpendingGridRowActions {
   /** Spending accounts, including inactive ones that rows may still use. */
   accounts: Account[];
   categories: Map<string, TaxonomyCategory>;
+  /** Payee names by id, for the read-only Payee column. Without it the column is left out. */
+  payees?: TaxonomyCategory[];
+  /**
+   * Files the given saved rows under the payee called `name`, creating it if
+   * it is new. Written straight away, not with the grid's Save.
+   */
+  onSetPayee?: (activityIds: string[], name: string) => Promise<void>;
   sorting: SortingState;
   onSortingChange: (updater: Updater<SortingState>) => void;
   pageIndex: number;
@@ -123,6 +135,8 @@ export function SpendingActivityDataGrid({
   items,
   accounts,
   categories,
+  payees,
+  onSetPayee,
   sorting,
   onSortingChange,
   pageIndex,
@@ -316,6 +330,19 @@ export function SpendingActivityDataGrid({
     ],
   );
 
+  const rowPayeeId = useCallback(
+    (activityId: string) => payeeIdOf(itemsById.get(activityId)?.assignments) ?? "",
+    [itemsById],
+  );
+  const payeeOptions = useMemo<CellSelectOption[]>(
+    () => (payees ?? []).map((payee) => ({ value: payee.id, label: payee.name })),
+    [payees],
+  );
+  const payeeLabelById = useMemo(
+    () => new Map(payeeOptions.map((option) => [option.value, option.label])),
+    [payeeOptions],
+  );
+
   // --- Columns -------------------------------------------------------------
   const columns = useMemo<ColumnDef<SpendingGridRow>[]>(
     () => [
@@ -464,6 +491,35 @@ export function SpendingActivityDataGrid({
         enableSorting: false,
         meta: { cell: { variant: "number", step: 0.000001, valueType: "string" } },
       },
+      // Beside the comment, which is where the payee is read from. Read-only
+      // here: the grid's Save covers activity fields and categories. A payee
+      // is set on the selected rows with "Set payee" above the grid.
+      ...(payees
+        ? [
+            {
+              id: "payee",
+              accessorFn: (row) => rowPayeeId(row.id),
+              header: t("spending:cashForm.payee"),
+              size: 160,
+              enableSorting: false,
+              meta: {
+                renderKey: `${payeeOptions.length}`,
+                // The label too: a renamed payee keeps its id.
+                getRenderKey: (row) => {
+                  const payeeId = rowPayeeId(row.id);
+                  return `${payeeId}:${payeeLabelById.get(payeeId) ?? ""}`;
+                },
+                cell: {
+                  variant: "select",
+                  options: () => payeeOptions,
+                  allowEmpty: true,
+                  emptyLabel: "",
+                  isDisabled: () => true,
+                },
+              },
+            } satisfies ColumnDef<SpendingGridRow>,
+          ]
+        : []),
       {
         accessorKey: "comment",
         header: t("activity:datagrid.column.comment"),
@@ -528,6 +584,10 @@ export function SpendingActivityDataGrid({
       markForDeletion,
       optionsVersion,
       originals,
+      rowPayeeId,
+      payeeLabelById,
+      payees,
+      payeeOptions,
       rowActions,
       t,
     ],
@@ -819,6 +879,26 @@ export function SpendingActivityDataGrid({
 
   const columnLabels = useMemo(() => ({ categoryId: t("spending:filters.category") }), [t]);
 
+  const [payeeOpen, setPayeeOpen] = useState(false);
+  const setPayeeOnSelected = useCallback(
+    async (name: string) => {
+      setPayeeOpen(false);
+      const selected = dataGrid.table.getSelectedRowModel().rows.map((row) => row.original);
+      // The payee is written now, to rows as they are saved.
+      if (selected.some((row) => row.isNew || dirtyTransactionIds.has(row.id))) {
+        toast({ title: t("activity:datagrid.save_edits_first"), variant: "destructive" });
+        return;
+      }
+      await onSetPayee?.(
+        selected.map((row) => row.id),
+        name,
+      );
+      dataGrid.table.resetRowSelection();
+      await onRefetch();
+    },
+    [dataGrid.table, dirtyTransactionIds, onRefetch, onSetPayee, t],
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-3" data-testid="spending-activity-grid">
       <ActivityDataGridToolbar<SpendingGridRow>
@@ -836,6 +916,20 @@ export function SpendingActivityDataGrid({
         onSave={handleSave}
         onCancel={handleCancel}
       />
+
+      {payees && onSetPayee && selectedRows.length > 0 && (
+        <div className="flex justify-end">
+          <Popover open={payeeOpen} onOpenChange={setPayeeOpen}>
+            <PopoverTrigger render={<Button size="sm" variant="outline" />}>
+              <Icons.Store className="me-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {t("spending:cashForm.payeeBulkSet")}
+            </PopoverTrigger>
+            <PopoverContent className="w-70 p-0" align="end">
+              <PayeeCommand value="" clearable payees={payees} onPick={setPayeeOnSelected} />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1">
         <DataGrid {...dataGrid} stretchColumns height="calc(100vh - 260px)" />

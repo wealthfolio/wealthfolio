@@ -48,6 +48,10 @@ pub enum SortDirection {
     Desc,
 }
 
+/// Stands for "no payee" in [`CashActivitySearchRequest::payee_ids`]. Payee
+/// ids are generated, so no payee can have this one.
+pub const NO_PAYEE_ID: &str = "__none__";
+
 /// Search request for cash activities. Powers the spending Transactions page.
 /// All filters optional. Server-side: filters → sort → paginate → join assignments.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -68,6 +72,13 @@ pub struct CashActivitySearchRequest {
     pub subcategory_ids: Option<Vec<String>>,
     /// Filter to activities tagged with these events (uses Activity.event_id).
     pub event_ids: Option<Vec<String>>,
+    /// Filter to activities filed under any of these payees. [`NO_PAYEE_ID`]
+    /// among them also keeps the activities that have no payee.
+    pub payee_ids: Option<Vec<String>>,
+    /// Narrows the rows by the labels they carry (payees, events, event
+    /// types), the way the same filter narrows a spending insight.
+    #[serde(default)]
+    pub label_filter: Option<crate::insight::ActivityLabelFilter>,
     /// Status: All / NeedsReview / Uncategorized / Categorized.
     #[serde(default)]
     pub status: CashActivityStatusFilter,
@@ -254,6 +265,17 @@ pub struct SpendingContext {
     pub enabled: bool,
     pub account_ids: Vec<String>,
     pub excluded_category_ids: Vec<String>,
+}
+
+/// What still points at a payee, on every account: what its delete is refused
+/// for, so a payee with none of either can be deleted.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PayeeReferences {
+    /// Activities filed under the payee.
+    pub transactions: usize,
+    /// Categorization rules that set the payee.
+    pub rules: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]

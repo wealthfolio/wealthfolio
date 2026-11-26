@@ -6,14 +6,19 @@ import { expect, it, vi } from "vitest";
 import type { RuleFormValues } from "@/features/spending/components/rule-form";
 import SpendingRulesPage from "./spending-rules-page";
 
-const mocks = vi.hoisted(() => ({ create: vi.fn<() => Promise<void>>() }));
+const loaded = { data: { categories: [] }, isLoading: false, isError: false };
+const mocks = vi.hoisted(() => ({
+  create: vi.fn<() => Promise<void>>(),
+  // What `useTaxonomy` returns for a taxonomy id, where a test sets it.
+  taxonomies: {} as Record<string, object>,
+}));
 
 vi.mock("@/features/spending/hooks/use-spending-settings", () => ({
   useSpendingSettings: () => ({ isEnabled: true, isLoading: false, accountIds: [] }),
 }));
 vi.mock("@/hooks/use-accounts", () => ({ useAccounts: () => ({ accounts: [] }) }));
 vi.mock("@/hooks/use-taxonomies", () => ({
-  useTaxonomy: () => ({ data: { categories: [] }, isLoading: false, isError: false }),
+  useTaxonomy: (id: string) => mocks.taxonomies[id] ?? loaded,
 }));
 vi.mock("@/features/spending/hooks/use-categorization-rules", () => ({
   useCategorizationRules: () => ({ data: [], isLoading: false, isError: false }),
@@ -77,4 +82,33 @@ it("closes the new rule once its save ends while the screen is out of sight", as
   rerender(page(false));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+});
+
+it("waits for the payees, and says so when they fail to load", () => {
+  const client = new QueryClient();
+  const page = () => (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <SpendingRulesPage />
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  try {
+    mocks.taxonomies.payees = { data: undefined, isLoading: true, isError: false };
+    const { rerender } = render(page());
+    // Neither the rules nor their empty state: a payee rule would show an id.
+    expect(screen.queryByText("No rules yet")).not.toBeInTheDocument();
+
+    mocks.taxonomies.payees = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("payees are unreachable"),
+    };
+    rerender(page());
+
+    expect(screen.getByText("payees are unreachable")).toBeInTheDocument();
+  } finally {
+    delete mocks.taxonomies.payees;
+  }
 });

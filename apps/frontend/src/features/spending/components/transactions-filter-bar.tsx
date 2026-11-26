@@ -118,6 +118,8 @@ interface TransactionsFilterBarProps {
   onSubcategoriesChange: (next: Set<string>) => void;
   selectedEvents: Set<string>;
   onEventsChange: (next: Set<string>) => void;
+  selectedPayees: Set<string>;
+  onPayeesChange: (next: Set<string>) => void;
   amountRange: AmountRange;
   onAmountRangeChange: (next: AmountRange) => void;
 
@@ -127,6 +129,8 @@ interface TransactionsFilterBarProps {
   categoryOptions: FilterOption[];
   subcategoryOptions: FilterOption[];
   eventOptions: FilterOption[];
+  /** Empty until the first payee exists; the facet is hidden until then. */
+  payeeOptions: FilterOption[];
   hasEvents: boolean;
 
   // Status
@@ -165,6 +169,8 @@ export function TransactionsFilterBar({
   onSubcategoriesChange,
   selectedEvents,
   onEventsChange,
+  selectedPayees,
+  onPayeesChange,
   amountRange,
   onAmountRangeChange,
   accountOptions,
@@ -172,6 +178,7 @@ export function TransactionsFilterBar({
   categoryOptions,
   subcategoryOptions,
   eventOptions,
+  payeeOptions,
   hasEvents,
   filtersActive,
   onClearAll,
@@ -198,6 +205,7 @@ export function TransactionsFilterBar({
     selectedCategories.size > 0 ||
     selectedSubcategories.size > 0 ||
     selectedEvents.size > 0 ||
+    selectedPayees.size > 0 ||
     amountRange.min != null ||
     amountRange.max != null ||
     !!dateRange?.from ||
@@ -254,6 +262,14 @@ export function TransactionsFilterBar({
           options={eventOptions}
           selectedValues={selectedEvents}
           onFilterChange={onEventsChange}
+        />
+      )}
+      {payeeOptions.length > 0 && (
+        <FacetedFilter
+          title={t("spending:cashForm.payee")}
+          options={payeeOptions}
+          selectedValues={selectedPayees}
+          onFilterChange={onPayeesChange}
         />
       )}
     </>

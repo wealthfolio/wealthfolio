@@ -1,5 +1,7 @@
 import type { Activity } from "@/lib/types";
 
+import type { ActivityLabelFilter } from "./insight";
+
 export interface CashActivityFilter {
   accountIds?: string[];
   startDate?: string;
@@ -54,6 +56,9 @@ export interface CashActivitySearchRequest {
   categoryIds?: string[];
   subcategoryIds?: string[];
   eventIds?: string[];
+  payeeIds?: string[];
+  /** Narrows the rows by label, the way the same filter narrows an insight. */
+  labelFilter?: ActivityLabelFilter;
   status?: CashActivityStatusFilter;
   startDate?: string;
   endDate?: string;

@@ -26,6 +26,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { useCashActivitySearch } from "../../hooks/use-cash-activity-search";
+import { useSpendingEvents } from "../../hooks/use-spending-events";
 import { useSpendingSettings } from "../../hooks/use-spending-settings";
 import {
   computeCategoryDrilldown,
@@ -34,7 +35,11 @@ import {
 } from "../../lib/category-drilldown";
 import { descendantCategoryIds } from "../../lib/category-rollup";
 import { getActivitySpendingAmount } from "../../lib/constants";
+import { labelFilterTransactionParams } from "../../lib/label-filter";
+import type { ActivityLabelFilter } from "../../types/insight";
 import { CategoryIcon } from "../category-chips";
+
+const NO_EVENTS: never[] = [];
 
 interface CategoryTransactionsSheetProps {
   open: boolean;
@@ -61,6 +66,11 @@ interface CategoryTransactionsSheetProps {
    *  from the transaction list's own. */
   isStatsLoading: boolean;
   currency: string;
+  /**
+   * The label filter `buckets` was narrowed by. The list is searched with the
+   * same one, so its rows and count are the ones the stats add up.
+   */
+  labelFilter?: ActivityLabelFilter;
 }
 
 /**
@@ -95,6 +105,7 @@ export function CategoryTransactionsSheet({
   daysElapsed,
   isStatsLoading,
   currency,
+  labelFilter,
 }: CategoryTransactionsSheetProps) {
   const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -135,8 +146,9 @@ export function CategoryTransactionsSheet({
       endDate: endIso,
       sortBy: "date" as const,
       sortDir: "desc" as const,
+      ...(labelFilter ? { labelFilter } : {}),
     }),
-    [ids, startIso, endIso],
+    [ids, startIso, endIso, labelFilter],
   );
 
   const {
@@ -193,7 +205,18 @@ export function CategoryTransactionsSheet({
     });
   }, [category, categoryMeta, drilldown.mix, isTopLevel, t]);
 
+  // The Transactions page can narrow by some label filters and not others.
+  // Where it cannot, there is no link: it would open on a wider list.
+  const { data: events } = useSpendingEvents();
+  const labelParams = useMemo(() => {
+    // An event type is named by its events: until they have loaded, the link
+    // would name too few.
+    const namesEventType = labelFilter?.include?.some((label) => label.kind === "eventType");
+    if (!events && namesEventType) return null;
+    return labelFilterTransactionParams(labelFilter, events ?? NO_EVENTS);
+  }, [labelFilter, events]);
   const transactionsLink = useMemo(() => {
+    if (!labelParams) return null;
     if (!category) return "/activities?tab=spending";
     const params = new URLSearchParams();
     params.set("tab", "spending");
@@ -204,8 +227,10 @@ export function CategoryTransactionsSheet({
     }
     params.set("from", formatDateISO(rangeStart));
     params.set("to", formatDateISO(rangeEnd));
+    if (labelParams.payees) params.set("payees", labelParams.payees);
+    if (labelParams.events) params.set("events", labelParams.events);
     return `/activities?${params.toString()}`;
-  }, [category, rangeStart, rangeEnd]);
+  }, [category, rangeStart, rangeEnd, labelParams]);
 
   const accent = category?.color ?? "var(--muted-foreground)";
   const tintBg = category?.color ? `${category.color}24` : "var(--muted)";
@@ -465,16 +490,18 @@ export function CategoryTransactionsSheet({
         </div>
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
-        <div className="border-border/60 bg-background/70 border-t px-6 py-3 backdrop-blur">
-          <Link
-            to={transactionsLink}
-            onClick={() => onOpenChange(false)}
-            className={cn(buttonVariants({ size: "sm" }), "w-full")}
-          >
-            {t("spending:categorySheet.openInTransactions")}
-            <Icons.ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl:rotate-180" aria-hidden />
-          </Link>
-        </div>
+        {transactionsLink && (
+          <div className="border-border/60 bg-background/70 border-t px-6 py-3 backdrop-blur">
+            <Link
+              to={transactionsLink}
+              onClick={() => onOpenChange(false)}
+              className={cn(buttonVariants({ size: "sm" }), "w-full")}
+            >
+              {t("spending:categorySheet.openInTransactions")}
+              <Icons.ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl:rotate-180" aria-hidden />
+            </Link>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );

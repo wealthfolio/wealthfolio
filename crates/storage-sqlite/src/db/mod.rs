@@ -1564,6 +1564,57 @@ mod migration_tests {
         );
     }
 
+    #[test]
+    fn reverting_payees_removes_the_rules_that_set_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("payees.db");
+        let access = DbAccess::plaintext(db_path.to_str().unwrap());
+        access.run_migrations().unwrap();
+        let mut conn = access.connect().unwrap();
+        // Migrations run with foreign keys off, so the revert must not lean on them.
+        conn.batch_execute(
+            "PRAGMA foreign_keys = OFF;
+             INSERT INTO taxonomy_categories
+               (id, taxonomy_id, name, key, color, sort_order, created_at, updated_at)
+             VALUES ('payee_bakery', 'payees', 'Corner Bakery', 'payee_bakery', '#5B7C99', 0,
+                     '2026-01-01', '2026-01-01');
+             INSERT INTO spending_categorization_rules (id, name, pattern, taxonomy_id, category_id)
+             VALUES ('payee-rule', 'Bakery', 'BKRY', 'payees', 'payee_bakery'),
+                    ('category-rule', 'Food', 'FOOD', 'spending_categories', 'cat_groceries');",
+        )
+        .unwrap();
+
+        conn.batch_execute(include_str!(
+            "../../migrations/2026-11-19-000001_activity_payees/down.sql"
+        ))
+        .unwrap();
+
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM spending_categorization_rules \
+                 WHERE id = 'payee-rule' OR taxonomy_id = 'payees'"
+            ),
+            0,
+            "a rule must not be left pointing at the payees taxonomy"
+        );
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM spending_categorization_rules \
+                 WHERE id = 'category-rule'"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM pragma_foreign_key_check"
+            ),
+            0
+        );
+    }
+
     /// Diesel keys pending migrations by version (the directory name before
     /// the first `_`), so two directories sharing a version silently skip one
     /// of them on every database that has not applied it yet.

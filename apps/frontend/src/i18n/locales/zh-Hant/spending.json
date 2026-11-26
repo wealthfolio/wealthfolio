@@ -78,6 +78,8 @@
     "reimbursementRefund": "費用補償／退款"
   },
   "rules": {
+    "categoryOrPayee": "類別或收款方",
+    "payeeRuleHint": "收款方規則適用於所有符合的交易，並保持其類別不變。",
     "editTitle": "編輯規則",
     "addTitle": "新增規則",
     "editDescription": "依名稱模式自動標記活動。多條規則同時符合時，會套用優先順序較高的規則。",
@@ -161,6 +163,7 @@
     "amountChipBetween": "金額介於 {{value}} 與 {{value2}} 之間"
   },
   "transactions": {
+    "filterByPayee": "顯示 {{name}} 的交易",
     "deleteTitle_one": "刪除交易",
     "deleteTitle_other": "刪除交易",
     "deleteConfirmSingle": "確定要刪除這筆 {{amount}} 的{{type}}嗎？",
@@ -579,6 +582,14 @@
     "subheading": "本月計畫、實際支出與自訂設定。"
   },
   "insightsPage": {
+    "topPayees": "主要收款方",
+    "labelFilter": {
+      "search": "搜尋收款方和事件",
+      "only": "僅",
+      "without": "排除",
+      "payee": "收款方：{{name}}",
+      "eventType": "{{name}}事件"
+    },
     "uncategorized": "未歸類",
     "heading": "支出分析",
     "loadError": "無法載入分析。",
@@ -858,6 +869,13 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "payeeBulkSet": "設定收款方",
+    "payeeSearch": "搜尋或新增收款方",
+    "payeeEmpty": "尚無收款方。輸入名稱即可新增。",
+    "payeeAdd": "新增「{{name}}」",
+    "payeeClear": "無收款方",
+    "payee": "收款方",
+    "payeePlaceholder": "這筆交易的對象是誰?",
     "none": "無",
     "addExpense": "新增支出",
     "addIncome": "新增收入",

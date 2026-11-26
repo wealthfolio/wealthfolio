@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { Activity } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   create:
     vi.fn<(category: { key: string; name: string; parentId: string | null }) => Promise<void>>(),
   name: "Travel",
+  // Stands for a profile with no category in any taxonomy.
+  noCategories: false,
   remove: vi.fn<(input: { taxonomyId: string; categoryId: string }) => Promise<void>>(),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -50,7 +52,7 @@ vi.mock("@/hooks/use-taxonomies", () => ({
   useTaxonomy: (taxonomyId: string) => ({
     data: {
       categories:
-        taxonomyId === "spending_categories"
+        taxonomyId === "spending_categories" && !mocks.noCategories
           ? [
               {
                 ...mocks.category,
@@ -124,8 +126,13 @@ vi.mock("@/features/spending/components/category-item", () => ({
   ),
 }));
 
+vi.mock("@/features/spending/components/payee-manager", () => ({
+  PayeeManager: () => <div data-testid="payee-manager" />,
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.noCategories = false;
   mocks.name = "Travel";
   mocks.category = { id: "food", name: "Food" };
 });
@@ -269,4 +276,32 @@ it.each([
   expect(mocks.toast.success).toHaveBeenCalledWith(
     i18n.t("settings:spending.categories.deleted", { name: label }),
   );
+});
+
+it("keeps the payees in reach while there are no categories", () => {
+  mocks.noCategories = true;
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={["/?tab=payees"]}>
+        <SpendingCategoriesPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(screen.getByTestId("payee-manager")).toBeInTheDocument();
+  // The category empty state belongs to the category tabs.
+  expect(screen.queryByText("No categories")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("tab", { name: "Expense (0)" }));
+
+  const panel = within(screen.getByRole("tabpanel"));
+  expect(panel.getByText("No categories")).toBeInTheDocument();
+  expect(panel.getByRole("button", { name: "Add category" })).toBeInTheDocument();
+  expect(screen.queryByTestId("payee-manager")).not.toBeInTheDocument();
+
+  // And back, from the empty state, by the tab itself.
+  fireEvent.click(screen.getByRole("tab", { name: "Payees (0)" }));
+
+  expect(screen.getByTestId("payee-manager")).toBeInTheDocument();
+  expect(screen.queryByText("No categories")).not.toBeInTheDocument();
 });

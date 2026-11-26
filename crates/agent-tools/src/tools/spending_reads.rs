@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use wealthfolio_core::utils::time_utils::parse_user_timezone_or_default;
+use wealthfolio_spending::activity_assignments::PAYEES_TAXONOMY;
 use wealthfolio_spending::cash_activities::model::EffectiveCategoryAllocation;
 use wealthfolio_spending::cash_activities::{CashActivity, CashActivitySearchRequest};
 
@@ -60,13 +61,27 @@ async fn context(env: &dyn AgentEnvironment) -> Result<Value, AgentToolError> {
     )
 }
 
+/// Every payee as `{id, name}`, for `payeeIds` in a transaction search.
+fn payees(env: &dyn AgentEnvironment) -> Result<Value, AgentToolError> {
+    let taxonomy = env
+        .taxonomy_service()
+        .get_taxonomy(PAYEES_TAXONOMY)
+        .map_err(execution_error)?;
+    Ok(taxonomy
+        .map(|entry| entry.categories)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|payee| json!({"id": payee.id, "name": payee.name}))
+        .collect())
+}
+
 #[async_trait::async_trait]
 impl AgentTool for GetSpendingContext {
     fn name(&self) -> &'static str {
         "get_spending_context"
     }
     fn description(&self) -> &'static str {
-        "Discover whether Spending is enabled, its effective opted-in accounts, excluded categories, base currency and timezone. Read-only; never enables Spending or enrolls accounts. Categories and rule configuration remain discoverable even when disabled."
+        "Discover whether Spending is enabled, its effective opted-in accounts, excluded categories, base currency and timezone. Read-only; never enables Spending or enrolls accounts. Categories and rule configuration remain discoverable even when disabled. Also lists payees (id and name), which search_spending_transactions filters by with payeeIds."
     }
     fn input_schema(&self) -> Value {
         json!({"type":"object","properties":{},"additionalProperties":false})
@@ -85,9 +100,9 @@ impl AgentTool for GetSpendingContext {
         env: Arc<dyn AgentEnvironment>,
         _: Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        Ok(AgentToolResult {
-            content: context(env.as_ref()).await?,
-        })
+        let mut content = context(env.as_ref()).await?;
+        content["payees"] = payees(env.as_ref())?;
+        Ok(AgentToolResult { content })
     }
 }
 
@@ -132,6 +147,7 @@ fn parse_search(
         &request.category_ids,
         &request.subcategory_ids,
         &request.event_ids,
+        &request.payee_ids,
     ] {
         if ids
             .as_ref()
@@ -200,13 +216,13 @@ impl AgentTool for SearchSpendingTransactions {
         "search_spending_transactions"
     }
     fn description(&self) -> &'static str {
-        "Search posted cash transactions only within enabled, opted-in Spending accounts. Filters intersect, including explicit activityIds. Returns totalCount, offset, limit and hasMore; paginate until hasMore is false. All amounts and effectiveAllocations are in each transaction's currency; do not add different currencies. Splits win over legacy hidden assignments: use effectiveAllocations for categories, and hasHiddenAssignment for diagnostics. Full splits are returned for explicit reviewed replacement through commit_transaction_categories(expectedSplits). No FX or investment access is needed."
+        "Search posted cash transactions only within enabled, opted-in Spending accounts. Filters intersect, including explicit activityIds. payeeIds keeps transactions filed under any of those payees (get_spending_context lists them); the id __none__ also keeps transactions with no payee. query matches a transaction's notes or its payee's name. Returns totalCount, offset, limit and hasMore; paginate until hasMore is false. All amounts and effectiveAllocations are in each transaction's currency; do not add different currencies. Splits win over legacy hidden assignments: use effectiveAllocations for categories, and hasHiddenAssignment for diagnostics. Full splits are returned for explicit reviewed replacement through commit_transaction_categories(expectedSplits). No FX or investment access is needed."
     }
     fn input_schema(&self) -> Value {
         let ids = json!({"type":"array","maxItems":100,"items":{"type":"string","minLength":1}});
         json!({"type":"object","properties": {
-            "query":{"type":"string","description":"Case-insensitive text search over transaction notes/payee."},
-            "activityIds":ids, "accountIds":ids, "categoryIds":ids, "subcategoryIds":ids, "eventIds":ids,
+            "query":{"type":"string","description":"Case-insensitive text search over transaction notes and payee names."},
+            "activityIds":ids, "accountIds":ids, "categoryIds":ids, "subcategoryIds":ids, "eventIds":ids, "payeeIds":ids,
             "activityTypes":{"type":"array","items":{"type":"string","enum":wealthfolio_spending::cash_activities::CASH_ACTIVITY_TYPES}},
             "status":{"type":"string","enum":["all","uncategorized","categorized","needs_review"]},
             "startDate":{"type":"string","description":DATE_BOUND_DESCRIPTION}, "endDate":{"type":"string","description":DATE_BOUND_DESCRIPTION},
@@ -552,6 +568,7 @@ impl AgentTool for GetSpendingInsight {
                     compare_start_date: args.compare_start_date,
                     compare_end_date: args.compare_end_date,
                     compare: args.compare,
+                    filter: None,
                 },
                 &env.base_currency(),
                 &timezone(env.as_ref())?,
@@ -622,6 +639,7 @@ impl AgentTool for GetEventSpendingSummaries {
                     start_date: args.start_date,
                     end_date: args.end_date,
                     currency: Some(currency),
+                    filter: None,
                 },
                 &timezone,
             )
@@ -666,9 +684,12 @@ mod tests {
             let error = parse_search(args).unwrap_err();
             assert!(!error.to_string().contains("private"));
         }
-        let request =
-            parse_search(json!({"query":"coffee","limit":50,"activityIds":["cash-1"]})).unwrap();
+        let request = parse_search(
+            json!({"query":"coffee","limit":50,"activityIds":["cash-1"],"payeeIds":["payee-1"]}),
+        )
+        .unwrap();
         assert_eq!(request.search.as_deref(), Some("coffee"));
+        assert_eq!(request.payee_ids, Some(vec!["payee-1".to_string()]));
         assert_eq!(request.activity_ids, Some(vec!["cash-1".to_string()]));
     }
 }

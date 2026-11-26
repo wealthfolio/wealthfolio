@@ -21,7 +21,7 @@ use super::{
     model::{
         CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
         CashActivitySortField, CashActivityStatusFilter, CashFlowBucket, CurrencyNet, NetSummary,
-        SortDirection, TransferLinkStatus,
+        PayeeReferences, SortDirection, TransferLinkStatus, NO_PAYEE_ID,
     },
     CASH_ACTIVITY_TYPES,
 };
@@ -30,7 +30,8 @@ use crate::activity_allocations::{
     AssignmentsByActivity, SplitsByActivity,
 };
 use crate::activity_assignments::{
-    ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentService, BulkCategoryAssignment,
+    is_category_taxonomy, ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentService,
+    BulkCategoryAssignment, PAYEES_TAXONOMY,
 };
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
@@ -40,6 +41,7 @@ use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait, NewAct
 use crate::category_exclusions::{excluded_spending_native, ExclusionIndex};
 use crate::error::SpendingError;
 use crate::events::EventsService;
+use crate::insight::label_filter::ActivityLabels;
 use crate::settings::SpendingSettingsService;
 
 const SPENDING_TAXONOMY: &str = "spending_categories";
@@ -152,6 +154,104 @@ impl CashActivityService {
             account_ids,
             excluded_category_ids: settings.excluded_category_ids,
         })
+    }
+
+    /// How many activities on the Spending accounts are filed under each
+    /// payee, by payee id. A payee nothing is filed under is left out.
+    pub async fn payee_usage(&self) -> Result<HashMap<String, usize>> {
+        let settings = self.settings.get().await?;
+        let accounts = self
+            .resolve_target_accounts(None, &settings.account_ids)?
+            .ids;
+        let activities = self
+            .activity_repo
+            .get_activities_by_account_ids(&accounts)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        let mut usage = HashMap::new();
+        for payee in self.payee_by_activity(&activities).await?.into_values() {
+            *usage.entry(payee).or_default() += 1;
+        }
+        Ok(usage)
+    }
+
+    /// What still points at a payee. Unlike [`Self::payee_usage`] it counts
+    /// the activities of every account, in Spending or not: it is the count
+    /// the payee's delete is refused for.
+    pub fn payee_references(&self, payee_id: &str) -> Result<PayeeReferences> {
+        let references = self
+            .taxonomy_service
+            .get_category_references(PAYEES_TAXONOMY, payee_id)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        Ok(PayeeReferences {
+            transactions: references.spending_assignments,
+            rules: references.rules,
+        })
+    }
+
+    /// Files under `destination_id` every activity filed under `source_id`,
+    /// and returns how many moved. It is the first step of merging two
+    /// payees, so it reaches the activities of every account: one left behind
+    /// on an account no longer in Spending would keep the source from being
+    /// deleted. Each assignment keeps its source (manual or rule).
+    pub async fn move_payee_activities(
+        &self,
+        source_id: &str,
+        destination_id: &str,
+    ) -> Result<usize> {
+        if source_id == destination_id {
+            return Err(SpendingError::InvalidInput {
+                message: "A payee cannot be merged into itself".to_string(),
+            }
+            .into());
+        }
+        let payees = self
+            .taxonomy_service
+            .get_taxonomy(PAYEES_TAXONOMY)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?
+            .map(|taxonomy| taxonomy.categories)
+            .unwrap_or_default();
+        for (payee_id, message) in [
+            (source_id, "The payee to merge does not exist"),
+            (destination_id, "The payee to merge into does not exist"),
+        ] {
+            if !payees.iter().any(|payee| payee.id == payee_id) {
+                return Err(SpendingError::InvalidInput {
+                    message: message.to_string(),
+                }
+                .into());
+            }
+        }
+        self.assignments
+            .reassign_category(PAYEES_TAXONOMY, source_id, destination_id)
+            .await
+    }
+
+    /// The payee each of these activities is filed under, by activity id.
+    async fn payee_by_activity(&self, activities: &[Activity]) -> Result<HashMap<String, String>> {
+        let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
+        Ok(self
+            .assignments
+            .list_for_activities(&ids)
+            .await?
+            .into_iter()
+            .filter(|assignment| assignment.taxonomy_id == PAYEES_TAXONOMY)
+            .map(|assignment| (assignment.activity_id, assignment.category_id))
+            .collect())
+    }
+
+    /// The ids of the payees whose name contains `needle` (already lowercase).
+    fn payees_named(&self, needle: &str) -> Result<HashSet<String>> {
+        let payees = self
+            .taxonomy_service
+            .get_taxonomy(PAYEES_TAXONOMY)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?
+            .map(|taxonomy| taxonomy.categories)
+            .unwrap_or_default();
+        Ok(payees
+            .into_iter()
+            .filter(|payee| payee.name.to_lowercase().contains(needle))
+            .map(|payee| payee.id)
+            .collect())
     }
 
     /// List cash activities matching the (legacy) filter, scoped to opted-in
@@ -501,6 +601,36 @@ impl CashActivityService {
             }
         }
 
+        if let Some(payees) = req.payee_ids.as_deref().filter(|p| !p.is_empty()) {
+            let payee_of = self.payee_by_activity(&activities).await?;
+            let wants_none = payees.iter().any(|id| id == NO_PAYEE_ID);
+            activities.retain(|a| match payee_of.get(&a.id) {
+                Some(payee) => payees.contains(payee),
+                None => wants_none,
+            });
+        }
+
+        if let Some(filter) = req.label_filter.as_ref().filter(|f| !f.is_empty()) {
+            let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
+            let mut labels = ActivityLabels::default();
+            labels.add_assignments(&self.assignments.list_for_activities(&ids).await?);
+            labels.add_splits(&self.splits.list_for_activities(&ids).await?);
+            if filter.uses_events() {
+                let type_by_event: HashMap<String, String> = self
+                    .events
+                    .list_events()
+                    .await?
+                    .into_iter()
+                    .map(|event| (event.id, event.event_type_id))
+                    .collect();
+                labels.add_events(
+                    &self.activity_events.list_for_activities(&ids).await?,
+                    &type_by_event,
+                );
+            }
+            activities.retain(|a| filter.keeps(&a.id, &labels));
+        }
+
         if let Some(ids) = req.activity_ids.as_ref() {
             let ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
             activities.retain(|activity| ids.contains(activity.id.as_str()));
@@ -524,9 +654,21 @@ impl CashActivityService {
         if let Some(needle) = req.search.as_deref() {
             let needle = needle.trim().to_lowercase();
             if !needle.is_empty() {
+                // A payee's name is part of what a transaction says: searching
+                // "bakery" also finds the rows filed under "Corner Bakery",
+                // whatever the bank wrote in their notes.
+                let named = self.payees_named(&needle)?;
+                let payee_of = if named.is_empty() {
+                    HashMap::new()
+                } else {
+                    self.payee_by_activity(&activities).await?
+                };
                 activities.retain(|a| {
                     let notes = a.notes.as_deref().unwrap_or("").to_lowercase();
                     notes.contains(&needle)
+                        || payee_of
+                            .get(&a.id)
+                            .is_some_and(|payee| named.contains(payee))
                 });
             }
         }
@@ -888,14 +1030,21 @@ impl CashActivityService {
         &self,
         items: &[BulkCategoryAssignment],
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
-        let mut activity_ids = HashSet::new();
+        let mut labels = HashSet::new();
+        let mut categorized = HashSet::new();
         let mut categories_by_taxonomy: HashMap<String, Vec<String>> = HashMap::new();
         // Read at most once for the whole batch, when the first row gets this
         // far: it loads every activity on the Spending accounts, which costs
         // too much to repeat for each row.
         let mut bucket_context = None;
         for item in items {
-            if !activity_ids.insert(&item.activity_id) {
+            // An activity has one category, of whichever bucket it is in, and
+            // one label of each other taxonomy: a batch can give it a category
+            // and a payee, but neither of them twice.
+            let repeated = !labels.insert((&item.activity_id, &item.taxonomy_id))
+                || (is_category_taxonomy(&item.taxonomy_id)
+                    && !categorized.insert(&item.activity_id));
+            if repeated {
                 return Err(SpendingError::InvalidInput {
                     message: "Category batch repeats an activity".to_string(),
                 }
@@ -904,11 +1053,23 @@ impl CashActivityService {
             let activity = self
                 .ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id)
                 .await?;
-            let context = match &bucket_context {
-                Some(context) => context,
-                None => bucket_context.insert(self.bucket_context().await?),
-            };
-            ensure_assignment_bucket(&activity, &item.taxonomy_id, context)?;
+            // Reviewed splits are what a category may replace. On any other
+            // label they would stand for a review the category never had.
+            if item.expected_splits.is_some() && !is_category_taxonomy(&item.taxonomy_id) {
+                return Err(SpendingError::InvalidInput {
+                    message: "Only a category can replace reviewed splits".to_string(),
+                }
+                .into());
+            }
+            // Only a category has to match the activity's cash-flow bucket. A
+            // payee says who it was with, so any activity in scope can have one.
+            if is_category_taxonomy(&item.taxonomy_id) {
+                let context = match &bucket_context {
+                    Some(context) => context,
+                    None => bucket_context.insert(self.bucket_context().await?),
+                };
+                ensure_assignment_bucket(&activity, &item.taxonomy_id, context)?;
+            }
             categories_by_taxonomy
                 .entry(item.taxonomy_id.clone())
                 .or_default()
@@ -929,6 +1090,10 @@ impl CashActivityService {
                 .into());
             }
         }
+        // One write, so the batch is saved whole or not at all. In it a
+        // category replaces the activity's splits, and is refused while
+        // unreviewed splits are in the way; any other label, like a payee,
+        // sits beside the splits and is written without touching them.
         self.assignments
             .assign_many_single_select_clearing_splits(items)
             .await
@@ -1151,6 +1316,7 @@ impl CashActivityService {
         if taxonomy_id != SPENDING_TAXONOMY
             && taxonomy_id != INCOME_TAXONOMY
             && taxonomy_id != SAVINGS_TAXONOMY
+            && taxonomy_id != PAYEES_TAXONOMY
         {
             return Err(SpendingError::InvalidInput {
                 message: "Taxonomy is not assignable to spending activities".to_string(),
@@ -1923,6 +2089,8 @@ mod tests {
     struct MockAssignmentRepo {
         cleared: Mutex<Vec<(String, String)>>,
         assignments: Mutex<Vec<ActivityTaxonomyAssignment>>,
+        /// How many rows each write through the split-aware path carried.
+        batches: Mutex<Vec<usize>>,
     }
 
     #[async_trait]
@@ -1954,9 +2122,23 @@ mod tests {
 
         async fn assign_many_single_select(
             &self,
-            _: Vec<NewActivityTaxonomyAssignment>,
+            items: Vec<NewActivityTaxonomyAssignment>,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
-            unimplemented!()
+            let rows: Vec<ActivityTaxonomyAssignment> = items
+                .into_iter()
+                .map(|item| ActivityTaxonomyAssignment {
+                    id: format!("asg-{}", item.activity_id),
+                    activity_id: item.activity_id,
+                    taxonomy_id: item.taxonomy_id,
+                    category_id: item.category_id,
+                    weight: item.weight,
+                    source: item.source,
+                    created_at: now_naive(),
+                    updated_at: now_naive(),
+                })
+                .collect();
+            self.assignments.lock().unwrap().extend(rows.clone());
+            Ok(rows)
         }
 
         async fn assign_many_single_select_clearing_splits(
@@ -1964,6 +2146,7 @@ mod tests {
             items: Vec<NewActivityTaxonomyAssignment>,
             _: std::collections::HashMap<String, Vec<crate::activity_splits::ActivitySplit>>,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            self.batches.lock().unwrap().push(items.len());
             let rows: Vec<ActivityTaxonomyAssignment> = items
                 .into_iter()
                 .map(|item| ActivityTaxonomyAssignment {
@@ -1987,6 +2170,17 @@ mod tests {
             _: bool,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
             unimplemented!()
+        }
+
+        async fn reassign_category(&self, taxonomy: &str, from: &str, to: &str) -> Result<usize> {
+            let mut moved = 0;
+            for row in self.assignments.lock().unwrap().iter_mut() {
+                if row.taxonomy_id == taxonomy && row.category_id == from {
+                    row.category_id = to.to_string();
+                    moved += 1;
+                }
+            }
+            Ok(moved)
         }
 
         async fn delete(&self, _: &str) -> Result<()> {
@@ -2086,6 +2280,14 @@ mod tests {
         }
     }
 
+    thread_local! {
+        /// The event each activity is tagged to, and the events themselves,
+        /// for a test that sets them. Each test runs on its own thread.
+        static EVENT_TAGS: std::cell::RefCell<std::collections::HashMap<String, String>> =
+            std::cell::RefCell::default();
+        static EVENTS: std::cell::RefCell<Vec<Event>> = std::cell::RefCell::default();
+    }
+
     #[derive(Default)]
     struct MockActivityEventsRepo;
 
@@ -2102,9 +2304,14 @@ mod tests {
 
         async fn list_for_activities(
             &self,
-            _: &[String],
+            ids: &[String],
         ) -> Result<std::collections::HashMap<String, String>> {
-            Ok(std::collections::HashMap::new())
+            Ok(EVENT_TAGS.with_borrow(|tags| {
+                tags.iter()
+                    .filter(|(activity_id, _)| ids.contains(activity_id))
+                    .map(|(activity_id, event_id)| (activity_id.clone(), event_id.clone()))
+                    .collect()
+            }))
         }
 
         async fn list_for_event(&self, _: &str) -> Result<Vec<String>> {
@@ -2164,7 +2371,7 @@ mod tests {
         }
 
         async fn list(&self) -> Result<Vec<Event>> {
-            Ok(Vec::new())
+            Ok(EVENTS.with_borrow(Clone::clone))
         }
 
         async fn get(&self, _: &str) -> Result<Option<Event>> {
@@ -2492,12 +2699,12 @@ mod tests {
             &self,
             id: &str,
         ) -> wealthfolio_core::Result<Option<TaxonomyWithCategories>> {
-            if id != SPENDING_TAXONOMY {
+            if id != SPENDING_TAXONOMY && id != PAYEES_TAXONOMY {
                 return Ok(None);
             }
             Ok(Some(TaxonomyWithCategories {
                 taxonomy: Taxonomy {
-                    id: SPENDING_TAXONOMY.to_string(),
+                    id: id.to_string(),
                     name: "Spending".to_string(),
                     color: "#000".to_string(),
                     description: None,
@@ -2508,7 +2715,12 @@ mod tests {
                     updated_at: now_naive(),
                     scope: "activity".to_string(),
                 },
-                categories: self.categories.clone(),
+                categories: self
+                    .categories
+                    .iter()
+                    .filter(|category| category.taxonomy_id == id)
+                    .cloned()
+                    .collect(),
             }))
         }
         fn get_taxonomies_with_categories(
@@ -2744,6 +2956,284 @@ mod tests {
 
         let items = service.list(CashActivityFilter::default()).await.unwrap();
         assert_eq!(items[0].visible_spending_amount, 100.0);
+    }
+
+    #[tokio::test]
+    async fn search_narrows_to_the_picked_payees() {
+        let (service, assignment_repo, _) = make_service_with(vec![
+            cash_row("bakery", "WITHDRAWAL", 30, "USD"),
+            cash_row("water", "WITHDRAWAL", 50, "USD"),
+            cash_row("unfiled", "WITHDRAWAL", 70, "USD"),
+        ]);
+        let payee = |activity_id: &str, payee_id: &str| ActivityTaxonomyAssignment {
+            id: format!("payee-{activity_id}"),
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            ..spending_assignment(activity_id, payee_id)
+        };
+        *assignment_repo.assignments.lock().unwrap() = vec![
+            payee("bakery", "payee_bakery"),
+            payee("water", "payee_water"),
+            // A category with the same id as the payee asked for is not a payee.
+            spending_assignment("unfiled", "payee_bakery"),
+        ];
+
+        let found = service
+            .search(
+                CashActivitySearchRequest {
+                    payee_ids: Some(vec!["payee_bakery".to_string()]),
+                    limit: 50,
+                    ..Default::default()
+                },
+                None,
+                "UTC",
+            )
+            .await
+            .unwrap();
+        let ids: Vec<&str> = found.items.iter().map(|i| i.activity.id.as_str()).collect();
+        assert_eq!(ids, vec!["bakery"]);
+        assert_eq!(found.total_count, 1);
+    }
+
+    #[tokio::test]
+    async fn search_follows_a_label_filter_and_counts_what_it_keeps() {
+        use crate::insight::{ActivityLabel, ActivityLabelFilter};
+        let (service, assignment_repo, _) = make_service_with(vec![
+            cash_row("bakery", "WITHDRAWAL", 30, "USD"),
+            cash_row("water", "WITHDRAWAL", 50, "USD"),
+            cash_row("unfiled", "WITHDRAWAL", 70, "USD"),
+        ]);
+        *assignment_repo.assignments.lock().unwrap() = vec![
+            payee_assignment("bakery", "payee_bakery"),
+            payee_assignment("water", "payee_water"),
+        ];
+        let bakery = || ActivityLabel::Category {
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            category_id: "payee_bakery".to_string(),
+        };
+        let search = |filter: ActivityLabelFilter| {
+            service.search(
+                CashActivitySearchRequest {
+                    label_filter: Some(filter),
+                    limit: 1,
+                    ..Default::default()
+                },
+                None,
+                "UTC",
+            )
+        };
+
+        let only = search(ActivityLabelFilter {
+            include: vec![bakery()],
+            exclude: Vec::new(),
+        })
+        .await
+        .unwrap();
+        assert_eq!(only.items[0].activity.id, "bakery");
+        assert_eq!(only.total_count, 1);
+
+        // The count covers every page, which a filter applied to one page could not.
+        let without = search(ActivityLabelFilter {
+            include: Vec::new(),
+            exclude: vec![bakery()],
+        })
+        .await
+        .unwrap();
+        assert_eq!(without.items.len(), 1);
+        assert_eq!(without.total_count, 2);
+    }
+
+    #[tokio::test]
+    async fn search_follows_a_label_filter_on_events_and_their_types() {
+        use crate::insight::{ActivityLabel, ActivityLabelFilter};
+        let (service, _, _) = make_service_with(vec![
+            cash_row("hotel", "WITHDRAWAL", 400, "USD"),
+            cash_row("cake", "WITHDRAWAL", 30, "USD"),
+            cash_row("untagged", "WITHDRAWAL", 70, "USD"),
+        ]);
+        let event = |id: &str, event_type_id: &str| Event {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: None,
+            event_type_id: event_type_id.to_string(),
+            start_date: "2026-01-01T00:00:00Z".to_string(),
+            end_date: "2026-01-02T00:00:00Z".to_string(),
+            created_at: now_naive(),
+            updated_at: now_naive(),
+        };
+        EVENTS.set(vec![event("trip", "travel"), event("birthday", "party")]);
+        EVENT_TAGS.set(std::collections::HashMap::from([
+            ("hotel".to_string(), "trip".to_string()),
+            ("cake".to_string(), "birthday".to_string()),
+        ]));
+        let ids = |include: Vec<ActivityLabel>, exclude: Vec<ActivityLabel>| {
+            let request = CashActivitySearchRequest {
+                label_filter: Some(ActivityLabelFilter { include, exclude }),
+                sort_dir: SortDirection::Asc,
+                limit: 50,
+                ..Default::default()
+            };
+            async {
+                let mut ids = search_ids(&service, request).await;
+                ids.sort_unstable();
+                ids
+            }
+        };
+        let travel = || ActivityLabel::EventType {
+            event_type_id: "travel".to_string(),
+        };
+        let birthday = || ActivityLabel::Event {
+            event_id: "birthday".to_string(),
+        };
+
+        assert_eq!(ids(vec![travel()], vec![]).await, vec!["hotel"]);
+        assert_eq!(ids(vec![birthday()], vec![]).await, vec!["cake"]);
+        assert_eq!(ids(vec![], vec![travel()]).await, vec!["cake", "untagged"]);
+        assert_eq!(
+            ids(vec![], vec![travel(), birthday()]).await,
+            vec!["untagged"]
+        );
+    }
+
+    #[tokio::test]
+    async fn moving_a_payees_activities_needs_another_payee_that_exists() {
+        let payee = |id: &str| Category {
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            ..spending_category(id, None)
+        };
+        let (service, assignment_repo, _) = make_service_full(
+            vec![cash_row("bakery", "WITHDRAWAL", 30, "USD")],
+            MockFx::none(),
+            Vec::new(),
+            vec![payee("payee_old"), payee("payee_new")],
+        );
+        *assignment_repo.assignments.lock().unwrap() =
+            vec![payee_assignment("bakery", "payee_old")];
+
+        assert!(service
+            .move_payee_activities("payee_old", "payee_old")
+            .await
+            .is_err());
+        assert!(service
+            .move_payee_activities("payee_old", "payee_gone")
+            .await
+            .is_err());
+        assert!(service
+            .move_payee_activities("payee_gone", "payee_new")
+            .await
+            .is_err());
+        assert_eq!(
+            assignment_repo.assignments.lock().unwrap()[0].category_id,
+            "payee_old"
+        );
+
+        let moved = service
+            .move_payee_activities("payee_old", "payee_new")
+            .await
+            .unwrap();
+
+        assert_eq!(moved, 1);
+        assert_eq!(
+            assignment_repo.assignments.lock().unwrap()[0].category_id,
+            "payee_new"
+        );
+    }
+
+    fn payee_assignment(activity_id: &str, payee_id: &str) -> ActivityTaxonomyAssignment {
+        ActivityTaxonomyAssignment {
+            id: format!("payee-{activity_id}"),
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            ..spending_assignment(activity_id, payee_id)
+        }
+    }
+
+    /// The ids a search returns, in order.
+    async fn search_ids(
+        service: &CashActivityService,
+        request: CashActivitySearchRequest,
+    ) -> Vec<String> {
+        let found = service.search(request, None, "UTC").await.unwrap();
+        found.items.into_iter().map(|i| i.activity.id).collect()
+    }
+
+    #[tokio::test]
+    async fn search_keeps_rows_without_a_payee_when_asked_for_none() {
+        let (service, assignment_repo, _) = make_service_with(vec![
+            cash_row("bakery", "WITHDRAWAL", 30, "USD"),
+            cash_row("unfiled", "WITHDRAWAL", 70, "USD"),
+        ]);
+        *assignment_repo.assignments.lock().unwrap() =
+            vec![payee_assignment("bakery", "payee_bakery")];
+
+        let ids = search_ids(
+            &service,
+            CashActivitySearchRequest {
+                payee_ids: Some(vec![NO_PAYEE_ID.to_string()]),
+                limit: 50,
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(ids, vec!["unfiled"]);
+    }
+
+    #[tokio::test]
+    async fn search_text_matches_the_payee_name_as_well_as_the_notes() {
+        let noted = |id: &str, notes: &str| Activity {
+            notes: Some(notes.to_string()),
+            ..cash_row(id, "WITHDRAWAL", 30, "USD")
+        };
+        let bakery = Category {
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            name: "Corner Bakery".to_string(),
+            ..spending_category("payee_bakery", None)
+        };
+        let (service, assignment_repo, _) = make_service_full(
+            vec![
+                noted("by-payee", "CRNR BKRY 0042"),
+                noted("by-notes", "BAKERY SUPPLIES"),
+                noted("neither", "CITY WATER"),
+            ],
+            MockFx::none(),
+            Vec::new(),
+            vec![bakery],
+        );
+        *assignment_repo.assignments.lock().unwrap() =
+            vec![payee_assignment("by-payee", "payee_bakery")];
+
+        let mut ids = search_ids(
+            &service,
+            CashActivitySearchRequest {
+                search: Some("bakery".to_string()),
+                limit: 50,
+                ..Default::default()
+            },
+        )
+        .await;
+        ids.sort();
+
+        assert_eq!(ids, vec!["by-notes", "by-payee"]);
+    }
+
+    #[tokio::test]
+    async fn payee_usage_counts_the_activities_filed_under_each_payee() {
+        let (service, assignment_repo, _) = make_service_with(vec![
+            cash_row("a", "WITHDRAWAL", 30, "USD"),
+            cash_row("b", "WITHDRAWAL", 50, "USD"),
+            cash_row("c", "DEPOSIT", 70, "USD"),
+        ]);
+        *assignment_repo.assignments.lock().unwrap() = vec![
+            payee_assignment("a", "payee_bakery"),
+            payee_assignment("b", "payee_bakery"),
+            payee_assignment("c", "payee_employer"),
+            spending_assignment("a", "cat_food"),
+        ];
+
+        let usage = service.payee_usage().await.unwrap();
+
+        assert_eq!(usage.get("payee_bakery"), Some(&2));
+        assert_eq!(usage.get("payee_employer"), Some(&1));
+        assert_eq!(usage.len(), 2);
     }
 
     async fn search_net(service: &CashActivityService, base: Option<&str>) -> NetSummary {
@@ -4148,6 +4638,117 @@ mod tests {
             &[("activity-1".to_string(), SPENDING_TAXONOMY.to_string())]
         );
         assert_eq!(split_repo.replaced.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_batch_of_payees_and_categories_is_one_write() {
+        let other = Activity {
+            id: "activity-2".to_string(),
+            ..activity("WITHDRAWAL")
+        };
+        let (service, assignment_repo, _) = make_service_with(vec![activity("WITHDRAWAL"), other]);
+        let item =
+            |activity_id: &str, taxonomy_id: &str, category_id: &str| BulkCategoryAssignment {
+                activity_id: activity_id.to_string(),
+                taxonomy_id: taxonomy_id.to_string(),
+                category_id: category_id.to_string(),
+                expected_splits: None,
+            };
+
+        let written = service
+            .bulk_assign_categories(&[
+                item("activity-1", PAYEES_TAXONOMY, "payee_bakery"),
+                item("activity-2", SPENDING_TAXONOMY, "groceries"),
+            ])
+            .await
+            .unwrap();
+
+        assert_eq!(written.len(), 2);
+        // Two writes could save the categories and then fail on the payees.
+        assert_eq!(assignment_repo.batches.lock().unwrap().as_slice(), &[2]);
+    }
+
+    #[tokio::test]
+    async fn a_batch_gives_an_activity_a_category_and_a_payee_but_neither_twice() {
+        let (service, assignment_repo, _) = make_service(activity("WITHDRAWAL"));
+        let item = |taxonomy_id: &str, category_id: &str| BulkCategoryAssignment {
+            activity_id: "activity-1".to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            expected_splits: None,
+        };
+
+        // The same payee twice, two payees, and two categories of two buckets.
+        for repeated in [
+            [
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+            ],
+            [
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+                item(PAYEES_TAXONOMY, "payee_water"),
+            ],
+            [
+                item(SPENDING_TAXONOMY, "groceries"),
+                item(SAVINGS_TAXONOMY, "holiday_fund"),
+            ],
+        ] {
+            assert!(service.bulk_assign_categories(&repeated).await.is_err());
+        }
+        assert!(assignment_repo.batches.lock().unwrap().is_empty());
+
+        let written = service
+            .bulk_assign_categories(&[
+                item(SPENDING_TAXONOMY, "groceries"),
+                item(PAYEES_TAXONOMY, "payee_bakery"),
+            ])
+            .await
+            .expect("a category and a payee are two labels of the activity");
+
+        assert_eq!(written.len(), 2);
+        assert_eq!(assignment_repo.batches.lock().unwrap().as_slice(), &[2]);
+    }
+
+    #[tokio::test]
+    async fn reviewed_splits_on_a_payee_do_not_stand_for_the_categorys_review() {
+        let (service, assignment_repo, _) = make_service(activity("WITHDRAWAL"));
+        let item = |taxonomy_id: &str, category_id: &str, expected_splits| BulkCategoryAssignment {
+            activity_id: "activity-1".to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            expected_splits,
+        };
+
+        // The splits to replace are keyed by activity: taken from the payee,
+        // they would let an unreviewed category clear them, or overrule the
+        // ones the category was reviewed against.
+        for batch in [
+            [
+                item(SPENDING_TAXONOMY, "groceries", None),
+                item(PAYEES_TAXONOMY, "payee_bakery", Some(Vec::new())),
+            ],
+            [
+                item(PAYEES_TAXONOMY, "payee_bakery", Some(Vec::new())),
+                item(SPENDING_TAXONOMY, "groceries", Some(Vec::new())),
+            ],
+        ] {
+            assert!(service.bulk_assign_categories(&batch).await.is_err());
+        }
+        assert!(assignment_repo.batches.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_payee_can_be_filed_on_income_which_a_spending_category_cannot() {
+        let (service, _, _) = make_service(activity("DEPOSIT"));
+
+        service
+            .assign_category("activity-1", PAYEES_TAXONOMY, "payee_employer")
+            .await
+            .expect("a payee fits any cash-flow bucket");
+        assert!(service
+            .assign_category("activity-1", SPENDING_TAXONOMY, "groceries")
+            .await
+            .is_err());
     }
 
     #[tokio::test]

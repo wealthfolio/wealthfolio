@@ -78,6 +78,8 @@
     "reimbursementRefund": "Kostenerstattung / Rückerstattung"
   },
   "rules": {
+    "categoryOrPayee": "Kategorie oder Zahlungsempfänger",
+    "payeeRuleHint": "Eine Zahlungsempfänger-Regel gilt für jede passende Transaktion und lässt deren Kategorie unverändert.",
     "editTitle": "Regel bearbeiten",
     "addTitle": "Regel hinzufügen",
     "editDescription": "Aktivitäten automatisch nach Namensmuster kennzeichnen. Bei mehreren Treffern gewinnen Regeln mit höherer Priorität.",
@@ -161,6 +163,7 @@
     "amountChipBetween": "Betrag zwischen {{value}} und {{value2}}"
   },
   "transactions": {
+    "filterByPayee": "Transaktionen für {{name}} anzeigen",
     "deleteTitle_one": "Transaktion löschen",
     "deleteTitle_other": "Transaktionen löschen",
     "deleteConfirmSingle": "Möchten Sie diese(n) {{type}} über {{amount}} wirklich löschen?",
@@ -579,6 +582,14 @@
     "subheading": "Plan, Ist-Werte und Anpassungen dieses Monats."
   },
   "insightsPage": {
+    "topPayees": "Top-Zahlungsempfänger",
+    "labelFilter": {
+      "search": "Zahlungsempfänger und Ereignisse suchen",
+      "only": "Nur",
+      "without": "Ohne",
+      "payee": "Zahlungsempfänger: {{name}}",
+      "eventType": "{{name}}-Ereignisse"
+    },
     "uncategorized": "Nicht kategorisiert",
     "heading": "Ausgabenanalyse",
     "loadError": "Analysen konnten nicht geladen werden.",
@@ -858,6 +869,13 @@
     "manage": "Verwalten →"
   },
   "cashForm": {
+    "payeeBulkSet": "Zahlungsempfänger festlegen",
+    "payeeSearch": "Zahlungsempfänger suchen oder hinzufügen",
+    "payeeEmpty": "Noch keine Zahlungsempfänger. Namen eingeben, um einen hinzuzufügen.",
+    "payeeAdd": "„{{name}}“ hinzufügen",
+    "payeeClear": "Kein Zahlungsempfänger",
+    "payee": "Zahlungsempfänger",
+    "payeePlaceholder": "Mit wem war das?",
     "none": "Keiner",
     "addExpense": "Ausgabe hinzufügen",
     "addIncome": "Einnahme hinzufügen",

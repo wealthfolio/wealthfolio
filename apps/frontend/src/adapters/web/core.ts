@@ -218,6 +218,9 @@ export const COMMANDS: CommandMap = {
   get_budget: { method: "GET", path: "/spending/budget" },
   get_budget_readonly: { method: "GET", path: "/spending/budget/snapshot" },
   get_spending_context: { method: "GET", path: "/spending/context" },
+  get_payee_usage: { method: "GET", path: "/spending/payees/usage" },
+  get_payee_references: { method: "GET", path: "/spending/payees" },
+  move_payee_activities: { method: "POST", path: "/spending/payees" },
   upsert_budget_target: { method: "POST", path: "/spending/budget/targets" },
   delete_budget_target: { method: "DELETE", path: "/spending/budget/targets" },
   upsert_budget_rollover_setting: { method: "POST", path: "/spending/budget/rollovers" },
@@ -1436,8 +1439,20 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     }
     // Spending settings
     case "get_spending_context":
+    case "get_payee_usage":
     case "get_spending_settings":
       break;
+    case "get_payee_references": {
+      const { payeeId } = payload as { payeeId: string };
+      url += `/${encodeURIComponent(payeeId)}/references`;
+      break;
+    }
+    case "move_payee_activities": {
+      const { sourceId, destinationId } = payload as { sourceId: string; destinationId: string };
+      url += `/${encodeURIComponent(sourceId)}/activities/move`;
+      body = JSON.stringify({ destinationId });
+      break;
+    }
     case "update_spending_settings": {
       const { update } = payload as { update: Record<string, unknown> };
       body = JSON.stringify(update);

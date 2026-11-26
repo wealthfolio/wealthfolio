@@ -1,5 +1,6 @@
 {
   "taxonomyNames": {
+    "payees": "Zahlungsempfänger",
     "instrument_type": "Instrumenttyp",
     "regions": "Regionen",
     "income_sources": "Einkommensquellen",

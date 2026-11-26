@@ -226,3 +226,41 @@ describe("no notes", () => {
     expect(screen.getAllByText("—")).toHaveLength(2);
   });
 });
+
+describe("payee", () => {
+  it("shows the payee before the bank's text, in both layouts", () => {
+    const row = toRowVM(activity({ notes: "CRNR SHP 0042" }), new Map());
+    render(
+      <>
+        <TransactionCard row={row} selectionMode={false} {...shared} payeeName="Corner shop" />
+        <Table>
+          <TableBody>
+            <TransactionRow row={row} {...shared} payeeName="Corner shop" />
+          </TableBody>
+        </Table>
+      </>,
+      { wrapper: withProviders },
+    );
+
+    expect(screen.getAllByText("Corner shop")).toHaveLength(2);
+    expect(screen.getAllByText("CRNR SHP 0042")).toHaveLength(2);
+  });
+
+  it("shows the payee alone, without a dash, when there is no note", () => {
+    const row = toRowVM(activity({ notes: "" }), new Map());
+    render(
+      <>
+        <TransactionCard row={row} selectionMode={false} {...shared} payeeName="Corner shop" />
+        <Table>
+          <TableBody>
+            <TransactionRow row={row} {...shared} payeeName="Corner shop" />
+          </TableBody>
+        </Table>
+      </>,
+      { wrapper: withProviders },
+    );
+
+    expect(screen.getAllByText("Corner shop")).toHaveLength(2);
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
+});

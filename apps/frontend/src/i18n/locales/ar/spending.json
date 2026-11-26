@@ -203,6 +203,13 @@
     "spending": "الإنفاق"
   },
   "cashForm": {
+    "payeeBulkSet": "تعيين المستفيد",
+    "payeeSearch": "ابحث عن مستفيد أو أضفه",
+    "payeeEmpty": "لا يوجد مستفيدون بعد. اكتب اسمًا لإضافته.",
+    "payeeAdd": "إضافة «{{name}}»",
+    "payeeClear": "بدون مستفيد",
+    "payee": "المستفيد",
+    "payeePlaceholder": "مع من كانت هذه المعاملة؟",
     "none": "لا شيء",
     "addExpense": "إضافة مصروف",
     "addIncome": "إضافة دخل",
@@ -708,6 +715,14 @@
     "stagesLabel": "مراحل الرؤى"
   },
   "insightsPage": {
+    "topPayees": "أبرز المستفيدين",
+    "labelFilter": {
+      "search": "ابحث عن المستفيدين والأحداث",
+      "only": "فقط",
+      "without": "بدون",
+      "payee": "المستفيد: {{name}}",
+      "eventType": "أحداث {{name}}"
+    },
     "heading": "رؤى الإنفاق",
     "loadError": "تعذّر تحميل الرؤى.",
     "multiCurrency": "عملات متعددة:",
@@ -871,6 +886,8 @@
     "week": "أ{{number}}"
   },
   "rules": {
+    "categoryOrPayee": "الفئة أو المستفيد",
+    "payeeRuleHint": "تنطبق قاعدة المستفيد على أي معاملة مطابقة وتترك فئتها كما هي.",
     "activityCredit": "إضافة رصيد / استرداد",
     "activityDeposit": "إيداع",
     "activityDividend": "توزيعات الأرباح",
@@ -1085,6 +1102,7 @@
     "today": "اليوم"
   },
   "transactions": {
+    "filterByPayee": "عرض معاملات {{name}}",
     "assignCategory": "تعيين فئة",
     "bulkActions": "إجراءات جماعية",
     "categorize": "تصنيف",

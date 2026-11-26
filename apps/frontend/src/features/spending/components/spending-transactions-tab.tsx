@@ -110,6 +110,7 @@ import {
   useUnassignActivityCategory,
 } from "../hooks/use-cash-activities";
 import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
+import { NO_PAYEE_ID, PAYEES_TAXONOMY_ID, payeeIdOf, setActivitiesPayee } from "../lib/payee";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { invalidateSpendingCaches } from "../lib/invalidation";
 import type {
@@ -214,6 +215,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const urlAccount = searchParams.get("account");
     const urlAccounts = searchParams.get("accounts") ?? urlAccount;
     const urlEvents = searchParams.get("events");
+    const urlPayees = searchParams.get("payees");
     const urlSearchQuery = searchParams.get("q");
     const urlAmountMin = searchParams.get("amountMin");
     const urlAmountMax = searchParams.get("amountMax");
@@ -265,6 +267,9 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const [selectedEvents, setSelectedEvents] = useState<Set<string>>(() =>
       parseSetParam(urlEvents),
     );
+    const [selectedPayees, setSelectedPayees] = useState<Set<string>>(() =>
+      parseSetParam(urlPayees),
+    );
     const [amountRange, setAmountRange] = useState<AmountRange>(() =>
       parseAmountRange(urlAmountMin, urlAmountMax),
     );
@@ -302,6 +307,10 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         const next = parseSetParam(urlEvents);
         return setsEqual(prev, next) ? prev : next;
       });
+      setSelectedPayees((prev) => {
+        const next = parseSetParam(urlPayees);
+        return setsEqual(prev, next) ? prev : next;
+      });
       setAmountRange((prev) => {
         const next = parseAmountRange(urlAmountMin, urlAmountMax);
         return sameAmountRange(prev, next) ? prev : next;
@@ -317,6 +326,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       urlCategoryId,
       urlEndDate,
       urlEvents,
+      urlPayees,
       urlSearchQuery,
       urlStartDate,
       urlStatus,
@@ -349,6 +359,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       setSet("category", selectedCategories);
       setSet("subcategory", selectedSubcategories);
       setSet("events", selectedEvents);
+      setSet("payees", selectedPayees);
       setOrDelete("q", searchInputRef.current || null);
       setOrDelete("amountMin", amountRange.min != null ? String(amountRange.min) : null);
       setOrDelete("amountMax", amountRange.max != null ? String(amountRange.max) : null);
@@ -366,6 +377,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       selectedCategories,
       selectedSubcategories,
       selectedEvents,
+      selectedPayees,
       debouncedSearch,
       amountRange,
       dateRange,
@@ -429,6 +441,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const spending = useTaxonomy(SPENDING_TAXONOMY);
     const income = useTaxonomy(INCOME_TAXONOMY);
     const savings = useTaxonomy(SAVINGS_TAXONOMY);
+    const payees = useTaxonomy(PAYEES_TAXONOMY_ID);
     const assignMutation = useAssignActivityCategory();
     const bulkAssignMutation = useBulkAssignCategories();
     const unassignMutation = useUnassignActivityCategory();
@@ -475,6 +488,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         categoryIds: expandedCategoryIds,
         subcategoryIds: stableArr(selectedSubcategories),
         eventIds: stableArr(selectedEvents),
+        payeeIds: stableArr(selectedPayees),
         status: statusFilter,
         startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
         endDate: dateRange?.to
@@ -498,6 +512,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       expandedCategoryIds,
       selectedSubcategories,
       selectedEvents,
+      selectedPayees,
       statusFilter,
       dateRange,
       amountRange,
@@ -562,6 +577,15 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       [rows],
     );
 
+    const sortedPayees = useMemo(
+      () => [...(payees.data?.categories ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+      [payees.data?.categories],
+    );
+    const payeeNameById = useMemo(
+      () => new Map((payees.data?.categories ?? []).map((payee) => [payee.id, payee.name])),
+      [payees.data?.categories],
+    );
+
     const dayGroups = useMemo(() => groupRowsByDay(rows, appTimezone), [rows, appTimezone]);
 
     /**
@@ -600,6 +624,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       selectedCategories.size > 0 ||
       selectedSubcategories.size > 0 ||
       selectedEvents.size > 0 ||
+      selectedPayees.size > 0 ||
       amountRange.min != null ||
       amountRange.max != null ||
       !!dateRange?.from ||
@@ -619,6 +644,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       setSelectedCategories(new Set());
       setSelectedSubcategories(new Set());
       setSelectedEvents(new Set());
+      setSelectedPayees(new Set());
       setAmountRange({ min: null, max: null });
       setDateRange(undefined);
     }, []);
@@ -774,6 +800,28 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         // Keep the selection on conflict so the user can review a corrected batch.
       },
       [selectedRowIds, rows, bulkAssignMutation, t],
+    );
+
+    /** Files the rows under the payee called `name`, creating it if it is new. */
+    const setPayeeOn = useCallback(
+      async (ids: string[], name: string) => {
+        try {
+          await setActivitiesPayee(ids, name, payees.data?.categories ?? []);
+          toast.success(t("spending:txTab.taggedCount", { count: ids.length }));
+          setSelectedRowIds(new Set());
+        } catch {
+          toast.error(t("ai:categorization.failedApply"));
+        } finally {
+          // A new payee may have been created even if filing it failed.
+          qc.invalidateQueries({ queryKey: QueryKeys.taxonomy(PAYEES_TAXONOMY_ID) });
+          invalidateSpendingCaches(qc);
+        }
+      },
+      [payees.data?.categories, qc, t],
+    );
+    const handleBulkSetPayee = useCallback(
+      (name: string) => setPayeeOn(Array.from(selectedRowIds), name),
+      [selectedRowIds, setPayeeOn],
     );
 
     const handleBulkSetEvent = useCallback(
@@ -981,6 +1029,21 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       () => events.map((e) => ({ value: e.id, label: e.name })),
       [events],
     );
+    // "No payee" leads the list: it is how to find what still needs one.
+    const payeeOptions = useMemo<FilterOption[]>(
+      () =>
+        sortedPayees.length === 0
+          ? []
+          : [
+              { value: NO_PAYEE_ID, label: t("spending:cashForm.payeeClear") },
+              ...sortedPayees.map((payee) => ({ value: payee.id, label: payee.name })),
+            ],
+      [sortedPayees, t],
+    );
+    const handleFilterPayee = useCallback(
+      (payeeId: string) => setSelectedPayees(new Set([payeeId])),
+      [],
+    );
 
     const handleCategoriesChange = useCallback(
       (next: Set<string>) => {
@@ -1079,8 +1142,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const sharedRowProps = (r: TransactionRowVM) => {
       const eventId = r.activity.eventId ?? null;
       const ev = eventId ? eventsById.get(eventId) : null;
+      const payeeId = payeeIdOf(r.activity.assignments);
       return {
         row: r,
+        payeeId: payeeId ?? null,
+        payeeName: payeeId ? (payeeNameById.get(payeeId) ?? null) : null,
+        onFilterPayee: handleFilterPayee,
         account: accountById.get(r.activity.accountId),
         event: ev ?? null,
         eventTypeColor: ev ? (eventTypeById.get(ev.eventTypeId)?.color ?? null) : null,
@@ -1228,6 +1295,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           onSubcategoriesChange={setSelectedSubcategories}
           selectedEvents={selectedEvents}
           onEventsChange={setSelectedEvents}
+          selectedPayees={selectedPayees}
+          onPayeesChange={setSelectedPayees}
           amountRange={amountRange}
           onAmountRangeChange={setAmountRange}
           accountOptions={accountOptions}
@@ -1235,6 +1304,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           categoryOptions={categoryOptions}
           subcategoryOptions={subcategoryOptions}
           eventOptions={eventOptions}
+          payeeOptions={payeeOptions}
           hasEvents={events.length > 0}
           filtersActive={filtersActive}
           onClearAll={clearAllFilters}
@@ -1268,6 +1338,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
             categoryScope={bulkCategoryScope}
             onCategorize={handleBulkCategorize}
             onTagEvent={handleBulkSetEvent}
+            payees={payees.data?.categories ?? []}
+            onSetPayee={handleBulkSetPayee}
             onDelete={handleBulkDelete}
             onClearSelection={clearSelection}
           />
@@ -1314,6 +1386,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               setGridPageIndex(0);
             }}
             onRefetch={gridPage.refetch}
+            payees={sortedPayees}
+            onSetPayee={setPayeeOn}
             onEdit={handleEditRow}
             onEditSplits={setSplittingActivity}
             onMarkReimbursement={(row) => markReimbursementMutation.mutate(row)}

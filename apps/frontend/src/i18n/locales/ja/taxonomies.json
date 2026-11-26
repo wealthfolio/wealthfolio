@@ -1,5 +1,6 @@
 {
   "taxonomyNames": {
+    "payees": "支払先",
     "instrument_type": "金融商品種別",
     "regions": "地域",
     "income_sources": "収入源",

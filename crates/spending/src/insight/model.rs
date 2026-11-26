@@ -18,6 +18,10 @@ pub struct SpendingInsightRequest {
     pub account_ids: Option<Vec<String>>,
     /// Defaults to `Prior` (matched-size window immediately preceding).
     pub compare: Option<CompareMode>,
+    /// Narrows the report to activities by payee, category, event or event
+    /// type. Applies to the comparison window too. Absent covers everything.
+    #[serde(default)]
+    pub filter: Option<super::label_filter::ActivityLabelFilter>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -245,6 +249,10 @@ pub struct SpendingInsight {
     pub income_breakdown: Vec<CategoryBreakdownRow>,
     #[serde(default)]
     pub savings_breakdown: Vec<CategoryBreakdownRow>,
+    /// Spending by payee, largest first. The row with the uncategorized id is
+    /// the spending that has no payee.
+    #[serde(default)]
+    pub payee_breakdown: Vec<CategoryBreakdownRow>,
     pub by_day: Vec<DayBucket>,
     pub by_day_by_category: Vec<DayCategoryBucket>,
     pub by_month: Vec<MonthBucket>,

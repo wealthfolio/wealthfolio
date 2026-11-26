@@ -18,7 +18,7 @@ use super::model::{
 use super::presets::{self, ImportPresetResult, RemovePresetResult, RulePresetSummary};
 use super::traits::CategorizationRulesRepositoryTrait;
 use crate::activity_assignments::{
-    ActivityTaxonomyAssignmentService, NewActivityTaxonomyAssignment,
+    ActivityTaxonomyAssignmentService, NewActivityTaxonomyAssignment, PAYEES_TAXONOMY,
 };
 use crate::error::SpendingError;
 
@@ -251,7 +251,12 @@ impl CategorizationRulesService {
         let activities = self.cash_service.list_for_rules(account_ids).await?;
 
         let rules = self.repo.list().await?;
-        let compiled = compile_rules(&rules);
+        // A payee sits beside the category instead of competing with it, so
+        // payee rules are matched in a pass of their own: one activity can
+        // take its category from one rule and its payee from another.
+        let (payee_rules, compiled): (Vec<_>, Vec<_>) = compile_rules(&rules)
+            .into_iter()
+            .partition(|c| c.rule.taxonomy_id.as_deref() == Some(PAYEES_TAXONOMY));
 
         let mut matched_count = 0usize;
         let mut incompatible = 0;
@@ -261,6 +266,26 @@ impl CategorizationRulesService {
             let a = &row.activity;
             let notes_raw = a.notes.as_deref().unwrap_or("");
             let notes_upper = notes_raw.to_uppercase();
+            let payee_id = match_compiled(
+                &payee_rules,
+                &notes_upper,
+                notes_raw,
+                a.effective_type(),
+                &a.account_id,
+                a.amount.map(|d| d.abs()),
+            )
+            .and_then(|m| m.rule.category_id.clone());
+            let has_payee = payee_id.is_some();
+            if let Some(payee_id) = payee_id {
+                writes.push(NewActivityTaxonomyAssignment {
+                    id: None,
+                    activity_id: a.id.clone(),
+                    taxonomy_id: PAYEES_TAXONOMY.to_string(),
+                    category_id: payee_id,
+                    weight: 10_000,
+                    source: "rule".to_string(),
+                });
+            }
             let Some(m) = match_compiled_for_taxonomy(
                 &compiled,
                 row.cash_flow_bucket.taxonomy_id(),
@@ -293,6 +318,8 @@ impl CategorizationRulesService {
                     if !categorized {
                         incompatible += 1;
                     }
+                } else if has_payee {
+                    matched_count += 1;
                 }
                 continue;
             };
@@ -851,6 +878,9 @@ mod tests {
             }
             Ok(rows)
         }
+        async fn reassign_category(&self, _: &str, _: &str, _: &str) -> Result<usize> {
+            unimplemented!()
+        }
         async fn delete(&self, _id: &str) -> Result<()> {
             unimplemented!()
         }
@@ -1265,6 +1295,67 @@ mod tests {
         let writes = assignment_repo.writes.lock().unwrap();
         assert_eq!(writes.len(), 1);
         assert_eq!(writes[0].category_id, "cat_other");
+    }
+
+    #[tokio::test]
+    async fn payee_rule_sets_a_payee_beside_the_category_rule() {
+        let rules_repo = Arc::new(MockRulesRepo {
+            rules: Mutex::new(vec![
+                // The payee rule has the higher priority, and must not win
+                // the category away from the spending rule.
+                mk_rule("payee", "BAKERY", PAYEES_TAXONOMY, "payee_bakery", 10),
+                mk_rule("spending", "BAKERY", "spending_categories", "cat_food", 1),
+            ]),
+        });
+        let assignment_repo = Arc::new(MockAssignmentRepo::default());
+        let mut deposit = mk_activity("deposit", "acct1", "BAKERY REFUND");
+        deposit.activity_type = "DEPOSIT".to_string();
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![
+                mk_activity("withdrawal", "acct1", "CORNER BAKERY 12"),
+                // An income row: the spending rule cannot apply, the payee can.
+                deposit,
+                mk_activity("other", "acct1", "CITY WATER"),
+            ],
+            assignments: vec![],
+        });
+        let svc = CategorizationRulesService::new(
+            rules_repo,
+            activity_repo,
+            Arc::new(ActivityTaxonomyAssignmentService::new(
+                assignment_repo.clone(),
+            )),
+        );
+
+        let summary = svc
+            .rerun_detailed(&["acct1".to_string()], true)
+            .await
+            .unwrap();
+        // Each matched activity counts once, however many rules fired on it.
+        assert_eq!(summary.matched, 2);
+        let mut writes: Vec<(String, String, String)> = assignment_repo
+            .writes
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|w| {
+                (
+                    w.activity_id.clone(),
+                    w.taxonomy_id.clone(),
+                    w.category_id.clone(),
+                )
+            })
+            .collect();
+        writes.sort();
+        let row = |a: &str, t: &str, c: &str| (a.to_string(), t.to_string(), c.to_string());
+        assert_eq!(
+            writes,
+            vec![
+                row("deposit", PAYEES_TAXONOMY, "payee_bakery"),
+                row("withdrawal", PAYEES_TAXONOMY, "payee_bakery"),
+                row("withdrawal", "spending_categories", "cat_food"),
+            ]
+        );
     }
 
     #[tokio::test]

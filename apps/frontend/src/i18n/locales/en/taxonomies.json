@@ -1,5 +1,6 @@
 {
   "taxonomyNames": {
+    "payees": "Payees",
     "instrument_type": "Instrument Type",
     "asset_classes": "Asset Classes",
     "industries_gics": "Industries (GICS)",

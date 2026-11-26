@@ -78,6 +78,8 @@
     "reimbursementRefund": "払い戻し / 返金"
   },
   "rules": {
+    "categoryOrPayee": "カテゴリまたは支払先",
+    "payeeRuleHint": "支払先ルールは一致するすべての取引に適用され、カテゴリは変更しません。",
     "editTitle": "ルールを編集",
     "addTitle": "ルールを追加",
     "editDescription": "名前のパターンで取引に自動でタグ付けします。複数一致した場合は優先度の高いルールが適用されます。",
@@ -161,6 +163,7 @@
     "amountChipBetween": "金額が{{value}}〜{{value2}}"
   },
   "transactions": {
+    "filterByPayee": "{{name}} の取引を表示",
     "deleteTitle_one": "取引を削除",
     "deleteTitle_other": "取引を削除",
     "deleteConfirmSingle": "この{{type}}({{amount}})を削除してもよろしいですか?",
@@ -573,6 +576,14 @@
     "subheading": "今月の計画・実績・個別設定。"
   },
   "insightsPage": {
+    "topPayees": "上位の支払先",
+    "labelFilter": {
+      "search": "支払先・イベントを検索",
+      "only": "のみ",
+      "without": "除外",
+      "payee": "支払先: {{name}}",
+      "eventType": "{{name}}のイベント"
+    },
     "uncategorized": "未分類",
     "heading": "支出インサイト",
     "loadError": "インサイトを読み込めませんでした。",
@@ -850,6 +861,13 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "payeeBulkSet": "支払先を設定",
+    "payeeSearch": "支払先を検索または追加",
+    "payeeEmpty": "支払先はまだありません。名前を入力して追加します。",
+    "payeeAdd": "「{{name}}」を追加",
+    "payeeClear": "支払先なし",
+    "payee": "支払先",
+    "payeePlaceholder": "取引の相手は?",
     "none": "なし",
     "addExpense": "支出を追加",
     "addIncome": "収入を追加",

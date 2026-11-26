@@ -124,6 +124,7 @@ impl DataExportService {
                 let columns = spending.get(&row.id).cloned().unwrap_or_default();
                 record.set("category", columns.category);
                 record.set("categoryId", columns.category_id);
+                record.set("payee", columns.payee);
                 record.set("event", columns.event);
                 record.set("splits", columns.splits.unwrap_or(Value::Null));
                 Ok(record)

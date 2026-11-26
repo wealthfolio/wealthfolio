@@ -1,5 +1,6 @@
 {
   "taxonomyNames": {
+    "payees": "المستفيدون",
     "instrument_type": "نوع الأداة المالية",
     "regions": "المناطق",
     "income_sources": "مصادر الدخل",

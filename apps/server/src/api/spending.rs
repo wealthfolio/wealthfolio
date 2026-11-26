@@ -569,6 +569,40 @@ async fn get_spending_context(
     Ok(Json(state.cash_activity_service.context().await?))
 }
 
+async fn get_payee_usage(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<std::collections::HashMap<String, usize>>> {
+    Ok(Json(state.cash_activity_service.payee_usage().await?))
+}
+
+async fn get_payee_references(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Path(payee_id): Path<String>,
+) -> ApiResult<Json<wealthfolio_spending::cash_activities::PayeeReferences>> {
+    Ok(Json(
+        state.cash_activity_service.payee_references(&payee_id)?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MovePayeeActivitiesBody {
+    destination_id: String,
+}
+
+async fn move_payee_activities(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Path(source_id): Path<String>,
+    Json(body): Json<MovePayeeActivitiesBody>,
+) -> ApiResult<Json<usize>> {
+    Ok(Json(
+        state
+            .cash_activity_service
+            .move_payee_activities(&source_id, &body.destination_id)
+            .await?,
+    ))
+}
+
 async fn upsert_budget_target(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(query): Query<BudgetQuery>,
@@ -797,6 +831,7 @@ async fn get_event_spending_summaries(
         start_date: None,
         end_date: None,
         currency: None,
+        filter: None,
     });
     if req.currency.is_none() {
         req.currency = Some(state.base_currency()?);
@@ -882,6 +917,15 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/spending/categories/merge", post(merge_category))
         .route("/spending/budget/snapshot", get(get_budget_readonly))
         .route("/spending/context", get(get_spending_context))
+        .route("/spending/payees/usage", get(get_payee_usage))
+        .route(
+            "/spending/payees/{id}/references",
+            get(get_payee_references),
+        )
+        .route(
+            "/spending/payees/{id}/activities/move",
+            post(move_payee_activities),
+        )
         .route("/spending/budget/targets", post(upsert_budget_target))
         .route(
             "/spending/budget/targets/{id}",

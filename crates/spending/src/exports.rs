@@ -11,7 +11,7 @@ use wealthfolio_core::accounts::AccountServiceTrait;
 use wealthfolio_core::exports::{ActivitySpendingColumns, ExportRecord, SpendingExportSource};
 use wealthfolio_core::taxonomies::TaxonomyServiceTrait;
 
-use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
+use crate::activity_assignments::{ActivityTaxonomyAssignmentRepositoryTrait, PAYEES_TAXONOMY};
 use crate::activity_events::ActivityEventsRepositoryTrait;
 use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::analytics::{AnalyticsServiceTrait, EventSummariesRequest};
@@ -113,6 +113,28 @@ impl SpendingDataExportSource {
     }
 }
 
+/// Files one assignment into an activity's export columns. A payee has a
+/// column of its own; it is not one more category of the activity.
+fn add_assignment(
+    columns: &mut ActivitySpendingColumns,
+    taxonomy_id: &str,
+    category_id: String,
+    name: String,
+) {
+    if taxonomy_id == PAYEES_TAXONOMY {
+        columns.payee = Some(name);
+        return;
+    }
+    columns.category = Some(match columns.category.take() {
+        Some(existing) => format!("{existing}; {name}"),
+        None => name,
+    });
+    columns.category_id = Some(match columns.category_id.take() {
+        Some(existing) => format!("{existing}; {category_id}"),
+        None => category_id,
+    });
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SplitCell {
@@ -212,14 +234,7 @@ impl SpendingExportSource for SpendingDataExportSource {
                 let name = paths
                     .path(&assignment.category_id)
                     .unwrap_or_else(|| assignment.category_id.clone());
-                entry.category = Some(match entry.category.take() {
-                    Some(existing) => format!("{existing}; {name}"),
-                    None => name,
-                });
-                entry.category_id = Some(match entry.category_id.take() {
-                    Some(existing) => format!("{existing}; {}", assignment.category_id),
-                    None => assignment.category_id,
-                });
+                add_assignment(entry, &assignment.taxonomy_id, assignment.category_id, name);
             }
 
             let mut splits = self
@@ -438,6 +453,7 @@ impl SpendingExportSource for SpendingDataExportSource {
                     start_date: None,
                     end_date: None,
                     currency: Some(currency.to_string()),
+                    filter: None,
                 },
                 timezone,
             )
@@ -612,6 +628,26 @@ mod tests {
         assert_eq!(paths.path("groceries").as_deref(), Some("Food / Groceries"));
         assert_eq!(paths.path("food").as_deref(), Some("Food"));
         assert_eq!(paths.path("missing"), None);
+    }
+
+    #[test]
+    fn a_payee_gets_its_own_column_and_stays_out_of_the_category() {
+        let mut columns = ActivitySpendingColumns::default();
+        add_assignment(
+            &mut columns,
+            "spending_categories",
+            "food".into(),
+            "Food".into(),
+        );
+        add_assignment(
+            &mut columns,
+            PAYEES_TAXONOMY,
+            "payee_bakery".into(),
+            "Corner Bakery".into(),
+        );
+        assert_eq!(columns.category.as_deref(), Some("Food"));
+        assert_eq!(columns.category_id.as_deref(), Some("food"));
+        assert_eq!(columns.payee.as_deref(), Some("Corner Bakery"));
     }
 
     #[test]

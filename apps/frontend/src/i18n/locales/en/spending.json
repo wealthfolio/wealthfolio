@@ -78,6 +78,8 @@
     "reimbursementRefund": "Reimbursement / refund"
   },
   "rules": {
+    "categoryOrPayee": "Category or payee",
+    "payeeRuleHint": "A payee rule applies to any matching transaction and leaves its category as it is.",
     "editTitle": "Edit rule",
     "addTitle": "Add rule",
     "editDescription": "Auto-tag activities by name pattern. Higher priority rules win when multiple match.",
@@ -161,6 +163,7 @@
     "amountChipBetween": "Amount between {{value}} and {{value2}}"
   },
   "transactions": {
+    "filterByPayee": "Show transactions for {{name}}",
     "deleteTitle_one": "Delete transaction",
     "deleteTitle_other": "Delete transactions",
     "deleteConfirmSingle": "Are you sure you want to delete this {{type}} of {{amount}}?",
@@ -579,6 +582,14 @@
     "subheading": "This month's plan, actuals, and overrides."
   },
   "insightsPage": {
+    "topPayees": "Top payees",
+    "labelFilter": {
+      "search": "Search payees and events",
+      "only": "Only",
+      "without": "Without",
+      "payee": "Payee: {{name}}",
+      "eventType": "{{name}} events"
+    },
     "uncategorized": "Uncategorized",
     "heading": "Spending Insight",
     "loadError": "Couldn't load insights.",
@@ -858,6 +869,13 @@
     "manage": "Manage →"
   },
   "cashForm": {
+    "payeeBulkSet": "Set payee",
+    "payeeSearch": "Search or add a payee",
+    "payeeEmpty": "No payees yet. Type a name to add one.",
+    "payeeAdd": "Add \"{{name}}\"",
+    "payeeClear": "No payee",
+    "payee": "Payee",
+    "payeePlaceholder": "Who was this with?",
     "none": "None",
     "addExpense": "Add expense",
     "addIncome": "Add income",

@@ -23,6 +23,7 @@ import {
   Spinner,
 } from "@wealthfolio/ui";
 
+import { PAYEES_TAXONOMY_ID } from "../lib/payee";
 import type { CategorizationRule, RuleAmountOp, RuleMatchType } from "../types/rule";
 import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
@@ -149,7 +150,7 @@ export interface RuleFormAccountOption {
 
 interface RuleFormProps {
   rule?: CategorizationRule;
-  /** Flat list of activity-scope categories from spending, income, and savings taxonomies. */
+  /** Flat list of what a rule can set: spending, income and savings categories, and payees. */
   categoryOptions: RuleFormCategoryOption[];
   /** Tracked spending accounts the rule can be scoped to. */
   accountOptions: RuleFormAccountOption[];
@@ -376,11 +377,13 @@ export function RuleForm({
               const currentOption = currentCatId
                 ? categoryOptions.find((opt) => opt.categoryId === currentCatId)
                 : undefined;
+              const targetsPayee = fieldValue.startsWith(`${PAYEES_TAXONOMY_ID}:`);
               return (
                 <FormItem>
-                  <FormLabel>{t("spending:filters.category")}</FormLabel>
+                  <FormLabel>{t("spending:rules.categoryOrPayee")}</FormLabel>
                   <QuickCategorizePopover
                     scope="all"
+                    includePayees
                     selectedCategoryId={currentCatId ?? null}
                     onSelect={(tax, catId) => field.onChange(`${tax}:${catId}`)}
                     onClear={() => field.onChange("")}
@@ -423,7 +426,11 @@ export function RuleForm({
                       </FormControl>
                     }
                   />
-                  <FormDescription>{t("spending:rules.categoryCompatibilityHint")}</FormDescription>
+                  <FormDescription>
+                    {targetsPayee
+                      ? t("spending:rules.payeeRuleHint")
+                      : t("spending:rules.categoryCompatibilityHint")}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               );

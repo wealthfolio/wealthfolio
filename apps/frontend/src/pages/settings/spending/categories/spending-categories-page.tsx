@@ -24,6 +24,8 @@ import type { TaxonomyCategory } from "@/lib/types";
 import { CategoryDeleteDialog } from "@/features/spending/components/category-delete-dialog";
 import { CategoryEditModal } from "@/features/spending/components/category-edit-modal";
 import { CategoryItem, type CategoryNode } from "@/features/spending/components/category-item";
+import { PayeeManager } from "@/features/spending/components/payee-manager";
+import { PAYEES_TAXONOMY_ID } from "@/features/spending/lib/payee";
 import type { CategoryFormValues } from "@/features/spending/components/category-form";
 import { useBudget } from "@/features/spending/hooks/use-budget";
 import {
@@ -67,6 +69,7 @@ export default function SpendingCategoriesPage() {
   const spending = useTaxonomy(SPENDING_TAXONOMY);
   const income = useTaxonomy(INCOME_TAXONOMY);
   const savings = useTaxonomy(SAVINGS_TAXONOMY);
+  const payees = useTaxonomy(PAYEES_TAXONOMY_ID);
   const budget = useBudget();
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
@@ -75,12 +78,17 @@ export default function SpendingCategoriesPage() {
   const excludedIds = useMemo(() => new Set(excludedCategoryIds), [excludedCategoryIds]);
 
   // URL is the source of truth for the active tab — no mirrored state, no sync effect.
-  const activeTab: "expense" | "income" | "savings" =
+  const activeTab: "expense" | "income" | "savings" | "payees" =
     searchParams.get("tab") === "income"
       ? "income"
       : searchParams.get("tab") === "savings"
         ? "savings"
-        : "expense";
+        : searchParams.get("tab") === "payees"
+          ? "payees"
+          : "expense";
+  // Payees are not categories: they are created where a transaction is filed
+  // under one, so their tab has no "Add category".
+  const onPayeesTab = activeTab === "payees";
 
   const handleTabChange = (value: string) => {
     setSearchParams(
@@ -252,6 +260,28 @@ export default function SpendingCategoriesPage() {
   };
 
   const renderCategoryList = (categoryList: CategoryNode[], isExpenseList = false) => {
+    // With no category of any kind the tabs still show, so the payees stay in reach.
+    if (total === 0) {
+      return (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Icons.Tag />
+            </EmptyMedia>
+            <EmptyTitle>{t("settings:spending.categories.empty_title")}</EmptyTitle>
+            <EmptyDescription>
+              {t("settings:spending.categories.empty_description")}
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={handleAddCategory}>
+              <Icons.Plus className="me-2 h-4 w-4" />
+              {t("settings:spending.categories.add")}
+            </Button>
+          </EmptyContent>
+        </Empty>
+      );
+    }
     if (categoryList.length === 0) {
       return (
         <div className="text-muted-foreground py-8 text-center text-sm">
@@ -287,18 +317,22 @@ export default function SpendingCategoriesPage() {
           backTo="/settings/spending"
           actionsInline
         >
-          <Button
-            size="sm"
-            className="sm:hidden"
-            onClick={handleAddCategory}
-            aria-label={t("settings:spending.categories.add")}
-          >
-            <Icons.Plus className="h-3.5 w-3.5" />
-          </Button>
-          <Button size="sm" className="hidden sm:inline-flex" onClick={handleAddCategory}>
-            <Icons.Plus className="me-2 h-3.5 w-3.5" />
-            {t("settings:spending.categories.add")}
-          </Button>
+          {!onPayeesTab && (
+            <>
+              <Button
+                size="sm"
+                className="sm:hidden"
+                onClick={handleAddCategory}
+                aria-label={t("settings:spending.categories.add")}
+              >
+                <Icons.Plus className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="sm" className="hidden sm:inline-flex" onClick={handleAddCategory}>
+                <Icons.Plus className="me-2 h-3.5 w-3.5" />
+                {t("settings:spending.categories.add")}
+              </Button>
+            </>
+          )}
         </SettingsHeader>
 
         {isLoading ? (
@@ -307,27 +341,9 @@ export default function SpendingCategoriesPage() {
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
-        ) : total === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Icons.Tag />
-              </EmptyMedia>
-              <EmptyTitle>{t("settings:spending.categories.empty_title")}</EmptyTitle>
-              <EmptyDescription>
-                {t("settings:spending.categories.empty_description")}
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={handleAddCategory}>
-                <Icons.Plus className="me-2 h-4 w-4" />
-                {t("settings:spending.categories.add")}
-              </Button>
-            </EmptyContent>
-          </Empty>
         ) : (
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsList className="grid w-full max-w-xl grid-cols-4">
               <TabsTrigger value="expense">
                 {t("settings:spending.categories.tab_expense", { count: expenseTree.length })}
               </TabsTrigger>
@@ -336,6 +352,11 @@ export default function SpendingCategoriesPage() {
               </TabsTrigger>
               <TabsTrigger value="savings">
                 {t("settings:spending.categories.tab_savings", { count: savingsTree.length })}
+              </TabsTrigger>
+              <TabsTrigger value="payees">
+                {t("settings:spending.payees.tab", {
+                  count: payees.data?.categories.length ?? 0,
+                })}
               </TabsTrigger>
             </TabsList>
             <TabsContent value="expense" className="mt-6">
@@ -346,6 +367,9 @@ export default function SpendingCategoriesPage() {
             </TabsContent>
             <TabsContent value="savings" className="mt-6">
               {renderCategoryList(savingsTree)}
+            </TabsContent>
+            <TabsContent value="payees" className="mt-6">
+              <PayeeManager payees={payees.data?.categories ?? []} />
             </TabsContent>
           </Tabs>
         )}

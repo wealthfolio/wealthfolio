@@ -19,11 +19,19 @@ import { localizeReportCategories } from "../components/reports/report-localizat
 import { StageNav, type InsightsStage } from "../components/reports/insights/stage-nav";
 import { WhatChangedStage } from "../components/reports/insights/what-changed-stage";
 import { WhenWhereStage } from "../components/reports/insights/when-where-stage";
+import { TopPayeesCard } from "../components/reports/insights/top-payees-card";
 import { WhereIAmStage } from "../components/reports/insights/where-i-am-stage";
+import {
+  EMPTY_LABEL_SELECTION,
+  SpendingLabelFilter,
+  toLabelFilter,
+  type LabelSelection,
+} from "../components/spending-label-filter";
 import { SpendingPeriodSelector } from "../components/spending-period-toggle";
+import { PAYEES_TAXONOMY_ID } from "../lib/payee";
 import { PeriodNavigation } from "../components/period-navigation";
 import { useCashActivities } from "../hooks/use-cash-activities";
-import { useEventSpendingSummaries } from "../hooks/use-spending-events";
+import { useEventSpendingSummaries, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSpendingInsight } from "../hooks/use-spending-insight";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import {
@@ -34,6 +42,7 @@ import {
 } from "../lib/year-period";
 import { getActivitySpendingAmount, getVisibleSpendingAmount } from "../lib/constants";
 import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
+import { labelFilterKeeps, labelFilterRulesOutEvent } from "../lib/label-filter";
 import {
   addMonthsToMonthKey,
   currentMonthKey,
@@ -88,6 +97,7 @@ const INCOME_TAXONOMY = "income_sources";
 const SAVINGS_TAXONOMY = "savings_categories";
 const STAGE_STORAGE_KEY = "spending-insights-stage";
 const EMPTY_TAXONOMY: never[] = [];
+const EMPTY_PAYEE_ROWS: never[] = [];
 const EMPTY_BUCKETS: never[] = [];
 /** Heatmap window — last 12 weeks regardless of selected period. */
 const HEATMAP_WEEKS = 12;
@@ -368,6 +378,7 @@ export default function SpendingInsightsPage({
   const taxonomy = useTaxonomy(SPENDING_TAXONOMY);
   const incomeTaxonomy = useTaxonomy(INCOME_TAXONOMY);
   const savingsTaxonomy = useTaxonomy(SAVINGS_TAXONOMY);
+  const payeesTaxonomy = useTaxonomy(PAYEES_TAXONOMY_ID);
   const displaySpendingCategories = useMemo(
     () => localizeReportCategories(t, taxonomy.data?.categories ?? EMPTY_TAXONOMY),
     [taxonomy.data?.categories, t],
@@ -394,6 +405,10 @@ export default function SpendingInsightsPage({
     // A DST transition can make seven calendar days differ in elapsed seconds.
     return period === "1W" ? comparisonRange(range, "prior", appTimezone) : null;
   }, [customRange, presetWindow, todayISO, customYear, customMonth, period, range, appTimezone]);
+  // Payees and event types the user chose to see alone, or to leave out. The
+  // server narrows every insight request by it, comparison window included.
+  const [labelSelection, setLabelSelection] = useState<LabelSelection>(EMPTY_LABEL_SELECTION);
+  const labelFilter = useMemo(() => toLabelFilter(labelSelection), [labelSelection]);
   const insightRequest = useMemo(
     () => ({
       startDate: range.start.toISOString(),
@@ -405,8 +420,9 @@ export default function SpendingInsightsPage({
             compareEndDate: customPriorRange.end.toISOString(),
           }
         : {}),
+      ...(labelFilter ? { filter: labelFilter } : {}),
     }),
-    [range, customPriorRange],
+    [range, customPriorRange, labelFilter],
   );
   const {
     data: insight,
@@ -422,8 +438,9 @@ export default function SpendingInsightsPage({
       compareStartDate: whatChangedWindow.prior.start.toISOString(),
       compareEndDate: whatChangedWindow.prior.end.toISOString(),
       compare: "prior" as const,
+      ...(labelFilter ? { filter: labelFilter } : {}),
     };
-  }, [whatChangedWindow]);
+  }, [whatChangedWindow, labelFilter]);
   const {
     data: mtdComparisonInsight,
     isLoading: isMtdComparisonLoading,
@@ -493,12 +510,28 @@ export default function SpendingInsightsPage({
       endDate: zonedCalendarDateBoundaryToDate(end, "end", appTimezone).toISOString(),
     };
   }, [appTimezone, customRange, customYear, range]);
-  const { data: heatmapActivities = [] } = useCashActivities(heatmapRequest);
+  const { data: heatmapWindowActivities = [] } = useCashActivities(heatmapRequest);
+  const { data: allEvents = [] } = useSpendingEvents();
+  // The activities come unfiltered, the daily totals beside them filtered: keep
+  // the same ones here, so the hours, the cell lists and the totals agree.
+  const heatmapActivities = useMemo(() => {
+    if (!labelFilter) return heatmapWindowActivities;
+    const typeByEvent = new Map(allEvents.map((event) => [event.id, event.eventTypeId] as const));
+    return heatmapWindowActivities.filter((activity) =>
+      labelFilterKeeps(labelFilter, activity, typeByEvent),
+    );
+  }, [allEvents, heatmapWindowActivities, labelFilter]);
   const {
     data: heatmapInsight,
     isError: heatmapInsightErrored,
     refetch: refetchHeatmapInsight,
-  } = useSpendingInsight(heatmapRequest, stage === "when");
+  } = useSpendingInsight(
+    useMemo(
+      () => ({ ...heatmapRequest, ...(labelFilter ? { filter: labelFilter } : {}) }),
+      [heatmapRequest, labelFilter],
+    ),
+    stage === "when",
+  );
   const heatmapDailySpendByDate = useMemo(
     () =>
       heatmapInsight
@@ -507,18 +540,31 @@ export default function SpendingInsightsPage({
     [heatmapInsight],
   );
 
+  // Narrowed like the heatmap and its daily totals, which the events are
+  // drawn over and compared with.
   const eventsRequest = useMemo(
     () => ({
       startDate: eventsRange.start.toISOString(),
       endDate: eventsRange.end.toISOString(),
+      ...(labelFilter ? { filter: labelFilter } : {}),
     }),
-    [eventsRange],
+    [eventsRange, labelFilter],
   );
   const {
     data: events = [],
     isError: eventsErrored,
     refetch: refetchEvents,
   } = useEventSpendingSummaries(eventsRequest);
+  // An event the filter leaves out by itself, like a trip without travel, has
+  // no place among the events: listed at zero it would count as days of no
+  // spending, in the events' combined lift and against the normal pace.
+  const shownEvents = useMemo(
+    () =>
+      labelFilter
+        ? events.filter((event) => !labelFilterRulesOutEvent(labelFilter, event))
+        : events,
+    [events, labelFilter],
+  );
 
   const onJumpToBreakdown = useCallback(() => {
     const el = document.getElementById("breakdown");
@@ -658,27 +704,32 @@ export default function SpendingInsightsPage({
 
   const periodToggle = useMemo(
     () => (
-      <SpendingPeriodSelector
-        value={
-          customMonth || customYear !== null
-            ? null
-            : customRange
-              ? normalizeReportsPeriod(rangePreset?.code)
-              : period
-        }
-        onValueChange={selectPeriod}
-        customMonth={customMonth}
-        customRange={customRange}
-        customYear={customYear}
-        maxYear={Number(todayISO.slice(0, 4)) - 1}
-        onCustomYearChange={selectCustomYear}
-        onCustomRangeChange={selectCustomRange}
-        maxMonth={maxPickerMonth}
-        onCustomMonthChange={selectCustomMonth}
-        appearance="header"
-      />
+      // On a phone the two do not fit side by side; the filter takes its own row.
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <SpendingLabelFilter value={labelSelection} onChange={setLabelSelection} />
+        <SpendingPeriodSelector
+          value={
+            customMonth || customYear !== null
+              ? null
+              : customRange
+                ? normalizeReportsPeriod(rangePreset?.code)
+                : period
+          }
+          onValueChange={selectPeriod}
+          customMonth={customMonth}
+          customRange={customRange}
+          customYear={customYear}
+          maxYear={Number(todayISO.slice(0, 4)) - 1}
+          onCustomYearChange={selectCustomYear}
+          onCustomRangeChange={selectCustomRange}
+          maxMonth={maxPickerMonth}
+          onCustomMonthChange={selectCustomMonth}
+          appearance="header"
+        />
+      </div>
     ),
     [
+      labelSelection,
       customMonth,
       customRange,
       customYear,
@@ -784,6 +835,15 @@ export default function SpendingInsightsPage({
             onCategoryClick={handleCategoryClick}
           />
         )}
+        {stage === "where" && (
+          <TopPayeesCard
+            rows={insight?.payeeBreakdown ?? EMPTY_PAYEE_ROWS}
+            payees={payeesTaxonomy.data?.categories ?? EMPTY_TAXONOMY}
+            currency={insight?.currency ?? baseCurrency}
+            range={range}
+            timezone={appTimezone}
+          />
+        )}
 
         {stage === "changed" && (
           <WhatChangedStage
@@ -817,8 +877,9 @@ export default function SpendingInsightsPage({
             heatmapActivities={heatmapActivities}
             accountTypeById={accountTypeById}
             dailySpendByDate={heatmapDailySpendByDate}
-            events={events}
+            events={shownEvents}
             eventsErrored={eventsErrored}
+            eventsFilteredOut={shownEvents.length < events.length}
             onRetryEvents={() => refetchEvents()}
             taxonomyCategories={displaySpendingCategories}
             currency={heatmapInsight?.currency ?? baseCurrency}
@@ -847,6 +908,7 @@ export default function SpendingInsightsPage({
         daysElapsed={categorySheetInsight?.headline.pace.daysElapsed ?? 0}
         isStatsLoading={stage === "changed" ? isWhatChangedLoading : isInsightLoading}
         currency={categorySheetInsight?.currency ?? baseCurrency}
+        labelFilter={labelFilter}
       />
 
       <HeatmapCellSheet

@@ -1,3 +1,5 @@
+import type { ActivityLabelFilter } from "./insight";
+
 export interface EventType {
   id: string;
   /** Stable slug for seeded types (Travel, Wedding, ...). User-created types
@@ -75,4 +77,6 @@ export interface EventSummariesRequest {
   startDate?: string | null;
   endDate?: string | null;
   currency?: string | null;
+  /** Counts only the tagged transactions this keeps, as it narrows an insight. */
+  filter?: ActivityLabelFilter;
 }

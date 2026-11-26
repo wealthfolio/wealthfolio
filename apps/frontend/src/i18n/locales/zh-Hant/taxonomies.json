@@ -1,5 +1,6 @@
 {
   "taxonomyNames": {
+    "payees": "收款方",
     "instrument_type": "證券類型",
     "regions": "地區",
     "income_sources": "收入來源",

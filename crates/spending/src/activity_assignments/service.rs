@@ -55,6 +55,19 @@ impl ActivityTaxonomyAssignmentService {
         self.repo.clear_for_taxonomy(activity_id, taxonomy_id).await
     }
 
+    /// Moves every assignment under one category to another of the same
+    /// taxonomy, whatever account its activity is on. Returns how many moved.
+    pub async fn reassign_category(
+        &self,
+        taxonomy_id: &str,
+        from_category_id: &str,
+        to_category_id: &str,
+    ) -> Result<usize> {
+        self.repo
+            .reassign_category(taxonomy_id, from_category_id, to_category_id)
+            .await
+    }
+
     /// Direct upsert (used by Activity Rules to apply rule-sourced assignments).
     pub async fn upsert(
         &self,

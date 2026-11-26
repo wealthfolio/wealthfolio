@@ -19,6 +19,7 @@ use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
 use crate::tools::date_bounds::{optional_date_bound, Bound, DATE_BOUND_DESCRIPTION};
 use wealthfolio_core::accounts::account_types;
+use wealthfolio_spending::activity_assignments::is_category_taxonomy;
 use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 use wealthfolio_spending::cash_activities::{
     CashActivity, CashActivitySearchRequest, CashActivityStatusFilter,
@@ -535,7 +536,11 @@ pub fn retain_explicit_targets(
         }
 
         let has_category = is_neutral_visible_target(item, account_type_by_id)
-            || !item.assignments.is_empty()
+            // A payee says who the transaction was with; it is not a category.
+            || item
+                .assignments
+                .iter()
+                .any(|assignment| is_category_taxonomy(&assignment.taxonomy_id))
             || !item.splits.is_empty();
         match status {
             CashActivityStatusFilter::All => true,
@@ -1120,6 +1125,35 @@ mod tests {
         )
         .unwrap();
         assert_eq!(categorized.len(), 1);
+    }
+
+    #[test]
+    fn a_payee_alone_leaves_a_target_uncategorized() {
+        let mut payee_only =
+            make_cash_activity("payee-only", "acct-1", "2024-06-15T00:00:00Z", false, false);
+        let now = chrono::Utc::now().naive_utc();
+        payee_only.assignments.push(
+            wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment {
+                id: "payee-row".to_string(),
+                activity_id: "payee-only".to_string(),
+                taxonomy_id: wealthfolio_spending::activity_assignments::PAYEES_TAXONOMY
+                    .to_string(),
+                category_id: "payee_bakery".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+                created_at: now,
+                updated_at: now,
+            },
+        );
+        let mut uncategorized = vec![payee_only];
+        retain_explicit_targets(
+            &mut uncategorized,
+            &CategorizationFilters::default(),
+            CashActivityStatusFilter::Uncategorized,
+            &HashMap::new(),
+        )
+        .unwrap();
+        assert_eq!(uncategorized.len(), 1);
     }
 
     #[test]

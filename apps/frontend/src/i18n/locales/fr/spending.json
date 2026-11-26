@@ -79,6 +79,8 @@
     "reimbursementRefund": "Remboursement"
   },
   "rules": {
+    "categoryOrPayee": "Catégorie ou bénéficiaire",
+    "payeeRuleHint": "Une règle de bénéficiaire s'applique à toute transaction correspondante et ne modifie pas sa catégorie.",
     "editTitle": "Modifier la règle",
     "addTitle": "Ajouter une règle",
     "editDescription": "Étiquetez automatiquement les activités par motif de nom. Les règles de priorité supérieure l'emportent en cas de correspondances multiples.",
@@ -162,6 +164,7 @@
     "amountChipBetween": "Montant entre {{value}} et {{value2}}"
   },
   "transactions": {
+    "filterByPayee": "Afficher les transactions de {{name}}",
     "deleteTitle_one": "Supprimer la transaction",
     "deleteTitle_other": "Supprimer les transactions",
     "deleteTitle_many": "Supprimer les transactions",
@@ -608,6 +611,14 @@
     "subheading": "Plan, réalisé et ajustements de ce mois-ci."
   },
   "insightsPage": {
+    "topPayees": "Principaux bénéficiaires",
+    "labelFilter": {
+      "search": "Rechercher bénéficiaires et événements",
+      "only": "Uniquement",
+      "without": "Sans",
+      "payee": "Bénéficiaire : {{name}}",
+      "eventType": "Événements {{name}}"
+    },
     "uncategorized": "Non catégorisé",
     "heading": "Analyse des dépenses",
     "loadError": "Impossible de charger les analyses.",
@@ -901,6 +912,13 @@
     "manage": "Gérer →"
   },
   "cashForm": {
+    "payeeBulkSet": "Définir le bénéficiaire",
+    "payeeSearch": "Rechercher ou ajouter un bénéficiaire",
+    "payeeEmpty": "Aucun bénéficiaire pour l'instant. Saisissez un nom pour en ajouter un.",
+    "payeeAdd": "Ajouter « {{name}} »",
+    "payeeClear": "Aucun bénéficiaire",
+    "payee": "Bénéficiaire",
+    "payeePlaceholder": "Avec qui était-ce ?",
     "none": "Aucun",
     "addExpense": "Ajouter une dépense",
     "addIncome": "Ajouter un revenu",

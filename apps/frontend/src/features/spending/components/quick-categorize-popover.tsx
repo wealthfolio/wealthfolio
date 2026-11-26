@@ -29,6 +29,7 @@ import { useTaxonomy } from "@/hooks/use-taxonomies";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { PAYEES_TAXONOMY_ID } from "../lib/payee";
 import { CategoryIconTile } from "./category-chips";
 
 const SPENDING_TAXONOMY = "spending_categories";
@@ -45,6 +46,8 @@ export interface QuickCategorizePopoverProps {
   onSelect: (taxonomyId: string, categoryId: string) => void;
   onClear?: () => void;
   align?: "start" | "center" | "end";
+  /** Also list payees, for a picker whose target may be either (a rule). */
+  includePayees?: boolean;
   /** The screen's title on phones; the field's own label, so the two match. */
   title?: string;
 }
@@ -53,7 +56,7 @@ export interface FlatOption {
   taxonomyId: string;
   category: TaxonomyCategory;
   parent: TaxonomyCategory | null;
-  group: "Expense" | "Savings" | "Income";
+  group: "Expense" | "Savings" | "Income" | "Payee";
 }
 
 // Children's sortOrder is relative to their siblings, so a flat sort interleaves
@@ -81,6 +84,7 @@ export function QuickCategorizePopover({
   onSelect,
   onClear,
   align = "start",
+  includePayees = false,
   title,
 }: QuickCategorizePopoverProps) {
   const { t } = useTranslation();
@@ -88,6 +92,7 @@ export function QuickCategorizePopover({
     Expense: t("spending:cashFlow.spending"),
     Savings: t("spending:cashFlow.saving"),
     Income: t("spending:cashFlow.income"),
+    Payee: t("spending:cashForm.payee"),
   };
   const isMobile = useIsMobileViewport();
   const inSheetNavigation = useInSheetNavigation();
@@ -97,6 +102,7 @@ export function QuickCategorizePopover({
   const spending = useTaxonomy(SPENDING_TAXONOMY);
   const income = useTaxonomy(INCOME_TAXONOMY);
   const savings = useTaxonomy(SAVINGS_TAXONOMY);
+  const payees = useTaxonomy(includePayees ? PAYEES_TAXONOMY_ID : null);
 
   const options = useMemo<FlatOption[]>(() => {
     const out: FlatOption[] = [];
@@ -109,8 +115,15 @@ export function QuickCategorizePopover({
     if (scope === "income" || scope === "both" || scope === "all") {
       out.push(...flattenTaxonomy(INCOME_TAXONOMY, income.data?.categories ?? [], "Income"));
     }
+    out.push(...flattenTaxonomy(PAYEES_TAXONOMY_ID, payees.data?.categories ?? [], "Payee"));
     return out;
-  }, [spending.data?.categories, savings.data?.categories, income.data?.categories, scope]);
+  }, [
+    spending.data?.categories,
+    savings.data?.categories,
+    income.data?.categories,
+    payees.data?.categories,
+    scope,
+  ]);
 
   // cmdk's own filter ranks rows by score, which breaks the tree and hides the
   // parent of a matching child. Keep tree order and show each match with its
@@ -151,6 +164,7 @@ export function QuickCategorizePopover({
       Expense: [],
       Savings: [],
       Income: [],
+      Payee: [],
     };
     visible.forEach((o) => groups[o.group].push(o));
     return groups;
@@ -186,7 +200,7 @@ export function QuickCategorizePopover({
       />
       <CommandList className={cn(fillsSheet && "max-h-none min-h-0 flex-auto")}>
         <CommandEmpty>{t("spending:category.noCategoriesFound")}</CommandEmpty>
-        {(["Expense", "Savings", "Income"] as const).map((groupKey) => {
+        {(["Expense", "Savings", "Income", "Payee"] as const).map((groupKey) => {
           const items = grouped[groupKey];
           if (items.length === 0) return null;
           return (

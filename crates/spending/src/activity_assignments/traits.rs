@@ -40,6 +40,9 @@ pub trait ActivityTaxonomyAssignmentRepositoryTrait: Send + Sync {
     /// but protects split lines unless the caller explicitly provides their
     /// expected current state. Revalidation and replacement are atomic across
     /// the entire batch, including rows that acquired splits since preview.
+    /// Splits stand in the place of a category only: an item of any other
+    /// taxonomy, like a payee, is written in the same transaction without its
+    /// activity's splits being checked or cleared.
     async fn assign_many_single_select_clearing_splits(
         &self,
         items: Vec<NewActivityTaxonomyAssignment>,
@@ -79,6 +82,17 @@ pub trait ActivityTaxonomyAssignmentRepositoryTrait: Send + Sync {
             "Rule preview is unavailable for this repository"
         ))
     }
+
+    /// Moves every assignment filed under one category of a taxonomy to
+    /// another category of it, in one transaction, and returns how many moved.
+    /// It reaches the activities of every account, and each assignment keeps
+    /// its source (manual or rule).
+    async fn reassign_category(
+        &self,
+        taxonomy_id: &str,
+        from_category_id: &str,
+        to_category_id: &str,
+    ) -> Result<usize>;
 
     /// Remove a single assignment by id.
     async fn delete(&self, id: &str) -> Result<()>;

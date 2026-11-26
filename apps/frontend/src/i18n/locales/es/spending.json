@@ -79,6 +79,8 @@
     "reimbursementRefund": "Reembolso / devolución"
   },
   "rules": {
+    "categoryOrPayee": "Categoría o beneficiario",
+    "payeeRuleHint": "Una regla de beneficiario se aplica a cualquier transacción coincidente y no cambia su categoría.",
     "editTitle": "Editar regla",
     "addTitle": "Añadir regla",
     "editDescription": "Etiqueta automáticamente las actividades por patrón de nombre. Las reglas de mayor prioridad prevalecen cuando coinciden varias.",
@@ -162,6 +164,7 @@
     "amountChipBetween": "Importe entre {{value}} y {{value2}}"
   },
   "transactions": {
+    "filterByPayee": "Mostrar transacciones de {{name}}",
     "deleteTitle_one": "Eliminar transacción",
     "deleteTitle_other": "Eliminar transacciones",
     "deleteTitle_many": "Eliminar transacciones",
@@ -608,6 +611,14 @@
     "subheading": "El plan, los datos reales y las excepciones de este mes."
   },
   "insightsPage": {
+    "topPayees": "Principales beneficiarios",
+    "labelFilter": {
+      "search": "Buscar beneficiarios y eventos",
+      "only": "Solo",
+      "without": "Sin",
+      "payee": "Beneficiario: {{name}}",
+      "eventType": "Eventos de {{name}}"
+    },
     "uncategorized": "Sin categorizar",
     "heading": "Análisis de gastos",
     "loadError": "No se pudieron cargar los análisis.",
@@ -901,6 +912,13 @@
     "manage": "Gestionar →"
   },
   "cashForm": {
+    "payeeBulkSet": "Asignar beneficiario",
+    "payeeSearch": "Buscar o añadir un beneficiario",
+    "payeeEmpty": "Aún no hay beneficiarios. Escribe un nombre para añadir uno.",
+    "payeeAdd": "Añadir «{{name}}»",
+    "payeeClear": "Sin beneficiario",
+    "payee": "Beneficiario",
+    "payeePlaceholder": "¿Con quién fue?",
     "none": "Ninguno",
     "addExpense": "Añadir gasto",
     "addIncome": "Añadir ingreso",

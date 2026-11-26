@@ -11,6 +11,7 @@ use wealthfolio_core::activities::{Activity, ActivityRepositoryTrait};
 use wealthfolio_core::fx::FxServiceTrait;
 use wealthfolio_core::taxonomies::TaxonomyServiceTrait;
 
+use super::label_filter::{ActivityLabelFilter, ActivityLabels};
 use super::model::{
     AmountBlock, AmountSource, CategoryBreakdownRow, CategoryInsight, CompareMode, DayBucket,
     DayCategoryBucket, GroupInsight, Headline, HealthStatus, MonthBucket, MonthlyAmount, PaceState,
@@ -20,12 +21,15 @@ use crate::activity_allocations::{
     allocations_for_taxonomy, group_assignments as group_activity_assignments, group_splits,
     AssignmentsByActivity, SplitsByActivity,
 };
-use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
+use crate::activity_assignments::{
+    ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentRepositoryTrait, PAYEES_TAXONOMY,
+};
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
     neutral_transfer_groups,
 };
-use crate::activity_splits::ActivitySplitRepositoryTrait;
+use crate::activity_events::ActivityEventsRepositoryTrait;
+use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait};
 use crate::budget::service::{
     category_meta, group_assignment_map, resolve_group_for_category, top_category_id,
     top_level_categories, TargetIndex,
@@ -35,6 +39,7 @@ use crate::category_exclusions::{
     excluded_spending_native, split_spending_allocations, ExclusionIndex,
 };
 use crate::error::SpendingError;
+use crate::events::EventsRepositoryTrait;
 use crate::settings::SpendingSettingsService;
 
 const SPENDING_TAXONOMY: &str = "spending_categories";
@@ -56,6 +61,16 @@ pub struct InsightService {
     settings: Arc<SpendingSettingsService>,
     taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
     fx_service: Arc<dyn FxServiceTrait>,
+    /// Where spending events are read from, for a request that filters by
+    /// event. `None` until [`InsightService::with_event_labels`] is called.
+    event_labels: Option<EventLabelSources>,
+}
+
+/// The two repositories that say which event an activity is tagged to, and
+/// what type each event is.
+struct EventLabelSources {
+    activity_events: Arc<dyn ActivityEventsRepositoryTrait>,
+    events: Arc<dyn EventsRepositoryTrait>,
 }
 
 impl InsightService {
@@ -79,7 +94,56 @@ impl InsightService {
             settings,
             taxonomy_service,
             fx_service,
+            event_labels: None,
         }
+    }
+
+    /// Lets requests filter by spending event and event type.
+    pub fn with_event_labels(
+        mut self,
+        activity_events: Arc<dyn ActivityEventsRepositoryTrait>,
+        events: Arc<dyn EventsRepositoryTrait>,
+    ) -> Self {
+        self.event_labels = Some(EventLabelSources {
+            activity_events,
+            events,
+        });
+        self
+    }
+
+    /// The labels the given activities carry, as far as `filter` needs them:
+    /// events are read only when the filter refers to one.
+    async fn activity_labels(
+        &self,
+        filter: &ActivityLabelFilter,
+        activity_ids: &[String],
+        assignments: &[ActivityTaxonomyAssignment],
+        splits: &[ActivitySplit],
+    ) -> Result<ActivityLabels> {
+        let mut labels = ActivityLabels::default();
+        labels.add_assignments(assignments);
+        labels.add_splits(splits);
+        if filter.uses_events() {
+            let Some(sources) = &self.event_labels else {
+                return Err(SpendingError::InvalidInput {
+                    message: "Filtering by event is not available here".to_string(),
+                }
+                .into());
+            };
+            let event_by_activity = sources
+                .activity_events
+                .list_for_activities(activity_ids)
+                .await?;
+            let type_by_event: HashMap<String, String> = sources
+                .events
+                .list()
+                .await?
+                .into_iter()
+                .map(|event| (event.id, event.event_type_id))
+                .collect();
+            labels.add_events(&event_by_activity, &type_by_event);
+        }
+        Ok(labels)
     }
 
     pub async fn compute(
@@ -235,9 +299,20 @@ impl InsightService {
             .assignment_repo
             .list_for_activities(&activity_ids)
             .await?;
+        // Narrow both windows by label when the request asks. Everything below
+        // aggregates `current_acts` and `prior_acts`, so the headline, groups,
+        // daily and monthly series and the comparison all follow the filter.
+        let (mut current_acts, mut prior_acts) = (current_acts, prior_acts);
+        let splits = self.split_repo.list_for_activities(&activity_ids).await?;
+        if let Some(filter) = req.filter.as_ref().filter(|f| !f.is_empty()) {
+            let labels = self
+                .activity_labels(filter, &activity_ids, &assignments, &splits)
+                .await?;
+            current_acts.retain(|a| filter.keeps(&a.id, &labels));
+            prior_acts.retain(|a| filter.keeps(&a.id, &labels));
+        }
         let assignments_by_activity = group_activity_assignments(assignments);
-        let splits_by_activity =
-            group_splits(self.split_repo.list_for_activities(&activity_ids).await?);
+        let splits_by_activity = group_splits(splits);
 
         // ── 5. Aggregate spend (current + prior) ──────────────────────────────
         // FX is applied inline: each activity's spending/income amount is
@@ -520,6 +595,8 @@ impl InsightService {
             category_breakdown_rows(INCOME_TAXONOMY, &current_agg.income_by_category);
         let savings_breakdown =
             category_breakdown_rows(SAVINGS_TAXONOMY, &current_agg.savings_by_category);
+        let payee_breakdown =
+            category_breakdown_rows(PAYEES_TAXONOMY, &current_agg.spending_by_payee);
 
         let insight = SpendingInsight {
             calculation_quality: current_agg.calculation_quality,
@@ -534,6 +611,7 @@ impl InsightService {
             uncategorized,
             income_breakdown,
             savings_breakdown,
+            payee_breakdown,
             by_day,
             by_day_by_category,
             by_month,
@@ -575,6 +653,9 @@ struct SpendAggregate {
     /// Savings category id → (saved, txn_count). Includes a synthetic
     /// uncategorized row when saving has no `savings_categories` assignment.
     savings_by_category: HashMap<String, (Decimal, u32)>,
+    /// Payee id → (spent, txn_count), over the same spending the headline
+    /// counts. Spending with no payee is the synthetic uncategorized row.
+    spending_by_payee: HashMap<String, (Decimal, u32)>,
     /// Spend on activities that have no `spending_categories` assignment.
     uncategorized_spend: Decimal,
     uncategorized_count: u32,
@@ -725,6 +806,18 @@ fn aggregate_spend_with_splits(
         }
 
         agg.total_outflow += spending;
+        add_taxonomy_breakdown(
+            &mut agg.spending_by_payee,
+            assignments_by_activity,
+            splits_by_activity,
+            &a.id,
+            PAYEES_TAXONOMY,
+            included_native,
+            fx,
+            &a.currency,
+            target_currency,
+            fx_as_of,
+        );
         if included_native != Decimal::ZERO && spending_converted.is_some() {
             *agg.native_outflow_by_currency
                 .entry(a.currency.clone())
@@ -1677,6 +1770,7 @@ fn empty_insight(period: PeriodMeta, prior: PeriodMeta, currency: &str) -> Spend
         uncategorized: UncategorizedBucket::default(),
         income_breakdown: vec![],
         savings_breakdown: vec![],
+        payee_breakdown: vec![],
         by_day: vec![],
         by_day_by_category: vec![],
         by_month: vec![],
@@ -1972,6 +2066,7 @@ mod tests {
             compare_end_date: Some(dt(2026, 5, 4).to_rfc3339()),
             account_ids: None,
             compare: Some(CompareMode::Prior),
+            filter: None,
         };
 
         let (s, e) = explicit_compare_window(&req).unwrap().unwrap();
@@ -1989,6 +2084,7 @@ mod tests {
             compare_end_date: None,
             account_ids: None,
             compare: Some(CompareMode::Prior),
+            filter: None,
         };
 
         assert!(explicit_compare_window(&req).is_err());
@@ -2964,6 +3060,61 @@ mod tests {
         assert_eq!(monthly[0].from_savings, 0.0);
         assert_eq!(monthly[1].saved, 0.0);
         assert_eq!(monthly[1].from_savings, 900.0);
+    }
+
+    #[test]
+    fn aggregate_breaks_spending_down_by_payee() {
+        use rust_decimal::Decimal;
+        use wealthfolio_core::accounts::account_types;
+        use wealthfolio_core::activities::Activity;
+
+        let bread = flow_activity("bread", "WITHDRAWAL", 30, "USD", dt(2026, 5, 3));
+        let cake = flow_activity("cake", "WITHDRAWAL", 50, "USD", dt(2026, 5, 4));
+        let water = flow_activity("water", "WITHDRAWAL", 70, "USD", dt(2026, 5, 5));
+        let acts: Vec<&Activity> = vec![&bread, &cake, &water];
+        let account_types =
+            HashMap::from([(bread.account_id.clone(), account_types::CASH.to_string())]);
+        let now = chrono::Utc::now().naive_utc();
+        let bakery = |activity_id: &str| ActivityTaxonomyAssignment {
+            id: format!("payee-{activity_id}"),
+            activity_id: activity_id.to_string(),
+            taxonomy_id: PAYEES_TAXONOMY.to_string(),
+            category_id: "payee_bakery".to_string(),
+            weight: 10_000,
+            source: "manual".to_string(),
+            created_at: now,
+            updated_at: now,
+        };
+        let assignments = HashMap::from([
+            ("bread".to_string(), vec![bakery("bread")]),
+            ("cake".to_string(), vec![bakery("cake")]),
+        ]);
+
+        let agg = aggregate_spend(
+            &acts,
+            &account_types,
+            &within_spending_transfer_groups(&acts),
+            &assignments,
+            &HashMap::new(),
+            &ExclusionIndex::empty(),
+            &fx(),
+            "USD",
+            NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        );
+
+        assert_eq!(
+            agg.spending_by_payee.get("payee_bakery"),
+            Some(&(Decimal::new(80, 0), 2))
+        );
+        assert_eq!(
+            agg.spending_by_payee.get(UNCATEGORIZED_CATEGORY_ID),
+            Some(&(Decimal::new(70, 0), 1)),
+            "spending with no payee has a row of its own"
+        );
+        // A payee is not a category: all three are still uncategorized.
+        assert_eq!(agg.uncategorized_count, 3);
+        let by_payee: Decimal = agg.spending_by_payee.values().map(|(v, _)| *v).sum();
+        assert_eq!(by_payee, agg.total_outflow);
     }
 
     #[test]

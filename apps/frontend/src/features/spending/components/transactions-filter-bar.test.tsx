@@ -34,6 +34,8 @@ function renderBar(
       selectedSubcategories={new Set()}
       onSubcategoriesChange={vi.fn()}
       selectedEvents={new Set()}
+      selectedPayees={new Set()}
+      onPayeesChange={vi.fn()}
       onEventsChange={vi.fn()}
       amountRange={{ min: null, max: null }}
       onAmountRangeChange={vi.fn()}
@@ -42,6 +44,7 @@ function renderBar(
       categoryOptions={[]}
       subcategoryOptions={[]}
       eventOptions={[]}
+      payeeOptions={[]}
       hasEvents={false}
       filtersActive={false}
       onClearAll={vi.fn()}

@@ -78,6 +78,8 @@
     "reimbursementRefund": "补偿 / 退款"
   },
   "rules": {
+    "categoryOrPayee": "类别或收款方",
+    "payeeRuleHint": "收款方规则适用于所有匹配的交易，并保持其类别不变。",
     "editTitle": "编辑规则",
     "addTitle": "添加规则",
     "editDescription": "按名称模式自动标记活动。当多条规则匹配时，优先级较高的规则生效。",
@@ -161,6 +163,7 @@
     "amountChipBetween": "金额介于 {{value}} 和 {{value2}} 之间"
   },
   "transactions": {
+    "filterByPayee": "显示 {{name}} 的交易",
     "deleteTitle_one": "删除交易",
     "deleteTitle_other": "删除交易",
     "deleteConfirmSingle": "确定要删除这笔 {{amount}} 的{{type}}吗？",
@@ -573,6 +576,14 @@
     "subheading": "本月的计划、实际值和覆盖设置。"
   },
   "insightsPage": {
+    "topPayees": "主要收款方",
+    "labelFilter": {
+      "search": "搜索收款方和事件",
+      "only": "仅",
+      "without": "排除",
+      "payee": "收款方：{{name}}",
+      "eventType": "{{name}}事件"
+    },
     "uncategorized": "未归类",
     "heading": "支出洞察",
     "loadError": "无法加载洞察。",
@@ -850,6 +861,13 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "payeeBulkSet": "设置收款方",
+    "payeeSearch": "搜索或添加收款方",
+    "payeeEmpty": "还没有收款方。输入名称即可添加。",
+    "payeeAdd": "添加“{{name}}”",
+    "payeeClear": "无收款方",
+    "payee": "收款方",
+    "payeePlaceholder": "这笔交易的对象是谁?",
     "none": "无",
     "addExpense": "添加支出",
     "addIncome": "添加收入",

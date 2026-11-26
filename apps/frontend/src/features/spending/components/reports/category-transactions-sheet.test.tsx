@@ -7,6 +7,7 @@ import type { TaxonomyCategory } from "@/lib/types";
 
 import type { DrilldownBucket } from "../../lib/category-drilldown";
 import type { CashActivity } from "../../types/cash-activity";
+import type { ActivityLabelFilter } from "../../types/insight";
 import { CategoryTransactionsSheet } from "./category-transactions-sheet";
 
 // The transaction list renders each note in a tooltip; irrelevant here, and
@@ -35,6 +36,14 @@ vi.mock("../../hooks/use-cash-activity-search", () => ({
     searchResult.lastRequest = request;
     return searchResult.current;
   },
+}));
+
+const spendingEvents = vi.hoisted(() => {
+  const loaded = { data: [{ id: "trip-1", eventTypeId: "travel" }] as unknown[] | undefined };
+  return { loaded, current: loaded };
+});
+vi.mock("../../hooks/use-spending-events", () => ({
+  useSpendingEvents: () => spendingEvents.current,
 }));
 
 const spendingSettings = vi.hoisted(() => ({ excludedCategoryIds: [] as string[] }));
@@ -105,7 +114,12 @@ function setSearchResult(items: CashActivity[]) {
   };
 }
 
-function sheet({ rangeEnd = RANGE_END, rangeDays = RANGE_DAYS, daysElapsed = RANGE_DAYS } = {}) {
+function sheet({
+  rangeEnd = RANGE_END,
+  rangeDays = RANGE_DAYS,
+  daysElapsed = RANGE_DAYS,
+  labelFilter = undefined as ActivityLabelFilter | undefined,
+} = {}) {
   return (
     <MemoryRouter>
       <FormattingProvider locale="en-US" uiLocale="en" timezone="UTC">
@@ -121,6 +135,7 @@ function sheet({ rangeEnd = RANGE_END, rangeDays = RANGE_DAYS, daysElapsed = RAN
           daysElapsed={daysElapsed}
           isStatsLoading={false}
           currency="USD"
+          labelFilter={labelFilter}
         />
       </FormattingProvider>
     </MemoryRouter>
@@ -187,6 +202,69 @@ describe("CategoryTransactionsSheet", () => {
     expect(searchResult.lastRequest).toMatchObject({
       startDate: RANGE_START.toISOString(),
       endDate: end.toISOString(),
+    });
+  });
+
+  it("searches with the label filter its stats were narrowed by", () => {
+    const labelFilter: ActivityLabelFilter = {
+      include: [{ kind: "category", taxonomyId: "payees", categoryId: "p1" }],
+      exclude: [{ kind: "eventType", eventTypeId: "travel" }],
+    };
+    const { rerender } = render(sheet({ labelFilter }));
+    // Sent to the server, which counts and pages what the filter keeps.
+    expect(searchResult.lastRequest).toMatchObject({ labelFilter });
+
+    rerender(sheet());
+    expect(searchResult.lastRequest).not.toHaveProperty("labelFilter");
+  });
+
+  describe("the link to the Transactions page", () => {
+    const href = () => screen.queryByRole("link", { name: /Open in Transactions/ });
+
+    it("names the category and the period when no label is picked", () => {
+      render(sheet());
+
+      expect(href()?.getAttribute("href")).toMatch(
+        /^\/activities\?tab=spending&category=housing&from=/,
+      );
+      expect(href()?.getAttribute("href")).not.toMatch(/payees|events/);
+    });
+
+    it("carries the included payees, and the events of an included type", () => {
+      const payee = { kind: "category", taxonomyId: "payees", categoryId: "p1" } as const;
+      const { rerender } = render(sheet({ labelFilter: { include: [payee] } }));
+      expect(href()?.getAttribute("href")).toMatch(/&payees=p1$/);
+
+      rerender(sheet({ labelFilter: { include: [{ kind: "eventType", eventTypeId: "travel" }] } }));
+      expect(href()?.getAttribute("href")).toMatch(/&events=trip-1$/);
+    });
+
+    it("waits for the events before naming those of an event type", () => {
+      spendingEvents.current = { data: undefined };
+      try {
+        const party = { kind: "event", eventId: "party" } as const;
+        const travel = { kind: "eventType", eventTypeId: "travel" } as const;
+        const payee = { kind: "category", taxonomyId: "payees", categoryId: "p1" } as const;
+        // Naming the party alone would leave the travel events out.
+        const { rerender } = render(sheet({ labelFilter: { include: [party, travel] } }));
+        expect(href()).not.toBeInTheDocument();
+
+        // These need no event list.
+        rerender(sheet({ labelFilter: { include: [party] } }));
+        expect(href()?.getAttribute("href")).toMatch(/&events=party$/);
+        rerender(sheet({ labelFilter: { include: [payee] } }));
+        expect(href()?.getAttribute("href")).toMatch(/&payees=p1$/);
+      } finally {
+        spendingEvents.current = spendingEvents.loaded;
+      }
+    });
+
+    it("is not offered for a filter the Transactions page cannot show", () => {
+      const travel = { kind: "eventType", eventTypeId: "travel" } as const;
+      render(sheet({ labelFilter: { exclude: [travel] } }));
+
+      // It would open on every transaction of the category, travel included.
+      expect(href()).not.toBeInTheDocument();
     });
   });
 
