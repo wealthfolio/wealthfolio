@@ -1,7 +1,9 @@
 import { cn } from "@/lib/utils";
 import { Icons } from "@wealthfolio/ui";
+import { TagIcon } from "lucide-react";
+import { DynamicIcon } from "lucide-react/dynamic";
 
-import { resolveCategoryIcon } from "../lib/category-icons";
+import { getLucideCategoryIconName, resolveCategoryIcon } from "../lib/category-icons";
 
 export type CategoryMeta = {
   name: string;
@@ -22,8 +24,19 @@ export function CategoryIcon({
   fallback?: string;
   className?: string;
 }) {
+  const lucideName = getLucideCategoryIconName(icon);
+  if (lucideName) {
+    return (
+      <DynamicIcon
+        key={lucideName}
+        name={lucideName}
+        className={cn("h-4 w-4", className)}
+        fallback={() => <TagIcon className={cn("h-4 w-4", className)} />}
+      />
+    );
+  }
   const IconCmp = resolveCategoryIcon(icon);
-  return <IconCmp weight="duotone" className={cn("h-4 w-4", className)} />;
+  return <IconCmp className={cn("h-4 w-4", className)} />;
 }
 
 /** Category icon on a tinted square, as in the category settings list. */

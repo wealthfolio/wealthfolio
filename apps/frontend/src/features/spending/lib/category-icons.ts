@@ -6,6 +6,8 @@
  * while the UI can choose the concrete icon implementation centrally.
  */
 import { Icons, type Icon as PhosphorIcon } from "@wealthfolio/ui";
+import { TagIcon } from "lucide-react";
+import { iconNames, type IconName } from "lucide-react/dynamic";
 
 const ICON_MAP: Record<string, PhosphorIcon> = {
   AlertCircle: Icons.AlertCircle,
@@ -62,10 +64,18 @@ const ICON_MAP: Record<string, PhosphorIcon> = {
   Wrench: Icons.Wrench,
 };
 
-/** Resolve a stored Lucide-style icon name to an app icon component (Tag fallback). */
+const lucideIconNames = new Set<string>(iconNames);
+
+export function getLucideCategoryIconName(name: string | null | undefined): IconName | null {
+  if (!name?.startsWith("lucide:")) return null;
+  const iconName = name.slice("lucide:".length);
+  return lucideIconNames.has(iconName) ? (iconName as IconName) : null;
+}
+
+/** Resolve a legacy icon name to an app icon component. */
 export function resolveCategoryIcon(name: string | null | undefined): PhosphorIcon {
-  if (name && ICON_MAP[name]) return ICON_MAP[name];
-  return Icons.Tag;
+  if (name && Object.hasOwn(ICON_MAP, name)) return ICON_MAP[name];
+  return TagIcon;
 }
 
 /** All known category icon name keys (the same names the seeds use). */
