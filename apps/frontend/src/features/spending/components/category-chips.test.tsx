@@ -3,7 +3,11 @@ import { Icons } from "@wealthfolio/ui";
 import { TagIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import { getLucideCategoryIconName, resolveCategoryIcon } from "../lib/category-icons";
+import {
+  getInheritedCategoryIcon,
+  getLucideCategoryIconName,
+  resolveCategoryIcon,
+} from "../lib/category-icons";
 import { CategoryIcon } from "./category-chips";
 
 describe("category icons", () => {
@@ -20,6 +24,13 @@ describe("category icons", () => {
     expect(getLucideCategoryIconName("Home")).toBeNull();
     expect(getLucideCategoryIconName("lucide:unknown")).toBeNull();
     expect(getLucideCategoryIconName("lucide:constructor")).toBeNull();
+  });
+
+  it("converts known inherited icons without changing existing values", () => {
+    expect(getInheritedCategoryIcon("Home")).toBe("lucide:house");
+    expect(getInheritedCategoryIcon("ShoppingCart")).toBe("lucide:shopping-cart");
+    expect(getInheritedCategoryIcon("lucide:house")).toBe("lucide:house");
+    expect(getInheritedCategoryIcon("unknown")).toBeNull();
   });
 
   it("loads Lucide icons and falls back for unknown or missing values", async () => {

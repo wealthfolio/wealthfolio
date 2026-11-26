@@ -31,6 +31,7 @@ vi.mock("../adapters/budget", () => ({
 }));
 import {
   assignCategoryToGroup,
+  createBudgetGroup,
   deleteBudgetGroup,
   deleteBudgetRolloverSetting,
   getBudget,
@@ -156,6 +157,19 @@ async function setup(budget: BudgetSnapshot, locale = "US", direction: "ltr" | "
 }
 
 beforeEach(() => vi.clearAllMocks());
+
+it("creates a group with a Lucide folder icon", async () => {
+  const budget = budgetSnapshot();
+  vi.mocked(createBudgetGroup).mockResolvedValue(budget);
+  const { user } = await setup(budget);
+  await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.addGroup }));
+  await waitFor(() =>
+    expect(createBudgetGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ icon: "lucide:folder" }),
+      "default",
+    ),
+  );
+});
 
 it.each([
   {

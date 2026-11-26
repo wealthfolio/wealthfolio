@@ -65,6 +65,7 @@ const ICON_MAP: Record<string, PhosphorIcon> = {
 };
 
 const lucideIconNames = new Set<string>(iconNames);
+export const LUCIDE_CATEGORY_ICON_NAMES = [...iconNames].sort();
 
 export function getLucideCategoryIconName(name: string | null | undefined): IconName | null {
   if (!name?.startsWith("lucide:")) return null;
@@ -78,5 +79,16 @@ export function resolveCategoryIcon(name: string | null | undefined): PhosphorIc
   return TagIcon;
 }
 
-/** All known category icon name keys (the same names the seeds use). */
-export const CATEGORY_ICON_NAMES = Object.keys(ICON_MAP).sort();
+export function getInheritedCategoryIcon(name: string | null | undefined): string | null {
+  if (!name) return null;
+  if (getLucideCategoryIconName(name)) return name;
+  if (!Object.hasOwn(ICON_MAP, name)) return null;
+  const lucideName =
+    name === "Home"
+      ? "house"
+      : name
+          .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+          .replace(/([a-z])([0-9])/g, "$1-$2")
+          .toLowerCase();
+  return lucideIconNames.has(lucideName) ? `lucide:${lucideName}` : null;
+}
