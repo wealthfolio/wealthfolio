@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { HostAPI } from './host-api';
-import type { AddonIconName } from './icons';
+import type { AddonIcon } from './icons';
 import type { AddonAsset } from './manifest';
 
 /**
@@ -23,8 +23,8 @@ export interface SidebarItemConfig {
   id: string;
   /** Display text for the sidebar item */
   label: string;
-  /** Optional host-supported icon name (see {@link AddonIconName}) */
-  icon?: AddonIconName;
+  /** Optional host icon name or custom SVG data URL (see {@link AddonIcon}) */
+  icon?: AddonIcon;
   /** Optional route to navigate to when clicked */
   route?: string;
   /** Optional ordering priority (lower numbers appear first) */
