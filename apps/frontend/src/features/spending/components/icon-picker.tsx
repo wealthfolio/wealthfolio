@@ -180,7 +180,9 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
                   {virtualizer.getVirtualItems().map((row) => (
                     <div
                       key={row.key}
-                      className="absolute start-0 grid w-full gap-1"
+                      ref={virtualizer.measureElement}
+                      data-index={row.index}
+                      className="absolute start-0 grid w-full gap-1 pb-1"
                       style={{
                         top: row.start,
                         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,

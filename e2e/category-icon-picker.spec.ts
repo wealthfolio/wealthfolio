@@ -1,4 +1,5 @@
 import { expect, test } from "./fixtures";
+import { updateSettings } from "./api";
 import { BASE_URL } from "./helpers";
 
 for (const direction of ["ltr", "rtl"]) {
@@ -101,4 +102,55 @@ for (const direction of ["ltr", "rtl"]) {
     await page.keyboard.press("ArrowDown");
     await expect(picker.locator(`[data-icon-index="${columns}"]`)).toBeFocused();
   });
+
+  for (const textSize of ["default", "large", "extra-large"] as const) {
+    test(`keeps icon rows separated at ${textSize} text size (${direction})`, async ({ page }) => {
+      const previous = await updateSettings(page, { textSize });
+      try {
+        await page.goto(`${BASE_URL}/settings/spending/categories?dir=${direction}`);
+        await expect(page.locator("html")).toHaveAttribute("data-text-size", textSize);
+        await page.getByRole("button", { name: "Add category", exact: true }).click();
+        const dialog = page.getByRole("dialog", { name: "Add category" });
+        const trigger = dialog.getByRole("button", { name: "Choose an icon" });
+        await trigger.click();
+        const picker = page.getByPlaceholder("Search icons...").locator("..");
+        const icons = picker.locator("[data-icon-index]");
+        await expect(icons.first()).toBeVisible();
+        const columns = await icons.evaluateAll((buttons) => {
+          const firstTop = buttons[0].getBoundingClientRect().top;
+          return buttons.filter((button) => button.getBoundingClientRect().top === firstTop).length;
+        });
+        const gap = await page.evaluate(
+          () => parseFloat(getComputedStyle(document.documentElement).fontSize) / 4,
+        );
+        const checkGap = async (index: number) => {
+          await expect
+            .poll(async () => {
+              const first = await picker.locator(`[data-icon-index="${index}"]`).boundingBox();
+              const next = await picker
+                .locator(`[data-icon-index="${index + columns}"]`)
+                .boundingBox();
+              return first && next ? next.y - (first.y + first.height) : null;
+            })
+            .toBeCloseTo(gap, 0);
+        };
+        await checkGap(0);
+
+        await page.getByPlaceholder("Search icons...").focus();
+        await page.keyboard.press("Tab");
+        for (let row = 0; row < 12; row++) await page.keyboard.press("ArrowDown");
+        const index = 12 * columns;
+        const focused = picker.locator(`[data-icon-index="${index}"]`);
+        await expect(focused).toBeFocused();
+        await expect(focused).toHaveCSS("outline-offset", "-2px");
+        await checkGap(index);
+        const label = await focused.getAttribute("aria-label");
+        const box = (await focused.boundingBox())!;
+        await focused.click({ position: { x: box.width / 2, y: box.height - 2 } });
+        await expect(dialog.getByRole("button", { name: label! })).toBeVisible();
+      } finally {
+        await updateSettings(page, { textSize: previous.textSize ?? "default" });
+      }
+    });
+  }
 }
