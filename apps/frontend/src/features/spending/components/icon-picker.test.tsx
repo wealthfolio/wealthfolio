@@ -59,6 +59,18 @@ it("shows the empty state and clears a legacy selection", async () => {
   expect(onChange).toHaveBeenCalledWith(null);
 });
 
+it("finds both preferred and remaining icons", async () => {
+  const user = userEvent.setup();
+  render(<IconPicker value={null} onChange={vi.fn()} />);
+  await user.click(screen.getByRole("button", { name: "Choose an icon" }));
+  const search = screen.getByPlaceholderText("Search icons...");
+  await user.type(search, "wallet");
+  expect(screen.getByRole("button", { name: /^wallet$/ })).toBeInTheDocument();
+  await user.clear(search);
+  await user.type(search, "a arrow down");
+  expect(screen.getByRole("button", { name: "a arrow down" })).toBeInTheDocument();
+});
+
 it("navigates horizontally in RTL", async () => {
   const user = userEvent.setup();
   render(
@@ -67,8 +79,8 @@ it("navigates horizontally in RTL", async () => {
     </DirectionProvider>,
   );
   await user.click(screen.getByRole("button", { name: "Choose an icon" }));
-  const first = await screen.findByRole("button", { name: "a arrow down" });
+  const first = await screen.findByRole("button", { name: "wallet" });
   first.focus();
   await user.keyboard("{ArrowLeft}");
-  expect(screen.getByRole("button", { name: "a arrow up" })).toHaveFocus();
+  expect(screen.getByRole("button", { name: "banknote" })).toHaveFocus();
 });

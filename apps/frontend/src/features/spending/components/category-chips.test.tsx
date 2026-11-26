@@ -1,16 +1,87 @@
 import { render, screen, waitFor } from "@/test/render";
 import { Icons } from "@wealthfolio/ui";
 import { TagIcon } from "lucide-react";
+import { iconNames } from "lucide-react/dynamic";
 import { describe, expect, it } from "vitest";
 
 import {
   getInheritedCategoryIcon,
   getLucideCategoryIconName,
+  LUCIDE_CATEGORY_ICON_NAMES,
   resolveCategoryIcon,
 } from "../lib/category-icons";
 import { CategoryIcon } from "./category-chips";
 
 describe("category icons", () => {
+  it("lists the 56 preferred icons first without changing the remaining order", () => {
+    const preferred = [
+      "wallet",
+      "banknote",
+      "coins",
+      "credit-card",
+      "landmark",
+      "piggy-bank",
+      "receipt",
+      "badge-dollar-sign",
+      "briefcase",
+      "building-2",
+      "chart-no-axes-combined",
+      "trending-up",
+      "hand-coins",
+      "circle-dollar-sign",
+      "percent",
+      "arrow-left-right",
+      "house",
+      "shopping-cart",
+      "shopping-bag",
+      "utensils-crossed",
+      "coffee",
+      "pizza",
+      "apple",
+      "wine",
+      "car",
+      "fuel",
+      "train-front",
+      "bus",
+      "bike",
+      "plane",
+      "circle-parking",
+      "wrench",
+      "zap",
+      "droplet",
+      "flame",
+      "wifi",
+      "smartphone",
+      "laptop",
+      "tv",
+      "lightbulb",
+      "heart-pulse",
+      "stethoscope",
+      "pill",
+      "dumbbell",
+      "graduation-cap",
+      "book-open",
+      "baby",
+      "paw-print",
+      "gift",
+      "shirt",
+      "scissors",
+      "sofa",
+      "gamepad-2",
+      "film",
+      "music",
+      "shield-check",
+    ];
+    const preferredSet = new Set<string>(preferred);
+    expect(preferred).toHaveLength(56);
+    expect(preferredSet.size).toBe(56);
+    expect(LUCIDE_CATEGORY_ICON_NAMES).toEqual([
+      ...preferred,
+      ...[...iconNames].sort().filter((name) => !preferredSet.has(name)),
+    ]);
+    expect(new Set(LUCIDE_CATEGORY_ICON_NAMES)).toEqual(new Set(iconNames));
+  });
+
   it("preserves legacy icon mappings and uses Lucide Tag for unknown values", () => {
     expect(resolveCategoryIcon("Home")).toBe(Icons.House);
     expect(resolveCategoryIcon("Tag")).toBe(Icons.Tag);
