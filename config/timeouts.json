@@ -73,6 +73,7 @@
         "calculate_performance_history",
         "calculate_performance_summary",
         "get_performance_summaries",
+        "get_dashboard_performance_periods",
         "get_income_summary",
         "get_goals",
         "get_goal",
