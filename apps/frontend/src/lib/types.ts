@@ -1080,6 +1080,8 @@ export interface Settings {
   baseCurrency: string;
   defaultReturnMetric: "twr" | "irr" | "valueReturn";
   timezone: string;
+  /** The day the tax year starts, as `MM-DD`; absent on older backends (1 January). */
+  taxYearStart?: string;
   onboardingCompleted: boolean;
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;

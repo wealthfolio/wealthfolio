@@ -451,6 +451,13 @@
   },
   "timezone_title": "Timezone",
   "timezone_description": "Choose the timezone used for dates, daily buckets, and yearly contribution boundaries.",
+  "taxYearStart": {
+    "title": "Tax year start",
+    "description": "The day your tax year begins, such as 1 July in Australia or 6 April in the UK. Yearly reports use it.",
+    "month": "Month",
+    "day": "Day",
+    "current": "Current tax year: {{start}} - {{end}}"
+  },
   "about_db_path": "Database path",
   "about_copy_db_path": "Copy database path",
   "about_copy_logs_dir": "Copy logs directory",

@@ -495,6 +495,13 @@
   },
   "timezone_title": "Fuso orario",
   "timezone_description": "Scegli il fuso orario usato per le date, i raggruppamenti giornalieri e i limiti annuali di contributo.",
+  "taxYearStart": {
+    "title": "Inizio dell’anno fiscale",
+    "description": "Il giorno in cui inizia il tuo anno fiscale, ad esempio il 1° luglio in Australia o il 6 aprile nel Regno Unito. I report annuali lo usano.",
+    "month": "Mese",
+    "day": "Giorno",
+    "current": "Anno fiscale corrente: {{start}} - {{end}}"
+  },
   "about_db_path": "Percorso del database",
   "about_copy_db_path": "Copia il percorso del database",
   "about_copy_logs_dir": "Copia la directory dei log",

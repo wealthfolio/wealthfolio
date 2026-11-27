@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use super::tax_year::DEFAULT_TAX_YEAR_START;
+
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
 pub const CURRENCY_FORMATTING_REGIONS_KEY: &str = "currency_formatting_regions";
 /// Selected theme (palette and shape). Device-local: sync shares only the keys it
@@ -47,6 +49,9 @@ pub struct Settings {
     pub currency_formatting_regions: BTreeMap<String, String>,
     pub base_currency: String,
     pub timezone: String,
+    /// The day the tax year starts, as `MM-DD`. Device-local, like the timezone.
+    #[serde(default = "default_tax_year_start")]
+    pub tax_year_start: String,
     pub onboarding_completed: bool,
     pub auto_update_check_enabled: bool,
     pub menu_bar_visible: bool,
@@ -68,6 +73,10 @@ fn default_gain_colors() -> String {
     DEFAULT_GAIN_COLORS.to_string()
 }
 
+fn default_tax_year_start() -> String {
+    DEFAULT_TAX_YEAR_START.to_string()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -81,6 +90,7 @@ impl Default for Settings {
             currency_formatting_regions: BTreeMap::new(),
             base_currency: "".to_string(),
             timezone: "".to_string(),
+            tax_year_start: default_tax_year_start(),
             onboarding_completed: false,
             auto_update_check_enabled: true,
             menu_bar_visible: true,
@@ -106,6 +116,7 @@ pub struct SettingsUpdate {
     pub currency_formatting_regions: Option<BTreeMap<String, String>>,
     pub base_currency: Option<String>,
     pub timezone: Option<String>,
+    pub tax_year_start: Option<String>,
     pub onboarding_completed: Option<bool>,
     pub auto_update_check_enabled: Option<bool>,
     pub menu_bar_visible: Option<bool>,
