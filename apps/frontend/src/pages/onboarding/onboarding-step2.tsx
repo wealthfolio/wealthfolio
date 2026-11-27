@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from "@/i18n/locales";
+import { sortFormattingRegions } from "@/lib/sort-formatting-regions";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -87,6 +88,7 @@ const formattingRegions = [
   ["CA", "canada"],
   ["US", "unitedStates"],
   ["GB", "unitedKingdom"],
+  ["AU", "australia"],
   ["IN", "india"],
   ["FR", "france"],
   ["DE", "germany"],
@@ -276,7 +278,11 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
       return option ? t(`settings:formattingRegion.options.${option[1]}`) : region;
     }
 
-    const filteredFormattingRegions = formattingRegions.filter(
+    const filteredFormattingRegions = sortFormattingRegions(
+      formattingRegions,
+      (labelKey) => t(`settings:formattingRegion.options.${labelKey}`),
+      displayLanguage,
+    ).filter(
       ([value, labelKey]) =>
         value.toLowerCase().includes(formattingRegionSearch.toLowerCase()) ||
         t(`settings:formattingRegion.options.${labelKey}`)

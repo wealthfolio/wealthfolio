@@ -1,6 +1,7 @@
 import {
   bg,
   de,
+  enAU,
   enCA,
   enGB,
   enUS,
@@ -22,6 +23,7 @@ const DATE_FNS_LOCALES: Record<string, Locale> = {
   "en-CA": enCA,
   "en-US": enUS,
   "en-GB": enGB,
+  "en-AU": enAU,
   "fr-CA": frCA,
   "fr-FR": fr,
   "de-DE": de,
@@ -51,6 +53,7 @@ const REGION_LOCALES: Record<string, Locale> = {
   CA: enCA,
   US: enUS,
   GB: enGB,
+  AU: enAU,
   FR: fr,
   DE: de,
   ES: es,

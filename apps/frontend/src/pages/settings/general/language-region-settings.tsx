@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { LanguageSelector } from "@/components/language-selector";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { sortFormattingRegions } from "@/lib/sort-formatting-regions";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
   createAmountFormatting,
@@ -41,6 +42,7 @@ const FORMATTING_REGION_OPTIONS = [
   ["CA", "canada"],
   ["US", "unitedStates"],
   ["GB", "unitedKingdom"],
+  ["AU", "australia"],
   ["IN", "india"],
   ["FR", "france"],
   ["DE", "germany"],
@@ -82,11 +84,16 @@ function CurrencyRegionSelect({
   className: string;
   testId: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const regionOptions = sortFormattingRegions(
+    CURRENCY_REGION_OPTIONS,
+    (labelKey) => t(`settings:formattingRegion.options.${labelKey}`),
+    i18n.resolvedLanguage,
+  );
   return (
     <Select
       value={value}
-      items={CURRENCY_REGION_OPTIONS.map(([region, labelKey]) => ({
+      items={regionOptions.map(([region, labelKey]) => ({
         value: region,
         label: t(`settings:formattingRegion.options.${labelKey}`),
       }))}
@@ -99,7 +106,7 @@ function CurrencyRegionSelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {CURRENCY_REGION_OPTIONS.map(([region, labelKey]) => (
+        {regionOptions.map(([region, labelKey]) => (
           <SelectItem key={region} value={region}>
             {t(`settings:formattingRegion.options.${labelKey}`)}
           </SelectItem>
@@ -272,7 +279,7 @@ function CurrencyFormatSettings() {
 }
 
 export function LanguageRegionSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { settings, updateSettings } = useSettingsContext();
 
   const language = settings?.language || DEFAULT_LOCALE;
@@ -342,7 +349,11 @@ export function LanguageRegionSettings() {
           {/* Searchable: the regions are too many to scan. */}
           <SearchableSelect
             value={formattingRegion}
-            options={FORMATTING_REGION_OPTIONS.map(([value, labelKey]) => ({
+            options={sortFormattingRegions(
+              FORMATTING_REGION_OPTIONS,
+              (labelKey) => t(`settings:formattingRegion.options.${labelKey}`),
+              i18n.resolvedLanguage,
+            ).map(([value, labelKey]) => ({
               value,
               label:
                 value === "system"
