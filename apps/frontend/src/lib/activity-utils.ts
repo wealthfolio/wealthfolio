@@ -137,13 +137,23 @@ export const needsImportAssetResolution = (
   );
 };
 
-/** Whether an imported symbol represents an asset the user must resolve. */
+/**
+ * Mapping can show a security symbol before parsing numbers. Draft and asset
+ * review pass false for transfers with no nonzero quantity or price.
+ */
 export const shouldResolveImportAsset = (
   activityType: string,
   subtype: string | null | undefined,
   symbol: string,
+  hasNonzeroQuantityOrPrice = true,
 ): boolean => {
-  if (!needsImportAssetResolution(activityType, subtype)) return false;
+  if (!needsImportAssetResolution(activityType, subtype)) {
+    return (
+      hasNonzeroQuantityOrPrice &&
+      isSecuritiesTransfer(activityType, symbol) &&
+      !isGarbageSymbol(symbol)
+    );
+  }
   // Required-asset rows still enter validation so malformed symbols surface
   // as errors. Optional-asset rows mirror backend classification and treat
   // placeholders as cash movements.

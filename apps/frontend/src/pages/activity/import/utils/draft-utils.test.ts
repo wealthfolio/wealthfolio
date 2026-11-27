@@ -1281,6 +1281,30 @@ describe("createDraftActivities ISIN fallback for a name in Symbol", () => {
     expect(draft.symbolName).toBeUndefined();
   });
 
+  it.each([ActivityType.TRANSFER_IN, ActivityType.TRANSFER_OUT])(
+    "sends only security transfers with a quantity or price to asset review for %s",
+    (activityType) => {
+      const [stock, fundTransfer, cash, incomplete] = createDraftActivities(
+        [
+          ["2026-10-01", activityType, "MSFT", "", "0.692", ""],
+          ["2026-10-02", activityType, fund, "INF879O01027", "", "90"],
+          ["2026-10-03", activityType, "CASH:USD", "", "1", ""],
+          ["2026-10-04", activityType, "AAPL", "", "0", "0"],
+        ],
+        fundHeaders,
+        { ...fundMapping, activityMappings: { [activityType]: [activityType] } },
+        parseConfig,
+        "account-1",
+      );
+
+      expect(buildImportAssetCandidateFromDraft(stock)?.symbol).toBe("MSFT");
+      expect(buildImportAssetCandidateFromDraft(fundTransfer)?.symbol).toBe("INF879O01027");
+      expect(buildImportAssetCandidateFromDraft(cash)).toBeNull();
+      expect(buildImportAssetCandidateFromDraft(incomplete)).toBeNull();
+      expect(incomplete.symbol).toBe("AAPL");
+    },
+  );
+
   it.each([ActivityType.DIVIDEND, ActivityType.ADJUSTMENT])(
     "keeps cash and placeholder symbols out of asset resolution for %s",
     (activityType) => {
