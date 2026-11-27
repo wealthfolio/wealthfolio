@@ -158,6 +158,13 @@ export const calculatePerformanceSummary = async ({
   return response;
 };
 
+export const getDashboardPerformancePeriods = async (
+  filter: AccountScope,
+  periods: { startDate?: string; endDate?: string }[],
+): Promise<PerformanceResult[]> => {
+  return invoke<PerformanceResult[]>("get_dashboard_performance_periods", { filter, periods });
+};
+
 export const performanceSummaryScopeKey = (accountIds: string[]): string => {
   const sortedAccountIds = [...new Set(accountIds)].sort();
   return `accounts:${sortedAccountIds.join(",")}`;

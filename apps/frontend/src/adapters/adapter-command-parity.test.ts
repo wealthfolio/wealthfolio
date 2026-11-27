@@ -721,6 +721,20 @@ describe("scope-based routing — performance filters", () => {
     }
   }
 
+  it("get_dashboard_performance_periods sends one scope and the requested ranges", async () => {
+    const mock = stubFetch();
+    const payload = {
+      filter: { type: "portfolio", portfolioId: "pf_1" },
+      periods: [{ startDate: "2026-01-01", endDate: "2026-01-31" }, {}],
+    };
+    await invoke("get_dashboard_performance_periods", payload);
+
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/performance/dashboard-periods");
+    expect(method).toBe("POST");
+    expect(JSON.parse(body as string)).toEqual(payload);
+  });
+
   it("get_performance_summaries sends batch scopes", async () => {
     const mock = stubFetch();
     await invoke("get_performance_summaries", {

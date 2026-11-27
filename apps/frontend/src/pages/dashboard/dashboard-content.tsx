@@ -1,7 +1,8 @@
 import { isValuationComplete } from "@/lib/valuation";
 import { useTranslation } from "react-i18next";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
-import { calculatePerformanceSummary } from "@/adapters";
+import { calculatePerformanceSummary, getDashboardPerformancePeriods } from "@/adapters";
+import { portfolioPeriodRange } from "@/features/spending/lib/dashboard-period-sync";
 import { HistoryChart } from "@/components/history-chart";
 import { useHapticFeedback } from "@/hooks";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
@@ -13,7 +14,7 @@ import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performanc
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
 import { GainAmount, GainPercent, IntervalSelector } from "@wealthfolio/ui";
 import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
@@ -23,7 +24,7 @@ import { format } from "date-fns";
 import { useMemo } from "react";
 import { HealthStatusIndicator } from "@/components/health-status-icon";
 import { PrivacyToggle } from "@/components/privacy-toggle";
-import type { AccountScope } from "@/lib/types";
+import type { AccountScope, PerformanceResult } from "@/lib/types";
 import { accountScopeKey } from "@/pages/allocation-targets/components/target-scope";
 import { AccountsSummary } from "./accounts-summary";
 import Balance from "./balance";
@@ -72,6 +73,19 @@ function getDashboardNetContributionMaxDomainSpanRatio(
       return 1.8;
   }
 }
+
+const PERFORMANCE_STALE_TIME = 30 * 1000;
+const PERFORMANCE_PRESETS: UITimePeriod[] = [
+  "1D",
+  "1W",
+  "1M",
+  "3M",
+  "6M",
+  "YTD",
+  "1Y",
+  "5Y",
+  "ALL",
+];
 
 interface DashboardContentProps {
   scope?: AccountScope;
@@ -128,21 +142,76 @@ export function DashboardContent({
   const datesReady = isAllTime || (!!startDate && !!endDate);
 
   const scopeKey = accountScopeKey(scope);
-  const { data: portfolioPerformance, isLoading: isPortfolioPerformanceLoading } = useQuery({
-    queryKey: [QueryKeys.PERFORMANCE_SUMMARY, "dashboard", scopeKey, startDate, endDate],
-    queryFn: () =>
-      calculatePerformanceSummary({
+  const queryClient = useQueryClient();
+  const scopeQueryKey = [
+    QueryKeys.PERFORMANCE_SUMMARY,
+    scopeKey,
+    accountIds,
+    baseCurrency,
+    todayISO,
+  ];
+  const presetsKey = [...scopeQueryKey, "dashboard-presets"];
+  const presetPeriods = useMemo(
+    () =>
+      PERFORMANCE_PRESETS.map((preset) => {
+        if (preset === "ALL") return {};
+        const range = portfolioPeriodRange(preset, todayISO);
+        return {
+          startDate: range?.from && format(range.from, "yyyy-MM-dd"),
+          endDate: range?.to && format(range.to, "yyyy-MM-dd"),
+        };
+      }),
+    [todayISO],
+  );
+  const presetIndex = presetPeriods.findIndex(
+    (preset) => preset.startDate === startDate && preset.endDate === endDate,
+  );
+  const {
+    data: portfolioPerformance,
+    isLoading: isPortfolioPerformanceLoading,
+    isSuccess: isPerformanceReady,
+    isPlaceholderData: isPerformancePlaceholder,
+  } = useQuery({
+    queryKey: [...scopeQueryKey, "dashboard", startDate, endDate],
+    queryFn: () => {
+      const prepared = queryClient.getQueryState<PerformanceResult[]>(presetsKey);
+      const cached = prepared?.data?.[presetIndex];
+      if (
+        prepared &&
+        cached &&
+        !prepared.isInvalidated &&
+        Date.now() - prepared.dataUpdatedAt < PERFORMANCE_STALE_TIME
+      ) {
+        return cached;
+      }
+      return calculatePerformanceSummary({
         itemType: "account",
         itemId: scope.type === "all" ? "portfolio:all" : scopeKey,
         startDate,
         endDate,
         filter: scope,
         profile: "dashboard",
-      }),
+      });
+    },
     enabled: datesReady,
     placeholderData: keepPreviousData,
-    staleTime: 30 * 1000,
+    staleTime: PERFORMANCE_STALE_TIME,
     retry: 1,
+  });
+  // Give the selected range priority. One read then prepares the common ranges
+  // for this scope, using the same invalidation as other performance queries.
+  useQuery({
+    queryKey: presetsKey,
+    queryFn: () => getDashboardPerformancePeriods(scope, presetPeriods),
+    enabled:
+      datesReady &&
+      presetIndex >= 0 &&
+      isPerformanceReady &&
+      !isPerformancePlaceholder &&
+      !isCurrentValuationLoading &&
+      !isValuationHistoryLoading,
+    staleTime: PERFORMANCE_STALE_TIME,
+    retry: false,
   });
 
   const hasIncompleteHistory =

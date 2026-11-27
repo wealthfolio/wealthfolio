@@ -15,10 +15,12 @@ const uiMocks = vi.hoisted(() => ({
   realIntervals: false,
   intervalCode: "3M" as "3M" | "ALL",
   togglePrivacy: vi.fn(),
+  getQueryState: vi.fn(),
 }));
 
 vi.mock("@/adapters", () => ({
   calculatePerformanceSummary: vi.fn(),
+  getDashboardPerformancePeriods: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-health", () => ({
@@ -60,6 +62,7 @@ vi.mock("@/lib/settings-provider", () => ({
 vi.mock("@tanstack/react-query", () => ({
   keepPreviousData: Symbol("keepPreviousData"),
   useQuery: vi.fn(),
+  useQueryClient: () => ({ getQueryState: uiMocks.getQueryState }),
 }));
 
 vi.mock("@wealthfolio/ui", async () => {
@@ -152,6 +155,8 @@ vi.mock("./top-holdings", () => ({
 }));
 
 const mockUseQuery = vi.mocked(useQuery);
+const lastQuery = (key: string) =>
+  mockUseQuery.mock.calls.filter(([options]) => options.queryKey.includes(key)).at(-1)?.[0];
 const mockUseCurrentValuation = vi.mocked(useCurrentValuation);
 const mockUseHoldings = vi.mocked(useHoldings);
 const mockUseValuationHistory = vi.mocked(useValuationHistory);
@@ -162,6 +167,7 @@ describe("DashboardContent", () => {
     uiMocks.intervalCode = "3M";
     uiMocks.realIntervals = false;
     vi.clearAllMocks();
+    uiMocks.getQueryState.mockReset();
   });
 
   function mockCurrentValuation(totalValueBase = 125) {
@@ -572,13 +578,51 @@ describe("DashboardContent", () => {
     expect(vi.mocked(AccountsSummary).mock.calls.at(-1)?.[0]).toMatchObject({
       accountIds: ["account-1"],
     });
-    const query = mockUseQuery.mock.calls.at(-1)?.[0];
+    const query = lastQuery("dashboard");
     expect(query?.queryKey).toContain("portfolio:retirement");
     await (query?.queryFn as () => Promise<unknown>)();
     expect(calculatePerformanceSummary).toHaveBeenCalledWith(
       expect.objectContaining({ itemId: "portfolio:retirement", filter: scope }),
     );
     expect(screen.getByText("Retirement")).toBeInTheDocument();
+  });
+
+  it("loads the selected range before preparing presets and reuses only a fresh result", async () => {
+    mockCurrentValuation();
+    mockUseSettingsContext.mockReturnValue({ settings: { baseCurrency: "USD" } } as ReturnType<
+      typeof useSettingsContext
+    >);
+    mockUseHoldings.mockReturnValue({ holdings: [], isLoading: false } as unknown as ReturnType<
+      typeof useHoldings
+    >);
+    mockUseValuationHistory.mockReturnValue({ valuationHistory: [], isLoading: false });
+    const prepared = { summary: { amount: 45 } };
+    mockUseQuery.mockReturnValue({ isLoading: true } as ReturnType<typeof useQuery>);
+    const view = render(<DashboardContent />);
+    expect(lastQuery("dashboard-presets")?.enabled).toBeFalsy();
+
+    mockUseQuery.mockReturnValue({ isSuccess: true, isPlaceholderData: false } as ReturnType<
+      typeof useQuery
+    >);
+    view.rerender(<DashboardContent />);
+    expect(lastQuery("dashboard-presets")?.enabled).toBe(true);
+
+    uiMocks.getQueryState.mockReturnValue({
+      data: Array.from({ length: 9 }, () => prepared),
+      dataUpdatedAt: Date.now(),
+      isInvalidated: false,
+    });
+    const queryFn = lastQuery("dashboard")?.queryFn as () => Promise<unknown>;
+    expect(await queryFn()).toBe(prepared);
+    expect(calculatePerformanceSummary).not.toHaveBeenCalled();
+
+    uiMocks.getQueryState.mockReturnValue({
+      data: Array.from({ length: 9 }, () => prepared),
+      dataUpdatedAt: Date.now(),
+      isInvalidated: true,
+    });
+    await queryFn();
+    expect(calculatePerformanceSummary).toHaveBeenCalledOnce();
   });
 
   it("keeps privacy keyboard focus and activation separate from the update hover card", async () => {
