@@ -3,8 +3,23 @@ name: Build Android APK
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      release-signing:
+        description: Sign with the stable release key instead of a per-run test key.
+        type: boolean
+        default: false
+    outputs:
+      artifact-name:
+        description: Name of the uploaded APK artifact.
+        value: ${{ jobs.build.outputs.artifact-name }}
     secrets:
       CONNECT_STORAGE_ALLOWED_HOSTS:
+        required: false
+      ANDROID_RELEASE_KEYSTORE:
+        required: false
+      ANDROID_RELEASE_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_RELEASE_KEY_ALIAS:
         required: false
 
 permissions:
@@ -14,7 +29,22 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    outputs:
+      artifact-name: wealthfolio-android-arm64-${{ github.sha }}
     steps:
+      - name: Check release signing secrets
+        # Fail before the long native build when the release key is missing.
+        if: inputs.release-signing
+        env:
+          ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+        run: |
+          if [ -z "$ANDROID_RELEASE_KEYSTORE" ] || [ -z "$ANDROID_RELEASE_KEYSTORE_PASSWORD" ] \
+            || [ -z "$ANDROID_RELEASE_KEY_ALIAS" ]; then
+            echo "::error::Set ANDROID_RELEASE_KEYSTORE, ANDROID_RELEASE_KEYSTORE_PASSWORD and ANDROID_RELEASE_KEY_ALIAS to sign release APKs"
+            exit 1
+          fi
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -33,6 +63,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: android-release
+          # Caches saved on a release tag are unreachable from later tags.
+          save-if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - name: Install Android build tools
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" "platforms;android-36" "build-tools;36.0.0"
@@ -57,26 +89,54 @@ jobs:
           CONNECT_API_URL: ${{ vars.CONNECT_API_URL }}
           CONNECT_OAUTH_CALLBACK_URL: ${{ vars.CONNECT_OAUTH_CALLBACK_URL }}
         run: pnpm tauri android build --ci --apk --target aarch64 -- --locked
-      - name: Sign APK for testing
-        # A per-run test key makes the APK installable without production secrets.
-        # It cannot update store installs or APKs signed by another run.
+      - name: Sign APK
+        # Without release signing, a per-run test key makes the APK installable
+        # without production secrets. It cannot update store installs or APKs
+        # signed by another run. The release key is stable, so sideloaded release
+        # APKs update in place; it cannot update Google Play installs.
+        env:
+          RELEASE_SIGNING: ${{ inputs.release-signing }}
+          ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
         run: |
-          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/test.keystore" \
-            -storepass android -keypass android -alias androidtestkey \
-            -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Wealthfolio CI Test"
+          set -euo pipefail
           apk=$(find apps/tauri/gen/android/app/build/outputs/apk -name '*-release-unsigned.apk')
           test -f "$apk"
           mkdir -p artifacts
           build_tools="$ANDROID_HOME/build-tools/36.0.0"
           "$build_tools/zipalign" -P 16 -f 4 "$apk" "$RUNNER_TEMP/aligned.apk"
-          "$build_tools/apksigner" sign --ks "$RUNNER_TEMP/test.keystore" \
-            --ks-key-alias androidtestkey --ks-pass pass:android --key-pass pass:android \
-            --out artifacts/wealthfolio-android-arm64-test.apk "$RUNNER_TEMP/aligned.apk"
-          "$build_tools/apksigner" verify --verbose artifacts/wealthfolio-android-arm64-test.apk
+          if [ "$RELEASE_SIGNING" = true ]; then
+            if [ "$GITHUB_EVENT_NAME" = push ]; then
+              version="${GITHUB_REF_NAME#v}"
+            else
+              version=$(node -p "require('./apps/tauri/tauri.conf.json').version")
+            fi
+            signed="artifacts/Wealthfolio_${version}_android_arm64.apk"
+            printf '%s' "$ANDROID_RELEASE_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            "$build_tools/apksigner" sign --ks "$RUNNER_TEMP/release.keystore" \
+              --ks-key-alias "$ANDROID_RELEASE_KEY_ALIAS" \
+              --ks-pass env:ANDROID_RELEASE_KEYSTORE_PASSWORD \
+              --key-pass env:ANDROID_RELEASE_KEYSTORE_PASSWORD \
+              --out "$signed" "$RUNNER_TEMP/aligned.apk"
+            rm -f "$RUNNER_TEMP/release.keystore"
+          else
+            signed=artifacts/wealthfolio-android-arm64-test.apk
+            keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/test.keystore" \
+              -storepass android -keypass android -alias androidtestkey \
+              -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Wealthfolio CI Test"
+            "$build_tools/apksigner" sign --ks "$RUNNER_TEMP/test.keystore" \
+              --ks-key-alias androidtestkey --ks-pass pass:android --key-pass pass:android \
+              --out "$signed" "$RUNNER_TEMP/aligned.apk"
+          fi
+          "$build_tools/apksigner" verify --verbose "$signed"
+          if [ "$RELEASE_SIGNING" = true ]; then
+            (cd artifacts && sha256sum "$(basename "$signed")" > "$(basename "$signed").sha256")
+          fi
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: wealthfolio-android-arm64-${{ github.sha }}
-          path: artifacts/*.apk
+          path: artifacts/*
           if-no-files-found: error
           retention-days: 7
