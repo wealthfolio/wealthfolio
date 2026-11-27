@@ -232,6 +232,9 @@ jobs:
 
   publish-android:
     # The reusable build is read-only; attach its APK to the release here.
+    # Like prebuild-server-linux, this relies on the draft release being created
+    # manually before the tag push, so it only attaches assets and never races
+    # the desktop legs to create one.
     needs: android
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
