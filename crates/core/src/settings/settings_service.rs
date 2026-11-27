@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 const SUPPORTED_FORMATTING_REGIONS: &[&str] = &[
-    "system", "CA", "US", "GB", "IN", "FR", "DE", "AT", "CH", "ES", "MX", "BR", "PT", "CN", "TW",
-    "JP", "KR", "IT", "RO", "BG",
+    "system", "CA", "US", "GB", "AU", "IN", "FR", "DE", "AT", "CH", "ES", "MX", "BR", "PT", "CN",
+    "TW", "JP", "KR", "IT", "RO", "BG",
 ];
 const SUPPORTED_UI_LANGUAGES: &[&str] = &[
     "en", "fr", "de", "es", "pt", "zh", "zh-Hant", "ja", "ko", "it", "ar",
@@ -559,6 +559,7 @@ mod tests {
         assert!(validate_formatting_region("CH").is_ok());
         assert!(validate_formatting_region("IN").is_ok());
         assert!(validate_formatting_region("AT").is_ok());
+        assert!(validate_formatting_region("AU").is_ok());
         assert!(validate_formatting_region("RO").is_ok());
         assert!(validate_formatting_region("BG").is_ok());
         assert!(validate_formatting_region("de-DE").is_err());
