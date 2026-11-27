@@ -59,12 +59,13 @@ gh run list --workflow docker-publish.yml --branch your-branch --limit 5
 gh run watch RUN_ID --exit-status
 ```
 
-Watch each run ID. **Release** validates all six desktop targets plus the Linux
-server tarball, including the Debian 13 smoke test. Signing and macOS
-notarization still run, so the repository's usual release secrets are required.
-Successful manual runs retain desktop packages and the server tarball/checksum
-as Actions artifacts for seven days. **Docker** builds and smoke-tests both
-architectures; its publish job is expected to be skipped.
+Watch each run ID. **Release** validates all six desktop targets, the
+release-signed Android ARM64 APK, and the Linux server tarball, including the
+Debian 13 smoke test. Signing and macOS notarization still run, so the
+repository's usual release secrets are required. Successful manual runs retain
+desktop packages, the APK/checksum, and the server tarball/checksum as Actions
+artifacts for seven days. **Docker** builds and smoke-tests both architectures;
+its publish job is expected to be skipped.
 
 For refs containing these updated workflows, manual runs never create a tag or
 GitHub release and never push registry images. Only matching tag **pushes**
@@ -119,6 +120,27 @@ uploaded. These APKs are for sideload testing, not store distribution.
 Linux test packages disable updater artifact signing and require a compatible
 system with the runtime libraries. Android and Linux use the repository's
 existing Connect variables and require no production signing secrets.
+
+## Android release signing
+
+Release tag pushes attach `Wealthfolio_<version>_android_arm64.apk` and its
+SHA-256 checksum to the draft release, for users who install outside Google
+Play. The APK is signed with a stable release key so later release APKs update
+in place. Unless this key is also Google Play's app signing key, a GitHub APK
+cannot update a Play install, or the reverse, without uninstalling first, which
+deletes local app data.
+
+Set these repository secrets:
+
+- `ANDROID_RELEASE_KEYSTORE`: the keystore file, base64-encoded
+  (`base64 -w0 release.keystore`).
+- `ANDROID_RELEASE_KEYSTORE_PASSWORD`: the keystore password, which must also be
+  the key password.
+- `ANDROID_RELEASE_KEY_ALIAS`: the key alias in the keystore.
+
+The Android release job fails before building when any secret is missing; the
+desktop and server jobs do not depend on it. Keep a backup of the keystore:
+losing it, or changing keys, means sideloaded users must uninstall to update.
 
 ## Windows code signing
 

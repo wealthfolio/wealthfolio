@@ -219,6 +219,40 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  android:
+    # Sideload APK for users without Google Play, signed with a stable key so
+    # later release APKs update in place.
+    # Tracks: https://github.com/wealthfolio/wealthfolio/issues/2765
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-android.yml
+    with:
+      release-signing: true
+    secrets: inherit
+
+  publish-android:
+    # The reusable build is read-only; attach its APK to the release here.
+    needs: android
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download signed APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.android.outputs.artifact-name }}
+          path: android
+
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: |
+            android/Wealthfolio_*_android_arm64.apk
+            android/Wealthfolio_*_android_arm64.apk.sha256
+
   prebuild-server-linux:
     # Standalone server tarball for self-hosters (Proxmox LXC, bare metal, systemd).
     # Tracks: https://github.com/wealthfolio/wealthfolio/issues/563
