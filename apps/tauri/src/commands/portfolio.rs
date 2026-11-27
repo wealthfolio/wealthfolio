@@ -26,12 +26,12 @@ use wealthfolio_core::{
     income::IncomeSummary,
     lots::AssetLotView,
     performance::{
-        calculate_performance_summary_batch_for_accounts, empty_performance_metrics,
-        performance_account_ids_from_map, performance_account_tracking_modes_from_map,
-        performance_account_types_from_map, performance_tracking_composition,
-        sync_performance_summary_quality, unique_account_ids, DataQualityStatus, PerformanceResult,
-        PerformanceSummaryBatchScope, PerformanceSummaryProfile, SimplePerformanceMetrics,
-        PERFORMANCE_SUMMARY_BATCH_PARALLELISM,
+        calculate_dashboard_periods, calculate_performance_summary_batch_for_accounts,
+        empty_performance_metrics, performance_account_ids_from_map,
+        performance_account_tracking_modes_from_map, performance_account_types_from_map,
+        performance_tracking_composition, sync_performance_summary_quality, unique_account_ids,
+        DataQualityStatus, PerformancePeriod, PerformanceResult, PerformanceSummaryBatchScope,
+        PerformanceSummaryProfile, SimplePerformanceMetrics, PERFORMANCE_SUMMARY_BATCH_PARALLELISM,
     },
     portfolio::snapshot::{
         check_holdings_import as validate_holdings_import, holdings_import_data_source,
@@ -939,6 +939,25 @@ pub async fn calculate_performance_summary(
         );
         Ok(result)
     }
+}
+
+#[tauri::command]
+pub async fn get_dashboard_performance_periods(
+    state: ProfileAccess,
+    filter: AccountScopeInput,
+    periods: Vec<PerformancePeriod>,
+) -> Result<Vec<PerformanceResult>, String> {
+    let context = state.context()?;
+    calculate_dashboard_periods(
+        context.portfolio_service().as_ref(),
+        context.account_service().as_ref(),
+        context.performance_service().as_ref(),
+        &context.get_base_currency(),
+        &filter.into_account_filter()?,
+        periods,
+    )
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

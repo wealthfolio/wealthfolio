@@ -1527,6 +1527,69 @@ async fn an_out_of_policy_observed_snapshot_fails_only_its_account() {
     );
 }
 
+#[tokio::test]
+async fn dashboard_periods_match_individual_reads() {
+    use crate::portfolio::performance::{
+        PerformancePeriod, PerformanceService, PerformanceServiceTrait, PerformanceSummaryProfile,
+    };
+    for id in ["NOM-TXF-01", "NOM-MIX-01"] {
+        let facts = scenario(id).facts();
+        let accounts: Vec<_> = facts
+            .accounts
+            .iter()
+            .map(|account| account.id.clone())
+            .collect();
+        let as_of = facts.as_of;
+        let h = harness(facts).await;
+        h.coordinator
+            .run_job(request(), &SilentObserver)
+            .await
+            .unwrap();
+        let service = PerformanceService::new(
+            h.base_currency.clone(),
+            h.timezone.clone(),
+            h.sources.clone(),
+            h.valuation_repo.clone(),
+            h.lot_repo.clone(),
+        );
+        let periods = vec![
+            PerformancePeriod {
+                start_date: Some(as_of - chrono::Duration::days(7)),
+                end_date: Some(as_of),
+            },
+            PerformancePeriod {
+                start_date: Some(as_of - chrono::Duration::days(3)),
+                end_date: Some(as_of - chrono::Duration::days(1)),
+            },
+            PerformancePeriod {
+                start_date: None,
+                end_date: None,
+            },
+        ];
+        let prepared = service
+            .calculate_dashboard_periods_for_accounts("portfolio", &accounts, "", periods.clone())
+            .await
+            .unwrap();
+        assert_eq!(prepared.len(), periods.len());
+        for (result, period) in prepared.into_iter().zip(periods) {
+            let individual = service
+                .calculate_performance_summary_for_accounts(
+                    "portfolio",
+                    &accounts,
+                    "",
+                    &Default::default(),
+                    &Default::default(),
+                    period.start_date,
+                    period.end_date,
+                    PerformanceSummaryProfile::Dashboard,
+                )
+                .await
+                .unwrap();
+            assert_eq!(result, individual, "{id} {period:?}");
+        }
+    }
+}
+
 /// The scoped history the dashboard reads and the performance of `scope`.
 async fn scope_reads(
     h: &Harness,

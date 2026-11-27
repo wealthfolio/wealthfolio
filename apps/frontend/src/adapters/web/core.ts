@@ -68,6 +68,7 @@ export const COMMANDS: CommandMap = {
   calculate_performance_history: { method: "POST", path: "/performance/history" },
   calculate_performance_summary: { method: "POST", path: "/performance/summary" },
   get_performance_summaries: { method: "POST", path: "/performance/summaries" },
+  get_dashboard_performance_periods: { method: "POST", path: "/performance/dashboard-periods" },
   get_income_summary: { method: "POST", path: "/income/summary/query" },
   // Goals
   get_goals: { method: "GET", path: "/goals" },
@@ -760,6 +761,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         filter,
         profile,
       });
+      break;
+    }
+    case "get_dashboard_performance_periods": {
+      const { filter, periods } = payload as { filter: unknown; periods: unknown[] };
+      body = JSON.stringify({ filter, periods });
       break;
     }
     case "get_performance_summaries": {

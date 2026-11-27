@@ -14,13 +14,14 @@ use wealthfolio_portfolio_engine as engine;
 use wealthfolio_portfolio_engine::model::{AccountId, Currency};
 
 use super::performance_model::*;
-use crate::accounts::{Account, TrackingMode};
+use crate::accounts::{Account, AccountServiceTrait, TrackingMode};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::{Error, Result, ValidationError};
 use crate::lots::LotRepositoryTrait;
 use crate::portfolio::coordinator::{blocking, rows, FactSources};
 use crate::portfolio::economic_events::BasisStatus;
 use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
+use crate::portfolios::{AccountScope, PortfolioServiceTrait};
 use crate::quotes::QuoteServiceTrait;
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
@@ -72,6 +73,32 @@ pub trait PerformanceServiceTrait: Send + Sync {
         profile: PerformanceSummaryProfile,
     ) -> Result<PerformanceResult>;
 
+    async fn calculate_dashboard_periods_for_accounts(
+        &self,
+        scope_id: &str,
+        account_ids: &[String],
+        base_currency: &str,
+        periods: Vec<PerformancePeriod>,
+    ) -> Result<Vec<PerformanceResult>> {
+        let mut results = Vec::with_capacity(periods.len());
+        for period in periods {
+            results.push(
+                self.calculate_performance_summary_for_accounts(
+                    scope_id,
+                    account_ids,
+                    base_currency,
+                    &HashMap::new(),
+                    &HashMap::new(),
+                    period.start_date,
+                    period.end_date,
+                    PerformanceSummaryProfile::Dashboard,
+                )
+                .await?,
+            );
+        }
+        Ok(results)
+    }
+
     /// Calculates lightweight account performance metrics (cumulative returns and portfolio weights) for multiple accounts.
     /// This method efficiently fetches the latest and previous day's valuations in bulk to minimize database queries.
     /// Can be used for a single account by passing a slice with one ID.
@@ -82,6 +109,68 @@ pub trait PerformanceServiceTrait: Send + Sync {
 }
 
 pub const PERFORMANCE_SUMMARY_BATCH_PARALLELISM: usize = 4;
+const MAX_DASHBOARD_PERIODS: usize = 9;
+
+/// Compute a scope's requested dashboard periods in order.
+pub async fn calculate_dashboard_periods(
+    portfolios: &dyn PortfolioServiceTrait,
+    accounts: &dyn AccountServiceTrait,
+    performance: &dyn PerformanceServiceTrait,
+    base_currency: &str,
+    filter: &AccountScope,
+    periods: Vec<PerformancePeriod>,
+) -> Result<Vec<PerformanceResult>> {
+    if periods.is_empty() || periods.len() > MAX_DASHBOARD_PERIODS {
+        return Err(Error::Validation(ValidationError::InvalidInput(format!(
+            "Expected between 1 and {MAX_DASHBOARD_PERIODS} dashboard periods"
+        ))));
+    }
+    for period in &periods {
+        PerformanceService::validate_window(period.start_date, period.end_date)?;
+    }
+    let scope = portfolios.resolve_account_scope(filter, base_currency)?;
+    let accounts_by_id = accounts
+        .get_accounts_by_ids(&scope.account_ids)?
+        .into_iter()
+        .map(|account| (account.id.clone(), account))
+        .collect();
+    let account_ids = performance_account_ids_from_map(&accounts_by_id, &scope.account_ids);
+    let mut results = if account_ids.is_empty() {
+        periods
+            .into_iter()
+            .map(|period| {
+                empty_performance_metrics(
+                    &scope.scope_id,
+                    scope.base_currency.clone(),
+                    period.start_date,
+                    period.end_date,
+                )
+            })
+            .collect()
+    } else {
+        performance
+            .calculate_dashboard_periods_for_accounts(
+                &scope.scope_id,
+                &account_ids,
+                &scope.base_currency,
+                periods,
+            )
+            .await?
+    };
+    if account_ids.len() != scope.account_ids.len() {
+        for result in &mut results {
+            let warning = if account_ids.is_empty() {
+                "Requested accounts were excluded because they are archived or not eligible for performance."
+            } else {
+                result.data_quality.status = DataQualityStatus::Partial;
+                "Some requested accounts were excluded because they are archived or not eligible for performance."
+            };
+            result.data_quality.warnings.push(warning.to_string());
+            sync_performance_summary_quality(result);
+        }
+    }
+    Ok(results)
+}
 
 struct PerformanceSummaryBatchScopeResult {
     key: String,
@@ -337,7 +426,30 @@ impl PerformanceService {
         profile: PerformanceSummaryProfile,
         include_series: bool,
     ) -> Result<PerformanceResult> {
-        Self::validate_window(start, end)?;
+        let mut results = self
+            .measure_periods(
+                target,
+                vec![PerformancePeriod {
+                    start_date: start,
+                    end_date: end,
+                }],
+                profile,
+                include_series,
+            )
+            .await?;
+        Ok(results.pop().expect("one period returns one result"))
+    }
+
+    async fn measure_periods(
+        &self,
+        target: MeasureTarget,
+        periods: Vec<PerformancePeriod>,
+        profile: PerformanceSummaryProfile,
+        include_series: bool,
+    ) -> Result<Vec<PerformanceResult>> {
+        for period in &periods {
+            Self::validate_window(period.start_date, period.end_date)?;
+        }
         let timezone = self.timezone();
         let settings = ReadSettings {
             base_currency: self.base_currency(),
@@ -349,8 +461,7 @@ impl PerformanceService {
         blocking(move || {
             handle.block_on(service.measure_rows(
                 &target,
-                start,
-                end,
+                &periods,
                 profile,
                 include_series,
                 &settings,
@@ -362,12 +473,11 @@ impl PerformanceService {
     async fn measure_rows(
         &self,
         target: &MeasureTarget,
-        start: Option<NaiveDate>,
-        end: Option<NaiveDate>,
+        periods: &[PerformancePeriod],
         profile: PerformanceSummaryProfile,
         include_series: bool,
         settings: &ReadSettings,
-    ) -> Result<PerformanceResult> {
+    ) -> Result<Vec<PerformanceResult>> {
         let account_ids: &[String] = match target {
             MeasureTarget::Account(id) => std::slice::from_ref(id),
             MeasureTarget::Scope { accounts, .. } => accounts,
@@ -395,27 +505,40 @@ impl PerformanceService {
         let lots = rows::stored_lots(&lot_rows);
         let disposals = rows::stored_disposals(&disposal_rows);
         let rejected = rows::stored_rejections(&self.sources, &measured)?;
-        let window = engine::Window { start, end };
         let kernel_profile = match profile {
             PerformanceSummaryProfile::Full => engine::MeasureProfile::Full,
             PerformanceSummaryProfile::Summary => engine::MeasureProfile::Summary,
             PerformanceSummaryProfile::Dashboard => engine::MeasureProfile::Dashboard,
         };
         let inputs = measured.measure_inputs(&series, &lots, &disposals, &rejected, kernel_profile);
-        let result = match target {
-            MeasureTarget::Account(id) => engine::measure_account(
-                &inputs,
-                &AccountId::new(id),
-                window,
-                kernel_profile,
-                include_series,
-            )?,
-            MeasureTarget::Scope { id, accounts } => {
-                let scope: Vec<AccountId> = accounts.iter().map(AccountId::new).collect();
-                engine::measure_scope(&inputs, id, &scope, window, kernel_profile, include_series)?
-            }
-        };
-        Ok(from_kernel(result))
+        let scope: Vec<AccountId> = account_ids.iter().map(AccountId::new).collect();
+        periods
+            .iter()
+            .map(|period| {
+                let window = engine::Window {
+                    start: period.start_date,
+                    end: period.end_date,
+                };
+                let result = match target {
+                    MeasureTarget::Account(_) => engine::measure_account(
+                        &inputs,
+                        &scope[0],
+                        window,
+                        kernel_profile,
+                        include_series,
+                    )?,
+                    MeasureTarget::Scope { id, .. } => engine::measure_scope(
+                        &inputs,
+                        id,
+                        &scope,
+                        window,
+                        kernel_profile,
+                        include_series,
+                    )?,
+                };
+                Ok(from_kernel(result))
+            })
+            .collect()
     }
 
     async fn symbol_performance(
@@ -748,6 +871,25 @@ impl PerformanceServiceTrait for PerformanceService {
             start_date,
             end_date,
             profile,
+            false,
+        )
+        .await
+    }
+
+    async fn calculate_dashboard_periods_for_accounts(
+        &self,
+        scope_id: &str,
+        account_ids: &[String],
+        _base_currency: &str,
+        periods: Vec<PerformancePeriod>,
+    ) -> Result<Vec<PerformanceResult>> {
+        self.measure_periods(
+            MeasureTarget::Scope {
+                id: scope_id.to_string(),
+                accounts: account_ids.to_vec(),
+            },
+            periods,
+            PerformanceSummaryProfile::Dashboard,
             false,
         )
         .await

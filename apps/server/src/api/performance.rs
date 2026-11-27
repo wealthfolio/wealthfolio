@@ -14,12 +14,13 @@ use wealthfolio_core::{
     portfolio::{
         income::IncomeSummary,
         performance::{
-            calculate_performance_summary_batch_for_accounts, empty_performance_metrics,
-            performance_account_ids_from_map, performance_account_tracking_modes_from_map,
-            performance_account_types_from_map, performance_tracking_composition,
-            sync_performance_summary_quality, unique_account_ids, DataQualityStatus,
-            PerformanceResult, PerformanceSummaryBatchScope, PerformanceSummaryProfile,
-            SimplePerformanceMetrics, PERFORMANCE_SUMMARY_BATCH_PARALLELISM,
+            calculate_dashboard_periods, calculate_performance_summary_batch_for_accounts,
+            empty_performance_metrics, performance_account_ids_from_map,
+            performance_account_tracking_modes_from_map, performance_account_types_from_map,
+            performance_tracking_composition, sync_performance_summary_quality, unique_account_ids,
+            DataQualityStatus, PerformancePeriod, PerformanceResult, PerformanceSummaryBatchScope,
+            PerformanceSummaryProfile, SimplePerformanceMetrics,
+            PERFORMANCE_SUMMARY_BATCH_PARALLELISM,
         },
     },
     portfolios::AccountScope,
@@ -347,6 +348,28 @@ async fn calculate_performance_summary(
     Ok(Json(metrics))
 }
 
+#[derive(serde::Deserialize)]
+struct DashboardPeriodsBody {
+    filter: AccountScope,
+    periods: Vec<PerformancePeriod>,
+}
+
+async fn get_dashboard_performance_periods(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(body): Json<DashboardPeriodsBody>,
+) -> ApiResult<Json<Vec<PerformanceResult>>> {
+    let results = calculate_dashboard_periods(
+        state.portfolio_service.as_ref(),
+        state.account_service.as_ref(),
+        state.performance_service.as_ref(),
+        &state.base_currency()?,
+        &body.filter,
+        body.periods,
+    )
+    .await?;
+    Ok(Json(results))
+}
+
 async fn get_performance_summaries(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<PerformanceSummariesBody>,
@@ -526,6 +549,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/performance/history", post(calculate_performance_history))
         .route("/performance/summary", post(calculate_performance_summary))
         .route("/performance/summaries", post(get_performance_summaries))
+        .route(
+            "/performance/dashboard-periods",
+            post(get_dashboard_performance_periods),
+        )
         .route("/income/summary", get(get_income_summary_for_account))
         .route("/income/summary/query", post(get_income_summary))
 }

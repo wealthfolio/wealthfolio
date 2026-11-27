@@ -199,6 +199,7 @@ export {
   getHoldingsByAllocation,
   getIncomeSummary,
   getCurrentValuation,
+  getDashboardPerformancePeriods,
   getLatestValuations,
   getPortfolioAllocations,
   getSnapshotByDate,
