@@ -6,7 +6,8 @@ const children = new Set();
 let stopping = false;
 
 function spawnPnpm(args) {
-  const child = spawn("pnpm", args, { stdio: "inherit" });
+  // Windows installs pnpm as pnpm.cmd, which only a shell can start.
+  const child = spawn("pnpm", args, { stdio: "inherit", shell: process.platform === "win32" });
   children.add(child);
   child.once("exit", () => children.delete(child));
   return child;
