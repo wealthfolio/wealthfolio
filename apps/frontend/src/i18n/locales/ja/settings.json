@@ -494,7 +494,7 @@
   "timezone_description": "日付、日次集計、年間拠出の区切りに使用するタイムゾーンを選択します。",
   "taxYearStart": {
     "title": "課税年度の開始日",
-    "description": "課税年度が始まる日です（例：オーストラリアは7月1日、英国は4月6日）。年次レポートで使われます。",
+    "description": "課税年度が始まる日です。",
     "month": "月",
     "day": "日",
     "current": "現在の課税年度：{{start}}～{{end}}"

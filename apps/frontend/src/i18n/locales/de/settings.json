@@ -458,7 +458,7 @@
   "timezone_description": "Zeitzone für Datumsangaben, Tagesabschnitte und jährliche Einzahlungsgrenzen.",
   "taxYearStart": {
     "title": "Beginn des Steuerjahres",
-    "description": "Der Tag, an dem Ihr Steuerjahr beginnt, z. B. der 1. Juli in Australien oder der 6. April im Vereinigten Königreich. Jahresberichte richten sich danach.",
+    "description": "Der Tag, an dem Ihr Steuerjahr beginnt.",
     "month": "Monat",
     "day": "Tag",
     "current": "Aktuelles Steuerjahr: {{start}} - {{end}}"

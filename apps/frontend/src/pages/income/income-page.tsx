@@ -38,12 +38,7 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart } from "recharts";
 import { IncomeHistoryChart } from "./income-history-chart";
-import {
-  type IncomePeriod,
-  isTaxYearPeriod,
-  isYearToDatePeriod,
-  PREVIOUS_INCOME_PERIOD,
-} from "./income-period";
+import { type IncomePeriod, isTaxYearPeriod, PREVIOUS_INCOME_PERIOD } from "./income-period";
 import { UnconvertedCurrenciesNotice } from "./unconverted-currencies-notice";
 
 const IncomePeriodSelector: React.FC<{
@@ -202,7 +197,8 @@ export default function IncomePage() {
 
   const monthlyIncomeData: [string, number][] = Object.entries(periodSummary.byMonth)
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(selectedPeriod === "ALL" ? 0 : -12)
+    // A tax year starting mid-month (6 April) spans 13 calendar months.
+    .slice(selectedPeriod === "ALL" || isTaxYearPeriod(selectedPeriod) ? 0 : -12)
     .map(([month, income]) => [month, Number(income) || 0]);
 
   const getPreviousPeriodData = (currentMonth: string): number => {
@@ -210,7 +206,9 @@ export default function IncomePage() {
     const previousYear = parseInt(year) - 1;
     const previousMonth = month;
 
-    if (isYearToDatePeriod(selectedPeriod)) {
+    // A tax year compares with the last tax year's part of each month: with a
+    // 6 April start, April's whole calendar month would add the tax year before.
+    if (selectedPeriod === "YTD") {
       return totalSummary.byMonth[`${previousYear}-${month}`] || 0;
     } else if (selectedPeriod !== "ALL") {
       return (

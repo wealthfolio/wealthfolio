@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
@@ -27,11 +28,23 @@ export function TaxYearStartSelect({
 }: {
   value: string | undefined;
   timezone: string;
-  onChange: (value: string) => void;
+  onChange: (value: string) => Promise<unknown>;
 }) {
   const { t } = useTranslation();
   const dates = useDateFormatting();
-  const start = readTaxYearStart(value);
+  // The start being saved: `value` only changes once settings reload, so a
+  // second pick before then must build on this one, not on `value`.
+  const [saving, setSaving] = useState<string | null>(null);
+  if (saving !== null && saving === value) setSaving(null);
+  const start = readTaxYearStart(saving ?? value);
+
+  const save = (next: string) => {
+    setSaving(next);
+    onChange(next).catch(() => {
+      // Show the stored start again, unless a later pick is being saved.
+      setSaving((current) => (current === next ? null : current));
+    });
+  };
 
   // Names and numbers in the formatting locale; 2001 is any non-leap year.
   const monthLabel = (month: number) =>
@@ -54,7 +67,7 @@ export function TaxYearStartSelect({
             if (next === null) return;
             const month = Number(next);
             // Keep the day where the new month has it (31 March → 30 April).
-            onChange(
+            save(
               formatTaxYearStart({ month, day: Math.min(start.day, lastTaxYearStartDay(month)) }),
             );
           }}
@@ -78,8 +91,7 @@ export function TaxYearStartSelect({
           value={String(start.day)}
           items={days.map((day) => ({ value: String(day), label: dayLabel(day) }))}
           onValueChange={(next) => {
-            if (next !== null)
-              onChange(formatTaxYearStart({ month: start.month, day: Number(next) }));
+            if (next !== null) save(formatTaxYearStart({ month: start.month, day: Number(next) }));
           }}
         >
           <SelectTrigger

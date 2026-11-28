@@ -16,8 +16,3 @@ export const PREVIOUS_INCOME_PERIOD: Record<IncomePeriod, string | null> = {
 export function isTaxYearPeriod(period: IncomePeriod): boolean {
   return period === "TAX_YTD" || period === "LAST_TAX_YEAR";
 }
-
-/** Periods that cover a year so far rather than a whole earlier year. */
-export function isYearToDatePeriod(period: IncomePeriod): boolean {
-  return period === "YTD" || period === "TAX_YTD";
-}

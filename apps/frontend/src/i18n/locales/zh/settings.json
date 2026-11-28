@@ -494,7 +494,7 @@
   "timezone_description": "选择用于日期、每日分组和年度供款边界的时区。",
   "taxYearStart": {
     "title": "纳税年度开始日",
-    "description": "您的纳税年度开始的日期，例如澳大利亚为 7 月 1 日，英国为 4 月 6 日。年度报告会使用此设置。",
+    "description": "您的纳税年度开始的日期。",
     "month": "月",
     "day": "日",
     "current": "当前纳税年度：{{start}} - {{end}}"

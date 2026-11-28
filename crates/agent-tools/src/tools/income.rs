@@ -111,7 +111,10 @@ impl AgentTool for GetIncome {
             .iter()
             .find(|s| s.period == period_upper)
             .ok_or_else(|| {
-                if matches!(period_upper.as_str(), "TAX_YTD" | "LAST_TAX_YEAR") {
+                // With no income there are no periods at all, whatever the tax year.
+                if !summaries.is_empty()
+                    && matches!(period_upper.as_str(), "TAX_YTD" | "LAST_TAX_YEAR")
+                {
                     // Tax years are calendar years then, which YTD and LAST_YEAR cover.
                     AgentToolError::ExecutionFailed(
                         "The user's tax year starts on 1 January, so tax years are calendar years: use YTD or LAST_YEAR instead".to_string(),

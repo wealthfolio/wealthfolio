@@ -29,7 +29,9 @@ impl TaxYearStart {
     /// Reads `MM-DD`, such as `07-01` for 1 July.
     pub fn parse(value: &str) -> Option<Self> {
         let (month, day) = value.split_once('-')?;
-        if month.len() != 2 || day.len() != 2 {
+        // Digits only: `u32::from_str` also takes a leading `+`.
+        let two_digits = |part: &str| part.len() == 2 && part.bytes().all(|b| b.is_ascii_digit());
+        if !two_digits(month) || !two_digits(day) {
             return None;
         }
         let month: u32 = month.parse().ok()?;
@@ -119,7 +121,7 @@ mod tests {
     fn rejects_days_that_are_not_every_year() {
         for value in [
             "02-29", "02-30", "04-31", "13-01", "00-10", "01-00", "7-01", "07-1", "0701", "07-01x",
-            "", "ab-cd",
+            "", "ab-cd", "+7-01", "07-+1",
         ] {
             assert!(TaxYearStart::parse(value).is_none(), "{value}");
         }

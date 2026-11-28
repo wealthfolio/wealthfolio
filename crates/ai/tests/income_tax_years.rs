@@ -63,3 +63,23 @@ async fn says_to_use_calendar_years_when_the_tax_year_starts_on_1_january() {
         .to_string();
     assert!(error.contains("use YTD or LAST_YEAR"), "{error}");
 }
+
+/// No income activities: the income service returns no periods at all.
+struct NoIncome;
+
+impl IncomeServiceTrait for NoIncome {
+    fn get_income_summary(&self, _account_ids: Option<&[String]>) -> Result<Vec<IncomeSummary>> {
+        Ok(Vec::new())
+    }
+}
+
+#[tokio::test]
+async fn does_not_blame_the_tax_year_start_when_there_is_no_income() {
+    let error = GetIncome
+        .call(env(NoIncome), serde_json::json!({ "period": "TAX_YTD" }))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("not found in income data"), "{error}");
+    assert!(!error.contains("1 January"), "{error}");
+}
