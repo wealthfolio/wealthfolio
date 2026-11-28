@@ -441,6 +441,8 @@
     "fetched": "Résumé des revenus récupéré",
     "yearToDate": "Depuis le début de l'année",
     "lastYear": "Année dernière",
+    "taxYearToDate": "Année fiscale à ce jour",
+    "lastTaxYear": "Dernière année fiscale",
     "allTime": "Depuis toujours",
     "dividends": "Dividendes",
     "interest": "Intérêts",

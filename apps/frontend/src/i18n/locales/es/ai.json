@@ -441,6 +441,8 @@
     "fetched": "Se obtuvo el resumen de ingresos",
     "yearToDate": "En lo que va del año",
     "lastYear": "Año pasado",
+    "taxYearToDate": "Año fiscal hasta la fecha",
+    "lastTaxYear": "Último año fiscal",
     "allTime": "Todo el tiempo",
     "dividends": "Dividendos",
     "interest": "Intereses",

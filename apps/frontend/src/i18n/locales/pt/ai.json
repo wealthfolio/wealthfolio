@@ -441,6 +441,8 @@
     "fetched": "Resumo de rendimentos obtido",
     "yearToDate": "No ano",
     "lastYear": "Ano passado",
+    "taxYearToDate": "Ano fiscal até hoje",
+    "lastTaxYear": "Último ano fiscal",
     "allTime": "Todo o período",
     "dividends": "Dividendos",
     "interest": "Juros",

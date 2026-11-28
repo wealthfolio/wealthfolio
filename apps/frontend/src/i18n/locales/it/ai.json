@@ -441,6 +441,8 @@
     "fetched": "Recuperato il riepilogo dei redditi",
     "yearToDate": "Da inizio anno",
     "lastYear": "Anno scorso",
+    "taxYearToDate": "Anno fiscale a oggi",
+    "lastTaxYear": "Ultimo anno fiscale",
     "allTime": "Sempre",
     "dividends": "Dividendi",
     "interest": "Interessi",

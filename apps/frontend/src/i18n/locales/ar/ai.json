@@ -405,6 +405,8 @@
     "fetched": "تم جلب ملخص الدخل",
     "interest": "الفوائد",
     "lastYear": "العام الماضي",
+    "taxYearToDate": "السنة الضريبية حتى تاريخه",
+    "lastTaxYear": "السنة الضريبية الماضية",
     "monthlyAverage": "المتوسط الشهري",
     "monthlyIncome": "الدخل الشهري",
     "other": "أخرى",

@@ -153,6 +153,10 @@ function getPeriodLabel(period: string, t: TFunction): string {
       return t("ai:income.yearToDate");
     case "LAST_YEAR":
       return t("ai:income.lastYear");
+    case "TAX_YTD":
+      return t("ai:income.taxYearToDate");
+    case "LAST_TAX_YEAR":
+      return t("ai:income.lastTaxYear");
     case "ALL":
       return t("ai:income.allTime");
     default:
