@@ -2,7 +2,7 @@ use super::SettingsRepositoryTrait;
 use crate::errors::{DatabaseError, Error, Result};
 use crate::fx::currency::get_normalization_rule;
 use crate::fx::FxServiceTrait;
-use crate::settings::{Settings, SettingsUpdate, GAIN_COLORS};
+use crate::settings::{Settings, SettingsUpdate, TaxYearStart, GAIN_COLORS};
 use crate::utils::time_utils::canonicalize_timezone;
 use async_trait::async_trait;
 use log::{debug, error};
@@ -99,6 +99,16 @@ fn validate_formatting_region(region: &str) -> Result<()> {
     } else {
         Err(Error::InvalidConfigValue(format!(
             "Unsupported formatting region: {region}"
+        )))
+    }
+}
+
+fn validate_tax_year_start(value: &str) -> Result<()> {
+    if TaxYearStart::parse(value).is_some() {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Unsupported tax year start: {value}"
         )))
     }
 }
@@ -258,6 +268,9 @@ impl SettingsServiceTrait for SettingsService {
         if let Some(ref gain_colors) = normalized_settings.gain_colors {
             validate_gain_colors(gain_colors)?;
         }
+        if let Some(ref tax_year_start) = normalized_settings.tax_year_start {
+            validate_tax_year_start(tax_year_start)?;
+        }
         if let Some(ref region) = normalized_settings.formatting_region {
             validate_formatting_region(region)?;
         }
@@ -370,7 +383,7 @@ mod tests {
     use super::{
         normalize_currency_formatting_regions, normalize_formatting_region, normalize_ui_language,
         validate_currency_formatting_regions, validate_formatting_region, validate_gain_colors,
-        validate_text_size, validate_theme_id, validate_ui_language,
+        validate_tax_year_start, validate_text_size, validate_theme_id, validate_ui_language,
     };
     use crate::settings::Settings;
     use std::collections::BTreeMap;
@@ -440,6 +453,24 @@ mod tests {
         value.as_object_mut().unwrap().remove("gainColors");
         let settings: Settings = serde_json::from_value(value).unwrap();
         assert_eq!(settings.gain_colors, "green-up");
+    }
+
+    #[test]
+    fn accepts_only_tax_year_starts_that_exist_every_year() {
+        for value in ["01-01", "07-01", "04-06", "12-31"] {
+            assert!(validate_tax_year_start(value).is_ok(), "{value}");
+        }
+        for value in ["02-29", "7-1", "13-01", "07-01 ", ""] {
+            assert!(validate_tax_year_start(value).is_err(), "{value}");
+        }
+    }
+
+    #[test]
+    fn settings_saved_before_tax_year_start_read_as_calendar_years() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value.as_object_mut().unwrap().remove("taxYearStart");
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.tax_year_start, "01-01");
     }
 
     #[test]

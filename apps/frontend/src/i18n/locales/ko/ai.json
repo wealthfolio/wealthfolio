@@ -397,6 +397,8 @@
     "fetched": "소득 요약을 가져왔습니다",
     "yearToDate": "연초 이후",
     "lastYear": "작년",
+    "taxYearToDate": "과세 연도 누계",
+    "lastTaxYear": "지난 과세 연도",
     "allTime": "전체 기간",
     "dividends": "배당금",
     "interest": "이자",

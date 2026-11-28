@@ -397,6 +397,8 @@
     "fetched": "已获取收入摘要",
     "yearToDate": "年初至今",
     "lastYear": "去年",
+    "taxYearToDate": "纳税年度至今",
+    "lastTaxYear": "上一纳税年度",
     "allTime": "全部时间",
     "dividends": "股息",
     "interest": "利息",

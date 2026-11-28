@@ -492,6 +492,13 @@
   },
   "timezone_title": "시간대",
   "timezone_description": "날짜, 일별 구간, 연간 납입 한도 기준에 사용할 시간대를 선택하세요.",
+  "taxYearStart": {
+    "title": "과세 연도 시작일",
+    "description": "과세 연도가 시작되는 날입니다.",
+    "month": "월",
+    "day": "일",
+    "current": "현재 과세 연도: {{start}} - {{end}}"
+  },
   "about_db_path": "데이터베이스 경로",
   "about_copy_db_path": "데이터베이스 경로 복사",
   "about_copy_logs_dir": "로그 디렉터리 복사",

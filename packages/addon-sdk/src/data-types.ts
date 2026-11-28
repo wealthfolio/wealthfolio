@@ -1036,6 +1036,13 @@ export interface Settings {
   baseCurrency: string;
   defaultReturnMetric: 'twr' | 'irr' | 'valueReturn';
   timezone?: string;
+  /**
+   * The day the user's tax year starts, as 'MM-DD' (e.g. '07-01' for 1 July, '04-06'
+   * for 6 April). '01-01' means tax years are calendar years. A tax year is named by
+   * the calendar year it ends in: with '07-01', 1 July 2025 – 30 June 2026 is tax
+   * year 2026. Absent on older hosts, which use calendar years.
+   */
+  taxYearStart?: string;
   onboardingCompleted: boolean;
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;

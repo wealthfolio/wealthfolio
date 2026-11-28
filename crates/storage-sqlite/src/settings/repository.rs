@@ -10,9 +10,10 @@ use crate::schema::{accounts, assets};
 use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::settings::{
-    Settings, SettingsRepositoryTrait, SettingsUpdate, CURRENCY_FORMATTING_REGIONS_KEY,
-    DEFAULT_FONT, DEFAULT_GAIN_COLORS, DEFAULT_THEME_ID, GAIN_COLORS, GAIN_COLORS_KEY,
-    INSIGHTS_OVERVIEW_LAYOUT_KEY, TEXT_SIZE_KEY, THEME_ID_KEY,
+    Settings, SettingsRepositoryTrait, SettingsUpdate, TaxYearStart,
+    CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_FONT, DEFAULT_GAIN_COLORS, DEFAULT_TAX_YEAR_START,
+    DEFAULT_THEME_ID, GAIN_COLORS, GAIN_COLORS_KEY, INSIGHTS_OVERVIEW_LAYOUT_KEY,
+    TAX_YEAR_START_KEY, TEXT_SIZE_KEY, THEME_ID_KEY,
 };
 
 pub struct SettingsRepository {
@@ -57,6 +58,13 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 }
                 "base_currency" => settings.base_currency = value,
                 "timezone" => settings.timezone = value,
+                // A start this version can't read stays stored and reads as the
+                // default, so one saved by a newer version survives.
+                TAX_YEAR_START_KEY => {
+                    if TaxYearStart::parse(&value).is_some() {
+                        settings.tax_year_start = value;
+                    }
+                }
                 "onboarding_completed" => {
                     settings.onboarding_completed = value.parse().unwrap_or(false);
                 }
@@ -195,6 +203,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .map_err(StorageError::from)?;
                 }
 
+                if let Some(ref tax_year_start) = settings.tax_year_start {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: TAX_YEAR_START_KEY.to_string(),
+                            setting_value: tax_year_start.clone(),
+                        })
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                }
+
                 if let Some(onboarding_completed) = settings.onboarding_completed {
                     diesel::replace_into(app_settings)
                         .values(&AppSettingDB {
@@ -280,6 +298,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     "font" => DEFAULT_FONT,
                     "language" => "en",
                     "timezone" => "",
+                    TAX_YEAR_START_KEY => DEFAULT_TAX_YEAR_START,
                     "onboarding_completed" => "false",
                     "auto_update_check_enabled" => "true",
                     "menu_bar_visible" => "true",
@@ -545,6 +564,35 @@ mod tests {
             .get_result(&mut receiver_conn)
             .unwrap();
         assert_eq!(receiver_outbox, 0, "Receiving must not echo");
+    }
+
+    #[tokio::test]
+    async fn tax_year_start_saves_on_this_device_only() {
+        use crate::schema::sync_outbox;
+        let (repo, _dir) = setup().await;
+        assert_eq!(repo.get_settings().unwrap().tax_year_start, "01-01");
+        assert_eq!(repo.get_setting(TAX_YEAR_START_KEY).unwrap(), "01-01");
+
+        let update: SettingsUpdate =
+            serde_json::from_value(json!({"taxYearStart": "07-01"})).unwrap();
+        repo.update_settings(&update).await.unwrap();
+        assert_eq!(repo.get_settings().unwrap().tax_year_start, "07-01");
+
+        let mut conn = get_connection(&repo.pool).unwrap();
+        let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
+        assert_eq!(outbox, 0, "The tax year start stays on this device");
+    }
+
+    #[tokio::test]
+    async fn unknown_tax_year_start_reads_as_calendar_years_and_stays_stored() {
+        let (repo, _dir) = setup().await;
+        for unknown in ["02-29", "7-1", ""] {
+            repo.update_setting(TAX_YEAR_START_KEY, unknown)
+                .await
+                .unwrap();
+            assert_eq!(repo.get_settings().unwrap().tax_year_start, "01-01");
+            assert_eq!(repo.get_setting(TAX_YEAR_START_KEY).unwrap(), unknown);
+        }
     }
 
     #[tokio::test]

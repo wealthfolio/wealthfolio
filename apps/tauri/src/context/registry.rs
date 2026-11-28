@@ -38,6 +38,7 @@ pub struct ServiceContext {
     pub secret_store: Arc<dyn wealthfolio_core::secrets::SecretStore>,
     pub base_currency: Arc<RwLock<String>>,
     pub timezone: Arc<RwLock<String>>,
+    pub tax_year_start: Arc<RwLock<String>>,
     pub rating_instance_id: Arc<String>,
 
     /// Domain event sink for emitting events after mutations.
@@ -129,6 +130,13 @@ impl ServiceContext {
             .timezone
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = new_timezone;
+    }
+
+    pub fn update_tax_year_start(&self, new_tax_year_start: String) {
+        *self
+            .tax_year_start
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = new_tax_year_start;
     }
 
     pub fn settings_service(&self) -> Arc<dyn settings::SettingsServiceTrait> {

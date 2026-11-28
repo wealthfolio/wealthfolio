@@ -43,6 +43,10 @@ export function useSettingsMutation(
         // setting travels in the request, so nothing else would evict them.
         invalidateSpendingCaches(queryClient);
       }
+      if ("taxYearStart" in variables) {
+        // The server adds the tax-year income periods from this setting.
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.INCOME_SUMMARY] });
+      }
       if ("timezone" in variables) {
         queryClient.invalidateQueries({ queryKey: [QueryKeys.RETIREMENT_OVERVIEW] });
         queryClient.invalidateQueries({ queryKey: [QueryKeys.SAVE_UP_OVERVIEW] });

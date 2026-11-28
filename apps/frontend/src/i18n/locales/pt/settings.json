@@ -495,6 +495,13 @@
   },
   "timezone_title": "Fuso horário",
   "timezone_description": "Escolha o fuso horário usado para datas, períodos diários e limites anuais de aporte.",
+  "taxYearStart": {
+    "title": "Início do ano fiscal",
+    "description": "O dia em que começa o seu ano fiscal.",
+    "month": "Mês",
+    "day": "Dia",
+    "current": "Ano fiscal atual: {{start}} - {{end}}"
+  },
   "about_db_path": "Caminho do banco de dados",
   "about_copy_db_path": "Copiar o caminho do banco de dados",
   "about_copy_logs_dir": "Copiar o diretório de registros",

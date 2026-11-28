@@ -492,6 +492,13 @@
   },
   "timezone_title": "タイムゾーン",
   "timezone_description": "日付、日次集計、年間拠出の区切りに使用するタイムゾーンを選択します。",
+  "taxYearStart": {
+    "title": "課税年度の開始日",
+    "description": "課税年度が始まる日です。",
+    "month": "月",
+    "day": "日",
+    "current": "現在の課税年度：{{start}}～{{end}}"
+  },
   "about_db_path": "データベースのパス",
   "about_copy_db_path": "データベースのパスをコピー",
   "about_copy_logs_dir": "ログのディレクトリをコピー",

@@ -497,6 +497,13 @@
   },
   "timezone_title": "Fuseau horaire",
   "timezone_description": "Choisissez le fuseau horaire utilisé pour les dates, les regroupements quotidiens et les limites annuelles de cotisation.",
+  "taxYearStart": {
+    "title": "Début de l'année fiscale",
+    "description": "Le jour où commence votre année fiscale.",
+    "month": "Mois",
+    "day": "Jour",
+    "current": "Année fiscale en cours : {{start}} - {{end}}"
+  },
   "about_db_path": "Chemin de la base de données",
   "about_copy_db_path": "Copier le chemin de la base de données",
   "about_copy_logs_dir": "Copier le répertoire des journaux",

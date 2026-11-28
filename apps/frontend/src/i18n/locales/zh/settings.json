@@ -492,6 +492,13 @@
   },
   "timezone_title": "时区",
   "timezone_description": "选择用于日期、每日分组和年度供款边界的时区。",
+  "taxYearStart": {
+    "title": "纳税年度开始日",
+    "description": "您的纳税年度开始的日期。",
+    "month": "月",
+    "day": "日",
+    "current": "当前纳税年度：{{start}} - {{end}}"
+  },
   "about_db_path": "数据库路径",
   "about_copy_db_path": "复制数据库路径",
   "about_copy_logs_dir": "复制日志目录",

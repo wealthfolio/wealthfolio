@@ -495,6 +495,13 @@
   },
   "timezone_title": "Zona horaria",
   "timezone_description": "Elige la zona horaria utilizada para las fechas, los periodos diarios y los límites anuales de aportación.",
+  "taxYearStart": {
+    "title": "Inicio del año fiscal",
+    "description": "El día en que empieza tu año fiscal.",
+    "month": "Mes",
+    "day": "Día",
+    "current": "Año fiscal actual: {{start}} - {{end}}"
+  },
   "about_db_path": "Ruta de la base de datos",
   "about_copy_db_path": "Copiar la ruta de la base de datos",
   "about_copy_logs_dir": "Copiar el directorio de registros",

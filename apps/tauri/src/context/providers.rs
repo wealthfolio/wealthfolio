@@ -245,6 +245,7 @@ async fn build_context(
     let base_currency_string = settings.base_currency.clone();
     let base_currency = Arc::new(RwLock::new(base_currency_string.clone()));
     let timezone = Arc::new(RwLock::new(settings.timezone.clone()));
+    let tax_year_start = Arc::new(RwLock::new(settings.tax_year_start.clone()));
     let rating_instance_id = Arc::new(
         settings_service
             .get_setting_value("instance_id")?
@@ -475,12 +476,15 @@ async fn build_context(
         timezone.clone(),
     ));
 
-    let income_service = Arc::new(IncomeService::new_with_timezone(
-        fx_service.clone(),
-        activity_repository.clone(),
-        base_currency.clone(),
-        timezone.clone(),
-    ));
+    let income_service = Arc::new(
+        IncomeService::new_with_timezone(
+            fx_service.clone(),
+            activity_repository.clone(),
+            base_currency.clone(),
+            timezone.clone(),
+        )
+        .with_tax_year_start(tax_year_start.clone()),
+    );
 
     let snapshot_service = Arc::new(
         SnapshotService::new(
@@ -828,6 +832,7 @@ async fn build_context(
             secret_store: secret_store.clone(),
             base_currency,
             timezone,
+            tax_year_start,
             rating_instance_id,
             domain_event_sink,
             settings_service,

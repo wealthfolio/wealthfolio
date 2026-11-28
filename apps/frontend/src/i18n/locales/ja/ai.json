@@ -397,6 +397,8 @@
     "fetched": "収入サマリーを取得しました",
     "yearToDate": "年初来",
     "lastYear": "昨年",
+    "taxYearToDate": "課税年度累計",
+    "lastTaxYear": "前課税年度",
     "allTime": "全期間",
     "dividends": "配当",
     "interest": "利息",

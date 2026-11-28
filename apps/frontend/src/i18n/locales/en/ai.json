@@ -409,6 +409,8 @@
     "fetched": "Fetched income summary",
     "yearToDate": "Year to Date",
     "lastYear": "Last Year",
+    "taxYearToDate": "Tax Year to Date",
+    "lastTaxYear": "Last Tax Year",
     "allTime": "All Time",
     "dividends": "Dividends",
     "interest": "Interest",

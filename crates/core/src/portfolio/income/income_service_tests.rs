@@ -672,3 +672,112 @@ fn asset_income_keeps_a_dividend_subtotal() {
     assert_eq!(cash.income, dec!(2500));
     assert_eq!(cash.dividend_income, Decimal::ZERO);
 }
+
+fn tax_year_service(start: &str, income: Vec<IncomeData>, first_activity: &str) -> IncomeService {
+    let fx_service = FxService::new(Arc::new(InMemoryFxRepository::new(Vec::new())));
+    fx_service.initialize().unwrap();
+    let first_activity_date = NaiveDate::parse_from_str(first_activity, "%Y-%m-%d")
+        .expect("a YYYY-MM-DD date")
+        .and_time(NaiveTime::MIN)
+        .and_utc();
+    IncomeService::new(
+        Arc::new(fx_service),
+        Arc::new(MockActivityRepository {
+            income: Mutex::new(income),
+            first_activity_date,
+        }),
+        Arc::new(RwLock::new("USD".to_string())),
+    )
+    .with_tax_year_start(Arc::new(RwLock::new(start.to_string())))
+}
+
+#[test]
+fn calendar_tax_years_add_no_periods() {
+    let _clock = clock::freeze(Utc.with_ymd_and_hms(2026, 10, 17, 12, 0, 0).unwrap());
+    for start in ["01-01", "02-29", ""] {
+        let service = tax_year_service(
+            start,
+            vec![income(
+                "2026-03-15",
+                "INTEREST",
+                "CASH:USD",
+                "USD",
+                dec!(10),
+                "a",
+            )],
+            "2026-01-01",
+        );
+        let periods: Vec<String> = service
+            .get_income_summary(None)
+            .unwrap()
+            .into_iter()
+            .map(|summary| summary.period)
+            .collect();
+        assert_eq!(
+            periods,
+            ["ALL", "YTD", "LAST_YEAR", "TWO_YEARS_AGO"],
+            "{start:?}"
+        );
+    }
+}
+
+#[test]
+fn a_july_tax_year_has_its_own_periods_beside_the_calendar_ones() {
+    // 17 October 2026: tax year 2026 began on 1 July.
+    let _clock = clock::freeze(Utc.with_ymd_and_hms(2026, 10, 17, 12, 0, 0).unwrap());
+    let service = tax_year_service(
+        "07-01",
+        vec![
+            income("2024-07-01", "DIVIDEND", "SAP", "USD", dec!(1), "a"),
+            income("2025-06-30", "DIVIDEND", "SAP", "USD", dec!(2), "a"),
+            income("2025-07-01", "DIVIDEND", "SAP", "USD", dec!(4), "a"),
+            income("2026-06-30", "DIVIDEND", "SAP", "USD", dec!(8), "a"),
+            income("2026-07-01", "DIVIDEND", "SAP", "USD", dec!(16), "a"),
+        ],
+        "2024-07-01",
+    );
+    let summaries = service.get_income_summary(None).unwrap();
+
+    assert_eq!(summary(&summaries, "TAX_YTD").total_income, dec!(16));
+    assert_eq!(summary(&summaries, "LAST_TAX_YEAR").total_income, dec!(12));
+    assert_eq!(
+        summary(&summaries, "TWO_TAX_YEARS_AGO").total_income,
+        dec!(3)
+    );
+    assert_eq!(
+        summary(&summaries, "TAX_YTD").yoy_growth,
+        Some((dec!(16) - dec!(12)) / dec!(12))
+    );
+    // Calendar years are unchanged.
+    assert_eq!(summary(&summaries, "YTD").total_income, dec!(24));
+    assert_eq!(summary(&summaries, "LAST_YEAR").total_income, dec!(6));
+    assert_eq!(summary(&summaries, "TWO_YEARS_AGO").total_income, dec!(1));
+    assert_eq!(summary(&summaries, "ALL").total_income, dec!(31));
+
+    // The current tax year has run July through October; earlier ones twelve months.
+    assert_eq!(summary(&summaries, "TAX_YTD").monthly_average, dec!(4));
+    assert_eq!(
+        summary(&summaries, "LAST_TAX_YEAR").monthly_average,
+        dec!(1)
+    );
+    assert_eq!(
+        summary(&summaries, "TWO_TAX_YEARS_AGO").monthly_average,
+        dec!(0.25)
+    );
+}
+
+#[test]
+fn a_6_april_tax_year_splits_april_at_the_start_day() {
+    let _clock = clock::freeze(Utc.with_ymd_and_hms(2026, 10, 17, 12, 0, 0).unwrap());
+    let service = tax_year_service(
+        "04-06",
+        vec![
+            income("2026-04-05", "INTEREST", "CASH:USD", "USD", dec!(1), "a"),
+            income("2026-04-06", "INTEREST", "CASH:USD", "USD", dec!(2), "a"),
+        ],
+        "2026-01-01",
+    );
+    let summaries = service.get_income_summary(None).unwrap();
+    assert_eq!(summary(&summaries, "TAX_YTD").total_income, dec!(2));
+    assert_eq!(summary(&summaries, "LAST_TAX_YEAR").total_income, dec!(1));
+}

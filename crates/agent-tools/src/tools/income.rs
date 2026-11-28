@@ -73,8 +73,8 @@ impl AgentTool for GetIncome {
             "properties": {
                 "period": {
                     "type": "string",
-                    "enum": ["YTD", "LAST_YEAR", "ALL"],
-                    "description": "Time period for income summary: YTD (year to date), LAST_YEAR, or ALL (all time). Defaults to YTD."
+                    "enum": ["YTD", "LAST_YEAR", "TAX_YTD", "LAST_TAX_YEAR", "ALL"],
+                    "description": "Time period for income summary: YTD (calendar year to date), LAST_YEAR (last calendar year), TAX_YTD (tax year to date), LAST_TAX_YEAR (last tax year), or ALL (all time). Use the tax-year periods for a tax or financial year, such as 1 July – 30 June; they follow the user's tax year start setting and only exist when it isn't 1 January. Defaults to YTD."
                 }
             },
             "required": []
@@ -111,10 +111,20 @@ impl AgentTool for GetIncome {
             .iter()
             .find(|s| s.period == period_upper)
             .ok_or_else(|| {
-                AgentToolError::ExecutionFailed(format!(
-                    "Period '{}' not found in income data",
-                    period
-                ))
+                // With no income there are no periods at all, whatever the tax year.
+                if !summaries.is_empty()
+                    && matches!(period_upper.as_str(), "TAX_YTD" | "LAST_TAX_YEAR")
+                {
+                    // Tax years are calendar years then, which YTD and LAST_YEAR cover.
+                    AgentToolError::ExecutionFailed(
+                        "The user's tax year starts on 1 January, so tax years are calendar years: use YTD or LAST_YEAR instead".to_string(),
+                    )
+                } else {
+                    AgentToolError::ExecutionFailed(format!(
+                        "Period '{}' not found in income data",
+                        period
+                    ))
+                }
             })?;
 
         // Convert by_type HashMap<String, Decimal> -> HashMap<String, f64>

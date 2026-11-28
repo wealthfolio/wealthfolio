@@ -492,6 +492,13 @@
   },
   "timezone_title": "時區",
   "timezone_description": "選取日期、每日分組與年度投入界線使用的時區。",
+  "taxYearStart": {
+    "title": "課稅年度開始日",
+    "description": "您的課稅年度開始的日期。",
+    "month": "月",
+    "day": "日",
+    "current": "目前課稅年度：{{start}} - {{end}}"
+  },
   "about_db_path": "資料庫路徑",
   "about_copy_db_path": "複製資料庫路徑",
   "about_copy_logs_dir": "複製記錄目錄",

@@ -29,6 +29,7 @@ import {
 } from "@wealthfolio/ui/components/ui/select";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { cn } from "@wealthfolio/ui/lib/utils";
+import { TaxYearStartSelect } from "./tax-year-start-select";
 import { TimezoneInput } from "./timezone-input";
 import {
   detectBrowserTimezone,
@@ -378,6 +379,22 @@ export function LanguageRegionSettings() {
           <div className="w-full max-w-90">
             <TimezoneInput value={timezone} onChange={handleTimezoneChange} timezones={timezones} />
           </div>
+        </section>
+
+        <Separator />
+
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-medium">{t("settings:taxYearStart.title")}</h3>
+            <p className="text-muted-foreground text-sm">
+              {t("settings:taxYearStart.description")}
+            </p>
+          </div>
+          <TaxYearStartSelect
+            value={settings?.taxYearStart}
+            timezone={timezone}
+            onChange={(taxYearStart) => updateSettings({ taxYearStart })}
+          />
         </section>
       </CardContent>
     </Card>

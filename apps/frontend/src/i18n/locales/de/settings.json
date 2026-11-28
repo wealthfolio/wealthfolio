@@ -456,6 +456,13 @@
   },
   "timezone_title": "Zeitzone",
   "timezone_description": "Zeitzone für Datumsangaben, Tagesabschnitte und jährliche Einzahlungsgrenzen.",
+  "taxYearStart": {
+    "title": "Beginn des Steuerjahres",
+    "description": "Der Tag, an dem Ihr Steuerjahr beginnt.",
+    "month": "Monat",
+    "day": "Tag",
+    "current": "Aktuelles Steuerjahr: {{start}} - {{end}}"
+  },
   "about_db_path": "Datenbankpfad",
   "about_copy_db_path": "Datenbankpfad kopieren",
   "about_copy_logs_dir": "Log-Verzeichnis kopieren",

@@ -11,6 +11,8 @@ expression: snapshot
         "enum": [
           "YTD",
           "LAST_YEAR",
+          "TAX_YTD",
+          "LAST_TAX_YEAR",
           "ALL"
         ],
         "type": "string"
