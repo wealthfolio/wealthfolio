@@ -52,7 +52,11 @@ function Harness({ rows }: { rows: string[][] }) {
           [ImportFormat.QUANTITY]: "quantity",
           [ImportFormat.UNIT_PRICE]: "price",
         },
-        activityMappings: { [ActivityType.BUY]: ["buy"] },
+        activityMappings: {
+          [ActivityType.BUY]: ["buy"],
+          [ActivityType.TRANSFER_IN]: ["transfer in"],
+          [ActivityType.TRANSFER_OUT]: ["transfer out"],
+        },
       }),
     );
     dispatch(setParsedData(headers, rows));
@@ -82,7 +86,7 @@ function symbolsCard() {
   return within(screen.getByText("Symbols").closest<HTMLElement>('[role="alert"]')!);
 }
 
-describe("mapping a fund name in Symbol with a valid ISIN beside it", () => {
+describe("mapping symbols for activity imports", () => {
   beforeEach(() => {
     vi.mocked(getAccounts).mockResolvedValue([]);
     vi.mocked(listImportTemplates).mockResolvedValue([]);
@@ -110,5 +114,19 @@ describe("mapping a fund name in Symbol with a valid ISIN beside it", () => {
     expect(await symbolsCard().findByText("1 of 2 mapped")).toBeInTheDocument();
     expect(screen.getAllByPlaceholderText("Map symbol")).toHaveLength(1);
     expect(screen.getByTestId("can-proceed")).toHaveTextContent("false");
+  });
+
+  it("maps stock transfers and excludes cash transfers from symbol mapping", async () => {
+    renderMapping([
+      ["MSFT", "", "2026-10-01", "transfer in", "1", "100"],
+      ["AAPL", "", "2026-10-02", "transfer out", "1", "100"],
+      ["CASH:USD", "", "2026-10-03", "transfer in", "", ""],
+    ]);
+
+    expect(await symbolsCard().findByText("2 of 2 mapped")).toBeInTheDocument();
+    expect(screen.getByText("MSFT")).toBeInTheDocument();
+    expect(screen.getByText("AAPL")).toBeInTheDocument();
+    expect(screen.queryByText("CASH:USD")).not.toBeInTheDocument();
+    expect(screen.getByTestId("can-proceed")).toHaveTextContent("true");
   });
 });

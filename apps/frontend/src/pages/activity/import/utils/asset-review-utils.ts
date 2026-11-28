@@ -12,6 +12,7 @@ import type {
 import type { DraftActivity } from "../context";
 import type { AssetPreviewError } from "./asset-preview-error";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
+import { hasNonZeroValue } from "./review-draft-utils";
 
 export function applyAssetResolution(
   drafts: DraftActivity[],
@@ -157,10 +158,12 @@ function buildImportAssetCandidateKeyFromDraft(draft: DraftActivity): string | u
 export function buildImportAssetCandidateFromDraft(
   draft: DraftActivity,
 ): ImportAssetCandidate | null {
-  if (!draft.symbol || !draft.activityType) {
+  const { activityType, subtype, symbol, quantity, unitPrice } = draft;
+  if (!symbol || !activityType) {
     return null;
   }
-  if (!shouldResolveImportAsset(draft.activityType, draft.subtype, draft.symbol)) {
+  const hasNonzeroQuantityOrPrice = hasNonZeroValue(quantity) || hasNonZeroValue(unitPrice);
+  if (!shouldResolveImportAsset(activityType, subtype, symbol, hasNonzeroQuantityOrPrice)) {
     return null;
   }
   if (!draft.accountId) {
@@ -179,7 +182,7 @@ export function buildImportAssetCandidateFromDraft(
   return {
     key: shouldUseStoredKey && storedKey ? storedKey : computedKey,
     accountId: draft.accountId,
-    symbol: draft.symbol,
+    symbol,
     currency: draftAssetResolutionCurrency(draft),
     instrumentType: draft.instrumentType,
     quoteCcy: draft.quoteCcy,

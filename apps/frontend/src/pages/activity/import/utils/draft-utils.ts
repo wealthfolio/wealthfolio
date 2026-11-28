@@ -849,23 +849,6 @@ export function createDraftActivities(
     const { symbol: prefixParsedSymbol, instrumentType: prefixInstrumentType } =
       splitInstrumentPrefixedSymbol(mappedSymbol);
 
-    // An unmapped Symbol that isn't a symbol, such as a fund name, resolves by the
-    // row's valid ISIN and stays on as the asset's name. A type prefix still applies.
-    const trimmedRawSymbol = rawSymbol?.trim();
-    const isinSymbol =
-      trimmedRawSymbol &&
-      activityType &&
-      shouldResolveImportAsset(activityType, rawSubtype, trimmedRawSymbol) &&
-      !symbolMappings[trimmedRawSymbol]
-        ? isinFallbackSymbol(trimmedRawSymbol, rawIsin)
-        : undefined;
-    const symbol = isinSymbol ?? prefixParsedSymbol;
-    const symbolName = mappedSymbolName ?? (isinSymbol ? prefixParsedSymbol : undefined);
-
-    // Normalize instrument type: explicit CSV column > prefix > symbol mapping meta
-    const normalizedCsvInstrumentType = normalizeInstrumentType(rawInstrumentType);
-    const resolvedInstrumentType =
-      normalizedCsvInstrumentType || prefixInstrumentType || mappedInstrumentType;
     const quantity = parseNumericValue(
       rawQuantity,
       decimalFor(ImportFormat.QUANTITY),
@@ -876,6 +859,30 @@ export function createDraftActivities(
       decimalFor(ImportFormat.UNIT_PRICE),
       thousandsSeparator,
     );
+    const hasNonzeroQuantityOrPrice = hasNonZeroValue(quantity) || hasNonZeroValue(unitPrice);
+
+    // An unmapped Symbol that isn't a symbol, such as a fund name, resolves by the
+    // row's valid ISIN and stays on as the asset's name. A type prefix still applies.
+    const trimmedRawSymbol = rawSymbol?.trim();
+    const isinSymbol =
+      trimmedRawSymbol &&
+      activityType &&
+      shouldResolveImportAsset(
+        activityType,
+        rawSubtype,
+        trimmedRawSymbol,
+        hasNonzeroQuantityOrPrice,
+      ) &&
+      !symbolMappings[trimmedRawSymbol]
+        ? isinFallbackSymbol(trimmedRawSymbol, rawIsin)
+        : undefined;
+    const symbol = isinSymbol ?? prefixParsedSymbol;
+    const symbolName = mappedSymbolName ?? (isinSymbol ? prefixParsedSymbol : undefined);
+
+    // Normalize instrument type: explicit CSV column > prefix > symbol mapping meta
+    const normalizedCsvInstrumentType = normalizeInstrumentType(rawInstrumentType);
+    const resolvedInstrumentType =
+      normalizedCsvInstrumentType || prefixInstrumentType || mappedInstrumentType;
     let amount = parseNumericValue(rawAmount, decimalFor(ImportFormat.AMOUNT), thousandsSeparator);
     const rawCurrencyValue = rawCurrency?.trim();
     const currency = rawCurrencyValue || defaultCurrency;
