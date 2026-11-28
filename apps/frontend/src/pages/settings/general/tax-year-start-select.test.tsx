@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TaxYearStartSelect } from "./tax-year-start-select";
@@ -35,5 +35,26 @@ describe("TaxYearStartSelect", () => {
     await pick(user, "Month", "July");
 
     expect(await screen.findByRole("combobox", { name: "Month" })).toHaveTextContent("January");
+  });
+
+  it("keeps a later pick when an earlier save of the same start fails", async () => {
+    const user = userEvent.setup();
+    const saves: { reject: (error: Error) => void }[] = [];
+    const onChange = vi.fn(
+      () => new Promise<void>((_resolve, reject) => void saves.push({ reject })),
+    );
+    render(<TaxYearStartSelect value="01-01" timezone="UTC" onChange={onChange} />);
+
+    await pick(user, "Month", "July");
+    await pick(user, "Month", "August");
+    await pick(user, "Month", "July");
+    await act(async () => {
+      saves[0].reject(new Error("offline"));
+      // Let the rejection reach the save's handler.
+      await Promise.resolve();
+    });
+
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole("combobox", { name: "Month" })).toHaveTextContent("July");
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
@@ -37,12 +37,15 @@ export function TaxYearStartSelect({
   const [saving, setSaving] = useState<string | null>(null);
   if (saving !== null && saving === value) setSaving(null);
   const start = readTaxYearStart(saving ?? value);
+  // Counts picks, so a failed save knows whether a later pick replaced it.
+  const lastPick = useRef(0);
 
   const save = (next: string) => {
+    const pick = ++lastPick.current;
     setSaving(next);
     onChange(next).catch(() => {
       // Show the stored start again, unless a later pick is being saved.
-      setSaving((current) => (current === next ? null : current));
+      if (pick === lastPick.current) setSaving(null);
     });
   };
 
