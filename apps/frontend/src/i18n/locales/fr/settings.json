@@ -498,8 +498,8 @@
   "timezone_title": "Fuseau horaire",
   "timezone_description": "Choisissez le fuseau horaire utilisé pour les dates, les regroupements quotidiens et les limites annuelles de cotisation.",
   "taxYearStart": {
-    "title": "Début de l’année fiscale",
-    "description": "Le jour où commence votre année fiscale, par exemple le 1er juillet en Australie ou le 6 avril au Royaume-Uni. Les rapports annuels l’utilisent.",
+    "title": "Début de l'année fiscale",
+    "description": "Le jour où commence votre année fiscale, par exemple le 1er juillet en Australie ou le 6 avril au Royaume-Uni. Les rapports annuels l'utilisent.",
     "month": "Mois",
     "day": "Jour",
     "current": "Année fiscale en cours : {{start}} - {{end}}"

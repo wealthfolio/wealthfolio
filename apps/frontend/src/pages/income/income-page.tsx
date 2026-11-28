@@ -38,26 +38,43 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart } from "recharts";
 import { IncomeHistoryChart } from "./income-history-chart";
+import {
+  type IncomePeriod,
+  isTaxYearPeriod,
+  isYearToDatePeriod,
+  PREVIOUS_INCOME_PERIOD,
+} from "./income-period";
 import { UnconvertedCurrenciesNotice } from "./unconverted-currencies-notice";
-
-type IncomePeriod = "ALL" | "YTD" | "LAST_YEAR";
 
 const IncomePeriodSelector: React.FC<{
   selectedPeriod: IncomePeriod;
   onPeriodSelect: (period: IncomePeriod) => void;
-}> = ({ selectedPeriod, onPeriodSelect }) => {
+  showTaxYears: boolean;
+}> = ({ selectedPeriod, onPeriodSelect, showTaxYears }) => {
   const { t } = useTranslation();
 
-  const periods = [
-    { value: "YTD" as const, label: t("income:year_to_date") },
-    { value: "LAST_YEAR" as const, label: t("income:last_year") },
-    { value: "ALL" as const, label: t("income:all_time") },
+  const periods: { value: IncomePeriod; label: string }[] = [
+    { value: "YTD", label: t("income:year_to_date") },
+    { value: "LAST_YEAR", label: t("income:last_year") },
+    ...(showTaxYears
+      ? [
+          { value: "TAX_YTD" as const, label: t("income:tax_year_to_date") },
+          { value: "LAST_TAX_YEAR" as const, label: t("income:last_tax_year") },
+        ]
+      : []),
+    { value: "ALL", label: t("income:all_time") },
   ];
 
-  const mobilePeriods = [
-    { value: "YTD" as const, label: t("income:ytd") },
-    { value: "LAST_YEAR" as const, label: t("income:last_yr") },
-    { value: "ALL" as const, label: t("income:all") },
+  const mobilePeriods: { value: IncomePeriod; label: string }[] = [
+    { value: "YTD", label: t("income:ytd") },
+    { value: "LAST_YEAR", label: t("income:last_yr") },
+    ...(showTaxYears
+      ? [
+          { value: "TAX_YTD" as const, label: t("income:tax_ytd") },
+          { value: "LAST_TAX_YEAR" as const, label: t("income:last_tax_yr") },
+        ]
+      : []),
+    { value: "ALL", label: t("income:all") },
   ];
 
   return (
@@ -86,7 +103,7 @@ const IncomePeriodSelector: React.FC<{
 
 export default function IncomePage() {
   const { t } = useTranslation();
-  const [selectedPeriod, setSelectedPeriod] = useState<IncomePeriod>("ALL");
+  const [chosenPeriod, setSelectedPeriod] = useState<IncomePeriod>("ALL");
   const { isBalanceHidden } = useBalancePrivacy();
   const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -104,16 +121,30 @@ export default function IncomePage() {
     queryFn: () => getIncomeSummary(accountFilter),
   });
 
+  // The server adds tax-year periods when the tax year doesn't start on 1 January.
+  const showTaxYears = incomeData?.some((summary) => summary.period === "TAX_YTD") ?? false;
+  // A tax year chosen before the setting went back to 1 January falls back to All Time.
+  const selectedPeriod: IncomePeriod =
+    !showTaxYears && isTaxYearPeriod(chosenPeriod) ? "ALL" : chosenPeriod;
+
   // Keep the selector mounted as queries change so multi-selection can continue
   // through loading, empty, populated and error states.
   const filters = (
     <>
       <div className="pointer-events-auto fixed end-2 top-4 z-20 hidden items-center gap-2 md:flex lg:end-4">
         <AccountScopeSelector value={accountFilter} onChange={setAccountScope} />
-        <IncomePeriodSelector selectedPeriod={selectedPeriod} onPeriodSelect={setSelectedPeriod} />
+        <IncomePeriodSelector
+          selectedPeriod={selectedPeriod}
+          onPeriodSelect={setSelectedPeriod}
+          showTaxYears={showTaxYears}
+        />
       </div>
       <div className="mb-6 flex items-center justify-end gap-2 md:hidden">
-        <IncomePeriodSelector selectedPeriod={selectedPeriod} onPeriodSelect={setSelectedPeriod} />
+        <IncomePeriodSelector
+          selectedPeriod={selectedPeriod}
+          onPeriodSelect={setSelectedPeriod}
+          showTaxYears={showTaxYears}
+        />
         <AccountScopeSelector value={accountFilter} onChange={setAccountScope} />
       </div>
     </>
@@ -179,13 +210,12 @@ export default function IncomePage() {
     const previousYear = parseInt(year) - 1;
     const previousMonth = month;
 
-    if (selectedPeriod === "YTD") {
+    if (isYearToDatePeriod(selectedPeriod)) {
       return totalSummary.byMonth[`${previousYear}-${month}`] || 0;
-    } else if (selectedPeriod === "LAST_YEAR") {
+    } else if (selectedPeriod !== "ALL") {
       return (
-        incomeData.find((summary) => summary.period === "TWO_YEARS_AGO")?.byMonth[
-          `${previousYear}-${month}`
-        ] || 0
+        incomeData.find((summary) => summary.period === PREVIOUS_INCOME_PERIOD[selectedPeriod])
+          ?.byMonth[`${previousYear}-${month}`] || 0
       );
     }
 
@@ -200,12 +230,7 @@ export default function IncomePage() {
   ]);
 
   // Compare the server-computed monthly averages. All Time has no previous period.
-  const previousPeriod =
-    selectedPeriod === "YTD"
-      ? "LAST_YEAR"
-      : selectedPeriod === "LAST_YEAR"
-        ? "TWO_YEARS_AGO"
-        : null;
+  const previousPeriod = PREVIOUS_INCOME_PERIOD[selectedPeriod];
   const previousMonthlyAverage =
     Number(incomeData.find((summary) => summary.period === previousPeriod)?.monthlyAverage) || 0;
 
@@ -222,7 +247,11 @@ export default function IncomePage() {
   const noComparisonLabel =
     selectedPeriod === "LAST_YEAR"
       ? t("income:no_comparison_year_before")
-      : t("income:no_comparison_last_year");
+      : selectedPeriod === "LAST_TAX_YEAR"
+        ? t("income:no_comparison_tax_year_before")
+        : selectedPeriod === "TAX_YTD"
+          ? t("income:no_comparison_last_tax_year")
+          : t("income:no_comparison_last_year");
 
   // Only converted income gets a slice: income without an exchange rate has
   // none, and a zero-sized slice would still add padding to the pie.
@@ -250,7 +279,11 @@ export default function IncomePage() {
                   ? t("income:all_time_income")
                   : selectedPeriod === "LAST_YEAR"
                     ? t("income:last_year_income")
-                    : t("income:this_year_income")}
+                    : selectedPeriod === "TAX_YTD"
+                      ? t("income:this_tax_year_income")
+                      : selectedPeriod === "LAST_TAX_YEAR"
+                        ? t("income:last_tax_year_income")
+                        : t("income:this_year_income")}
               </CardTitle>
               <Icons.DollarSign className="text-muted-foreground h-4 w-4" />
             </CardHeader>

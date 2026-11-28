@@ -26,6 +26,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts";
+import type { IncomePeriod } from "./income-period";
 
 // Round a raw step up to a "nice" value (1, 2, 2.5, 5, 10 × 10ⁿ).
 function niceStep(rawStep: number): number {
@@ -60,7 +61,7 @@ function getAlignedTicks(maxValue: number, tickCount: number): number[] {
 interface IncomeHistoryChartProps {
   monthlyIncomeData: [string, number][];
   previousMonthlyIncomeData: [string, number][];
-  selectedPeriod: "ALL" | "YTD" | "LAST_YEAR";
+  selectedPeriod: IncomePeriod;
   currency: string;
   isBalanceHidden: boolean;
   byAccount?: Record<string, IncomeByAccount>;
@@ -150,12 +151,13 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
     [accounts],
   );
 
-  const periodDescription =
-    selectedPeriod === "ALL"
-      ? t("income:all_time")
-      : selectedPeriod === "YTD"
-        ? t("income:year_to_date")
-        : t("income:last_year");
+  const periodDescription = {
+    ALL: t("income:all_time"),
+    YTD: t("income:year_to_date"),
+    LAST_YEAR: t("income:last_year"),
+    TAX_YTD: t("income:tax_year_to_date"),
+    LAST_TAX_YEAR: t("income:last_tax_year"),
+  }[selectedPeriod];
 
   // Render evenly-spaced labels (every Nth month) instead of letting Recharts
   // auto-thin, which produced irregular 2-then-3-month gaps.

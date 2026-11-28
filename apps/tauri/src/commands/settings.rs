@@ -109,6 +109,8 @@ pub async fn update_settings(
         context.health_service().clear_cache().await;
     }
 
+    context.update_tax_year_start(updated_settings.tax_year_start.clone());
+
     if let Some(market_sync_mode) =
         recalculate_mode_for_settings_change(base_currency_changed, timezone_changed)
     {

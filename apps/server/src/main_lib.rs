@@ -101,6 +101,7 @@ pub struct AppState {
     pub quote_service: Arc<dyn QuoteServiceTrait + Send + Sync>,
     pub base_currency: Arc<RwLock<String>>,
     pub timezone: Arc<RwLock<String>>,
+    pub tax_year_start: Arc<RwLock<String>>,
     pub snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
     /// Direct repository handle. No handler reads it currently — snapshot
     /// access goes through `snapshot_service`. Retained for tests and any
@@ -515,6 +516,7 @@ async fn initialize_profile_state(
     let settings = settings_service.get_settings()?;
     let base_currency = Arc::new(RwLock::new(settings.base_currency));
     let timezone = Arc::new(RwLock::new(settings.timezone.clone()));
+    let tax_year_start = Arc::new(RwLock::new(settings.tax_year_start.clone()));
     let rating_instance_id = settings_service
         .get_setting_value("instance_id")?
         .ok_or_else(|| anyhow::anyhow!("Missing internal instance ID"))?;
@@ -761,12 +763,15 @@ async fn initialize_profile_state(
         ),
     );
 
-    let income_service = Arc::new(IncomeService::new_with_timezone(
-        fx_service.clone(),
-        activity_repository.clone(),
-        base_currency.clone(),
-        timezone.clone(),
-    ));
+    let income_service = Arc::new(
+        IncomeService::new_with_timezone(
+            fx_service.clone(),
+            activity_repository.clone(),
+            base_currency.clone(),
+            timezone.clone(),
+        )
+        .with_tax_year_start(tax_year_start.clone()),
+    );
 
     let goal_repository = Arc::new(GoalRepository::new(pool.clone(), writer.clone()));
     let goal_service = Arc::new(
@@ -1198,6 +1203,7 @@ async fn initialize_profile_state(
         quote_service,
         base_currency,
         timezone,
+        tax_year_start,
         snapshot_service,
         snapshot_repository,
         lots_repository,

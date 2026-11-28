@@ -9,6 +9,7 @@ use chrono_tz::Tz;
 
 use super::IncomeSummary;
 use crate::fx::FxServiceTrait;
+use crate::settings::{TaxYearStart, DEFAULT_TAX_YEAR_START};
 use log::{debug, error};
 use num_traits::Zero;
 use rust_decimal::Decimal;
@@ -23,6 +24,9 @@ pub struct IncomeService {
     activity_repository: Arc<dyn ActivityRepositoryTrait>,
     base_currency: Arc<RwLock<String>>,
     timezone: Arc<RwLock<String>>,
+    /// The tax year's start day (`MM-DD`). Tax-year periods are added when it
+    /// isn't 1 January.
+    tax_year_start: Arc<RwLock<String>>,
 }
 
 impl IncomeService {
@@ -50,7 +54,22 @@ impl IncomeService {
             activity_repository,
             base_currency,
             timezone,
+            tax_year_start: Arc::new(RwLock::new(DEFAULT_TAX_YEAR_START.to_string())),
         }
+    }
+
+    /// Shares the settings' tax year start, kept current as the setting changes.
+    pub fn with_tax_year_start(mut self, tax_year_start: Arc<RwLock<String>>) -> Self {
+        self.tax_year_start = tax_year_start;
+        self
+    }
+
+    fn tax_year_start(&self) -> TaxYearStart {
+        let value = self
+            .tax_year_start
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        TaxYearStart::parse(&value).unwrap_or_default()
     }
 
     fn user_timezone(&self) -> Tz {
@@ -104,6 +123,10 @@ impl IncomeServiceTrait for IncomeService {
         let last_year = current_year - 1;
         let two_years_ago = current_year - 2;
         let current_month = current_date.month();
+        let tax_year_start = self.tax_year_start();
+        // Calendar years already have their own periods.
+        let tax_years = (!tax_year_start.is_calendar_year()).then_some(tax_year_start);
+        let current_tax_year = tax_year_start.tax_year_of(current_date);
 
         // Scope baseline date to member accounts so monthly-average denominators are correct.
         // Falls back to portfolio-wide when no filter.
@@ -147,11 +170,22 @@ impl IncomeServiceTrait for IncomeService {
             month_index(two_years_ago, 1),
             month_index(two_years_ago, 12),
         );
+        // A tax year counts the 12 months from the one it starts in. With a
+        // mid-month start (6 April), the month it starts in counts whole.
+        let months_in_tax_year = |year: i32| {
+            let (first_day, _) = tax_year_start.range(year);
+            let start = month_index(first_day.year(), first_day.month());
+            months_between(start, start + 11)
+        };
 
         let mut total_summary = IncomeSummary::new("ALL", base_currency.clone());
         let mut ytd_summary = IncomeSummary::new("YTD", base_currency.clone());
         let mut last_year_summary = IncomeSummary::new("LAST_YEAR", base_currency.clone());
         let mut two_years_ago_summary = IncomeSummary::new("TWO_YEARS_AGO", base_currency.clone());
+        let mut tax_ytd_summary = IncomeSummary::new("TAX_YTD", base_currency.clone());
+        let mut last_tax_year_summary = IncomeSummary::new("LAST_TAX_YEAR", base_currency.clone());
+        let mut two_tax_years_ago_summary =
+            IncomeSummary::new("TWO_TAX_YEARS_AGO", base_currency.clone());
 
         for activity in activities {
             // Income counts toward the month and year of the day it was
@@ -206,6 +240,17 @@ impl IncomeServiceTrait for IncomeService {
             } else if date.year() == two_years_ago {
                 add(&mut two_years_ago_summary);
             }
+
+            if let Some(start) = tax_years {
+                let tax_year = start.tax_year_of(date);
+                if tax_year == current_tax_year {
+                    add(&mut tax_ytd_summary);
+                } else if tax_year == current_tax_year - 1 {
+                    add(&mut last_tax_year_summary);
+                } else if tax_year == current_tax_year - 2 {
+                    add(&mut two_tax_years_ago_summary);
+                }
+            }
         }
 
         total_summary.calculate_monthly_average(Some(months_since_first_transaction));
@@ -239,12 +284,42 @@ impl IncomeServiceTrait for IncomeService {
             .extend(two_years_ago_summary.unconverted_currencies.iter().cloned());
 
         // Round monetary values before returning, not the ratios formatted as percentages.
-        let summaries = vec![
+        let mut summaries = vec![
             total_summary,
             ytd_summary,
             last_year_summary,
             two_years_ago_summary,
         ];
+
+        if tax_years.is_some() {
+            tax_ytd_summary.calculate_monthly_average(Some(months_in_tax_year(current_tax_year)));
+            last_tax_year_summary
+                .calculate_monthly_average(Some(months_in_tax_year(current_tax_year - 1)));
+            two_tax_years_ago_summary
+                .calculate_monthly_average(Some(months_in_tax_year(current_tax_year - 2)));
+            tax_ytd_summary.yoy_growth = IncomeService::calculate_yoy_growth(
+                tax_ytd_summary.total_income,
+                last_tax_year_summary.total_income,
+            );
+            last_tax_year_summary.yoy_growth = IncomeService::calculate_yoy_growth(
+                last_tax_year_summary.total_income,
+                two_tax_years_ago_summary.total_income,
+            );
+            tax_ytd_summary
+                .unconverted_currencies
+                .extend(last_tax_year_summary.unconverted_currencies.iter().cloned());
+            last_tax_year_summary.unconverted_currencies.extend(
+                two_tax_years_ago_summary
+                    .unconverted_currencies
+                    .iter()
+                    .cloned(),
+            );
+            summaries.extend([
+                tax_ytd_summary,
+                last_tax_year_summary,
+                two_tax_years_ago_summary,
+            ]);
+        }
 
         let rounded_summaries = summaries
             .into_iter()
